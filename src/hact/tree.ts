@@ -845,6 +845,99 @@ export function optimizeGreedy(
 }
 
 
+// Helper: generate multiple split strategies for the hybrid optimizer
+function getSplitStrategies(
+  lo: number,
+  hi: number,
+  k: number,
+  p: ActivationMatrix,
+): number[][] {
+  const span = hi - lo + 1;
+  const strategies: number[][] = [];
+
+  // Strategy 1: Even splits
+  const even: number[] = [];
+  const cs = Math.ceil(span / k);
+  let l = lo;
+  for (let c = 0; c < k - 1; c++) {
+    const r = Math.min(l + cs - 1, hi - (k - c - 1));
+    even.push(r);
+    l = r + 1;
+  }
+  even.push(hi);
+  strategies.push(even);
+
+  // Strategy 2: p-weighted splits (put boundaries where p changes most)
+  if (span > k * 2) {
+    const boundaries: { idx: number; score: number }[] = [];
+    for (let i = lo; i < hi; i++) {
+      let score = 0;
+      for (let j = lo; j <= hi; j++) {
+        if (j <= i) score += p[lo][i] * (1 - p[i + 1][hi]);
+        else score += (1 - p[lo][i]) * p[i + 1][hi];
+      }
+      boundaries.push({ idx: i, score: Math.abs(score) });
+    }
+    boundaries.sort((a, b) => b.score - a.score);
+    const bestBoundaries = boundaries.slice(0, k - 1).map(b => b.idx).sort((a, b) => a - b);
+    const pSplits = [...bestBoundaries, hi];
+    // Validate: strictly increasing, starting after lo
+    let valid = true;
+    let prev = lo - 1;
+    for (let i = 0; i < pSplits.length; i++) {
+      if (pSplits[i] <= prev) { valid = false; break; }
+      prev = pSplits[i];
+    }
+    if (valid) strategies.push(pSplits);
+  }
+
+  // Strategy 3: Local search from even splits
+  if (strategies.length > 0) {
+    const searched = [...even];
+    let improved = true;
+    let iter = 0;
+    while (improved && iter < 15) {
+      improved = false;
+      iter++;
+      for (let i = 0; i < k - 1; i++) {
+        const lower = i === 0 ? lo : searched[i - 1] + 1;
+        const upper = i === k - 2 ? hi - 1 : searched[i + 1] - 1;
+        // Try moving right
+        if (searched[i] + 1 <= upper) {
+          searched[i]++;
+          const newCost = splitScore(lo, hi, searched, p);
+          searched[i]--;
+          const oldCost = splitScore(lo, hi, searched, p);
+          if (newCost < oldCost) { searched[i]++; improved = true; }
+        }
+        // Try moving left
+        if (searched[i] - 1 >= lower) {
+          searched[i]--;
+          const newCost = splitScore(lo, hi, searched, p);
+          searched[i]++;
+          const oldCost = splitScore(lo, hi, searched, p);
+          if (newCost < oldCost) { searched[i]--; improved = true; }
+        }
+      }
+    }
+    if (!strategies.some(s => s.join(',') === searched.join(','))) {
+      strategies.push(searched);
+    }
+  }
+
+  return strategies;
+}
+
+function splitScore(lo: number, hi: number, splits: number[], p: ActivationMatrix): number {
+  let score = 0;
+  let left = lo;
+  for (let i = 0; i < splits.length; i++) {
+    score += p[left][splits[i]];
+    left = splits[i] + 1;
+  }
+  return score;
+}
+
 // Hybrid optimization: exact DP for small subtrees, greedy for large
 export function optimizeHybrid(
   n: number,
@@ -891,33 +984,42 @@ export function optimizeHybrid(
     let bestK = 2;
     let bestSplits: number[] = [];
     for (let k = 2; k <= maxK; k++) {
-      const childSize = Math.ceil(span / k);
-      const splits: number[] = [];
-      let l = lo;
-      for (let c = 0; c < k - 1; c++) {
-        const r = Math.min(l + childSize - 1, hi - (k - c - 1));
-        splits.push(r);
-        l = r + 1;
+      // Try multiple split strategies for this arity
+      const strategies = getSplitStrategies(lo, hi, k, p);
+      for (const splits of strategies) {
+        let feasible = true;
+        let lt = lo;
+        for (let c = 0; c < k; c++) {
+          const childSpan = splits[c] - lt + 1;
+          let cc = 1;
+          for (let d = 0; d < depth - 1; d++) cc *= model.maxArity;
+          if (childSpan > cc) { feasible = false; break; }
+          lt = splits[c] + 1;
+        }
+        if (!feasible) continue;
+        // Use exact DP cost for small subtrees, p-weighted estimate for large
+        let cost = p[lo][hi] * model.packetBytes(k);
+        let lt2 = lo;
+        for (let c = 0; c < k; c++) {
+          const right = splits[c];
+          const childSpan = right - lt2 + 1;
+          if (childSpan <= threshold && childSpan > 1) {
+            const subModel: CostModel = { ...model, maxHeight: depth - 1 };
+            const subP: Float64Array[] = [];
+            for (let i = lt2; i <= right; i++) {
+              const row = new Float64Array(childSpan);
+              for (let j = lt2; j <= right; j++) row[j - lt2] = p[i][j];
+              subP.push(row);
+            }
+            const subResult = optimize(childSpan, subModel, subP);
+            cost += subResult.expectedBytes;
+          } else if (childSpan > 1) {
+            cost += p[lt2][right] * model.packetBytes(Math.min(model.maxArity, childSpan));
+          }
+          lt2 = right + 1;
+        }
+        if (cost < bestCost) { bestCost = cost; bestK = k; bestSplits = splits; }
       }
-      splits.push(hi);
-      let feasible = true;
-      let lt = lo;
-      for (let c = 0; c < k; c++) {
-        const childSpan = splits[c] - lt + 1;
-        let cc = 1;
-        for (let d = 0; d < depth - 1; d++) cc *= model.maxArity;
-        if (childSpan > cc) { feasible = false; break; }
-        lt = splits[c] + 1;
-      }
-      if (!feasible) continue;
-      let cost = p[lo][hi] * model.packetBytes(k);
-      let lt2 = lo;
-      for (let c = 0; c < k; c++) {
-        const right = splits[c];
-        if (right > lt2) cost += p[lt2][right] * model.packetBytes(Math.min(model.maxArity, right - lt2 + 1));
-        lt2 = right + 1;
-      }
-      if (cost < bestCost) { bestCost = cost; bestK = k; bestSplits = splits; }
     }
 
     if (bestCost === Infinity) {
