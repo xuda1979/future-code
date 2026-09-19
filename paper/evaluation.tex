@@ -111,6 +111,31 @@ An additional retained-data auditor does not import the optimizer, kernel, produ
 
 \subsection{Hybrid optimizer and scaling characteristics}\label{sec:hybrid}
 The TypeScript port introduces a hybrid optimizer that uses the exact DP for
-subtrees with at most {\text{thresh}}$ gates and a greedy heuristic for
-larger subtrees. With {\text{thresh}}=128$, the hybrid matches the exact
-DP for all  \le 128$ while scaling to =512$ in under 1 second.
+subtrees with at most $n_{\text{thresh}}$ gates and a multi-strategy greedy
+heuristic for larger subtrees. The greedy top level evaluates even splits,
+$p$-weighted boundary splits, and local-search refined splits, then selects
+the split that minimizes exact subtree costs. With $n_{\text{thresh}}=128$,
+the hybrid matches the exact DP for all $n \le 128$ while scaling to $n=512$.
+
+Table~\ref{tab:hybrid-256} reports byte reductions at $n=256$ with
+$n_{\text{thresh}}=128$, where all six workload families achieve positive
+reductions versus the balanced baseline.
+
+\begin{table}[ht]
+\centering
+\caption{Hybrid optimizer at $n=256$ with $n_{\text{thresh}}=128$:
+mean expected bytes and percentage reduction versus fixed-8 balanced.}
+\label{tab:hybrid-256}
+\begin{tabular}{lrrr}
+\toprule
+Workload & HACT & Balanced & Reduction (\%)\\
+\midrule
+Singleton & 1597 & 1664 & 4.0\\
+Skewed singleton & 1184 & 1664 & 28.8\\
+Independent & 13981 & 14097 & 0.8\\
+Clustered & 2415 & 2702 & 10.6\\
+Mixed & 4884 & 4986 & 2.1\\
+Global & 23424 & 30336 & 22.8\\
+\bottomrule
+\end{tabular}
+\end{table}
