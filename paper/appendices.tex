@@ -1,0 +1,38 @@
+\appendix
+\section{Exact Data Generation and Reproduction}
+The synthetic generator uses NumPy's \texttt{default\_rng} initialized with a \texttt{SeedSequence} whose entries are \texttt{[260918, n, seed, stream]}. Stream zero produces training episodes and stream one held-out episodes. Group construction uses \texttt{SeedSequence([7001,seed,n])}. Each group draws an integer size from 3 through 12 and truncates at the final leaf. Pilot seeds 1000 and 1001 are excluded from all main tables. Scaling sizes other than 128 have their own saved records; the four reused 128-gate seeds are clearly identified in the analysis.
+
+The executable fixture uses \texttt{SeedSequence([83012,seed,stream])}. It contains one fault and one repair per selected module group; the two phases within a pair are not treated as independent replications. Interrupted fixture runs append completed snapshot records to a journal and replay those records when resuming. They do not reclassify incomplete work as a completed seed. The summary is emitted only after all 32 snapshots for that seed exist. Runtime interruptions encountered during development motivated this resumable execution path; final tables use complete records only.
+
+The main commands, from the extracted research root, are:
+\begin{verbatim}
+python -m pytest -q
+python -m experiments.synthetic --family clustered --n 128 --seeds 20
+python -m experiments.executable --seeds 6 --out results/executable_fresh
+python -m experiments.sensitivity
+python -m experiments.aggregate
+python -m experiments.validate_results
+\end{verbatim}
+The fresh executable output directory prevents replay of the supplied journal. Copying new results into the canonical results directory before aggregation is an explicit operator action; the README details that step. The README gives all six primary-family commands, the scaling loop, bounded resumable fixture commands, and the \LaTeX\ build. The artifact separates raw results from regenerated tables. Nothing in these commands contacts an LLM endpoint.
+
+\section{Certificate Encoding and Trust-Boundary Details}
+Each capsule contains \texttt{range}, \texttt{counts}, \texttt{binding}, \texttt{evidence}, and \texttt{registry}. Hash fields are 64-character lowercase SHA-256 hexadecimal encodings. Canonical JSON uses sorted keys, ASCII escapes, and compact separators. In a packet, the header occupies 512 bytes including its newline; each child card occupies 320 bytes including its newline. Padding makes byte accounting exact. Fixed padding is not asserted to be a token-optimal production encoding. A binary or tokenizer-aware encoding would define a new price function and require re-evaluation.
+
+The trusted verifier API rejects mismatched bindings, invalid verdicts, and malformed trace hashes. It is intentionally not exposed as a tool through which an untrusted LLM can certify its own work. Returned display capsules are compared with canonical trusted records rather than accepted because their self-reported hashes appear valid. This local design demonstrates record integrity and freshness under its trust assumptions; distributed authenticated transport and credential isolation remain host-runtime responsibilities.
+
+The optimizer's $O(bn^3)$ claim concerns planning. The reference kernel prioritizes clarity and scans interval generation stamps; it also hashes tree descriptions. We do not infer an asymptotically optimal runtime-update implementation from the communication bound. Large-scale implementations could use range-maximum indexes and cached topology digests, but those optimizations are outside the evaluated prototype.
+
+\section{Evidence-to-Claim Register}
+\begin{table}[h]\centering\small
+\caption{Audit map for the paper's main claims.}
+\begin{tabularx}{\linewidth}{@{}p{.29\linewidth}Xp{.20\linewidth}@{}}\toprule
+Claim & Evidence & Scope boundary\\\midrule
+Exact ordered optimum & Theorem~\ref{thm:dp}; exhaustive enumeration tests & Fixed order and price model\\
+Marginals can be insufficient & Theorem~\ref{thm:separation}; exact five-shape test & Specified binary instance\\
+Finite-sample selection control & Theorem~\ref{thm:generalization} & IID stationary episodes; bound may be loose\\
+Declared-contract soundness & Theorem~\ref{thm:soundness}; stale and tamper tests & Trusted complete checker contract\\
+Clustered traffic reduction & 20 held-out workload seeds; raw masks and costs & Synthetic workload distribution\\
+Executable traffic reduction & Six seeds, 192 snapshots, actual packets & Small scripted mutation fixture\\
+Packet cap maintained & Serializer checks, scale records, packet-length assertions & Certificate packet, not full model request\\
+Production or LLM-quality improvement & Not measured & No such claim\\
+\bottomrule\end{tabularx}\end{table}

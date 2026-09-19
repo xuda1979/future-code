@@ -676,14 +676,21 @@ export function optimizeGreedy(
       }
       if (!feasible) continue;
 
+      // Compute cost: root packet + estimated subtree costs
       let cost = p[lo][hi] * model.packetBytes(k);
 
-      // Estimate subtree costs using p values
+      // Better estimate: recursively estimate subtree cost
       let left2 = lo;
       for (let c = 0; c < k; c++) {
         const right = splits[c];
-        if (right > left2) {
-          cost += p[left2][right] * model.packetBytes(Math.min(model.maxArity, right - left2 + 1));
+        const childSpan = right - left2 + 1;
+        if (childSpan > 1 && depth > 1) {
+          // Estimate: at each level, cost ≈ p[child] * avg_packet_bytes
+          // For a balanced subtree of depth-1 with childSpan leaves:
+          // internal nodes ≈ childSpan - 1, each activated with probability p
+          const internalNodes = Math.ceil(childSpan / Math.min(model.maxArity, childSpan)) - 1;
+          const avgArity = Math.min(model.maxArity, childSpan);
+          cost += p[left2][right] * model.packetBytes(avgArity) * Math.max(1, Math.ceil(Math.log(childSpan) / Math.log(model.maxArity)));
         }
         left2 = right + 1;
       }

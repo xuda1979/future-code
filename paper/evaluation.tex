@@ -1,0 +1,110 @@
+\section{Implementation and Experimental Protocol}\label{sec:experiments}
+\subsection{Prototype and relationship to the agent runtime}
+The supplied Future Code Control v1.2.0 archive is a Python companion with hierarchical tasks, bounded contexts, durable state, and executable gates. We extracted it, checked its ZIP integrity, and independently reran its existing suite: 263 tests passed. This establishes the available baseline artifact, not an empirical advantage of HACT.
+
+HACT is implemented as a separate research package. Its tree optimizer, certificate kernel, experiments, and tests do not replace the baseline scheduler or claim production integration. A future adapter would consume trusted gate events and dependency closures, then supply bounded certificate packets to existing task coordinators. Model-generated explanations remain separate from canonical verdicts.
+
+The evaluated environment was Linux x86\_64, Python 3.13.5, NumPy 2.3.5, SciPy 1.17.0, and Matplotlib 3.10.8. All experiments ran locally on CPU. No hosted language model, paid inference, external deployment, or GPU/NPU was used. Planner timings are wall-clock observations in this container, not dedicated-hardware throughput measurements. The exact environment record is included.
+
+\subsection{Common baselines and budget}
+All methods share the same registry order, invalidation sets, checker outputs, and $(H,S,C)=(512,320,3072)$ byte format. Fixed-$b$ baselines build bottom-up consecutive groups of at most $b$ children; singleton groups are promoted without inserting unary nodes. We report fixed arities 2, 4, and 8. A stronger \emph{tuned fixed} baseline chooses one arity from 2 through 8 by minimizing \emph{training} cost, never test cost. The \emph{marginal} baseline uses Equation~\eqref{eq:independence} with the exact same dynamic program as HACT. No baseline is allowed to drop checks, change leaf order, or weaken the context cap.
+
+A flat, all-obligation scanner would require $512+320n$ bytes in one packet: 41,472 bytes at $n=128$. It violates the cap and is therefore not used as a competitive constrained baseline. It remains useful as a conceptual correctness oracle, not as an artificially weak system against which to advertise scaling.
+
+\subsection{Synthetic invalidation study}
+The primary protocol was recorded before the main measurements. There are six families, 20 independent seeds per family, and $n=128$ gates. Each seed has 512 training episodes and 2,048 held-out episodes from independent random streams. In total there are 61,440 training and 245,760 held-out episodes. The retained Boolean masks permit reconstruction of every set.
+
+\begin{table}[t]\centering\small
+\caption{Synthetic generators. Gate indices and group ranks start at zero in the implementation.}\label{tab:generators}
+\begin{tabularx}{\linewidth}{@{}p{.21\linewidth}X@{}}\toprule
+Family & Definition of one invalidation episode\\\midrule
+Singleton & Exactly one gate selected uniformly.\\
+Skewed singleton & Exactly one gate, with probability proportional to $(i+1)^{-1.1}$.\\
+Independent & Each gate independently included with probability $4/n$; empty sets are retained.\\
+Clustered & Partition into contiguous groups of random size 3--12, truncating the final group. With probability 0.2 choose a uniform singleton; otherwise choose a complete group with rank weight $(r+1)^{-0.8}$.\\
+Mixed & Use the same group construction. Probability 0.1 selects all gates, 0.3 a uniform singleton, and 0.6 a complete weighted group.\\
+Global & Every episode contains all gates.\\
+\bottomrule\end{tabularx}\end{table}
+
+For each seed and method, the outcome is the mean held-out bytes per episode. Percentage reduction is computed \emph{within each seed} as $100(1-\overline L_{\mathrm{HACT}}/\overline L_{\mathrm{baseline}})$ and then averaged across seeds. Confidence intervals are two-sided 95\% Student-$t$ intervals over independent seeds. We do not count 2,048 correlated method comparisons within one workload as 2,048 independent replications. Intervals are unadjusted descriptive intervals, not family-wise corrected hypothesis tests.
+
+\subsection{Scaling and exploratory sensitivity}
+The prespecified scaling study uses clustered workloads at $n\in\{32,64,128,256,512\}$ with four seeds per size. The $n=128$ values reuse matching seeds from the primary study and are not additional independent trials. The remaining sizes contribute 32,768 held-out episodes. We retain tree depth, maximum packet bytes, refreshed-node counts, full-refresh bytes, and optimizer wall time.
+
+After the main runs, exploratory checks vary training count (32, 128, 512), impose depth 3 or 4, randomly permute the shared leaf order, and evaluate a cluster-trained tree on independent invalidations. These four-seed diagnostics are explicitly post-main-study analyses; they did not select the primary configuration or determine which primary results to report.
+
+\subsection{Executable mutation microbenchmark}
+A separate fixture contains 16 generated Python modules. Module $i$ implements $f_i(x)=x+i$. Four unit obligations evaluate $x\in\{-2,0,5,19\}$. One cross-module obligation checks $f_i(f_{(i+1)\bmod16}(3))=3+i+((i+1)\bmod16)$. There are therefore 80 obligations in a fixed order.
+
+For each of six seeds, 16 pairs of edits select one to three adjacent modules with a hotspot-weighted starting position. The first edit deliberately adds one to the first selected module's output; the second restores the intended function. Revision comments ensure that all selected source hashes change. Each seed's tree is learned from 512 independent training module-edit sets, translated to complete declared invalidation closures. No check result from the 32 evaluation snapshots selects a tree.
+
+Each snapshot is immutable source text. A fresh Python subprocess executes the affected predicates; a separately launched full-registry invocation supplies the oracle comparison. Both use the protected checker, so this is independent \emph{execution scope}, not an independently designed semantic oracle. All five certificate layouts consume the same actual check records. We measure the lengths of packets produced by the kernel and require equality with Equation~\eqref{eq:episode}. We also attempt to use the previous publication ticket after each edit and require its rejection. The mutations are scripted; no agent is credited with discovering or repairing them.
+
+\section{Results}
+\subsection{Held-out traffic and the correlation ablation}
+Tables~\ref{tab:main} and~\ref{tab:gains} report all six workload families. Figure~\ref{fig:gains} visualizes paired reductions. On clustered updates, HACT averages 6.51 KiB per episode, versus 8.28 KiB for tuned fixed and 8.27 KiB for marginal-only optimization. The mean paired reductions are 21.35\% [20.45, 22.24] and 21.25\% [20.27, 22.23], respectively. This supports the proposed co-invalidation mechanism on the tested generator.
+
+\begin{table}[t]\centering\small
+\caption{Mean held-out internal refresh traffic in KiB per episode; 20 seeds per family. One KiB is 1,024 bytes. Costs omit tree-invariant gate execution and initial construction.}\label{tab:main}
+\begin{tabular}{@{}lrrrrrr@{}}\toprule
+Workload & Fixed 2 & Fixed 4 & Fixed 8 & Tuned fixed & Marginal & HACT\\\midrule
+\MainRows
+\bottomrule\end{tabular}\end{table}
+
+\begin{table}[t]\centering\small
+\caption{Mean paired percentage reduction by HACT, with 95\% seed-level confidence intervals. Positive values favor HACT; negative values indicate a regression.}\label{tab:gains}
+\begin{tabular}{@{}lrr@{}}\toprule
+Workload & Versus tuned fixed (\%) & Versus marginal (\%)\\\midrule
+\GainRows
+\bottomrule\end{tabular}\end{table}
+
+The independent family is an important counterexample to a universal advantage. HACT is 0.51\% worse than the marginal-only model, with interval [0.38, 0.63]\% for the degradation. The factorized model has the correct within-episode structure there, while empirical interval frequencies incur additional estimation variation. HACT still improves over tuned fixed by 5.04\%, which distinguishes the benefit of flexible tree shape from the benefit of modeling correlation.
+
+Uniform singleton updates yield essentially a tie with tuned fixed: the paired HACT change is $-0.02$\% [${-0.22},0.18$]. Skewed singleton updates favor flexible trees over fixed fanout by 25.30\%, but HACT's incremental gain over the marginal optimizer is only 1.44\%. The latter comparator incorrectly treats mutually exclusive singleton events as independent Bernoulli activations; it is not an oracle for that family. Mixed local/global episodes produce reductions of 9.45\% and 15.93\% versus the two stronger baselines. Global updates tie the exact lower bound of Proposition~\ref{prop:global}. Reporting only the clustered condition would conceal these distinctions.
+
+\begin{figure}[t]\centering
+\includegraphics[width=.94\linewidth]{generated/gains.pdf}
+\caption{Held-out paired percentage reductions; bars are 95\% intervals across 20 independent seeds. The marginal-only comparison reverses under independent invalidations, and the global condition is an exact tie.}\label{fig:gains}
+\end{figure}
+
+\subsection{Scale, depth, and planner cost}
+Table~\ref{tab:scale} shows that the hard certificate-packet cap remains 3,072 bytes through 512 obligations. The planner took 0.008 seconds at 32 obligations and 3.491 seconds at 512 in the measured container. These observations are compatible with the cubic dynamic program; they do not establish a large-cluster deployment limit. At 512 gates the learned depths ranged from 6 to 11, demonstrating why packet size alone is not a latency guarantee.
+
+\begin{table}[t]\centering\small
+\caption{Clustered scaling study, four seeds per size. Planner times include the optimizer and reconstruction, but exclude workload generation and interval-frequency estimation. Depth is the observed minimum--maximum across seeds.}\label{tab:scale}
+\begin{tabular}{@{}rrrrrr@{}}\toprule
+Gates & Tuned fixed (KiB) & HACT (KiB) & Planner (s) & Depth & Max packet (B)\\\midrule
+\ScaleRows
+\bottomrule\end{tabular}\end{table}
+
+The gate count is not a live-LLM concurrency count. Internal nodes are deterministic aggregation operations, not persistent managers that each need a language-model session. The prototype remains a single-process local certificate kernel; it does not demonstrate multi-host availability or fault-tolerant distributed scheduling.
+
+\subsection{Executable checks and actual serialization}
+Across the six executable seeds there were 192 evaluated snapshots: 96 faulty and 96 repaired. The selective path ran 1,992 gate checks, while the offline full-registry oracle ran 15,360. Initial certification adds 80 checks per seed and is reported separately from snapshot costs. Selective-check counts are the same for every tree; HACT does not claim their reduction as a topology benefit.
+
+All five layouts agreed with the full oracle on every snapshot. There were zero falsely passing roots among the 480 faulty snapshot--layout decisions, and all 480 repaired decisions passed. All 960 prior-ticket attempts after an edit were rejected. Actual packet lengths agreed exactly with the analytical episode cost, and no packet exceeded the cap. These are finite tests of the declared fixture, not a general estimated failure probability for production.
+
+\begin{table}[t]\centering\small
+\caption{Executable microbenchmark: actual serialized refresh traffic in KiB per snapshot. Intervals are across six independent seed means. All layouts have identical checker evidence and zero oracle disagreements.}\label{tab:executable}
+\begin{tabular}{@{}lrr@{}}\toprule
+Layout & Mean (KiB) & 95\% interval (KiB)\\\midrule
+\ExecutableRows
+\bottomrule\end{tabular}\end{table}
+
+HACT reduces traffic by a mean paired 12.44\% [9.50, 15.38] relative to tuned fixed and 15.99\% [10.75, 21.22] relative to marginal-only optimization. Table~\ref{tab:executable} gives the unpaired method means for context. A safety claim cannot be credited only to HACT here: the sound fixed trees also preserve the predicate. The experimentally isolated advantage is lower communication for the same observed gate evidence.
+
+\subsection{Exploratory diagnostics and failure modes}
+For the four diagnostic clustered seeds, using only 32 training episodes produces 8,855 bytes per episode and depths 15--27; 128 episodes gives 6,929 bytes, and 512 gives 6,840 bytes. Sparse empirical data can leave many intervals apparently inactive, leading the unconstrained tie-breaking rule to choose long branches. There is no theorem that a small context automatically induces a good decomposition or adequate training coverage.
+
+A hard depth-three variant averages 6,991 bytes, approximately 2.2\% above the 512-example unconstrained result, while reducing all depths to three. Depth four averages 6,836 bytes and happens to be slightly better on held-out data despite a restricted feasible family; empirical optimum need not minimize test risk. These exploratory observations support exposing depth as a separate policy parameter rather than prescribing eight children everywhere.
+
+Randomly permuting the common leaf order raises HACT's mean traffic from 6,840 to 16,917 bytes; the permuted tuned-fixed baseline averages 21,418. Thus order materially affects absolute cost, even when correlation-aware placement retains a relative advantage on these four seeds. HACT's optimality theorem cannot be used to claim order-invariant efficiency.
+
+Finally, applying the cluster-trained unconstrained tree to independent test episodes gives 18,007 bytes versus 16,402 for the cluster-selected fixed baseline, a degradation of about 9.8\% by the ratio of these diagnostic means. The stationary selection theorem does not protect against this shift. An operational system needs drift monitoring and a conservative fallback; a learned tree should not be frozen indefinitely merely because it was once optimal on training traces.
+
+\subsection{Implementation verification}
+The HACT test suite contains 90 passing cases. It compares the unconstrained optimizer with exhaustive ordered-tree enumeration through seven leaves and the height-constrained optimizer through six leaves. Other cases validate expected-cost identities, the four-leaf separation, disjoint coverage, unknown propagation, stale evidence, tampered displays, publication races, byte limits, and topology-switching freshness. Ten randomized tests exercise 60 edit/revalidation/tree-switch cycles each. A subprocess test independently executes the 80-gate fixture and detects six failed predicates after a single-module fault.
+
+These tests use the actual runtime modules of the research package. The saved failing stale-cache regression demonstrates detection of a genuine implementation error before correction. Passing tests and informal mathematical proofs are not a machine-checked verification of the full implementation. The original companion's 263 passing tests and HACT's 90 passing tests are distinct suites, not a combined claim that the new algorithm was already integrated into the original runtime.
+
+An additional retained-data auditor does not import the optimizer, kernel, producer cost helpers, or fixture checker. It recomputes interval traffic directly from Boolean masks, validates tree coverage and source hashes, independently evaluates the fixture arithmetic, and reproduces seed-level summaries. All primary, scale, and executable records pass this audit; a deliberately corrupted tree is rejected. This is a separate code path, not independent human verification, and exploratory sensitivity records are outside its audit scope.
