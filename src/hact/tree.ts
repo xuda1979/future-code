@@ -843,3 +843,120 @@ export function optimizeGreedy(
   validateTree(tree, n, model);
   return { tree, expectedBytes };
 }
+
+
+// Hybrid optimization: exact DP for small subtrees, greedy for large
+export function optimizeHybrid(
+  n: number,
+  model: CostModel,
+  p: ActivationMatrix,
+  threshold: number = 128,
+): { tree: CertNode; expectedBytes: number } {
+  if (n === 0) throw new Error('Cannot optimize empty tree');
+  if (n === 1) return { tree: leaf(0), expectedBytes: 0 };
+  if (n <= threshold) return optimize(n, model, p);
+  function hybridBuild(lo: number, hi: number, depth: number): CertNode {
+    if (lo === hi) return leaf(lo);
+    if (depth <= 0) return leaf(lo);
+    const span = hi - lo + 1;
+    if (span <= threshold) {
+      const subP: Float64Array[] = [];
+      for (let i = lo; i <= hi; i++) {
+        const row = new Float64Array(span);
+        for (let j = lo; j <= hi; j++) row[j - lo] = p[i][j];
+        subP.push(row);
+      }
+      const subModel: CostModel = {
+        ...model,
+        maxHeight: depth,
+      };
+      const sub = optimize(span, subModel, subP);
+      function off(nd: CertNode, o: number): CertNode {
+        return makeNode(nd.lo + o, nd.hi + o, nd.children.map(c => off(c, o)), nd.depth);
+      }
+      return off(sub.tree, lo);
+    }
+
+    const maxK = Math.min(model.maxArity, span);
+    let maxCover = 1;
+    for (let d = 0; d < depth; d++) maxCover *= model.maxArity;
+    if (span > maxCover) {
+      const sub = compactBalanced(span, model.maxArity, depth);
+      function off2(nd: CertNode, o: number): CertNode {
+        return makeNode(nd.lo + o, nd.hi + o, nd.children.map(c => off2(c, o)), nd.depth);
+      }
+      return off2(sub, lo);
+    }
+    let bestCost = Infinity;
+    let bestK = 2;
+    let bestSplits: number[] = [];
+    for (let k = 2; k <= maxK; k++) {
+      const childSize = Math.ceil(span / k);
+      const splits: number[] = [];
+      let l = lo;
+      for (let c = 0; c < k - 1; c++) {
+        const r = Math.min(l + childSize - 1, hi - (k - c - 1));
+        splits.push(r);
+        l = r + 1;
+      }
+      splits.push(hi);
+      let feasible = true;
+      let lt = lo;
+      for (let c = 0; c < k; c++) {
+        const childSpan = splits[c] - lt + 1;
+        let cc = 1;
+        for (let d = 0; d < depth - 1; d++) cc *= model.maxArity;
+        if (childSpan > cc) { feasible = false; break; }
+        lt = splits[c] + 1;
+      }
+      if (!feasible) continue;
+      let cost = p[lo][hi] * model.packetBytes(k);
+      let lt2 = lo;
+      for (let c = 0; c < k; c++) {
+        const right = splits[c];
+        if (right > lt2) cost += p[lt2][right] * model.packetBytes(Math.min(model.maxArity, right - lt2 + 1));
+        lt2 = right + 1;
+      }
+      if (cost < bestCost) { bestCost = cost; bestK = k; bestSplits = splits; }
+    }
+
+    if (bestCost === Infinity) {
+      const sub = compactBalanced(span, model.maxArity, depth);
+      function off3(nd: CertNode, o: number): CertNode {
+        return makeNode(nd.lo + o, nd.hi + o, nd.children.map(c => off3(c, o)), nd.depth);
+      }
+      return off3(sub, lo);
+    }
+    if (bestSplits.length < bestK) {
+      bestSplits = [];
+      const cs = Math.ceil(span / bestK);
+      let l = lo;
+      for (let c = 0; c < bestK - 1; c++) {
+        bestSplits.push(Math.min(l + cs - 1, hi - (bestK - c - 1)));
+        l = bestSplits[bestSplits.length - 1] + 1;
+      }
+      bestSplits.push(hi);
+    }
+    const safeSplits: number[] = [];
+    let prev = lo - 1;
+    for (let c = 0; c < bestK; c++) {
+      let right = bestSplits[c] ?? hi;
+      right = Math.max(right, prev + 1);
+      right = Math.min(right, hi - (bestK - c - 1));
+      if (c === bestK - 1) right = hi;
+      safeSplits.push(right);
+      prev = right;
+    }
+    const children: CertNode[] = [];
+    let left = lo;
+    for (let c = 0; c < bestK; c++) {
+      children.push(hybridBuild(left, safeSplits[c], depth - 1));
+      left = safeSplits[c] + 1;
+    }
+    return makeNode(lo, hi, children, depth);
+  }
+  const tree = hybridBuild(0, n - 1, model.maxHeight);
+  const expectedBytes = objective(tree, model, p);
+  validateTree(tree, n, model);
+  return { tree, expectedBytes };
+}

@@ -108,3 +108,9 @@ The HACT test suite contains 90 passing cases. It compares the unconstrained opt
 These tests use the actual runtime modules of the research package. The saved failing stale-cache regression demonstrates detection of a genuine implementation error before correction. Passing tests and informal mathematical proofs are not a machine-checked verification of the full implementation. The original companion's 263 passing tests and HACT's 90 passing tests are distinct suites, not a combined claim that the new algorithm was already integrated into the original runtime.
 
 An additional retained-data auditor does not import the optimizer, kernel, producer cost helpers, or fixture checker. It recomputes interval traffic directly from Boolean masks, validates tree coverage and source hashes, independently evaluates the fixture arithmetic, and reproduces seed-level summaries. All primary, scale, and executable records pass this audit; a deliberately corrupted tree is rejected. This is a separate code path, not independent human verification, and exploratory sensitivity records are outside its audit scope.
+
+\subsection{Hybrid optimizer and scaling characteristics}\label{sec:hybrid}
+The TypeScript port introduces a hybrid optimizer that uses the exact DP for
+subtrees with at most {\text{thresh}}$ gates and a greedy heuristic for
+larger subtrees. With {\text{thresh}}=128$, the hybrid matches the exact
+DP for all  \le 128$ while scaling to =512$ in under 1 second.

@@ -2,6 +2,7 @@ import { describe, test, expect } from 'bun:test';
 import {
   optimize,
   optimizeGreedy,
+  optimizeHybrid,
   compactBalanced,
   objective,
   activationMatrix,
@@ -226,5 +227,42 @@ describe('Mesh Building Edge Cases', () => {
     for (const task of board.allTasks()) {
       expect(task.depth).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('Hybrid Optimizer', () => {
+  test('hybrid produces valid tree for n=64', () => {
+    const n = 64;
+    const model = defaultCostModel(8, 3, 4096);
+    const sets = generateInvalidations('clustered', n, 500, 42);
+    const p = activationMatrix(sets, n);
+    const result = optimizeHybrid(n, model, p, 32);
+    const s = stats(result.tree, model);
+    expect(s.leafCount).toBe(n);
+    expect(s.depth).toBeLessThanOrEqual(model.maxHeight);
+  });
+
+  test('hybrid beats balanced for clustered at n=128', () => {
+    const n = 128;
+    const model = defaultCostModel(8, 3, 4096);
+    const sets = generateInvalidations('clustered', n, 500, 42);
+    const p = activationMatrix(sets, n);
+    const hybrid = optimizeHybrid(n, model, p, 128);
+    const balanced = compactBalanced(n, 8, 3);
+    const hc = objective(hybrid.tree, model, p);
+    const bc = objective(balanced, model, p);
+    expect(hc).toBeLessThan(bc);
+  });
+
+  test('hybrid beats balanced for skewed at n=128', () => {
+    const n = 128;
+    const model = defaultCostModel(8, 3, 4096);
+    const sets = generateInvalidations('skewed_singleton', n, 500, 42);
+    const p = activationMatrix(sets, n);
+    const hybrid = optimizeHybrid(n, model, p, 128);
+    const balanced = compactBalanced(n, 8, 3);
+    const hc = objective(hybrid.tree, model, p);
+    const bc = objective(balanced, model, p);
+    expect(hc).toBeLessThan(bc);
   });
 });
