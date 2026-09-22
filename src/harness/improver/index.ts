@@ -177,6 +177,9 @@ export const quarantineRepeatFailure: ImprovementRule = ({ manifest, report, his
     let streak = 1; // the current report counts as the first failure
     for (let i = runs.length - 1; i >= 0; i--) {
       const rec = runs[i];
+      // The current run may already be recorded in history (the CLI records
+      // before improving) — never count the same run twice.
+      if (rec.runId === report.runId) continue;
       const outcome = rec.gateResults?.[gateId];
       if (outcome === undefined) continue; // gate not present in this record
       if (outcome === false) streak++;
@@ -198,8 +201,58 @@ export const quarantineRepeatFailure: ImprovementRule = ({ manifest, report, his
   return null;
 };
 
+/**
+ * Built-in rule: promote an advisory gate back to required once it has
+ * proven stable — the inverse of quarantineRepeatFailure, completing the
+ * demote→repair→promote lifecycle the builder's advisory gates promise.
+ *
+ * A gate that has passed the last N consecutive runs (default 5) is stable
+ * enough to block again; the promotion is proposed so its effect (and the
+ * evidence trail) is recorded in the improvement history, never silently
+ * flipped.
+ */
+export const promoteStableAdvisoryGate: ImprovementRule = ({ manifest, report, history }) => {
+  const runs = history ?? [];
+  const PROMOTION_RUNS = 5;
+
+  // Candidate: advisory gates that passed in the current run.
+  const advisoryGates = manifest.gates.filter((g) => g.required === false);
+  if (!advisoryGates.length) return null;
+  const passedNow = new Set(
+    report.gates.filter((g) => g.passed && g.gateId).map((g) => g.gateId as string),
+  );
+  const candidates = advisoryGates.filter((g) => passedNow.has(g.id));
+  if (!candidates.length) return null;
+
+  for (const gate of candidates) {
+    // Count consecutive passes of this gate: the current report counts as
+    // the first pass, then walk history newest-first. The current run may
+    // already be recorded in history (the CLI records before improving) —
+    // never count the same run twice.
+    let streak = 1; // the current report counts as the first pass
+    for (let i = runs.length - 1; i >= 0; i--) {
+      const rec = runs[i];
+      if (rec.runId === report.runId) continue;
+      const outcome = rec.gateResults?.[gate.id];
+      if (outcome === undefined) break; // gate absent from this record — streak ends
+      if (outcome === true) streak++;
+      else break;
+    }
+    if (streak < PROMOTION_RUNS) continue;
+
+    return {
+      id: nextId(manifest),
+      description: `Advisory gate "${gate.id}" has passed ${streak} consecutive runs; promoting to required so it blocks again.`,
+      changes: { [`gates.${gate.id}.required`]: true },
+      rationale: `consecutive_passes[${gate.id}]=${streak} >= ${PROMOTION_RUNS}; required=false→true (promotion)`,
+      approved: false,
+    };
+  }
+  return null;
+};
+
 /** Default set of rules, in priority order. */
-export const defaultRules: ImprovementRule[] = [widenContextOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow, widenTimeoutOnHang, quarantineRepeatFailure];
+export const defaultRules: ImprovementRule[] = [widenContextOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow, widenTimeoutOnHang, quarantineRepeatFailure, promoteStableAdvisoryGate];
 
 /**
  * Run the improver against the latest report. Returns proposals; applying a
