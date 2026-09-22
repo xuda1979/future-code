@@ -158,8 +158,12 @@ export FUTURE_CODE_PROVIDER_MANAGED_BY_HOST=1
 export FUTURE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="${FUTURE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-1}"
 export DISABLE_TELEMETRY="${DISABLE_TELEMETRY:-1}"
 export FUTURE_BASE_URL="$ENDPOINT"
+# Auth: export ONLY the API key. Setting both FUTURE_API_KEY and
+# FUTURE_AUTH_TOKEN triggers the binary's auth-conflict banner in the REPL
+# ("Both a token and an API key are set. This may lead to unexpected
+# behavior.") — the claude wrapper avoids this by unsetting the token.
+unset FUTURE_AUTH_TOKEN
 export FUTURE_API_KEY="$local_key"
-export FUTURE_AUTH_TOKEN="$local_key"
 export FUTURE_MODEL="$MODEL"
 export FUTURE_SMALL_FAST_MODEL="$MODEL"
 export FUTURE_DEFAULT_HAIKU_MODEL="$MODEL"
