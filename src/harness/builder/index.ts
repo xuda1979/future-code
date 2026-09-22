@@ -88,6 +88,12 @@ export function build(projectRoot: string, options: { harnessId?: string; scope?
     config: {
       maxParallel: 1,
       contextBudget: 1,
+      // The scribe's write-phase is bounded by the harness scope: when the
+      // harness is scoped (e.g. future-code self-applies to "tests/harness"),
+      // the scribe only scaffolds modules inside that boundary and only
+      // writes tests into it or its tests/ mirror. Unscoped harnesses may
+      // scaffold the whole project.
+      scribeRoot: options.scope ?? undefined,
       improvementPolicy: {
         cost_per_run_threshold_usd: 0.0,
         slow_gate_seconds: 15,

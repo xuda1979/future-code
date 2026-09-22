@@ -1,10 +1,10 @@
 /**
- * future-code agent-management platform — public API.
+ * future-code harness — public surface.
  *
- * Exposes the harness-builder, registry, runtime, self-monitor, and
- * self-improver so the platform (and any larger orchestrator) can create,
- * run, watch, and tune project-specific harnesses. future-code is where a
- * project harness is born, built, maintained, and lives.
+ * The harness is the project-specific self-improving loop: builder →
+ * runtime → monitor → improver → scribe, all bounded-context.
+ * future-code is where a project harness is born, built, maintained,
+ * and lives.
  *
  * All agents use bounded context — the context budget enforcer ensures
  * no agent ever receives unbounded or long context.
@@ -18,6 +18,7 @@ export * from "./builder/detect.ts";
 export * from "./runtime/index.ts";
 export * from "./monitor/index.ts";
 export * from "./improver/index.ts";
+export * from "./scribe/index.ts";
 
 /** Platform version (matches the repo era). */
 export const PLATFORM_VERSION = "0.1.0-harness";

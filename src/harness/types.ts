@@ -133,14 +133,78 @@ export interface HarnessManifest {
     contextBudget: number;
     /** Rules that drive the improver (keyed by metric). */
     improvementPolicy: Record<string, unknown>;
+    /**
+     * Directory (relative to project root) that bounds the scribe's
+     * write-phase: only modules under this root are scaffolded, and
+     * scaffolds are only written into it or its test mirror. Empty or
+     * undefined means the whole project (minus ignored dirs). Set by the
+     * builder from the harness scope so the write-phase stays inside the
+     * platform's own module boundary.
+     */
+    scribeRoot?: string;
   };
   /** History of improver decisions. */
   improvementHistory: ImprovementProposal[];
   /** Persisted run records, newest last, for self-monitoring + improver. */
   runHistory: HarnessRunRecord[];
+  /** Bounded audit trail of scribe (code-writing) actions. Optional for older manifests. */
+  scribeLog?: ScribeAction[];
 }
 
 /** Interface every harness runtime loop must implement. */
 export interface HarnessRuntime {
   run(task: string, manifest: HarnessManifest): Promise<RunReport>;
+}
+
+/** One scribe (code-writing) action, for the audit trail. */
+export interface ScribeAction {
+  id: string;
+  /** What the scribe did: "plan" | "write" | "promote" | "quarantine" | "skip". */
+  kind: "plan" | "write" | "promote" | "quarantine" | "skip";
+  /** Target module path (relative to project root). */
+  target: string;
+  /** Path of the written/staged file, relative to project root. */
+  file?: string;
+  /** Human-readable rationale, always recorded. */
+  rationale: string;
+  at: string;
+}
+
+/** A scribe plan: which modules deserve scaffold tests, and why. */
+export interface ScribePlanEntry {
+  /** Source module path, relative to project root. */
+  module: string;
+  /** Test file path the scribe would write (in the staging dir). */
+  testFile: string;
+  /** Why this module was selected (untested, stale, etc). */
+  reason: "untested" | "stale";
+  /** Exported symbols detected in the module. */
+  exports: string[];
+}
+
+/** Result of one scribe planning pass. */
+export interface ScribePlan {
+  /** Modules selected for scaffold-writing, in priority order. */
+  entries: ScribePlanEntry[];
+  /** Modules the scribe will not touch (already covered), for transparency. */
+  skipped: { module: string; reason: string }[];
+  /** Bounded planning context the scribe agent "saw". */
+  context: string;
+  /** Token estimate of the planning context. */
+  contextTokens: number;
+}
+
+/** Result of scribing (writing + validating) one plan entry. */
+export interface ScribeResult {
+  entry: ScribePlanEntry;
+  /** Outcome of writing + validating the scaffold. */
+  outcome: "promoted" | "quarantined" | "skipped";
+  /** Path of the final file (staged or promoted), relative to root. */
+  file: string;
+  /** Validation command output (bounded), when run. */
+  output?: string;
+  /** Exit code of the validation run. */
+  exitCode?: number;
+  /** True when the validation process was killed for exceeding its timeout. */
+  timedOut?: boolean;
 }

@@ -102,11 +102,32 @@ It includes:
 ## 4. Self-* loop (the heart)
 
 ```
+   scribe (write: draft scaffold tests for uncovered modules,
+           validate in isolation, promote or quarantine)
+        │
+        ▼
    run ──► record metrics ──► monitor (SLO ok?)
                 ▲                    │ no
                 │                    ▼
         update manifest ◄── improver (propose change + rationale)
 ```
+
+The full loop is **plan → write → run → monitor → improve**. The scribe is
+the *write* half: the harness no longer only runs pre-defined gates, it
+authors code (scaffold tests) itself. Scribe rules:
+
+- **Deterministic:** scaffolds are derived from the module's exports —
+  no LLM, no network; the same module always yields the same test.
+- **Nothing broken ships:** every scaffold validates in an isolated copy
+  of the source tree through the project's real test runner *before* any
+  file enters the project; failures quarantine (with output retained),
+  never promote.
+- **Bounded:** the write-phase stays inside `config.scribeRoot` (the
+  harness scope); its planning context is budget-truncated like every
+  agent's; the audit trail (`manifest.scribeLog`) is bounded like
+  `improvementHistory`.
+- **No vacuous output:** type-only modules (which would yield a
+  `true === true` tautology) are skipped, not scaffolded.
 
 - **Adaptive:** runtime selects among harness configurations from live
   conditions (not hardcoded).
@@ -116,12 +137,16 @@ It includes:
   against a retained baseline before adopting.
 - **Self-monitoring:** SLOs with clear regression signals; failures retained, not
   silently dropped.
+- **Self-writing:** the scribe drafts, validates, and promotes scaffold tests
+  for uncovered modules — the harness extends what it measures.
 
 **Honesty guardrails** (from our own review discipline):
 - Metrics and claims are measured, not assumed.
 - Improvements require a matched-quality comparison against the prior
   configuration; cost is counted, not hidden.
 - Delete nothing irreplaceable; keep history and rationale for every change.
+- Every scribe action is audited: promote, quarantine, and skip decisions
+  carry their rationale in `scribeLog`.
 
 ---
 
@@ -153,12 +178,23 @@ Phase 1 (now):
 - `src/harness/runtime` — `run(manifest, task)` loop with a minimal gate + monitor
 - `src/harness/monitor` — metrics + SLO evaluation
 - `src/harness/improver` — a first, rule-based improver with audit trail
-- `src/harness/cli.ts` — `harness build|run|monitor|improve|log` subcommands
+- `src/harness/scribe` — the write-phase: deterministic scaffold tests for
+  uncovered modules, validated in isolation, promoted or quarantined, fully
+  audited in `manifest.scribeLog`; bounded by `config.scribeRoot`
+- `src/harness/cli.ts` — `harness build|run|monitor|improve|log|scribe` subcommands
 - `tests/harness/` — unit tests for builders/runtime/monitor/improver
 - A **self-applied example**: build a harness for the future-code repo itself. ✅
   `bun src/harness/cli.ts selfapply` converges the repo's own ~200s test
   suite from a fresh harness in a single invocation (3 iterations: 60s kill →
   widen to 120s → 120s kill → widen to 240s → suite completes healthy).
+  With the scribe, the loop is plan → write → run → monitor → improve:
+  the write-phase drafted and promoted scaffold tests for previously
+  uncovered platform modules (`tests/harness/registry.test.ts`,
+  `tests/harness/builder/detect.test.ts`) before the run-phase measured
+  them, skipped the mirrored research snapshot in `src/` via
+  `scribeRoot=src/harness`, refused a vacuous scaffold for the type-only
+  `types.ts`, and then converged healthy in 1 iteration (verified
+  2026-09-22: `pass_rate: 1, scribeActions: 6`).
 
 Later phases (not this session):
 - HACT certificate gate integration (optional, pluggable).

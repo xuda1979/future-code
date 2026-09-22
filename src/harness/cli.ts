@@ -1,9 +1,10 @@
 /**
  * future-code harness CLI — the platform's control surface.
- * Subcommands: build | run | monitor | improve | log | selfapply | context
+ * Subcommands: build | run | monitor | improve | log | selfapply | context | scribe
  *
  * These let the platform create (build), execute (run), watch (monitor),
- * tune (improve), inspect decisions (log), and self-apply (selfapply) the
+ * tune (improve), inspect decisions (log), self-apply (selfapply), write
+ * code/tests (scribe), and check context budgets (context) the
  * project-specific harness that lives inside future-code.
  */
 import { build } from "./builder/index.ts";
@@ -14,6 +15,9 @@ import { annotate, healthy, summary } from "./monitor/index.ts";
 import { improve, applyProposal, shouldApply } from "./improver/index.ts";
 import { recordRun, recentRuns, passRateTrend, runtimeTrend } from "./history.ts";
 import { resolveBudget, boundedMonitorContext, boundedImproverContext, estimateTokens } from "./context.ts";
+import { runScribe } from "./scribe/index.ts";
+import { existsSync, statSync } from "node:fs";
+import { join } from "node:path";
 import type { HarnessManifest } from "./types.ts";
 
 interface Ctx { project: string; verbose: boolean; scope?: string; }
@@ -100,6 +104,7 @@ async function main(): Promise<void> {
       const rtTrend = runtimeTrend(ctx.project, 10);
       console.log(JSON.stringify({
         improvementHistory: m.improvementHistory ?? [],
+        scribeLog: m.scribeLog ?? [],
         recentRuns: runs,
         passRateTrend: prTrend,
         runtimeTrend: rtTrend,
@@ -107,9 +112,38 @@ async function main(): Promise<void> {
       break;
     }
     case "selfapply": {
-      // future-code applies its own platform loop to itself.
+      // future-code applies its own platform loop to itself. The write-phase
+      // boundary is specific to future-code's own repo: src/ holds the
+      // mirrored Future Code CLI snapshot (security research) which the
+      // design doc forbids modifying, so when self-applying on the platform
+      // itself the scribe is bounded to src/harness — the platform's own
+      // module. Other projects have no such boundary and keep scribeRoot
+      // unset (whole project, minus ignored dirs).
       if (!hasManifest(ctx.project)) build(ctx.project, { harnessId: "future-code-harness", scope: ctx.scope });
       const m = loadManifest(ctx.project);
+      if (!m.config.scribeRoot) {
+        const platformHome = join(ctx.project, "src", "harness");
+        if (existsSync(platformHome) && statSync(platformHome).isDirectory()) {
+          m.config.scribeRoot = "src/harness";
+        }
+      }
+      // Write-phase: before iterating run→improve, the scribe drafts scaffold
+      // tests for uncovered modules. Each promoted scaffold widens the unit
+      // gate's coverage, so the run-phase measures more of the project. This
+      // is the "write code" half of the platform loop: plan → write → run →
+      // monitor → improve.
+      try {
+        const scribeOut = await runScribe(ctx.project, m, { maxModules: 3 });
+        m.scribeLog = scribeOut.manifest.scribeLog;
+        saveManifest(ctx.project, m);
+        const promoted = scribeOut.results.filter((r) => r.outcome === "promoted").length;
+        note(ctx, `scribe: planned ${scribeOut.plan.entries.length}, promoted ${promoted}, quarantined ${scribeOut.results.filter((r) => r.outcome === "quarantined").length}`);
+        for (const sr of scribeOut.results) {
+          note(ctx, `scribe ${sr.outcome}: ${sr.entry.module} -> ${sr.file}`);
+        }
+      } catch (e) {
+        note(ctx, `scribe phase skipped: ${(e as Error).message}`);
+      }
       // The self-apply loop iterates to convergence: run → improve → apply →
       // re-run, until the harness is healthy or a bound stops it. Bounds:
       // MAX_ITERATIONS caps total work; a no-progress iteration (nothing
@@ -156,6 +190,32 @@ async function main(): Promise<void> {
         iterations: iteration,
         metrics: r.metrics,
         runHistory: (m.runHistory ?? []).length,
+        scribeActions: (m.scribeLog ?? []).length,
+      }, null, 2));
+      break;
+    }
+    case "scribe": {
+      // The write-phase: draft, validate, and promote scaffold tests for
+      // uncovered modules. Deterministic, quarantined on failure, fully audited.
+      const m = loadManifest(ctx.project);
+      const maxIdx = process.argv.indexOf("--max");
+      const maxModules = maxIdx >= 0 ? parseInt(process.argv[maxIdx + 1], 10) || 5 : 5;
+      const rootIdx = process.argv.indexOf("--scribe-root");
+      if (rootIdx >= 0) m.config.scribeRoot = process.argv[rootIdx + 1];
+      const out = await runScribe(ctx.project, m, { maxModules });
+      m.scribeLog = out.manifest.scribeLog;
+      saveManifest(ctx.project, m);
+      console.log(JSON.stringify({
+        planned: out.plan.entries.length,
+        skipped: out.plan.skipped.length,
+        contextTokens: out.plan.contextTokens,
+        results: out.results.map((r) => ({
+          module: r.entry.module,
+          outcome: r.outcome,
+          file: r.file,
+          exitCode: r.exitCode ?? null,
+        })),
+        scribeLog: out.manifest.scribeLog ?? [],
       }, null, 2));
       break;
     }
@@ -193,7 +253,7 @@ async function main(): Promise<void> {
       break;
     }
     default:
-      console.log("usage: harness build|run|monitor|improve|log|selfapply|context [--project <dir>] [--verbose]");
+      console.log("usage: harness build|run|monitor|improve|log|selfapply|context|scribe [--project <dir>] [--verbose]");
   }
 }
 
