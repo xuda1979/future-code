@@ -121,18 +121,24 @@ test("cli improve on a healthy project applies no changes", async () => {
   expect(m.improvementHistory ?? []).toEqual([]);
 });
 
-test("cli selfapply on a failing project auto-applies improvements", async () => {
+test("cli selfapply on a failing project converges via quarantine", async () => {
   const dir = tempProject({
     "package.json": JSON.stringify({ name: "cli-self", scripts: { test: "exit 1" } }),
   });
   const r = await cli(["selfapply", "--project", dir]);
   expect(r.exitCode).toBe(0);
-  expect(r.json.healthy).toBe(false);
+  // The loop iterates to convergence: the broken gate fails 3 consecutive
+  // runs, quarantine demotes it to advisory, and the harness reaches a
+  // self-consistent healthy state (no required gate failing).
+  expect(r.json.converged).toBe(true);
+  expect(r.json.iterations).toBeGreaterThanOrEqual(3);
   const m = readManifest(dir);
-  // The failing run must have been recorded, and the unhealthy report must
-  // have triggered the improver (widenContextOnFailure fires on unhealthy).
-  expect(m.runHistory.length).toBe(1);
+  const unit = m.gates.find((g) => g.id === "unit")!;
+  expect(unit.required).toBe(false); // quarantined
   expect((m.improvementHistory ?? []).length).toBeGreaterThan(0);
+  const quarantine = (m.improvementHistory ?? []).find((p) =>
+    Object.keys(p.changes).some((k) => k === "gates.unit.required"));
+  expect(quarantine).toBeDefined();
 });
 
 test("cli log exposes history and improvement decisions", async () => {
@@ -199,3 +205,39 @@ test("cli guardrail: shouldApply vetoes proposals beyond the maxParallel cap", a
   const atCap = { ...unsafe, changes: { "config.maxParallel": 4 } };
   expect(shouldApply(m, atCap as any)).toBe(true);
 });
+
+test("cli selfapply on a healthy project converges in one iteration", async () => {
+  const dir = tempProject({
+    "package.json": JSON.stringify({ name: "cli-healthy", scripts: { test: "exit 0" } }),
+  });
+  const r = await cli(["selfapply", "--project", dir]);
+  expect(r.exitCode).toBe(0);
+  expect(r.json.converged).toBe(true);
+  expect(r.json.iterations).toBe(1);
+  expect(r.json.healthy).toBe(true);
+});
+
+test("cli selfapply stops at no-progress instead of re-running an identical config", async () => {
+  // The loop's no-progress bound: an unmet SLO that no rule can address.
+  // A healthy, fast project with a bounded-runtime SLO threshold set
+  // absurdly low (1ms) fails the SLO every run, but no improver rule
+  // touches runtime SLOs for non-hanging runs — improve() proposes nothing
+  // applicable, and the loop must stop after its first (unchanged) re-run
+  // rather than re-running the identical configuration forever.
+  const dir = tempProject({
+    "package.json": JSON.stringify({ name: "cli-bound", scripts: { test: "exit 0" } }),
+  });
+  await cli(["build", "--project", dir]);
+  const m = readManifest(dir);
+  m.slos.find((s) => s.id === "bounded-runtime")!.threshold = 1; // unmeetable
+  m.config.contextBudget = 8; // context already at cap — nothing to widen
+  writeManifest(dir, m);
+  const r = await cli(["selfapply", "--project", dir]);
+  expect(r.exitCode).toBe(0);
+  expect(r.json.converged).toBe(false);
+  expect(r.json.iterations).toBeLessThanOrEqual(2);
+  const m2 = readManifest(dir);
+  // The terminal state is surfaced, and no rules spun on it.
+  const final = m2.slos.find((s) => s.id === "bounded-runtime")!;
+  expect(final.threshold).toBe(1); // untouched — no rule addresses it
+}, 60_000);

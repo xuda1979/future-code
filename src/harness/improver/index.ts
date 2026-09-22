@@ -32,11 +32,15 @@ const nextId = (() => {
 export const widenContextOnFailure: ImprovementRule = ({ manifest, report }) => {
   if (healthy(report)) return null;
   const current = manifest.config.contextBudget;
+  // resolveBudget clamps the effective budget at 8× (32768 tokens): a
+  // proposal beyond 8 changes a config number while changing nothing real —
+  // the loop would count it as progress and spin. Stop at the clamp.
+  if (current >= 8) return null;
   const proposal: ImprovementProposal = {
     id: nextId(manifest),
     description: "Harness unhealthy; widening context budget for deeper analysis.",
-    changes: { "config.contextBudget": Math.min(current + 2, 16) },
-    rationale: `SLOs unmet: ${report.sloResults.filter((s) => !s.met).map((s) => s.sloId).join(", ")}; contextBudget=${current}→${Math.min(current + 2, 16)}`,
+    changes: { "config.contextBudget": Math.min(current + 2, 8) },
+    rationale: `SLOs unmet: ${report.sloResults.filter((s) => !s.met).map((s) => s.sloId).join(", ")}; contextBudget=${current}→${Math.min(current + 2, 8)}`,
     approved: false,
   };
   return proposal;

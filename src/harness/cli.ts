@@ -108,17 +108,29 @@ async function main(): Promise<void> {
     }
     case "selfapply": {
       // future-code applies its own platform loop to itself.
-      if (!hasManifest(ctx.project)) build(ctx.project, { harnessId: "future-code-harness", scope: ctx.scope ?? "tests" });
+      if (!hasManifest(ctx.project)) build(ctx.project, { harnessId: "future-code-harness", scope: ctx.scope });
       const m = loadManifest(ctx.project);
-      const r = await run(m, "self-apply");
-      annotate(m, r);
-      // Persist run record (recordRun loads-fresh, adds record, saves)
-      const m2 = recordRun(ctx.project, r);
-      // Copy SLO results back into the in-memory manifest for improver
-      m.runHistory = m2.runHistory;
-      // If SLOs are unmet, trigger the improver
-      if (!healthy(r)) {
+      // The self-apply loop iterates to convergence: run → improve → apply →
+      // re-run, until the harness is healthy or a bound stops it. Bounds:
+      // MAX_ITERATIONS caps total work; a no-progress iteration (nothing
+      // applied that could change the outcome) stops the loop rather than
+      // re-running an identical configuration forever.
+      const MAX_ITERATIONS = 5;
+      let iteration = 0;
+      let r!: Awaited<ReturnType<typeof run>>;
+      let converged = false;
+      let lastRunId: string | undefined;
+      while (iteration < MAX_ITERATIONS) {
+        iteration++;
+        r = await run(m, `self-apply (iteration ${iteration})`);
+        annotate(m, r);
+        const m2 = recordRun(ctx.project, r);
+        m.runHistory = m2.runHistory;
+        lastRunId = r.runId;
+        if (healthy(r)) { converged = true; break; }
+        // Unhealthy — improve, guarded, and check for forward progress.
         const proposals = improve(m, r);
+        let applied = 0;
         for (const p of proposals) {
           // Guardrail: same policy as `improve` — veto unsafe proposals.
           if (!shouldApply(m, p)) {
@@ -126,11 +138,25 @@ async function main(): Promise<void> {
             continue;
           }
           applyProposal(m, p);
+          applied++;
           note(ctx, `auto-applied ${p.id}: ${p.description}`);
         }
         saveManifest(ctx.project, m);
+        if (applied === 0) {
+          // No proposal changed the harness — re-running would repeat the
+          // same run identically. Stop and surface the terminal state.
+          note(ctx, `iteration ${iteration}: no applicable proposals; stopping`);
+          break;
+        }
       }
-      console.log(JSON.stringify({ runId: r.runId, healthy: healthy(r), metrics: r.metrics, runHistory: (m.runHistory ?? []).length }, null, 2));
+      console.log(JSON.stringify({
+        runId: lastRunId,
+        healthy: healthy(r),
+        converged,
+        iterations: iteration,
+        metrics: r.metrics,
+        runHistory: (m.runHistory ?? []).length,
+      }, null, 2));
       break;
     }
     case "context": {

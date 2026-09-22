@@ -18,8 +18,10 @@ function toolsFor(cues: ProjectCues, scope?: string): HarnessTool[] {
     // Prefer the project's own test script when it declares one — the script
     // is the project's definition of "run my tests", and a bare `node --test`
     // on a project without node:test files exits 0 with zero tests run (a
-    // false-pass the gate must never report).
-    const command = cues.testScript ? `npm run test${scopeArg}` : `node --test${scopeArg}`;
+    // false-pass the gate must never report). The script takes no scope
+    // argument: extra args are passed to the script itself, whose meaning is
+    // script-defined — never append them.
+    const command = cues.testScript ? "npm run test" : `node --test${scopeArg}`;
     tools.push({ id: "node-test", description: "run the node test suite", command, cwd: "." });
   } else if (cues.testRunner === "pytest") {
     tools.push({ id: "pytest", description: "run the pytest suite", command: `pytest${scopeArg}`, cwd: "." });
