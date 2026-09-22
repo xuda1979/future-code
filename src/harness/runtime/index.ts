@@ -56,7 +56,15 @@ export async function run(manifest: HarnessManifest, task: string): Promise<RunR
   const runId = randomUUID();
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
-  const gates = await Promise.all(manifest.gates.map((g) => runGate(manifest, g.id)));
+  const maxParallel = manifest.config.maxParallel || 1;
+  const gateIds = manifest.gates.map((g) => g.id);
+  const gates: RunResult[] = [];
+  // Execute gates with bounded parallelism
+  for (let i = 0; i < gateIds.length; i += maxParallel) {
+    const batch = gateIds.slice(i, i + maxParallel);
+    const results = await Promise.all(batch.map((id) => runGate(manifest, id)));
+    gates.push(...results);
+  }
   const durationMs = Date.now() - t0;
   const passedCount = gates.filter((g) => g.passed).length;
   const passRate = gates.length ? passedCount / gates.length : 0;
