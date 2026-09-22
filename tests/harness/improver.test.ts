@@ -9,7 +9,7 @@ import { build } from "../../src/harness/builder/index.ts";
 import { loadManifest } from "../../src/harness/registry.ts";
 import { improve, applyProposal, shouldApply, defaultRules, widenContextOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow, widenTimeoutOnHang } from "../../src/harness/improver/index.ts";
 import { annotate } from "../../src/harness/monitor/index.ts";
-import type { RunReport, HarnessManifest } from "../../src/harness/types.ts";
+import type { RunReport, HarnessManifest, HarnessRunRecord } from "../../src/harness/types.ts";
 
 function tempProject(files: Record<string, string>): string {
   const dir = mkdtempSync(join(tmpdir(), "harness-imp-"));
@@ -98,28 +98,79 @@ test("reduceParallelism does not fire when already at minimum", () => {
   expect(proposal).toBeNull();
 });
 
-test("detectFlakiness fires for partial pass rate", () => {
+test("detectFlakiness fires when a gate flips across runs", () => {
   const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
   build(dir, { harnessId: "imp-test" });
   const m = loadManifest(dir);
   m.config.contextBudget = 2;
-  // Create a report with partial pass rate (1 of 2 gates pass)
+
+  // History: the unit gate passed then failed — flip pattern.
+  const history = [
+    { runId: crypto.randomUUID(), gateResults: { unit: true } },
+    { runId: crypto.randomUUID(), gateResults: { unit: false } },
+  ] as unknown as HarnessRunRecord[];
+
+  // Current run: unit fails again (flip within window, failed now).
   const r: RunReport = {
-    runId: "flaky",
-    task: "test",
+    runId: crypto.randomUUID(),
+    task: "flaky",
     startedAt: new Date().toISOString(),
-    durationMs: 5000,
-    gates: [
-      { toolId: "gate1", passed: true, exitCode: 0, durationMs: 2500 },
-      { toolId: "gate2", passed: false, exitCode: 1, durationMs: 2500 },
-    ],
-    metrics: { pass_rate: 0.5, runtime_ms: 5000, gate_count: 2 },
+    durationMs: 100,
+    gates: [{ toolId: "node-test", gateId: "unit", passed: false, exitCode: 1, durationMs: 100 }],
+    metrics: { pass_rate: 0, required_pass_rate: 0, runtime_ms: 100, gate_count: 1 },
     sloResults: [],
   };
-  annotate(m, r);
-  const proposal = detectFlakiness({ manifest: m, report: r });
+  const proposal = detectFlakiness({ manifest: m, report: r, history });
   expect(proposal).not.toBeNull();
   expect(proposal!.changes["config.contextBudget"]).toBe(3);
+  expect(proposal!.rationale).toContain("flaky_gates=[unit]");
+});
+
+test("detectFlakiness does not fire for a deterministically failing gate", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
+  build(dir, { harnessId: "imp-test" });
+  const m = loadManifest(dir);
+  m.config.contextBudget = 2;
+
+  // History: the unit gate failed every time — deterministic, not flaky.
+  const history = [
+    { runId: crypto.randomUUID(), gateResults: { unit: false } },
+    { runId: crypto.randomUUID(), gateResults: { unit: false } },
+  ] as unknown as HarnessRunRecord[];
+
+  const r: RunReport = {
+    runId: crypto.randomUUID(),
+    task: "deterministic",
+    startedAt: new Date().toISOString(),
+    durationMs: 100,
+    gates: [{ toolId: "node-test", gateId: "unit", passed: false, exitCode: 1, durationMs: 100 }],
+    metrics: { pass_rate: 0, required_pass_rate: 0, runtime_ms: 100, gate_count: 1 },
+    sloResults: [],
+  };
+  expect(detectFlakiness({ manifest: m, report: r, history })).toBeNull();
+});
+
+test("detectFlakiness does not fire with too few samples", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
+  build(dir, { harnessId: "imp-test" });
+  const m = loadManifest(dir);
+  m.config.contextBudget = 2;
+
+  // Only 1 prior run (2 samples total) — below MIN_SAMPLES=3.
+  const history = [
+    { runId: crypto.randomUUID(), gateResults: { unit: true } },
+  ] as unknown as HarnessRunRecord[];
+
+  const r: RunReport = {
+    runId: crypto.randomUUID(),
+    task: "few-samples",
+    startedAt: new Date().toISOString(),
+    durationMs: 100,
+    gates: [{ toolId: "node-test", gateId: "unit", passed: false, exitCode: 1, durationMs: 100 }],
+    metrics: { pass_rate: 0, required_pass_rate: 0, runtime_ms: 100, gate_count: 1 },
+    sloResults: [],
+  };
+  expect(detectFlakiness({ manifest: m, report: r, history })).toBeNull();
 });
 
 test("detectFlakiness does not fire for all-pass or all-fail", () => {

@@ -76,18 +76,58 @@ export const reduceParallelism: ImprovementRule = ({ manifest, report }) => {
   return proposal;
 };
 
-/** Built-in rule: if pass rate is flaky (intermittent failures), increase context budget. */
-export const detectFlakiness: ImprovementRule = ({ manifest, report }) => {
-  const passRate = report.metrics.pass_rate ?? 1;
-  // Flaky: some gates pass, some fail (not all fail, not all pass)
-  if (passRate === 0 || passRate === 1) return null;
+/**
+ * Built-in rule: detect true flakiness — a gate whose outcome flips between
+ * pass and fail across consecutive runs — and widen the context budget so
+ * the flaky gate's diagnostics are visible. A single partially-failing run
+ * is NOT flakiness: a deterministically broken gate fails every time, and
+ * the flakiness remedy (more diagnostic context) is the wrong response.
+ * Requires ≥3 samples and both outcomes present to fire.
+ */
+export const detectFlakiness: ImprovementRule = ({ manifest, report, history }) => {
+  const runs = history ?? [];
+  const FLIP_WINDOW = 5; // look at up to the last 5 runs (incl. current)
+  const MIN_SAMPLES = 3; // need at least 3 outcomes to call it flaky
+
+  // Collect the outcome sequence per gate: current report first, then
+  // history newest-first (skipping the current run if already recorded).
+  const failedNow = new Set(
+    report.gates.filter((g) => !g.passed && g.gateId).map((g) => g.gateId as string),
+  );
+  const seq: Record<string, boolean[]> = {};
+  const record = (gateId: string, passed: boolean) => {
+    (seq[gateId] ??= []).push(passed);
+  };
+  for (const g of report.gates) if (g.gateId) record(g.gateId, g.passed);
+  const histRuns = runs
+    .filter((r) => r.runId !== report.runId)
+    .slice(-FLIP_WINDOW)
+    .reverse(); // newest-first
+  for (const rec of histRuns) {
+    for (const [gateId, passed] of Object.entries(rec.gateResults ?? {})) {
+      // Stop extending a gate's sequence once it has FLIP_WINDOW samples.
+      if ((seq[gateId] ?? []).length < FLIP_WINDOW) record(gateId, passed);
+    }
+  }
+
+  // A gate is flaky when it has ≥MIN_SAMPLES outcomes with both true and
+  // false present, and it failed at least once in the window (we only
+  // propose a remedy when there is something to diagnose).
+  const flaky = Object.entries(seq).filter(([gateId, outcomes]) => {
+    const hasPass = outcomes.some(Boolean);
+    const hasFail = outcomes.some((o) => !o);
+    return outcomes.length >= MIN_SAMPLES && hasPass && hasFail && failedNow.has(gateId);
+  });
+  if (!flaky.length) return null;
+
   const current = manifest.config.contextBudget;
   if (current >= 8) return null;
+  const names = flaky.map(([id]) => id).join(", ");
   const proposal: ImprovementProposal = {
     id: nextId(manifest),
-    description: "Intermittent gate failures detected; increasing context budget for diagnostics.",
+    description: `Flaky gate(s) [${names}] flip between pass/fail across runs; increasing context budget for diagnostics.`,
     changes: { "config.contextBudget": Math.min(current + 1, 8) },
-    rationale: `pass_rate=${passRate} (partial); contextBudget=${current}→${Math.min(current + 1, 8)}`,
+    rationale: `flaky_gates=[${names}] (outcome flips within last ${FLIP_WINDOW} runs); contextBudget=${current}→${Math.min(current + 1, 8)}`,
     approved: false,
   };
   return proposal;
