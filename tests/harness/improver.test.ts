@@ -323,8 +323,10 @@ test("widenTimeoutOnHang fires when a gate timed out", () => {
   };
   const proposal = widenTimeoutOnHang({ manifest: m, report });
   expect(proposal).not.toBeNull();
-  // slow_gate_seconds=15 → target = 15*4*1000 = 60000ms
-  expect(proposal!.changes["tools.bun-test.timeoutMs"]).toBe(60_000);
+  // slow_gate_seconds=15 → policy target 60000ms is NOT above the implicit
+  // 60s kill threshold, so the rule escalates from the threshold: 60s × 2.
+  // (A pin-to-60s would be a no-op — the gate would hang identically forever.)
+  expect(proposal!.changes["tools.bun-test.timeoutMs"]).toBe(120_000);
   expect(proposal!.rationale).toContain("timedOut[unit]=true");
 });
 
@@ -358,22 +360,23 @@ test("widenTimeoutOnHang does not exceed the 10-minute cap", () => {
   expect(proposal!.changes["tools.bun-test.timeoutMs"]).toBe(600_000);
 });
 
-test("widenTimeoutOnHang skips gates whose timeout is already wide enough", () => {
+test("widenTimeoutOnHang stops at the 10-minute cap", () => {
   const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}", "bunfig.toml": "" });
-  build(dir, { harnessId: "hang-wide" });
+  build(dir, { harnessId: "hang-cap-10m" });
   const m = loadManifest(dir);
   const tool = m.tools.find((t) => t.id === "bun-test");
-  tool!.timeoutMs = 120_000; // wider than the 60s target
+  tool!.timeoutMs = 600_000; // already at the cap
 
   const report: RunReport = {
     runId: crypto.randomUUID(),
-    task: "wide",
+    task: "at-cap",
     startedAt: new Date().toISOString(),
-    durationMs: 120_000,
-    gates: [{ toolId: "bun-test", gateId: "unit", passed: false, exitCode: -1, durationMs: 120_000, timedOut: true }],
-    metrics: { pass_rate: 0, required_pass_rate: 0, timeout_count: 1, runtime_ms: 120_000, gate_count: 1 },
+    durationMs: 600_000,
+    gates: [{ toolId: "bun-test", gateId: "unit", passed: false, exitCode: -1, durationMs: 600_000, timedOut: true }],
+    metrics: { pass_rate: 0, required_pass_rate: 0, timeout_count: 1, runtime_ms: 600_000, gate_count: 1 },
     sloResults: [],
   };
+  // Escalation cannot exceed the 10-minute cap — nothing left to propose.
   expect(widenTimeoutOnHang({ manifest: m, report })).toBeNull();
 });
 
@@ -407,8 +410,10 @@ test("widenTimeoutOnHang co-aligns the bounded-runtime SLO when the new timeout 
   const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}", "bunfig.toml": "" });
   build(dir, { harnessId: "hang-slo" });
   const m = loadManifest(dir);
-  // Default target is 60s — equal to the bounded-runtime SLO threshold
-  // (60_000), so no co-alignment is needed and the change set stays minimal.
+  // A gate killed at the implicit 60s escalates to 120s — beyond the
+  // bounded-runtime SLO threshold (60_000), so the proposal must raise both
+  // the tool timeout and the SLO threshold so the config never permits what
+  // the SLO forbids.
   const report: RunReport = {
     runId: crypto.randomUUID(),
     task: "hang-slo",
@@ -420,22 +425,13 @@ test("widenTimeoutOnHang co-aligns the bounded-runtime SLO when the new timeout 
   };
   const proposal = widenTimeoutOnHang({ manifest: m, report });
   expect(proposal).not.toBeNull();
-  expect(proposal!.changes["slos.bounded-runtime.threshold"]).toBeUndefined();
+  expect(proposal!.changes["tools.bun-test.timeoutMs"]).toBe(120_000);
+  expect(proposal!.changes["slos.bounded-runtime.threshold"]).toBe(120_000);
+  expect(proposal!.rationale).toContain("co-aligned");
 
-  // Now a policy that demands a 120s target — beyond the SLO threshold. The
-  // proposal must raise both the tool timeout and the SLO threshold so the
-  // config never permits what the SLO forbids.
-  const m2 = loadManifest(dir);
-  (m2.config.improvementPolicy as Record<string, unknown>).slow_gate_seconds = 30; // 30*4 = 120s
-  const report2: RunReport = { ...report, runId: crypto.randomUUID() };
-  const proposal2 = widenTimeoutOnHang({ manifest: m2, report: report2 });
-  expect(proposal2).not.toBeNull();
-  expect(proposal2!.changes["tools.bun-test.timeoutMs"]).toBe(120_000);
-  expect(proposal2!.changes["slos.bounded-runtime.threshold"]).toBe(120_000);
-  expect(proposal2!.rationale).toContain("co-aligned");
-
-  // Applying must actually raise the SLO threshold.
-  const m3 = applyProposal(m2, proposal2!);
+  // Applying must actually raise both.
+  const m3 = applyProposal(m, proposal!);
+  expect(m3.tools.find((t) => t.id === "bun-test")!.timeoutMs).toBe(120_000);
   expect(m3.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(120_000);
 });
 
@@ -472,4 +468,36 @@ test("applyProposal caps the improvement history at 100 entries", () => {
   // Newest kept, oldest dropped.
   expect(m.improvementHistory![0].id).toBe("imp-cap-30");
   expect(m.improvementHistory![99].id).toBe("imp-cap-129");
+});
+
+test("widenTimeoutOnHang escalation converges: successive hangs walk 60s→120s→240s→…→cap, never a no-op", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}", "bunfig.toml": "" });
+  build(dir, { harnessId: "hang-walk" });
+  const m = loadManifest(dir);
+  const tool = m.tools.find((t) => t.id === "bun-test")!;
+
+  // Simulate the loop: hang → propose → apply → hang again, until the cap.
+  const seen: number[] = [];
+  for (let step = 0; step < 10; step++) {
+    const report: RunReport = {
+      runId: crypto.randomUUID(),
+      task: `walk-${step}`,
+      startedAt: new Date().toISOString(),
+      durationMs: tool.timeoutMs ?? 60_000,
+      gates: [{ toolId: "bun-test", gateId: "unit", passed: false, exitCode: -1, durationMs: tool.timeoutMs ?? 60_000, timedOut: true }],
+      metrics: { pass_rate: 0, required_pass_rate: 0, timeout_count: 1, runtime_ms: tool.timeoutMs ?? 60_000, gate_count: 1 },
+      sloResults: [],
+    };
+    const proposal = widenTimeoutOnHang({ manifest: m, report });
+    if (!proposal) break; // reached the cap — nothing left to propose
+    const next = proposal.changes["tools.bun-test.timeoutMs"] as number;
+    // The invariant that matters: every applied proposal strictly widens.
+    expect(next).toBeGreaterThan(tool.timeoutMs ?? 60_000);
+    seen.push(next);
+    applyProposal(m, proposal);
+  }
+  // The walk must terminate at the 10-minute cap and never revisit a value.
+  expect(seen).toEqual([120_000, 240_000, 480_000, 600_000]);
+  expect(tool.timeoutMs).toBe(600_000);
+  expect(new Set(seen).size).toBe(seen.length); // strictly monotonic
 });

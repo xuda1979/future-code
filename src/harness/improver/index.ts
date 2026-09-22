@@ -171,7 +171,8 @@ export const widenTimeoutOnHang: ImprovementRule = ({ manifest, report }) => {
   const slowGateSeconds = Number(
     (manifest.config.improvementPolicy as Record<string, unknown>)?.slow_gate_seconds ?? 15,
   );
-  const target = Math.min(slowGateSeconds * 4 * 1000, 600_000); // cap 10 min
+  // Policy-derived starting point, capped at 10 minutes.
+  const policyTarget = Math.min(slowGateSeconds * 4 * 1000, 600_000);
 
   // Propose for the first hung gate whose tool timeout is below target.
   for (const g of hungGates) {
@@ -179,12 +180,17 @@ export const widenTimeoutOnHang: ImprovementRule = ({ manifest, report }) => {
     if (!gate) continue;
     const tool = manifest.tools.find((t) => t.id === gate.toolId);
     if (!tool) continue;
-    // An unset timeout means the gate died at the runtime's implicit 60s
-    // ceiling — pin it to the policy target so the limit becomes explicit
-    // and governed (a real widening whenever policy asks for more). A set
-    // timeout only widens when it sits below the target.
-    if (tool.timeoutMs !== undefined && tool.timeoutMs >= target) continue;
+    // The gate died at `current` — the new timeout must be STRICTLY greater,
+    // or the same hang repeats forever. The policy target (slow_gate_seconds
+    // × 4) is the starting point; when it is not above the kill threshold
+    // (e.g. slow_gate_seconds=15 → 60s = the implicit default), escalate
+    // from the kill threshold itself (2× here, capped at 10 min). This
+    // guarantees forward progress: target > current in every proposal.
     const current = tool.timeoutMs ?? 60_000;
+    const target = policyTarget > current
+      ? policyTarget
+      : Math.min(current * 2, 600_000);
+    if (target <= current) continue; // already at the 10-minute cap
     // Keep config and SLOs coherent: if the new timeout ceiling exceeds the
     // bounded-runtime SLO threshold, raise the threshold too — otherwise the
     // config would permit (and the widened timeout encourage) runs the SLO
@@ -222,6 +228,15 @@ export const quarantineRepeatFailure: ImprovementRule = ({ manifest, report, his
 
   for (const g of failedGates) {
     const gateId = g.gateId!;
+    // A hung gate is widenTimeoutOnHang's patient, not ours: while escalation
+    // can still raise the ceiling (below the 10-min cap), a timeout means
+    // "too slow", not "broken" — quarantine here would demote a slow but
+    // working gate before the widening ever got a chance to prove itself.
+    if (g.timedOut) {
+      const tool = manifest.tools.find((t) => t.id === g.toolId);
+      const current = tool?.timeoutMs ?? 60_000;
+      if (current < 600_000) continue; // widening headroom remains — defer
+    }
     // Count consecutive failures of this gate, newest-first through history.
     let streak = 1; // the current report counts as the first failure
     for (let i = runs.length - 1; i >= 0; i--) {

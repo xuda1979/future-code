@@ -478,3 +478,64 @@ test("promoteStableAdvisoryGate does not double-count a run present in both repo
   // not have been counted twice (a double-count would make the streak 7).
   expect(promo!.rationale).toContain("consecutive_passes[typecheck]=6");
 });
+
+test("quarantineRepeatFailure defers to timeout widening while escalation headroom remains", async () => {
+  // Regression: a slow-but-working gate kept hitting its timeout; the
+  // quarantine rule counted the timeouts as failures and demoted the gate to
+  // advisory after 3 hangs — before widenTimeoutOnHang's escalation
+  // (60s→120s→…→600s) could ever prove the gate just needed more time.
+  const dir = tempProject({
+    "package.json": JSON.stringify({ name: "q-hang" }),
+    "tsconfig.json": "{}",
+  });
+  build(dir, { harnessId: "quarantine-hang" });
+  const m = loadManifest(dir);
+
+  // Three consecutive TIMEOUTS (not real failures) in history.
+  for (let i = 0; i < 3; i++) {
+    m.runHistory.push({
+      runId: randomUUID(),
+      task: `hang-${i}`,
+      startedAt: new Date().toISOString(),
+      durationMs: 60_000,
+      passRate: 0,
+      healthy: false,
+      gateCount: 1,
+      passedCount: 0,
+      metrics: { timeout_count: 1 },
+      unmetSlo: ["pass-rate"],
+      gateResults: { unit: false },
+    });
+  }
+
+  // Current report: the unit gate hung again (timedOut), timeout still has
+  // widening headroom (unset → implicit 60s < 600s cap).
+  const r: RunReport = {
+    runId: randomUUID(),
+    task: "hang-now",
+    startedAt: new Date().toISOString(),
+    durationMs: 60_000,
+    gates: [{ toolId: "node-test", gateId: "unit", passed: false, exitCode: -1, durationMs: 60_000, required: true, timedOut: true }],
+    metrics: { pass_rate: 0, required_pass_rate: 0, timeout_count: 1, runtime_ms: 60_000, gate_count: 1 },
+    sloResults: [],
+  };
+
+  // Quarantine must NOT fire for the hung gate…
+  const q = quarantineRepeatFailure({ manifest: m, report: r, history: m.runHistory });
+  expect(q).toBeNull();
+
+  // …but the widening rule still escalates (the correct response).
+  const { widenTimeoutOnHang } = await import("../../src/harness/improver/index.ts");
+  const w = widenTimeoutOnHang({ manifest: m, report: r });
+  expect(w).not.toBeNull();
+  expect((w!.changes["tools.node-test.timeoutMs"] as number)).toBeGreaterThan(60_000);
+
+  // Once escalation is exhausted (timeout at the 10-min cap), a still-hung
+  // gate counts as a genuine failure and quarantine may proceed.
+  const tool = m.tools.find((t) => t.id === "node-test")!;
+  tool.timeoutMs = 600_000;
+  const r2: RunReport = { ...r, runId: randomUUID() };
+  const q2 = quarantineRepeatFailure({ manifest: m, report: r2, history: m.runHistory });
+  expect(q2).not.toBeNull();
+  expect(q2!.changes["gates.unit.required"]).toBe(false);
+});
