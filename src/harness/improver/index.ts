@@ -185,11 +185,21 @@ export const widenTimeoutOnHang: ImprovementRule = ({ manifest, report }) => {
     // timeout only widens when it sits below the target.
     if (tool.timeoutMs !== undefined && tool.timeoutMs >= target) continue;
     const current = tool.timeoutMs ?? 60_000;
+    // Keep config and SLOs coherent: if the new timeout ceiling exceeds the
+    // bounded-runtime SLO threshold, raise the threshold too — otherwise the
+    // config would permit (and the widened timeout encourage) runs the SLO
+    // permanently fails, and healthy() would never recover.
+    const changes: Record<string, unknown> = { [`tools.${tool.id}.timeoutMs`]: target };
+    const runtimeSlo = manifest.slos.find((s) => s.id === "bounded-runtime");
+    if (runtimeSlo && runtimeSlo.threshold < target) {
+      changes["slos.bounded-runtime.threshold"] = target;
+    }
     const proposal: ImprovementProposal = {
       id: nextId(manifest),
       description: `Gate "${g.gateId}" hung and was killed at its ${current}ms timeout; widening tool "${tool.id}" timeout to ${target}ms.`,
-      changes: { [`tools.${tool.id}.timeoutMs`]: target },
-      rationale: `timedOut[${g.gateId}]=true (killed at ${current}ms); slow_gate_seconds=${slowGateSeconds}; timeoutMs=${current}→${target}`,
+      changes,
+      rationale: `timedOut[${g.gateId}]=true (killed at ${current}ms); slow_gate_seconds=${slowGateSeconds}; timeoutMs=${current}→${target}` +
+        (runtimeSlo && runtimeSlo.threshold < target ? `; slos.bounded-runtime.threshold=${runtimeSlo.threshold}→${target} (co-aligned)` : ""),
       approved: false,
     };
     return proposal;
@@ -332,6 +342,12 @@ export function applyProposal(m: HarnessManifest, p: ImprovementProposal): Harne
       const gateId = path.slice("gates.".length, -".required".length);
       const gate = m.gates.find((g) => g.id === gateId);
       if (gate) gate.required = Boolean(value);
+    }
+    else if (path.startsWith("slos.") && path.endsWith(".threshold")) {
+      // Align an SLO threshold: slos.<id>.threshold = <value>
+      const sloId = path.slice("slos.".length, -".threshold".length);
+      const slo = m.slos.find((s) => s.id === sloId);
+      if (slo) slo.threshold = value as number;
     }
   }
   p.approved = true;

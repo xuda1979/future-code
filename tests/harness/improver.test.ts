@@ -400,3 +400,57 @@ test("applyProposal handles tools.<id>.timeoutMs changes", () => {
 test("widenTimeoutOnHang is included in defaultRules", () => {
   expect(defaultRules).toContain(widenTimeoutOnHang);
 });
+
+// --- SLO/threshold co-alignment when widening timeouts ---
+
+test("widenTimeoutOnHang co-aligns the bounded-runtime SLO when the new timeout exceeds it", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}", "bunfig.toml": "" });
+  build(dir, { harnessId: "hang-slo" });
+  const m = loadManifest(dir);
+  // Default target is 60s — equal to the bounded-runtime SLO threshold
+  // (60_000), so no co-alignment is needed and the change set stays minimal.
+  const report: RunReport = {
+    runId: crypto.randomUUID(),
+    task: "hang-slo",
+    startedAt: new Date().toISOString(),
+    durationMs: 60_000,
+    gates: [{ toolId: "bun-test", gateId: "unit", passed: false, exitCode: -1, durationMs: 60_000, timedOut: true }],
+    metrics: { pass_rate: 0, required_pass_rate: 0, timeout_count: 1, runtime_ms: 60_000, gate_count: 1 },
+    sloResults: [],
+  };
+  const proposal = widenTimeoutOnHang({ manifest: m, report });
+  expect(proposal).not.toBeNull();
+  expect(proposal!.changes["slos.bounded-runtime.threshold"]).toBeUndefined();
+
+  // Now a policy that demands a 120s target — beyond the SLO threshold. The
+  // proposal must raise both the tool timeout and the SLO threshold so the
+  // config never permits what the SLO forbids.
+  const m2 = loadManifest(dir);
+  (m2.config.improvementPolicy as Record<string, unknown>).slow_gate_seconds = 30; // 30*4 = 120s
+  const report2: RunReport = { ...report, runId: crypto.randomUUID() };
+  const proposal2 = widenTimeoutOnHang({ manifest: m2, report: report2 });
+  expect(proposal2).not.toBeNull();
+  expect(proposal2!.changes["tools.bun-test.timeoutMs"]).toBe(120_000);
+  expect(proposal2!.changes["slos.bounded-runtime.threshold"]).toBe(120_000);
+  expect(proposal2!.rationale).toContain("co-aligned");
+
+  // Applying must actually raise the SLO threshold.
+  const m3 = applyProposal(m2, proposal2!);
+  expect(m3.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(120_000);
+});
+
+test("applyProposal handles slos.<id>.threshold changes", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
+  build(dir, { harnessId: "slo-apply" });
+  const m = loadManifest(dir);
+  const before = m.slos.find((s) => s.id === "bounded-runtime")!.threshold;
+  expect(before).toBe(60_000);
+  const m2 = applyProposal(m, {
+    id: "imp-slo-1",
+    description: "raise runtime SLO",
+    changes: { "slos.bounded-runtime.threshold": 90_000 },
+    rationale: "test",
+    approved: false,
+  });
+  expect(m2.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(90_000);
+});

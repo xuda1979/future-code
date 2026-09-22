@@ -12,6 +12,7 @@
 export * from "./types.ts";
 export * from "./context.ts";
 export * from "./registry.ts";
+export * from "./history.ts";
 export * from "./builder/index.ts";
 export * from "./builder/detect.ts";
 export * from "./runtime/index.ts";
