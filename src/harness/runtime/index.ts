@@ -2,10 +2,14 @@
  * Harness runtime — the platform executes a project harness: it runs the
  * harness's gates through its tools, records per-run metrics, and returns
  * a structured RunReport. The harness "lives" on this runtime.
+ *
+ * All agents use bounded context — the runtime truncates task descriptions
+ * and gate outputs to fit within the manifest's contextBudget.
  */
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import type { HarnessManifest, RunReport, RunResult, MetricSample } from "../types.ts";
+import { resolveBudget, truncateToBudget, estimateTokens, boundedTaskContext } from "../context.ts";
 
 export interface ExecOutcome {
   exitCode: number;
@@ -33,7 +37,7 @@ export function execTool(command: string, cwd: string, timeoutMs = 60_000): Prom
   });
 }
 
-/** Run a single gate using its tool's command. */
+/** Run a single gate using its tool's command. Output is truncated to budget. */
 export async function runGate(
   manifest: HarnessManifest,
   gateId: string,
@@ -48,7 +52,13 @@ export async function runGate(
   const { exitCode, durationMs, output } = await execTool(cmd, cwd, tool.timeoutMs ?? 60_000);
   const expected = gate.expectExit ?? 0;
   const passed = exitCode === expected;
-  return { toolId: tool.id, gateId: gate.id, passed, exitCode, durationMs, output };
+
+  // Enforce context budget on gate output — no agent gets unbounded output
+  const budget = resolveBudget(manifest);
+  const gateOutputBudget = Math.floor(budget * 0.1); // 10% of budget per gate
+  const truncatedOutput = truncateToBudget(output, gateOutputBudget);
+
+  return { toolId: tool.id, gateId: gate.id, passed, exitCode, durationMs, output: truncatedOutput };
 }
 
 /** Run all required gates for a task and assemble a RunReport. */
@@ -57,6 +67,10 @@ export async function run(manifest: HarnessManifest, task: string): Promise<RunR
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
   const maxParallel = manifest.config.maxParallel || 1;
+
+  // Enforce context budget on the task description — no agent gets unbounded task text
+  const boundedTask = boundedTaskContext(task, manifest);
+
   const gateIds = manifest.gates.map((g) => g.id);
   const gates: RunResult[] = [];
   // Execute gates with bounded parallelism
@@ -72,8 +86,10 @@ export async function run(manifest: HarnessManifest, task: string): Promise<RunR
     pass_rate: passRate,
     runtime_ms: durationMs,
     gate_count: gates.length,
+    context_budget: resolveBudget(manifest),
+    context_used: estimateTokens(boundedTask),
   };
-  return { runId, task, startedAt, durationMs, gates, metrics, sloResults: [] };
+  return { runId, task: boundedTask, startedAt, durationMs, gates, metrics, sloResults: [] };
 }
 
 /** Build stable MetricSamples from a report for the monitor/improver. */

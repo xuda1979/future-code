@@ -1,6 +1,6 @@
 /**
  * future-code harness CLI — the platform's control surface.
- * Subcommands: build | run | monitor | improve | log | selfapply
+ * Subcommands: build | run | monitor | improve | log | selfapply | context
  *
  * These let the platform create (build), execute (run), watch (monitor),
  * tune (improve), inspect decisions (log), and self-apply (selfapply) the
@@ -13,6 +13,7 @@ import { run } from "./runtime/index.ts";
 import { annotate, healthy, summary } from "./monitor/index.ts";
 import { improve, applyProposal } from "./improver/index.ts";
 import { recordRun, recentRuns, passRateTrend, runtimeTrend } from "./history.ts";
+import { resolveBudget, boundedMonitorContext, boundedImproverContext, estimateTokens } from "./context.ts";
 import type { HarnessManifest } from "./types.ts";
 
 interface Ctx { project: string; verbose: boolean; scope?: string; }
@@ -120,8 +121,41 @@ async function main(): Promise<void> {
       console.log(JSON.stringify({ runId: r.runId, healthy: healthy(r), metrics: r.metrics, runHistory: (m.runHistory ?? []).length }, null, 2));
       break;
     }
+    case "context": {
+      // Report context budget status for all agents.
+      const m = loadManifest(ctx.project);
+      const budget = resolveBudget(m);
+      const history = (m.runHistory ?? []).slice(-10);
+      const lastReport = history.length > 0 ? history[history.length - 1] : null;
+
+      const agents = [
+        { agent: "runtime", budget, used: lastReport?.metrics?.context_used ?? 0 },
+        { agent: "monitor", budget, used: lastReport ? estimateTokens(boundedMonitorContext(
+          { runId: lastReport.runId, task: lastReport.task, startedAt: lastReport.startedAt,
+            durationMs: lastReport.durationMs, gates: [], metrics: lastReport.metrics,
+            sloResults: [] },
+          history, m)) : 0 },
+        { agent: "improver", budget, used: lastReport ? estimateTokens(boundedImproverContext(
+          { runId: lastReport.runId, task: lastReport.task, startedAt: lastReport.startedAt,
+            durationMs: lastReport.durationMs, gates: [], metrics: lastReport.metrics,
+            sloResults: [] },
+          history, m.improvementHistory ?? [], m)) : 0 },
+      ].map((a) => ({
+        ...a,
+        utilization: a.budget > 0 ? Math.round((a.used / a.budget) * 100) / 100 : 0,
+        compliant: a.used <= a.budget,
+      }));
+
+      console.log(JSON.stringify({
+        budget,
+        contextBudgetMultiplier: m.config.contextBudget,
+        agents,
+        allCompliant: agents.every((a) => a.compliant),
+      }, null, 2));
+      break;
+    }
     default:
-      console.log("usage: harness build|run|monitor|improve|log|selfapply [--project <dir>] [--verbose]");
+      console.log("usage: harness build|run|monitor|improve|log|selfapply|context [--project <dir>] [--verbose]");
   }
 }
 

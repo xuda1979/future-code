@@ -2,8 +2,12 @@
  * Self-monitor — evaluates the harness's SLOs against a run report and
  * summarizes health/cost/quality signals. This is the "look" part of the
  * self-improving loop.
+ *
+ * All context passed to the monitor agent is bounded — run reports and
+ * history are compacted to fit within the manifest's contextBudget.
  */
 import type { HarnessManifest, RunReport, SloResult, HarnessRunRecord } from "../types.ts";
+import { resolveBudget, boundedMonitorContext, compactRunReport, compactRunHistory, estimateTokens } from "../context.ts";
 
 /** Evaluate every SLO in the manifest against a run report. */
 export function evaluateSLOs(manifest: HarnessManifest, report: RunReport): SloResult[] {
@@ -98,4 +102,31 @@ export function isRuntimeDegrading(history: HarnessRunRecord[], windowSize = 5):
   const avgLast = last.reduce((a, b) => a + b.durationMs, 0) / last.length;
   // Degrading if last half is >50% slower than first half
   return avgLast > avgFirst * 1.5;
+}
+
+/**
+ * Produce a bounded monitor context for the monitor agent.
+ * This is the primary entry point for the monitor agent — it never
+ * receives unbounded data, always a compacted, budget-compliant payload.
+ */
+export function monitorContext(
+  report: RunReport,
+  history: HarnessRunRecord[],
+  manifest: HarnessManifest,
+): string {
+  return boundedMonitorContext(report, history, manifest);
+}
+
+/**
+ * Check context budget compliance — returns true if the monitor's
+ * bounded context fits within the budget without truncation.
+ */
+export function isContextCompliant(
+  report: RunReport,
+  history: HarnessRunRecord[],
+  manifest: HarnessManifest,
+): boolean {
+  const budget = resolveBudget(manifest);
+  const payload = monitorContext(report, history, manifest);
+  return estimateTokens(payload) <= budget;
 }

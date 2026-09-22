@@ -5,8 +5,12 @@
  * self-improver so the platform (and any larger orchestrator) can create,
  * run, watch, and tune project-specific harnesses. future-code is where a
  * project harness is born, built, maintained, and lives.
+ *
+ * All agents use bounded context — the context budget enforcer ensures
+ * no agent ever receives unbounded or long context.
  */
 export * from "./types.ts";
+export * from "./context.ts";
 export * from "./registry.ts";
 export * from "./builder/index.ts";
 export * from "./builder/detect.ts";

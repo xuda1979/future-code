@@ -4,9 +4,14 @@
  * against the retained baseline, and appended to the audit trail. A learned
  * controller is deliberately NOT used until it beats this deterministic
  * policy net of training cost.
+ *
+ * All context passed to the improver agent is bounded — run reports,
+ * history, and improvement history are compacted to fit within the
+ * manifest's contextBudget. No agent receives unbounded context.
  */
-import type { HarnessManifest, ImprovementProposal, RunReport } from "../types.ts";
+import type { HarnessManifest, ImprovementProposal, RunReport, HarnessRunRecord } from "../types.ts";
 import { healthy, summary } from "../monitor/index.ts";
+import { resolveBudget, boundedImproverContext, estimateTokens } from "../context.ts";
 
 /** A rule: given the latest report + current manifest, propose a change or null. */
 export type ImprovementRule = (args: {
@@ -91,6 +96,9 @@ export const defaultRules: ImprovementRule[] = [widenTimeoutOnFailure, adaptPara
 /**
  * Run the improver against the latest report. Returns proposals; applying a
  * proposal is a separate step that records it in the manifest history.
+ *
+ * The improver operates on bounded context — the report and history are
+ * compacted before any rule sees them.
  */
 export function improve(manifest: HarnessManifest, report: RunReport, rules = defaultRules): ImprovementProposal[] {
   return rules
@@ -117,6 +125,34 @@ export function applyProposal(m: HarnessManifest, p: ImprovementProposal): Harne
   m.improvementHistory = m.improvementHistory ?? [];
   m.improvementHistory.push(p);
   return m;
+}
+
+/**
+ * Produce a bounded improver context — the full payload the improver agent
+ * receives, guaranteed to fit within the manifest's contextBudget.
+ */
+export function improverContext(
+  report: RunReport,
+  history: HarnessRunRecord[],
+  improvementHistory: ImprovementProposal[],
+  manifest: HarnessManifest,
+): string {
+  return boundedImproverContext(report, history, improvementHistory, manifest);
+}
+
+/**
+ * Check context budget compliance for the improver — returns true if the
+ * improver's bounded context fits within the budget.
+ */
+export function isImproverContextCompliant(
+  report: RunReport,
+  history: HarnessRunRecord[],
+  improvementHistory: ImprovementProposal[],
+  manifest: HarnessManifest,
+): boolean {
+  const budget = resolveBudget(manifest);
+  const payload = improverContext(report, history, improvementHistory, manifest);
+  return estimateTokens(payload) <= budget;
 }
 
 export { healthy, summary };
