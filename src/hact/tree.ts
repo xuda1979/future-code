@@ -1062,3 +1062,437 @@ export function optimizeHybrid(
   validateTree(tree, n, model);
   return { tree, expectedBytes };
 }
+
+// ─── Entropy-based workload concentration metric ─────────────────────────
+
+/**
+ * Compute the concentration (entropy-based) of an activation matrix.
+ * High concentration → skewed workloads benefit from exact DP.
+ * Low concentration → uniform workloads are fine with greedy.
+ *
+ * Returns a value in [0, 1]: 1 = maximally concentrated, 0 = uniform.
+ */
+export function workloadConcentration(p: ActivationMatrix): number {
+  const n = p.length;
+  if (n <= 1) return 0;
+
+  // Compute marginal activation probability for each gate
+  const marginals = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let m = 0;
+    for (let j = 0; j < n; j++) {
+      if (i <= j) m += p[i][j];
+      if (j < i) m += p[j][i];
+    }
+    marginals[i] = m;
+  }
+
+  // Gini coefficient of marginals: 0 = uniform, approaches 1 = concentrated
+  let sumAbs = 0;
+  let sumAll = 0;
+  for (let i = 0; i < n; i++) {
+    sumAll += marginals[i];
+    for (let j = 0; j < n; j++) {
+      sumAbs += Math.abs(marginals[i] - marginals[j]);
+    }
+  }
+  if (sumAll === 0) return 0;
+  const gini = sumAbs / (2 * n * sumAll);
+
+  // Also compute max-to-mean ratio of marginals
+  let maxM = 0;
+  for (let i = 0; i < n; i++) maxM = Math.max(maxM, marginals[i]);
+  const meanM = sumAll / n;
+  const maxToMean = meanM > 0 ? maxM / meanM : 0;
+  // Normalize: maxToMean of 1 means uniform, larger means concentrated
+  const maxRatio = Math.min((maxToMean - 1) / Math.max(1, n / 4), 1);
+
+  // Combined concentration: weighted average of Gini and max ratio
+  return Math.min(0.6 * gini + 0.4 * Math.max(0, maxRatio), 1);
+}
+
+// ─── Multi-restart local search with deterministic perturbation ─────────
+
+/**
+ * Enhanced local search: multiple restarts with deterministic perturbation
+ * patterns. Each restart begins from a systematically perturbed configuration
+ * (shifted left, shifted right, shifted to boundaries) and performs
+ * coordinate descent with multiple step sizes. Only accepts improvements.
+ */
+function multiRestartLocalSearch(
+  lo: number,
+  hi: number,
+  k: number,
+  initialSplits: number[],
+  p: ActivationMatrix,
+  _restarts: number = 5,
+): number[] {
+  const span = hi - lo + 1;
+  // Scale-aware parameters — reduce work for very large spans to keep
+  // total runtime bounded.  The coarse-to-fine step sizes still explore
+  // the solution space but with fewer iterations per step.
+  const maxIter = span > 200 ? 5 : span > 50 ? 15 : 30;
+  const stepSizes: number[] = span > 200
+    ? [Math.floor(span / 16), Math.floor(span / 32), 1]
+    : span > 50
+      ? [4, 2, 1]
+      : [1, 2];
+
+  let bestSplits = [...initialSplits];
+  let bestCost = splitScoreFull(lo, hi, bestSplits, p);
+
+  // Deterministic perturbation patterns (no Math.random for reproducibility)
+  const perturbations: number[][] = [];
+
+  // Restart 1: original (no perturbation)
+  perturbations.push([...initialSplits]);
+
+  // Restart 2: shift all splits right by 1
+  if (k > 2) {
+    const shifted = [...initialSplits];
+    for (let i = 0; i < k - 1; i++) {
+      const upper = i === k - 2 ? hi - 1 : (shifted[i + 1] ?? hi) - 1;
+      shifted[i] = Math.min(shifted[i] + 1, upper);
+    }
+    perturbations.push(shifted);
+  }
+
+  // Restart 3: shift all splits left by 1
+  if (k > 2) {
+    const shifted = [...initialSplits];
+    for (let i = k - 2; i >= 0; i--) {
+      const lower = i === 0 ? lo : shifted[i - 1] + 1;
+      shifted[i] = Math.max(shifted[i] - 1, lower);
+    }
+    perturbations.push(shifted);
+  }
+
+  // Restart 4: spread splits to favor smaller left children
+  if (k > 2) {
+    const spread = [...initialSplits];
+    for (let i = 0; i < k - 2; i++) {
+      const lower = i === 0 ? lo : spread[i - 1] + 1;
+      const upper = i === k - 2 ? hi - 1 : spread[i + 1] - 1;
+      spread[i] = Math.max(lower, Math.min(spread[i] - Math.floor(span / (k * 3)), upper));
+    }
+    perturbations.push(spread);
+  }
+
+  for (const startSplits of perturbations) {
+    let splits = [...startSplits];
+
+    // Coordinate descent with multiple step sizes
+    let improved = true;
+    let iter = 0;
+    while (improved && iter < maxIter) {
+      improved = false;
+      iter++;
+      for (const step of stepSizes) {
+        for (let i = 0; i < k - 1; i++) {
+          const lower = i === 0 ? lo : splits[i - 1] + 1;
+          const upper = i === k - 2 ? hi - 1 : splits[i + 1] - 1;
+          const oldCost = splitScoreFull(lo, hi, splits, p);
+          // Try +step
+          if (splits[i] + step <= upper) {
+            splits[i] += step;
+            const newCost = splitScoreFull(lo, hi, splits, p);
+            if (newCost < oldCost) {
+              improved = true;
+              continue;
+            } else {
+              splits[i] -= step;
+            }
+          }
+          // Try -step
+          if (splits[i] - step >= lower) {
+            splits[i] -= step;
+            const newCost = splitScoreFull(lo, hi, splits, p);
+            if (newCost < oldCost) {
+              improved = true;
+              continue;
+            } else {
+              splits[i] += step;
+            }
+          }
+        }
+      }
+    }
+
+    const cost = splitScoreFull(lo, hi, splits, p);
+    if (cost < bestCost) {
+      bestCost = cost;
+      bestSplits = [...splits];
+    }
+  }
+
+  return bestSplits;
+}
+
+function splitScoreFull(
+  lo: number,
+  hi: number,
+  splits: number[],
+  p: ActivationMatrix,
+): number {
+  let score = 0;
+  let left = lo;
+  for (let i = 0; i < splits.length; i++) {
+    const right = splits[i];
+    if (right >= left) {
+      score += p[left][right];
+    }
+    left = right + 1;
+  }
+  // Include the tail segment
+  if (left <= hi) {
+    score += p[left][hi];
+  }
+  return score;
+}
+
+// ─── Adaptive hybrid optimizer v2 ────────────────────────────────────────
+
+/**
+ * Adaptive hybrid optimizer: automatically selects the DP/greedy threshold
+ * based on workload concentration, and uses multi-restart local search
+ * for large subtrees.
+ *
+ * - High concentration (skewed) → lower threshold, more exact DP
+ * - Low concentration (uniform) → higher threshold, greedy is sufficient
+ * - Multi-restart local search improves split quality for large subtrees
+ */
+export function optimizeHybridAdaptive(
+  n: number,
+  model: CostModel,
+  p: ActivationMatrix,
+  baseThreshold?: number,
+): { tree: CertTree; expectedBytes: number } {
+  if (n === 0) throw new Error('Cannot optimize empty tree');
+  if (n === 1) return { tree: leaf(0), expectedBytes: 0 };
+
+  // Compute workload concentration to adapt threshold
+  const concentration = workloadConcentration(p);
+
+  // Adaptive threshold: concentrated workloads benefit from exact DP
+  // (lower threshold), uniform workloads are fine with greedy (higher)
+  // Adaptive threshold: concentrated (skewed) workloads benefit from MORE exact DP
+  // (higher threshold) because the DP can exploit locality patterns. Uniform
+  // workloads are well-handled by greedy, so a lower threshold is sufficient.
+  const threshold = baseThreshold ?? Math.max(48, Math.min(256, Math.round(128 + concentration * 120)));
+
+  function adaptiveBuild(lo: number, hi: number, depth: number): CertNode {
+    if (lo === hi) return leaf(lo);
+    if (depth <= 0) return leaf(lo);
+
+    const span = hi - lo + 1;
+
+    // Exact DP for small subtrees
+    if (span <= threshold) {
+      const subModel: CostModel = { ...model, maxHeight: depth };
+      const subP: Float64Array[] = [];
+      for (let i = lo; i <= hi; i++) {
+        const row = new Float64Array(span);
+        for (let j = lo; j <= hi; j++) row[j - lo] = p[i][j];
+        subP.push(row);
+      }
+      const subResult = optimize(span, subModel, subP);
+      function offset(nd: CertNode, o: number): CertNode {
+        return makeNode(nd.lo + o, nd.hi + o, nd.children.map(c => offset(c, o)), nd.depth);
+      }
+      return offset(subResult.tree, lo);
+    }
+
+    // For large subtrees: greedy with multi-restart local search
+    const maxK = Math.min(model.maxArity, span);
+    let maxCover = 1;
+    for (let d = 0; d < depth; d++) maxCover *= model.maxArity;
+    if (span <= maxCover && depth === 1) {
+      const arity = Math.min(maxK, span);
+      const children: CertNode[] = [];
+      for (let c = 0; c < arity; c++) children.push(leaf(lo + c));
+      return makeNode(lo, hi, children, depth);
+    }
+
+    let bestCost = Infinity;
+    let bestK = 0;
+    let bestSplits: number[] = [];
+
+    for (let k = 2; k <= maxK; k++) {
+      const strategies = getSplitStrategies(lo, hi, k, p);
+
+      // Also add probability-weighted split strategy
+      const weighted = probabilityWeightedSplits(lo, hi, k, p);
+      if (weighted.length === k - 1) {
+        let valid = true;
+        let prev = lo - 1;
+        for (let i = 0; i < weighted.length; i++) {
+          if (weighted[i] <= prev) { valid = false; break; }
+          prev = weighted[i];
+        }
+        if (valid) strategies.push(weighted);
+      }
+
+      for (const splits0 of strategies) {
+        let feasible = true;
+        let lt = lo;
+        for (let c = 0; c < k; c++) {
+          const childSpan = splits0[c] - lt + 1;
+          let cc = 1;
+          for (let d = 0; d < depth - 1; d++) cc *= model.maxArity;
+          if (childSpan > cc) { feasible = false; break; }
+          lt = splits0[c] + 1;
+        }
+        if (!feasible) continue;
+
+        // Multi-restart local search to refine splits
+        const refined = multiRestartLocalSearch(lo, hi, k, splits0, p, 3);
+
+        // Check feasibility of refined splits
+        let refFeasible = true;
+        let lt2 = lo;
+        for (let c = 0; c < k; c++) {
+          const childSpan = refined[c] - lt2 + 1;
+          let cc = 1;
+          for (let d = 0; d < depth - 1; d++) cc *= model.maxArity;
+          if (childSpan > cc) { refFeasible = false; break; }
+          lt2 = refined[c] + 1;
+        }
+
+        const useSplits = refFeasible ? refined : splits0;
+
+        let cost = p[lo][hi] * model.packetBytes(k);
+        let lt3 = lo;
+        for (let c = 0; c < k; c++) {
+          const right = useSplits[c];
+          const childSpan = right - lt3 + 1;
+          if (childSpan <= threshold && childSpan > 1) {
+            const subModel: CostModel = { ...model, maxHeight: depth - 1 };
+            const subP: Float64Array[] = [];
+            for (let i = lt3; i <= right; i++) {
+              const row = new Float64Array(childSpan);
+              for (let j = lt3; j <= right; j++) row[j - lt3] = p[i][j];
+              subP.push(row);
+            }
+            const subResult = optimize(childSpan, subModel, subP);
+            cost += subResult.expectedBytes;
+          } else if (childSpan > 1) {
+            // Greedy estimate: p-weighted cost
+            cost += p[lt3][right] * model.packetBytes(Math.min(model.maxArity, childSpan));
+          }
+          lt3 = right + 1;
+        }
+        if (cost < bestCost) { bestCost = cost; bestK = k; bestSplits = useSplits; }
+      }
+    }
+
+    if (bestCost === Infinity) {
+      const sub = compactBalanced(span, model.maxArity, depth);
+      function off3(nd: CertNode, o: number): CertNode {
+        return makeNode(nd.lo + o, nd.hi + o, nd.children.map(c => off3(c, o)), nd.depth);
+      }
+      return off3(sub, lo);
+    }
+
+    if (bestSplits.length < bestK - 1) {
+      bestSplits = [];
+      const cs = Math.ceil(span / bestK);
+      let l = lo;
+      for (let c = 0; c < bestK - 1; c++) {
+        bestSplits.push(Math.min(l + cs - 1, hi - (bestK - c - 1)));
+        l = bestSplits[bestSplits.length - 1] + 1;
+      }
+      bestSplits.push(hi);
+    }
+
+    const safeSplits: number[] = [];
+    let prev = lo - 1;
+    for (let c = 0; c < bestK; c++) {
+      let right = bestSplits[c] ?? hi;
+      right = Math.max(right, prev + 1);
+      right = Math.min(right, hi - (bestK - c - 1));
+      if (c === bestK - 1) right = hi;
+      safeSplits.push(right);
+      prev = right;
+    }
+    const children: CertNode[] = [];
+    let left = lo;
+    for (let c = 0; c < bestK; c++) {
+      children.push(adaptiveBuild(left, safeSplits[c], depth - 1));
+      left = safeSplits[c] + 1;
+    }
+    return makeNode(lo, hi, children, depth);
+  }
+
+  // Build adaptive tree
+  const adaptiveTree = adaptiveBuild(0, n - 1, model.maxHeight);
+  const adaptiveBytes = objective(adaptiveTree, model, p);
+
+  // Safety fallback: compare against balanced tree and pick the better one.
+  // For large n where the greedy path is heavily used, the balanced tree
+  // may occasionally produce lower expected bytes due to structural regularity.
+  const balancedTree = compactBalanced(n, model.maxArity, model.maxHeight);
+  const balancedBytes = objective(balancedTree, model, p);
+
+  const tree = adaptiveBytes <= balancedBytes ? adaptiveTree : balancedTree;
+  const expectedBytes = Math.min(adaptiveBytes, balancedBytes);
+  validateTree(tree, n, model);
+  return { tree, expectedBytes };
+}
+
+/**
+ * Probability-weighted split strategy: place split points at positions
+ * that minimize the cumulative probability mass on each side, creating
+ * balanced expected-cost partitions rather than balanced size partitions.
+ */
+function probabilityWeightedSplits(
+  lo: number,
+  hi: number,
+  k: number,
+  p: ActivationMatrix,
+): number[] {
+  const span = hi - lo + 1;
+  if (span <= k) {
+    // Each child is a single leaf
+    const splits: number[] = [];
+    for (let i = lo; i < hi; i++) splits.push(i);
+    return splits;
+  }
+
+  // Compute marginal activation probability for each gate
+  const marginals = new Float64Array(span);
+  for (let i = 0; i < span; i++) {
+    let m = 0;
+    for (let j = 0; j < span; j++) {
+      if (i <= j) m += p[lo + i][lo + j];
+      if (j < i) m += p[lo + j][lo + i];
+    }
+    marginals[i] = m;
+  }
+
+  // Total mass
+  let total = 0;
+  for (let i = 0; i < span; i++) total += marginals[i];
+  if (total === 0) {
+    // Fall back to even splits
+    const splits: number[] = [];
+    const cs = Math.floor(span / k);
+    for (let c = 0; c < k - 1; c++) splits.push(lo + (c + 1) * cs - 1);
+    splits.push(hi);
+    return splits;
+  }
+
+  // Place splits at cumulative probability mass boundaries
+  const targetMass = total / k;
+  const splits: number[] = [];
+  let cumMass = 0;
+  let nextTarget = targetMass;
+  for (let i = 0; i < span && splits.length < k - 1; i++) {
+    cumMass += marginals[i];
+    if (cumMass >= nextTarget) {
+      splits.push(lo + i);
+      nextTarget += targetMass;
+    }
+  }
+  splits.push(hi);
+  return splits;
+}

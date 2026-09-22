@@ -1,0 +1,47 @@
+\section{Introduction}\label{sec:intro}
+Many-agent systems need a reliable answer to ``which declared checks hold on
+this exact candidate?'' Their task graph and conversational organization need
+not be the layout that aggregates this evidence. HACT separates the two:
+immutable check identities determine the acceptance contract, while a
+bounded-packet tree represents intermediate results. A smaller tree transcript
+is not automatically a faster build, a better agent, or a smaller root-status
+prompt.
+
+The distinction matters economically. Historical source timings were 39.69
+versus 39.77 seconds for fixed and learned layouts. A separate small harness
+paid roughly five seconds per episode for strict verification compared with
+direct pytest. Meanwhile, a historical compressed loopback export saved
+approximately 2.21 seconds across twelve source streams. These different
+cohorts cannot be combined into a measured end-to-end speedup, and neither
+observation justifies adding a strict wrapper solely to save transmission time.
+
+\paragraph{Three deployment decisions, not one.}
+A trusted root-status consumer needs neither a learned tree nor all intermediate
+packets. A deployment that already requires protected verification and
+hierarchical evidence can compare fixed and learned layouts at marginal cost
+under that unchanged service. Adopting protected verification where ordinary
+pytest was sufficient is a different decision: its additional preparation and
+checking costs must be justified independently. We make this service distinction
+explicit in both the paper and a fail-closed planning API.
+
+\paragraph{The simpler compiler is now primary.}
+The prior block compiler was 1.54--5.34\% more expensive in held-out bytes than
+a compact balanced eight-ary tree on the same learned order. We therefore remove
+block DP from the practical path. The new default catalogue retains the
+incumbent and proposes a balanced tree on a training-learned average-linkage
+order; separate validation compares full-wave costs. Exact DP remains a useful
+conditional optimum and reference. It can still produce smaller evidence than the
+practical default, as our source replays show. Low fitting cost and lowest byte
+cost are different objectives.
+
+\paragraph{Contributions and evidence boundaries.}
+The substantive research contribution remains hyperedge-scored,
+identity-preserving verification aggregation and its conditional guarantees.
+This revision resolves an implementation choice, adds service-matched cost
+accounting, and evaluates the no-DP practical catalogue on fresh frozen
+synthetic splits. It separately replays archived source evidence and provides
+tools for the unmeasured token and WAN boundaries. Clustering, balanced trees,
+alphabetic DP, compression, break-even arithmetic and TLS are established
+techniques, not new inventions claimed here. The artifact is a tested research
+implementation; its tests do not establish production readiness or
+top-conference acceptance.

@@ -1,8 +1,21 @@
 \appendix
-\section{Exact Data Generation and Reproduction}
-The synthetic generator uses NumPy's \texttt{default\_rng} initialized with a \texttt{SeedSequence} whose entries are \texttt{[260918, n, seed, stream]}. Stream zero produces training episodes and stream one held-out episodes. Group construction uses \texttt{SeedSequence([7001,seed,n])}. Each group draws an integer size from 3 through 12 and truncates at the final leaf. Pilot seeds 1000 and 1001 are excluded from all main tables. Scaling sizes other than 128 have their own saved records; the four reused 128-gate seeds are clearly identified in the analysis.
 
-The executable fixture uses \texttt{SeedSequence([83012,seed,stream])}. It contains one fault and one repair per selected module group; the two phases within a pair are not treated as independent replications. Interrupted fixture runs append completed snapshot records to a journal and replay those records when resuming. They do not reclassify incomplete work as a completed seed. The summary is emitted only after all 32 snapshots for that seed exist. Runtime interruptions encountered during development motivated this resumable execution path; final tables use complete records only.
+\section{Audit and Reproduction}\label{app:repro}
+\subsection{Exact data generation}
+The synthetic generator uses NumPy's \texttt{default\_rng} initialized with a
+\texttt{SeedSequence} whose entries are \texttt{[260918, n, seed, stream]}.
+Stream zero produces training episodes and stream one held-out episodes. Group
+construction uses \texttt{SeedSequence([7001,seed,n])}. Pilot seeds 1000 and 1001
+are excluded from all main tables. Scaling sizes other than 128 have their own
+saved records; the four reused 128-gate seeds are clearly identified in the
+analysis.
+
+The v5 frozen contract fixes sizes 128, 512 and 1{,}024; families clustered,
+independent and global; and seeds 55011--55013, with 128 training, 128 validation
+and 256 held-out epochs per workload. The executable fixture uses
+\texttt{SeedSequence([83012,seed,stream])}. Interrupted fixture runs append
+completed snapshot records to a journal and replay those records when resuming;
+they do not reclassify incomplete work as a completed seed.
 
 The main commands, from the extracted research root, are:
 \begin{verbatim}
@@ -13,26 +26,221 @@ python -m experiments.sensitivity
 python -m experiments.aggregate
 python -m experiments.validate_results
 \end{verbatim}
-The fresh executable output directory prevents replay of the supplied journal. Copying new results into the canonical results directory before aggregation is an explicit operator action; the README details that step. The README gives all six primary-family commands, the scaling loop, bounded resumable fixture commands, and the \LaTeX\ build. The artifact separates raw results from regenerated tables. Nothing in these commands contacts an LLM endpoint.
+Nothing in these commands contacts an LLM endpoint. The artifact separates raw
+results from regenerated tables.
 
-\section{Certificate Encoding and Trust-Boundary Details}
-Each capsule contains \texttt{range}, \texttt{counts}, \texttt{binding}, \texttt{evidence}, and \texttt{registry}. Hash fields are 64-character lowercase SHA-256 hexadecimal encodings. Canonical JSON uses sorted keys, ASCII escapes, and compact separators. In a packet, the header occupies 512 bytes including its newline; each child card occupies 320 bytes including its newline. Padding makes byte accounting exact. Fixed padding is not asserted to be a token-optimal production encoding. A binary or tokenizer-aware encoding would define a new price function and require re-evaluation.
+\subsection{Software and data identities}
+Archived runs used Python 3.13.5 on Linux x86\_64; exact installed package and
+platform records accompany emitted reports. Compilers were measured with
+\texttt{OPENBLAS\_NUM\_THREADS=1}. No accelerator is required. Vendored upstream
+sources and tests are retained with their notices. Every fresh mutation is checked
+against its archived base-source hash, replacement span, and resulting source
+hash. This binds a result to a specific intervention, not a natural historical bug
+distribution.
 
-The trusted verifier API rejects mismatched bindings, invalid verdicts, and malformed trace hashes. It is intentionally not exposed as a tool through which an untrusted LLM can certify its own work. Returned display capsules are compared with canonical trusted records rather than accepted because their self-reported hashes appear valid. This local design demonstrates record integrity and freshness under its trust assumptions; distributed authenticated transport and credential isolation remain host-runtime responsibilities.
+\section{Certificate Encoding and Trust-Boundary Details}\label{app:encoding}
+Each capsule contains \texttt{range}, \texttt{counts}, \texttt{binding},
+\texttt{evidence}, and \texttt{registry}. Hash fields are 64-character lowercase
+SHA-256 hexadecimal encodings. Canonical JSON uses sorted keys, ASCII escapes, and
+compact separators. In a packet, the header occupies 512 bytes including its
+newline; each child card occupies 320 bytes including its newline. Padding makes
+byte accounting exact. Fixed padding is not asserted to be a token-optimal
+production encoding; a binary or tokenizer-aware encoding would define a new price
+function and require re-evaluation.
 
-The optimizer's $O(bn^3)$ claim concerns planning. The reference kernel prioritizes clarity and scans interval generation stamps; it also hashes tree descriptions. We do not infer an asymptotically optimal runtime-update implementation from the communication bound. Large-scale implementations could use range-maximum indexes and cached topology digests, but those optimizations are outside the evaluated prototype.
+The trusted verifier API rejects mismatched bindings, invalid verdicts, and
+malformed trace hashes. It is intentionally not exposed as a tool through which an
+untrusted LLM can certify its own work. Returned display capsules are compared
+with canonical trusted records rather than accepted because their self-reported
+hashes appear valid. This local design demonstrates record integrity and freshness
+under its trust assumptions; distributed authenticated transport and credential
+isolation remain host-runtime responsibilities.
 
-\section{Evidence-to-Claim Register}
-\begin{table}[h]\centering\small
-\caption{Audit map for the paper's main claims.}
-\begin{tabularx}{\linewidth}{@{}p{.29\linewidth}Xp{.20\linewidth}@{}}\toprule
+The optimizer's $O(bn^3)$ claim concerns planning. The reference kernel
+prioritizes clarity and scans interval generation stamps; it also hashes tree
+descriptions. We do not infer an asymptotically optimal runtime-update
+implementation from the communication bound. Large-scale implementations could use
+range-maximum indexes and cached topology digests, but those optimizations are
+outside the evaluated prototype.
+
+\section{Optional Fixed-Share Analysis: Not the Deployment Recommendation}\label{app:fixedshare}
+This appendix retains the former tracking theorem and its assumptions. It is an
+optional comparator, not the practical selector. On the measured streams it loses
+to the deterministic priced-window rule in three regimes. We have not searched for
+a favorable adversarial stream after seeing those results, and make no claim that a
+tracking bound implies an empirical advantage.
+
+Let a declared bound $R$ cover each round's loss spread,
+$\max_i\ell_t(i)-\min_i\ell_t(i)\le R$. Reject a measurement exceeding it instead
+of clipping the cost. Define $z_{t,i}=(\ell_t(i)-\min_j\ell_t(j))/R$. Starting at
+$p_1(i)=1/K$, update
+\begin{align}q_{t+1}(i)&=\frac{p_t(i)\exp(-\eta z_{t,i})}{\sum_j p_t(j)\exp(-\eta z_{t,j})},\\
+p_{t+1}(i)&=(1-\alpha)q_{t+1}(i)+\alpha/K,\qquad 0<\eta\le1,\ 0\le\alpha<1.\end{align}
+Independent draws from each new distribution can waste migrations. Instead,
+conditional on $A_t=i$, retain $i$ with probability
+$\min\{1,p_{t+1}(i)/p_t(i)\}$. If it is not retained, sample from the normalized
+positive residual $(p_{t+1}-p_t)^+$. This maximal coupling has marginal $p_{t+1}$
+and switch probability $\mathrm{TV}(p_t,p_{t+1})$. Established dependent-sampling
+methods motivate this choice~\cite{geulen}; we do not claim it as a new sampling
+algorithm.
+
+\begin{theorem}[Catalogue tracking with migration]\label{thm:tracking}
+Assume a frozen catalogue, a fixed exogenous sequence of full-information loss
+vectors, spread at most $R$, and $M_{ij}\le M$. For any comparator path $u_{1:T}$
+with $s$ changes and $0<\alpha<1$, the coupled policy satisfies
+\begin{equation}\E[L_T]-\sum_t\ell_t(u_t)\le
+R\left(\frac{\log K+s\log(K/\alpha)+(T-1-s)\log(1/(1-\alpha))}{\eta}+\frac{\eta T}{8}\right)
++M(T-1)(\eta+\alpha).\label{eq:tracking}\end{equation}
+For $\alpha=0$ the stationary-comparator bound has numerator $\log K$ and applies
+only to $s=0$.
+\end{theorem}
+\begin{proof}
+The fixed-share update is exponential weighting over paths with an initial uniform
+prior, self-transition mass at least $1-\alpha$, and transition mass at least
+$\alpha/K$. The negative log prior of a path with $s$ switches is bounded by the
+numerator. The bounded exponential-moment inequality gives expected normalized
+service regret at most that numerator divided by $\eta$, plus $\eta T/8$. Since
+losses are exogenous, the weights are independent of the sampled action path, and
+the coupling preserves each unconditional marginal. Exponential reweighting
+changes total variation by at most $\eta$; uniform mixing adds at most $\alpha$.
+Thus the expected switch count is at most $(T-1)(\eta+\alpha)$.
+Multiplication by $M$ and addition of service regret proves the bound. \qed
+\end{proof}
+The bound is not a per-run improvement guarantee. Choosing fixed $\eta=.5$ and
+$\alpha=.01$, as in our frozen experiment, need not make this bound sublinear with
+increasing $T$.
+
+\section{Block-Backbone Compiler: Retained Ablation}\label{app:block}
+The exact compiler's cubic cost makes frequent full recompilation inappropriate.
+For a supplied display order, divide the leaves into consecutive blocks of at most
+$s$ leaves, and fix a compact $b$-ary macro-tree on those blocks. Optimize each
+block's microtree using its restricted completion waves and strict-epoch
+initialization cost. Replace each macro leaf by its optimized microtree. No
+evaluation waves enter this process.
+
+\begin{proposition}[Exactness in the block-backbone class]\label{prop:block}
+With display order, block boundaries and macro-tree fixed, independent exact
+optimization of the blocks minimizes the training objective over every layout in
+that restricted class. The dynamic-programming work is $O(bns^2)$ with $O(bs^2)$
+reusable DP workspace, excluding order learning and wave preparation.
+\end{proposition}
+\begin{proof}
+Every macro node covers a fixed union of complete blocks, so its activation weight
+and packet price are constant across the class. All variable costs lie inside
+disjoint microtrees. The objective is a constant plus the sum of their independent
+objectives. Conditional exactness therefore gives the minimizing member. There are
+at most $\lceil n/s\rceil$ subproblems, each of size at most $s$, yielding the
+stated DP bound. Reusing the subproblem arrays yields the workspace bound. \qed
+\end{proof}
+For the reference implementation, $M$ recorded waves and $L$ total wave
+memberships add filtering and weight-preparation work of
+$O(\lceil n/s\rceil L+Mn s)$, and storage for the input, output and local $M\times
+s$ arrays. This is not a linear-time claim for the entire pipeline. No bounded
+approximation ratio against the unrestricted exact tree is asserted; held-out cost
+can deteriorate. The historical experiment froze $s=32$ before measurement. Its
+negative result----block DP lost to same-order balanced fixed8 in held-out
+bytes----motivates excluding this compiler from the practical path.
+
+\section{Information Separations}\label{app:sep}
+These results concern the information available to a selector. They are not
+hardness results for all adaptive tree algorithms, and they do not imply that a
+complete hypergraph must be recovered: interval hit statistics are sufficient for
+a fixed order and objective.
+
+\subsection{Marginals do not determine a co-invalidation optimum}
+Consider four ordered leaves, binary trees, and a constant internal packet price
+$c>0$. Let $\mathcal D_A$ choose $\{0,1\}$ or $\{2,3\}$ equiprobably and
+$\mathcal D_B$ choose $\{0,3\}$ or $\{1,2\}$ equiprobably. All leaf marginal
+activation probabilities equal $1/2$ in both distributions. The root and every
+three-leaf interval are always activated. The five tree shapes fall into the
+following classes:
+\begin{center}
+\begin{tabular}{lc c}\toprule
+Ordered tree & $J_A/c$ & $J_B/c$\\\midrule
+$((0,1),(2,3))$ & 2 & 3\\
+$(0,((1,2),3))$, $((0,(1,2)),3)$ & 3 & 2.5\\
+$(0,(1,(2,3)))$, $(((0,1),2),3)$ & 2.5 & 3\\
+\bottomrule\end{tabular}
+\end{center}
+Optimal costs are $2c$ and $2.5c$. A deterministic marginal-only selector receives
+identical input and must choose the same class, incurring at least $c/2$ regret on
+one distribution. The last class is weakly dominated by the balanced tree. If a
+randomized selector chooses the balanced tree with probability $q$, its regrets
+are at least $(1-q)c$ and $qc/2$. Their maximum is minimized at $q=2/3$ and equals
+$c/3$, which is attainable for this instance. A fixed initialization price adds the
+same $3c$ to all binary shapes and does not alter the separation.
+
+\subsection{Joint invalidation does not determine progressive layout}
+Every epoch now invalidates all four checks, and execution order is $(0,1,2,3)$
+with singleton completion waves. In workload $A$, check 0 fails, so only its wave
+is executed. In workload $B$, check 3 fails, so all four checks execute. Initial
+invalidation is identical, even jointly. Every binary tree has three internal
+nodes; its cost in $A$ is $(3+\mathrm{depth}(0))c$ and in $B$ is
+$(3+\sum_i\mathrm{depth}(i))c$. The root-0 comb minimizes $A$ at $4c$ but costs
+$12c$ in $B$, whereas the balanced tree minimizes $B$ at $11c$ but costs $5c$ in
+$A$. An invalidation-only randomized selector using a root-0 comb with probability
+$p$ incurs regrets at least $(1-p)c$ and $pc$, whose maximum is at least $c/2$. A
+deterministic selector incurs at least $c$. This proves a separation between
+stale-set information and schedule-induced completion information; it does not
+prohibit a selector that observes both.
+
+\section{Cost, Statistical, and Online Proof Details}\label{app:proofs}
+\subsection{Full-refresh lower bound and global negative control}
+For an $n$-leaf tree with $m$ internal nodes, the number of edges is $n+m-1$, so
+$\sum_v d_v=n+m-1$. Therefore
+\begin{equation}W(L)=S(n-1)+(H+S)m\ge S(n-1)+(H+S)\left\lceil\frac{n-1}{b-1}\right\rceil.\label{eq:lb}\end{equation}
+The inequality follows from $n-1=\sum_v(d_v-1)\le m(b-1)$. At $n=64$, $b=8$, a
+complete eight-child construction attains the bound with $m=9$ and $W=27{,}648$
+bytes. Thus all selected global-control layouts can tie an analytically minimal
+full refresh. Strict initialization followed by one global completion wave costs
+$2W$. This explains the exact negative control without assuming every balanced tree
+at every $n$ attains the lower bound.
+
+\subsection{Uniform statistical control at a fixed order}
+For one activation wave per episode and a fixed registry order, let
+$M_n=n(n+1)/2$ and $\epsilon=\sqrt{\log(2M_n/\delta)/(2m)}$. The interval hit
+indicators are bounded independent variables across independent episodes, though
+checks within an episode may be arbitrarily dependent. Hoeffding plus a union bound
+gives simultaneous interval-frequency error at most $\epsilon$. For every feasible
+tree, $|\widehat J(T)-J(T)|\le W(T)\epsilon$. Inserting the empirical minimizer
+gives regret at most $[W(\widehat T)+W(T^*)]\epsilon\le 2(n-1)C\epsilon$. This is
+the original HACT bound, retained for attribution. It is not automatically valid
+uniformly over arbitrary data-selected permutations; the separate held-out
+catalogue bound in Proposition~\ref{prop:valid} addresses that selection step.
+
+For strict epochs with at most $q$ completion waves, a loose range is
+$B=(q+1)(n-1)C$. Under the evaluated sequential eight-record flush rule with at most
+one final record per obligation, $q\le\lceil n/8\rceil$. A narrower observed range
+is not automatically a proved bound for an unobserved deployment distribution.
+
+\subsection{Maximal coupling and horizon dependence}
+For consecutive distributions $p,p'$, the probability mass that remains at index
+$i$ under the coupling is $\min(p_i,p'_i)$. The remaining mass is distributed as
+$(p'-p)^+$, so the new marginal is exactly $p'$ and $\Pr(A_{t+1}\ne A_t)=\mathrm{TV}(p,p')$.
+For exponential reweighting by $a_i=\exp(-\eta z_i)$ with $z_i\in[0,1]$, the
+normalizer is at most one, hence $q_i\ge e^{-\eta}p_i$. Thus
+$\sum_i\min(p_i,q_i)\ge e^{-\eta}$ and $\mathrm{TV}(p,q)\le1-e^{-\eta}\le\eta$.
+Mixing $q$ with the uniform distribution by weight $\alpha$ changes total variation
+by at most $\alpha$. The triangle inequality gives the switch bound in
+Theorem~\ref{thm:tracking}.
+
+For $K\ge2$, $s=0$, and $\alpha=0$, write $B_T=RT/8+M(T-1)$. The bound is
+$R\log K/\eta+\eta B_T$. When $\sqrt{R\log K/B_T}\le1$, choosing that learning rate
+gives at most $2\sqrt{R\log K\,B_T}$ expected regret, sublinear for fixed
+$R,M,K$. This is an established style of switching-cost bound, not a new rate. A
+single empirical switch with estimated future saving $d$ and anticipated horizon
+$h$ satisfies the familiar break-even inequality $hd>M_{ij}$. This is arithmetic,
+not a drift theorem: savings may reverse before $h$ events.
+
+\section{Evidence-to-Claim Register}\label{app:register}
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}p{.30\linewidth}Xp{.22\linewidth}@{}}\toprule
 Claim & Evidence & Scope boundary\\\midrule
-Exact ordered optimum & Theorem~\ref{thm:dp}; exhaustive enumeration tests & Fixed order and price model\\
-Marginals can be insufficient & Theorem~\ref{thm:separation}; exact five-shape test & Specified binary instance\\
-Finite-sample selection control & Theorem~\ref{thm:generalization} & IID stationary episodes; bound may be loose\\
-Declared-contract soundness & Theorem~\ref{thm:soundness}; stale and tamper tests & Trusted complete checker contract\\
-Clustered traffic reduction & 20 held-out workload seeds; raw masks and costs & Synthetic workload distribution\\
-Executable traffic reduction & Six seeds, 192 snapshots, actual packets & Small scripted mutation fixture\\
-Packet cap maintained & Serializer checks, scale records, packet-length assertions & Certificate packet, not full model request\\
-Production or LLM-quality improvement & Not measured & No such claim\\
-\bottomrule\end{tabularx}\end{table}
+Exact ordered optimum & Theorem~\ref{thm:exact}; exhaustive enumeration tests & Fixed order and price model\\
+Validation after order & Proposition~\ref{prop:valid}; Hoeffding bound & Fixed catalogue, no shift\\
+Publication soundness & Theorem~\ref{thm:soundness}; conditional proof & Trusted checker, protected state\\
+Practical byte reduction & Table~\ref{tab:v5synthetic}; frozen seeds & Clustered workloads, 3 seeds\\
+Source replay reductions & Table~\ref{tab:replay}; 36 replays & Diagnostic, not fresh checks\\
+Root status identical & Equation~\eqref{eq:rootid}; 593--594 bytes & Fixed tokenizer, layout-independent\\
+Break-even accounting & Equations~\eqref{eq:netbenefit}--\eqref{eq:qmin} & Declared $C,E,R$, codec-matched\\
+\bottomrule\end{tabularx}\end{center}

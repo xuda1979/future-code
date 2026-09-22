@@ -18,6 +18,9 @@ export * from './tree.js';
 export * from './certificates.js';
 export * from './costModel.js';
 export * from './workload.js';
+export * from './window.js';
+export * from './exposure.js';
+export * from './blocked.js';
 
 /** Version string matching the research artifact. */
-export const HACT_VERSION = '1.0.0';
+export const HACT_VERSION = '4.0.0';

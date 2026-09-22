@@ -1,0 +1,55 @@
+\section{Related Work and Positioning}\label{sec:related}
+\paragraph{Testing, impact analysis, and incremental computation.}
+Test prioritization seeks earlier fault exposure~\cite{rothermel};
+regression-test selection uses change dependencies~\cite{ekstazi,namerts}. The
+earlier IC-HACT ranker uses controlled mutation outcomes to prioritize checks,
+an instance of established fault-exposure methods. It is held fixed in the new
+source comparisons. Self-adjusting computation and build-system research already
+formalize dependency-aware recomputation~\cite{acar,builds}. In contrast to test
+selection, our strict pass requires the entire approved registry on the
+identified candidate. We do not reproduce NameRTS or Ekstazi and claim no
+superiority over them.
+
+\paragraph{Seriation and authenticated layouts.}
+Spectral seriation orders items using an affinity matrix~\cite{seriation}.
+Average-linkage clustering likewise provides an established proximity-based
+ordering. Generalized alphabetic-tree optimization supplies the subtree/forest
+recurrence used here~\cite{alphabetic}. Workload-adaptive authenticated
+structures, including Huffman--Merkle Trees~\cite{hmt}, already optimize layouts
+under access patterns. Our price counts repeated completion-frontier updates,
+including strict-epoch construction, under a fixed packet cap. Pairwise affinity
+proposes an order; full hyperedge observations score it. No global optimality or
+unproved NP-hardness result is claimed for unrestricted joint ordering and tree
+synthesis.
+
+\paragraph{Online decisions with switching costs.}
+Fixed-share learning tracks changing experts~\cite{herbster}; dependent sampling
+reduces switches compared with independent weighted-majority
+draws~\cite{geulen}. Full-information and bandit switching-cost settings have
+different achievable regret guarantees~\cite{cesa}. We use the full-information
+setting because one recorded completion wave can be scored against every frozen
+certificate layout without reexecuting the tests. This is not full counterfactual
+feedback for arbitrary agent strategies: if a layout changes the tests'
+execution schedule or model behavior, our exogenous-cost assumption may fail.
+Our bound specializes established tools to measured layout-installation costs;
+it is not a new minimax online-learning result.
+
+\paragraph{Agent runtime assurance and evaluation.}
+Proof-Carrying Agent Actions~\cite{pcaa} and verification-portfolio commit
+gates~\cite{gates} address related action-governance problems. Our local
+certificates are neither signatures nor zero-knowledge proofs. SWE-bench
+evaluates real repository issues and patches~\cite{swebench}; our source
+mutations and scripted I/O repairs must not be called SWE-bench results. The
+current integration measures real orchestration and verification, not model
+reasoning quality.
+
+\paragraph{Logging and serialization controls.}
+Telemetry systems already batch and compress records~\cite{otel}. HACT is not a
+replacement for those techniques: fewer padded bytes need not imply fewer
+compressed bytes. We measure both. Moreover, flat result ledgers and a trusted
+root-status endpoint can be much smaller than an archive of all intermediate
+aggregation updates; they satisfy different delivery needs and must not be
+hidden from the comparison. Several closest lines of agent work---observation
+masking~\cite{complexitytrap}, context folding~\cite{contextfolding}, and
+decentralized shared context~\cite{delm}---motivate the productivity boundary in
+Section~\ref{sec:productivity} rather than being reproduced here.

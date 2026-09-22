@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "harnessId": "harness-future-code",
+  "project": "/Users/daxu/software/future-code",
+  "createdAt": "2026-09-22T02:29:21.363Z",
+  "tools": [
+    {
+      "id": "bash",
+      "description": "run a shell command",
+      "command": "bash"
+    },
+    {
+      "id": "bun-test",
+      "description": "run the bun test suite",
+      "command": "bun test tests/harness",
+      "cwd": "."
+    }
+  ],
+  "gates": [
+    {
+      "id": "unit",
+      "toolId": "bun-test",
+      "required": true,
+      "description": "bun unit tests pass (scoped: tests/harness)"
+    }
+  ],
+  "slos": [
+    {
+      "id": "pass-rate",
+      "description": "gates must pass",
+      "metric": "pass_rate",
+      "op": "gte",
+      "threshold": 1
+    },
+    {
+      "id": "bounded-runtime",
+      "description": "run must finish quickly",
+      "metric": "runtime_ms",
+      "op": "lte",
+      "threshold": 60000
+    }
+  ],
+  "config": {
+    "maxParallel": 1,
+    "contextBudget": 1,
+    "improvementPolicy": {
+      "cost_per_run_threshold_usd": 0,
+      "slow_gate_seconds": 15
+    }
+  },
+  "improvementHistory": [],
+  "updatedAt": "2026-09-22T02:29:21.363Z"
+}

@@ -1,235 +1,45 @@
 \documentclass[11pt]{article}
 \usepackage[a4paper,margin=24mm]{geometry}
 \usepackage[T1]{fontenc}
-\usepackage{amsmath,amsthm}
-\usepackage{times}
-\usepackage{microtype,booktabs,tabularx,array,graphicx}
-\usepackage{algorithm,algpseudocode,enumitem,xcolor}
+\usepackage{amsmath,amsfonts,amssymb,amsthm,lmodern,microtype}
+\usepackage{booktabs,tabularx,array,graphicx,xcolor,verbatim}
+\usepackage{algorithm,algpseudocode,enumitem}
 \usepackage[font=small,labelfont=bf]{caption}
 \usepackage[hidelinks]{hyperref}
-\hypersetup{pdftitle={HACT: Hyperedge-Aware Certificate Trees for Context-Bounded Multi-Agent Coordination},pdfsubject={Research manuscript and reproducible communication experiments},pdfauthor={Research manuscript; authors pending confirmation}}
 \usepackage{fancyhdr}
-\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small HACT: Context-Bounded Certificate Trees}\fancyhead[R]{\small Research draft}\fancyfoot[C]{\thepage}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Research manuscript v5.1}\fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}\setlength{\parskip}{3pt}\setlength{\emergencystretch}{2em}
-\newtheorem{theorem}{Theorem}
-\newtheorem{proposition}[theorem]{Proposition}
-\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{theorem}{Theorem}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{lemma}[theorem]{Lemma}
 \theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
 \theoremstyle{remark}\newtheorem{remark}[theorem]{Remark}
-\newcommand{\PASS}{\ensuremath{\mathsf{PASS}}}
-\newcommand{\FAIL}{\ensuremath{\mathsf{FAIL}}}
-\newcommand{\UNKNOWN}{\ensuremath{\mathsf{UNKNOWN}}}
-\newcommand{\E}{\mathbb E}\newcommand{\Prb}{\mathbb P}\newcommand{\ind}{\mathbf{1}}
-\newcommand{\T}{\mathcal T}\newcommand{\R}{\mathcal R}
+\newcommand{\PASS}{\ensuremath{\mathsf{PASS}}}\newcommand{\FAIL}{\ensuremath{\mathsf{FAIL}}}\newcommand{\UNKNOWN}{\ensuremath{\mathsf{UNKNOWN}}}
+\newcommand{\T}{\mathcal T}
+\newcommand{\E}{\mathbb E}\newcommand{\Prb}{\mathbb P}\newcommand{\ind}{\mathbf 1}\newcommand{\R}{\mathcal R}
 \DeclareMathOperator*{\argmin}{arg\,min}
-\title{\vspace{-12mm}\textbf{HACT: Hyperedge-Aware Certificate Trees for Context-Bounded Multi-Agent Coordination}}
-\author{Research manuscript\thanks{Author names and institutional affiliations are left for confirmation before submission. The accompanying artifact records AI-assisted mathematical development, implementation, experimentation, and writing.}}
-\date{September 18, 2026 \quad | \quad Version 1.0}
-\input{generated/rows_macros.tex}
+\hypersetup{pdftitle={Adaptive HACT: Service-Matched Verification Evidence and Deployment Boundaries},pdfauthor={Research manuscript; author information pending confirmation}}
+\title{\vspace{-9mm}\textbf{Adaptive HACT: Service-Matched Verification Evidence and Deployment Boundaries}}
+\author{Research manuscript\\[1mm]
+\small This artifact candidacy draft accompanies the \texttt{future-code} research repository. Author names and affiliations require confirmation before any submission. Mathematical development, implementation, experiments, and writing were AI-assisted. This is a research artifact, not an accepted or peer-reviewed venue.}
+\date{September 21, 2026 \quad | \quad Version 5.1}
 \begin{document}
 \maketitle
 \begin{abstract}
-Large agent collectives cannot be coordinated reliably by forwarding every transcript to one model. Bounded hierarchies control individual message size, but a fixed hierarchy ignores which obligations must be rechecked together, and compressed prose does not establish that all required checks passed on the current artifact. We introduce \emph{Hyperedge-Aware Certificate Trees} (HACT), a verification-plane formulation that keeps task ownership separate from evidence aggregation. An edit induces a set-valued invalidation event over an ordered registry of executable obligations. HACT minimizes expected certificate-refresh bytes under a hard per-packet budget by estimating interval activation probabilities and instantiating an exact alphabetic-tree dynamic program. We prove conditional publication soundness, a finite-sample selection bound, and a four-obligation separation showing that identical marginal activity rates can require different optimal trees; any randomized marginal-only selector incurs worst-case additive regret of at least one third of an internal refresh price. In a six-family study with 20 seeds per family, HACT reduces held-out refresh traffic on clustered invalidations by 21.35\% relative to a training-selected fixed-fanout baseline and by 21.25\% relative to a marginal-only optimizer. The latter comparison reverses on independent invalidations: HACT is 0.51\% worse. A separate executable microbenchmark contains 192 mutated Python snapshots and 80 obligations; all five tested layouts agree with a full-test oracle, while HACT reduces serialized refresh traffic by 12.44\% relative to the tuned fixed baseline. All certificate packets remain within 3,072 bytes. These are communication and protocol results, not evidence of improved live-LLM reasoning or autonomous repair quality.
+Reducing verification evidence is useful only when its delivery service is needed and the savings repay the incremental cost. Adaptive HACT separates immutable check identities and acceptance predicates from the layout used to aggregate their completion records. Full completion hyperedges, rather than pairwise similarity alone, score feasible layouts; generation fencing preserves conditional publication soundness across permutations. We retain exact alphabetic dynamic programming as a reference, but make a learned-order compact balanced eight-ary tree the low-compilation-cost baseline and relegate the slower, empirically inferior block compiler to an ablation. A fresh, frozen-seed study contains 27 train/validation/held-out workloads. On clustered completions, the practical catalogue reduces held-out padded cost by 23.43\%, 10.75\%, and 5.56\% at 128, 512, and 1,024 checks; independent and global controls give essentially no improvement. Re-aggregating twelve archived source candidates under three layouts produces 36 layout replays, not new code-generation or checker trials. The practical balanced layout reduces whole-epoch compressed bytes by 4.36--41.84\% versus original-order fixed8, but remains larger than learned-order exact layouts. We derive an explicit, codec- and service-matched deployment test rather than claiming that historical export savings cancel a different harness's verification overhead. Root-status inputs remain identical across layouts. BPE and physical-WAN measurements remain unavailable; we supply actual-tokenizer admission and authenticated TLS measurement tools without presenting local protocol tests as those missing experiments. The result identifies both a lower-cost implementation and a narrow, auditable operating region, not a universal agent or verification accelerator.
 \end{abstract}
-\noindent\textbf{Keywords:} multi-agent systems; bounded context; executable verification; correlated invalidation; alphabetic trees; reproducible systems research.
 
-\section{Introduction}
-A large multi-agent system has two distinct coordination problems. First, workers must reason about a shared objective while maintaining coherent interfaces and avoiding conflicting writes. Second, the system must determine which outputs are current, which obligations remain unresolved, and whether a release condition has actually been established. Sending all reasoning and all verification details to a central language model conflates these problems. Replacing that model with a fixed tree reduces immediate fan-in, but does not itself determine an efficient evidence topology or preserve the meaning of a completion claim.
+\noindent\textbf{Keywords:} bounded evidence; verification contracts; bandwidth-limited logging; completion hyperedges; cost-aware layout selection.
 
-Existing research already motivates decentralization. DeLM uses a task queue and shared compact updates to avoid routing every contribution through a main agent~\cite{delm}. Controlled scaling studies find that the effects of adding agents depend on task structure and coordination architecture~\cite{scaling}. Practitioner guidance similarly advocates selective retrieval and durable notes rather than indiscriminate context accumulation~\cite{context}. We do not claim hierarchy, shared memory, selective retrieval, or subagent specialization as inventions.
-
-Our starting point is more specific. Suppose several workers modify a software repository, and a trusted harness maintains a registry of approved checks. An edit to one interface can invalidate its own unit tests, tests of dependent modules, and integration checks simultaneously. The resulting set of stale obligations is a \emph{hyperedge}, not a collection of independent scalar activity rates. A certificate tree should place obligations using these joint events, not only a default fanout or individual update counts.
-
-We call the resulting method HACT. The semantic task graph and its write leases remain under the agent runtime. A separate ordered tree aggregates concise, machine-produced certificates. The runtime can change this certificate tree without changing who owns a task, altering an acceptance criterion, or asking an LLM to reread the whole project. At each completed revalidation batch, only activated aggregation nodes emit new bounded packets. A trusted local kernel prevents missing, stale, or incomplete evidence from becoming a publication-level \PASS.
-
-\paragraph{Research question.}
-Given a fixed ordered obligation registry, a hard certificate-packet budget, and observations of jointly invalidated obligations, can we reduce refresh communication without weakening the declared verification predicate?
-
-\paragraph{Contributions and attribution boundary.}
-The paper contributes a correlated-activation objective with explicit byte pricing, an exact specialization of alphabetic-tree optimization, an information-loss separation for marginal-only methods, and a freshness-preserving reference kernel that realizes the cost model. It supplies held-out measurements, an executable mutation fixture, adversarial protocol tests, and negative results. The interval dynamic-programming machinery is classical~\cite{alphabetic}; neither tree optimization in general nor hashing, dependency invalidation, or runtime certificates are claimed as new. The proposed research contribution is the particular problem formulation, its correlation-sensitive consequence, and its validated realization for the verification plane of context-bounded agent systems. Establishing priority against all literature would require a broader review than the targeted search supporting this draft.
-
-\section{Related Work and Positioning}
-\label{sec:related}
-\paragraph{Agent coordination and context management.}
-DeLM~\cite{delm} addresses shared progress and decentralized task claiming. Kim et al.~\cite{scaling} investigate architecture--task interactions, while Anthropic~\cite{context} discusses practical context selection. These motivate avoiding an omniscient manager, but they study or guide reasoning organization rather than our ordered, correlated certificate-refresh objective. Our experiments do not reproduce their agent benchmarks, and we make no head-to-head performance claim against them.
-
-\paragraph{Alphabetic and workload-sensitive trees.}
-Vaishnav and Pedram~\cite{alphabetic} develop generalized alphabetic-tree enumeration and subtree/subforest optimization, including bounded degree and height. Their framework supplies the dynamic-programming template used here; our $O(bn^3)$ complexity is not a new generic tree algorithm. Baer~\cite{baer} is a further example of optimizing alphabetic codes for nonstandard costs. HACT's interval weight is the probability that a \emph{set} intersects an interval, not merely the sum of leaf access weights.
-
-The recent Huffman--Merkle Tree work~\cite{hmt} adapts authenticated layouts to changing access frequencies, with batching and tiering. This is a particularly relevant predecessor: workload-aware authenticated trees and amortized layout maintenance already exist. HACT instead studies a fixed leaf order, a byte-constrained aggregation packet, joint obligation invalidation, and a declared gate predicate. Its kernel is not a cryptographic proof system for an untrusted verifier. We compare with a marginal-only optimizer as an information ablation, not with an implementation of HMT.
-
-\paragraph{Incrementality and action certificates.}
-Dependency tracking and memoization are established tools for incremental computation~\cite{acar}. Proof-Carrying Agent Actions~\cite{pcaa} binds governance information to actions across runtimes. These mechanisms address important parts of trustworthy execution. Our incremental dependency closure and publication check reuse these general principles; the optimization target is where complete, current gate evidence should be aggregated when invalidations are correlated.
-
-\begin{table}[t]
-\centering\small
-\caption{What is inherited and what is investigated here.}\label{tab:novelty}
-\begin{tabularx}{\linewidth}{@{}p{.25\linewidth}XX@{}}
-\toprule
-Component & Established principle & HACT-specific research object \\
-\midrule
-Agent organization & Hierarchy, shared state, narrow contexts & Separate semantic ownership from the certificate layout \\
-Tree optimizer & Alphabetic interval/forest dynamic programming & Set-activation weights with byte-priced variable arity \\
-Adaptive layout & Workload-aware tree design & Explicit marginal-information separation for co-invalidation \\
-Verification & Trusted checks, dependency invalidation, hash binding & Complete coverage and freshness under tree switching \\
-Evaluation & Held-out comparison and executable tests & Common gate evidence, measured packets, negative controls \\
-\bottomrule\end{tabularx}\end{table}
-
-\section{System Model and the Certificate Interface}\label{sec:model}
-\subsection{Two graphs, not one omniscient agent}
-Let the application have an arbitrary task DAG with its own workers, dependencies, and write scopes. HACT does not replace this DAG. Instead, let $\R=(g_0,g_1,\ldots,g_{n-1})$ be an ordered, versioned registry of executable obligations. The order may follow modules or an approved contract. An obligation is not necessarily an agent: one worker may discharge many obligations, and one integration obligation may depend on several workers' outputs.
-
-Each $g_i$ declares a predicate, a trusted checker identity, and a complete set $D_i$ of relevant input artifacts. Relevant configuration, checker code, and runtime assumptions must also be bound. A content-addressed artifact snapshot is $x$. The evidence binding is
-\begin{equation}
- b_i(x)=\operatorname{Hash}\!\left(\R,\operatorname{id}(g_i),\operatorname{checker}_i,
-                  \{(a,\operatorname{Hash}(x_a)):a\in D_i\}\right).
-\label{eq:binding}\end{equation}
-Trusted evidence contains $b_i(x)$, a verdict in $\{\PASS,\FAIL,\UNKNOWN\}$, and a trace commitment. Missing or stale evidence is \UNKNOWN. A hash binds records; it does not prove that a check was sound, actually executed, or adequate for the user's objective. Those properties belong to the checker and contract trust boundary.
-
-An artifact change set $A$ invalidates
-\begin{equation}U(A)=\{i:D_i\cap A\ne\varnothing\}.\label{eq:closure}\end{equation}
-This closure must be complete for the stated predicates. HACT does not infer complete read sets from arbitrary generated code. Undeclared side effects or environment dependence can invalidate the guarantee.
-
-\subsection{Ordered certificate trees}
-A feasible tree has the obligations as leaves in registry order, no unary internal nodes, and between two and $b$ children at each internal node. Each node $v$ covers a contiguous interval $I_v=[\ell_v,r_v]$. Its children form an exact, disjoint partition of that interval. An internal capsule contains the interval, a registry digest, current binding and evidence commitments, and three exact counts: passed, failed, and unknown obligations. It has no model-generated success score.
-
-For children $u_1,\ldots,u_k$, aggregation sums the three count vectors and commits to the ordered child records. The verdict is \FAIL\ when any failure exists; otherwise it is \UNKNOWN\ when any obligation is unknown; otherwise it is \PASS. Validity additionally requires complete coverage and current bindings. A small count vector is sufficient for the declared conjunction; it is not sufficient to answer every possible semantic question about the project.
-
-The prototype uses a fixed header of $H$ bytes and fixed child cards of $S$ bytes. A refresh packet for arity $k$ has price
-\begin{equation}c(k)=H+Sk,\qquad 2\le k\le b=\left\lfloor\frac{C-H}{S}\right\rfloor,\label{eq:price}\end{equation}
-where $C$ is the hard packet cap. An oversized mandatory record is rejected, never truncated. Our default $(H,S,C)=(512,320,3072)$ permits $b=8$, but the optimizer can choose smaller arities. The cap concerns this certificate packet, not an entire LLM request containing source files, system instructions, or reasoning history. Any host agent must reserve additional budget for those inputs.
-
-\paragraph{Finite representation.}
-The tested schema supports at most $2^{31}-1$ obligations and rejects out-of-range or oversized records. This finite bound makes the fixed-width implementation precise. There is no claim that arbitrarily large exact integers fit in constant bytes: an asymptotic encoding requires $\Omega(\log n)$ index/count space.
-
-\subsection{Batch semantics and measured cost}
-A publication claim is revoked immediately when a relevant artifact changes. For communication accounting, an episode is a \emph{completed revalidation batch}: all its submitted check results are incorporated, and each affected internal node refreshes once. Intermediate model conversations, progress polling, and repeated partial refreshes are not counted. A runtime that refreshes on every individual result must record those as separate episodes or use a richer objective.
-
-Let $U$ be the set of obligations whose evidence changes in the batch. An internal node refreshes exactly when $U\cap I_v\ne\varnothing$. Hence
-\begin{equation}L(T,U)=\sum_{v\in\operatorname{int}(T)}c(\deg v)\ind\{U\cap I_v\ne\varnothing\}.\label{eq:episode}\end{equation}
-Gate execution work, source retrieval, and unchanged artifact storage are held fixed across trees. The metric is serialized internal aggregation traffic; it is not network bandwidth measured on a deployed cluster, token billing, end-to-end latency, or total autonomous-agent cost.
-
-\section{Hyperedge-Aware Tree Optimization}\label{sec:optimization}
-\subsection{Joint activation is the sufficient workload statistic}
-For a distribution over update sets, define
-\begin{equation}p(i,j)=\Prb\{U\cap[i,j]\ne\varnothing\}.\label{eq:activation}\end{equation}
-By linearity of expectation, without assuming independent leaf activity,
-\begin{equation}J(T)=\E L(T,U)=\sum_{v\in\operatorname{int}(T)}p(\ell_v,r_v)c(\deg v).\label{eq:objective}\end{equation}
-For $m$ historical episodes $U_1,\ldots,U_m$, HACT uses the empirical frequency $\widehat p(i,j)=m^{-1}\sum_t\ind\{U_t\cap[i,j]\ne\varnothing\}$. These interval probabilities compress the workload only for the selected objective. They do not reconstruct the entire hyperedge distribution.
-
-A marginal-only approximation sets
-\begin{equation}\widetilde p(i,j)=1-\prod_{q=i}^{j}(1-\widehat p(q,q)).\label{eq:independence}\end{equation}
-It uses the same amount of training data, tree family, and optimizer, but imposes within-episode independence. The comparison isolates the value of co-invalidation information rather than an implementation advantage.
-
-\subsection{Exact interval/forest dynamic program}
-Let $F(i,j)$ be the minimum expected internal traffic for an ordered tree on $[i,j]$. Let $G_k(i,j)$ be the minimum sum of subtree costs for a contiguous forest of exactly $k$ trees covering the same interval. Set $F(i,i)=0$, and let infeasible states equal $+\infty$. Then
-\begin{align}
- G_1(i,j)&=F(i,j),\\
- G_k(i,j)&=\min_{i\le t\le j-k+1}\{F(i,t)+G_{k-1}(t+1,j)\},\quad k\ge2,\label{eq:forest}\\
- F(i,j)&=\min_{2\le k\le\min(b,j-i+1)}\{G_k(i,j)+p(i,j)c(k)\},\quad i<j.\label{eq:tree}
-\end{align}
-For a fixed interval length, compute its $G_k$ states from shorter intervals, compute $F$, and then set $G_1=F$. Record split points and root arity for reconstruction. Using $\widehat p$ gives the empirical optimum.
-
-\begin{theorem}[Exact ordered optimization]\label{thm:dp}
-For any valid interval probabilities and price function in Equation~\eqref{eq:price}, Equations~\eqref{eq:forest}--\eqref{eq:tree} return an optimal feasible ordered certificate tree. The running time is $O(bn^3)$ and retained state is $O(bn^2)$, excluding the workload samples. These are mathematical bounds; the implementation uses float64 arithmetic.
-\end{theorem}
-\begin{proof}
-Every feasible internal root partitions its interval into $k\in[2,b]$ consecutive nonempty subintervals. Its refresh price depends only on the root interval and $k$, not on its descendants. Replacing any child by an optimal child with the same interval cannot increase the root term or another child's cost. Equation~\eqref{eq:forest} enumerates all contiguous $k$-part partitions by selecting the first child's right endpoint, and Equation~\eqref{eq:tree} enumerates every allowed root arity. Induction on interval length proves optimality. There are $O(bn^2)$ forest states and at most $n$ candidate split points per state. Each state retains a value and a split; the tree states also retain an arity. Reconstruction adds only linear output size.
-\end{proof}
-This is an application of generalized alphabetic subtree/subforest optimality~\cite{alphabetic}, not a claim that the recurrence template is new. The interval activation model is the part that changes the agent-coordination problem being solved. Leaf permutations are fixed; the theorem does not imply an optimum over all possible registries or task decompositions.
-
-\begin{algorithm}[t]\caption{HACT planning and certificate refresh}\label{alg:hact}
-\begin{algorithmic}[1]
-\Require Ordered registry $\R$, trusted checker, historical batches, byte cap $C$
-\State Estimate $\widehat p(i,j)$ from the complete invalidation sets
-\State Solve Equations~\eqref{eq:forest}--\eqref{eq:tree}; validate exact tree coverage and packet sizes
-\For{each completed revalidation batch}
-\State Revoke publication on the first relevant artifact change
-\State Compute invalidation closure $U$ from declared dependencies
-\State Check immutable snapshots; accept only correctly bound trusted records
-\State Refresh activated tree nodes bottom-up; preserve unchanged valid subtrees
-\State Compute exact counts and root commitments; retain traces outside packets
-\State Publish only if the current complete root is $\PASS$ under an atomic check
-\EndFor
-\end{algorithmic}\end{algorithm}
-
-\subsection{Depth constraint and a global-update lower bound}
-An optimizer minimizing average traffic can create deep branches for rarely observed gates. A hard height budget is an independent control, not a consequence of bounded fanout. Let $F_h$ denote the optimum with at most $h$ root-to-leaf edges. In the forest recurrence for layer $h$, use $F_{h-1}$ for each child; set singleton costs to zero at every layer. This gives an exact $O(hbn^3)$ extension with retained $O(hbn^2)$ reconstruction state. Feasibility requires $n\le b^h$. The artifact implements this extension and checks it against exhaustive enumeration. A depth bound limits certificate-chain length, not tool execution or LLM thinking time.
-
-\begin{proposition}[Full-refresh cost]\label{prop:global}
-For a tree with $n$ leaves and $q$ internal nodes,
-\begin{equation}W(T):=L(T,[0,n-1])=S(n-1)+(H+S)q.\end{equation}
-Consequently, $W(T)\ge S(n-1)+(H+S)\lceil(n-1)/(b-1)\rceil$.
-\end{proposition}
-\begin{proof}
-The sum of internal arities is the number of edges, $n+q-1$. Substituting into $\sum_v(H+S\deg v)$ gives the identity. Also $n+q-1\le bq$, which gives the lower bound on $q$.
-\end{proof}
-For $n=128$ and our packet format, the lower bound is 56,448 bytes. The global-update experiment attains it. Correlation awareness cannot improve a tree already attaining this bound; this supplies an exact negative control rather than a favorable baseline chosen after seeing results.
-
-\section{Why Marginal Activity Cannot Determine the Optimum}\label{sec:separation}
-The main information distinction can be made explicit without a large benchmark. Consider four leaves, binary trees only, and a constant internal-node refresh price $c>0$. Define
-\[
-\mathcal D_A:\quad U=\{0,1\}\text{ or }\{2,3\},\qquad
-\mathcal D_B:\quad U=\{0,3\}\text{ or }\{1,2\},
-\]
-with probability $1/2$ for each set. Every leaf has activation probability $1/2$ under both distributions. The five ordered full binary tree shapes fall into the cost classes in Table~\ref{tab:counterexample}. Parentheses indicate binary grouping.
-
-\begin{table}[h]\centering\small
-\caption{An exact four-obligation counterexample. Costs are in units of $c$.}\label{tab:counterexample}
-\begin{tabular}{@{}lrr@{}}\toprule
-Tree shape(s) & $J_A/c$ & $J_B/c$\\\midrule
-$((0,1),(2,3))$ & 2 & 3\\
-$(0,((1,2),3))$, $((0,(1,2)),3)$ & 3 & 2.5\\
-$(0,(1,(2,3)))$, $(((0,1),2),3)$ & 2.5 & 3\\
-\bottomrule\end{tabular}\end{table}
-
-\begin{theorem}[Marginal-indistinguishability separation]\label{thm:separation}
-Any deterministic ordered binary-tree selector that receives only the exact marginal gate activation probabilities has worst-case additive regret at least $c/2$ on $\{\mathcal D_A,\mathcal D_B\}$. Any randomized selector restricted to the same information has worst-case expected additive regret at least $c/3$. The randomized bound is tight for this two-distribution instance.
-\end{theorem}
-\begin{proof}
-The root activates surely for both distributions. Each length-three interval also activates surely. A length-two interval contributes its hit probability, giving Table~\ref{tab:counterexample}. The optimal costs are $2c$ and $2.5c$ respectively. Since the marginal input is identical, a deterministic selector chooses the same shape under both distributions. The three cost classes give regret pairs $(0,c/2)$, $(c,0)$, and $(c/2,c/2)$, proving the first claim.
-
-For randomization, the last class is weakly dominated by the balanced shape and can be removed without increasing either regret. Let $q$ be the probability of choosing the balanced shape and $1-q$ the probability of an inner-pair comb. Expected regrets are $(1-q)c$ and $qc/2$. Their maximum is minimized where $1-q=q/2$, namely $q=2/3$, and equals $c/3$. Mixing the indicated shapes with these probabilities attains the value.
-\end{proof}
-The theorem is not a hardness result for all tree optimization. It identifies information that no marginal-only method can recover, even with an exact optimizer and exact marginal frequencies. A method observing richer co-activity information is outside the lower-bound class. Likewise, the theorem does not establish the necessity of reconstructing a full hypergraph: the interval hit probabilities are sufficient for our objective.
-
-\section{Statistical Selection and Freshness Guarantees}
-\subsection{A uniform finite-sample bound}
-Let $M=n(n+1)/2$, and suppose the $m$ training episodes are independent and identically distributed. Gate activity within each episode may be arbitrarily dependent. Define
-\begin{equation}\epsilon_m(\delta)=\sqrt{\frac{\log(2M/\delta)}{2m}}.\end{equation}
-Let $\widehat T$ minimize the empirical objective over the feasible family, and let $T^*$ minimize its population counterpart. The same family, including any declared height bound, must be used for both.
-
-\begin{theorem}[Selection bound]\label{thm:generalization}
-With probability at least $1-\delta$,
-\begin{align}
-|\widehat J(T)-J(T)|&\le W(T)\epsilon_m(\delta)\quad\text{for every feasible }T,\label{eq:uniform}\\
-J(\widehat T)-J(T^*)&\le [W(\widehat T)+W(T^*)]\epsilon_m(\delta)\nonumber\\
-&\le 2(n-1)C\epsilon_m(\delta).\label{eq:regret}
-\end{align}
-\end{theorem}
-\begin{proof}
-For each interval, its observed hit indicators are independent bounded variables across episodes. Applying the two-sided bounded-sum inequality~\cite{hoeffding}, the probability that its empirical frequency differs by more than $\epsilon$ is at most $2e^{-2m\epsilon^2}$. A union bound over $M$ intervals gives simultaneous frequency control with the displayed radius. Equation~\eqref{eq:uniform} follows by multiplying each interval error by the nonnegative node price and summing. For Equation~\eqref{eq:regret}, insert the two empirical objectives and use $\widehat J(\widehat T)\le\widehat J(T^*)$. A tree with no unary internal nodes has at most $n-1$ internal nodes, each priced at most $C$.
-\end{proof}
-This bound can be loose or vacuous at our sample sizes; it is not used to manufacture an empirical superiority claim. It does establish uniformity over the data-selected tree without union-bounding over every tree shape. It does not cover arbitrary drift or strongly dependent consecutive episodes. In a deployment, trace blocks and retraining policies would need a dependence-aware analysis.
-
-\subsection{Conditional soundness of publication}
-The reference kernel maintains local artifact revisions, scope-bound gate evidence, a complete registry digest, and generation-stamped subtree caches. Its publication ticket identifies a revision and the canonical root record. Relevant changes immediately revoke availability; only fresh checker results restore an affected obligation. A local lock makes comparison with the current snapshot atomic.
-
-\begin{theorem}[Declared-contract publication soundness]\label{thm:soundness}
-Assume that (i) the registry is fixed and includes every obligation in the declared release contract; (ii) each checker is sound for its declared predicate and evaluates immutable inputs; (iii) dependency bindings are complete, their identifiers do not collide on the bound inputs, and relevant changes are recorded; (iv) aggregation verifies exact disjoint coverage and uses only canonical trusted records; and (v) publication compares the current root and revision atomically. Then an accepted root-level \PASS\ implies that every predicate in the declared registry holds on its current bound inputs.
-\end{theorem}
-\begin{proof}
-A valid leaf \PASS\ corresponds to a current binding and trusted passing evidence, so assumptions (ii)--(iii) establish its predicate. Inductively, an internal \PASS\ has neither failed nor unknown descendants. Exact partition validation prevents omitting a failing leaf, duplicating a passing one, or mixing registries. Therefore its complete interval consists of current passing leaves. At the root this covers all $n$ obligations. Atomic comparison prevents a relevant recorded change between obtaining the root and accepting publication. Any such change revokes the root or changes the revision and rejects the ticket.
-\end{proof}
-This result is deliberately narrower than ``all bugs are fixed.'' A finite unit-test registry is not full program correctness, and passing code tests is not evidence that all prose claims are factual. A malicious or mistaken trusted checker violates an assumption. The local lock is not distributed consensus, does not lock arbitrary external files, and does not sandbox generated programs. Missing mandatory details produce an explicit unresolved state, not a guessed success.
-
-\subsection{Cache validity must survive topology changes}
-A subtle implementation failure occurs when validity is tracked only by one global dirty set. Suppose tree $T_1$ and tree $T_2$ both have cached roots. An edit invalidates a gate, and refreshing $T_1$ clears the global dirty set. Reusing $T_2$ can then revive its pre-edit \PASS\ even though its cached evidence never refreshed.
-
-The implemented correction gives every gate evidence change a monotonically increasing generation. Each cached node stores its topology identity and the maximum generation over its interval. A node is reusable only if that stamp still matches. Since every new generation exceeds all previous ones, any change within the interval strictly increases its maximum. Refreshing one tree cannot make another tree's stale interval valid. A failing regression trace is preserved in the artifact, followed by the corrected passing test. The mechanism is local cache validation, not a new cryptographic freshness primitive.
-
+\input{productivity.tex}
+\input{intro.tex}
+\input{related.tex}
+\input{model.tex}
+\input{compiler.tex}
+\input{soundness.tex}
+\input{delivery.tex}
 \input{evaluation.tex}
 \input{discussion.tex}
-\input{references.tex}
 \input{appendices.tex}
+
+\bibliographystyle{plain}
+\input{references.tex}
 \end{document}
