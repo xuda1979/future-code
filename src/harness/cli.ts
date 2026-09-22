@@ -12,6 +12,7 @@ import { loadManifest, saveManifest, hasManifest, manifestPath } from "./registr
 import { run } from "./runtime/index.ts";
 import { annotate, healthy, summary } from "./monitor/index.ts";
 import { improve, applyProposal } from "./improver/index.ts";
+import { recordRun, recentRuns, passRateTrend, runtimeTrend } from "./history.ts";
 import type { HarnessManifest } from "./types.ts";
 
 interface Ctx { project: string; verbose: boolean; scope?: string; }
@@ -36,9 +37,11 @@ function note(c: Ctx, msg: string): void {
   if (c.verbose) console.log(`[harness] ${msg}`);
 }
 
-async function report(_c: Ctx, m: HarnessManifest, task: string): Promise<void> {
+async function report(c: Ctx, m: HarnessManifest, task: string): Promise<void> {
   const r = await run(m, task);
   annotate(m, r);
+  const m2 = recordRun(c.project, r);
+  m.runHistory = m2.runHistory;
   console.log(JSON.stringify(summary(r), null, 2));
 }
 
@@ -60,6 +63,8 @@ async function main(): Promise<void> {
       const m = loadManifest(ctx.project);
       const r = await run(m, "monitor check");
       annotate(m, r);
+      const m2 = recordRun(ctx.project, r);
+      m.runHistory = m2.runHistory;
       console.log(JSON.stringify({ runId: r.runId, healthy: healthy(r), metrics: r.metrics, sloResults: r.sloResults }, null, 2));
       break;
     }
@@ -67,6 +72,8 @@ async function main(): Promise<void> {
       const m = loadManifest(ctx.project);
       const r = await run(m, "improve probe");
       annotate(m, r);
+      const m2 = recordRun(ctx.project, r);
+      m.runHistory = m2.runHistory;
       const proposals = improve(m, r);
       for (const p of proposals) {
         const before = JSON.stringify(m.config);
@@ -80,11 +87,15 @@ async function main(): Promise<void> {
     }
     case "log": {
       const m = loadManifest(ctx.project);
-      if (m.improvementHistory && m.improvementHistory.length) {
-        console.log(JSON.stringify(m.improvementHistory, null, 2));
-      } else {
-        console.log('no improvement decisions recorded yet');
-      }
+      const runs = recentRuns(ctx.project, 10);
+      const prTrend = passRateTrend(ctx.project, 10);
+      const rtTrend = runtimeTrend(ctx.project, 10);
+      console.log(JSON.stringify({
+        improvementHistory: m.improvementHistory ?? [],
+        recentRuns: runs,
+        passRateTrend: prTrend,
+        runtimeTrend: rtTrend,
+      }, null, 2));
       break;
     }
     case "selfapply": {
@@ -93,7 +104,20 @@ async function main(): Promise<void> {
       const m = loadManifest(ctx.project);
       const r = await run(m, "self-apply");
       annotate(m, r);
-      console.log(JSON.stringify({ runId: r.runId, healthy: healthy(r), metrics: r.metrics }, null, 2));
+      // Persist run record (recordRun loads-fresh, adds record, saves)
+      const m2 = recordRun(ctx.project, r);
+      // Copy SLO results back into the in-memory manifest for improver
+      m.runHistory = m2.runHistory;
+      // If SLOs are unmet, trigger the improver
+      if (!healthy(r)) {
+        const proposals = improve(m, r);
+        for (const p of proposals) {
+          applyProposal(m, p);
+          note(ctx, `auto-applied ${p.id}: ${p.description}`);
+        }
+        saveManifest(ctx.project, m);
+      }
+      console.log(JSON.stringify({ runId: r.runId, healthy: healthy(r), metrics: r.metrics, runHistory: (m.runHistory ?? []).length }, null, 2));
       break;
     }
     default:

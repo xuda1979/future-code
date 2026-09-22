@@ -25,9 +25,9 @@ export const widenTimeoutOnFailure: ImprovementRule = ({ manifest, report }) => 
   const current = manifest.config.contextBudget;
   const proposal: ImprovementProposal = {
     id: nextId(manifest),
-    description: "Harness run was unhealthy; widen context/timeout budget and re-monitor.",
-    changes: { "config.contextBudget": Math.min(current + 1, 8) },
-    rationale: `pass_rate=${report.metrics.pass_rate ?? 0}, runtime_ms=${report.metrics.runtime_ms ?? 0}; retaining baseline for comparison`,
+    description: "Harness unhealthy; widening context budget for deeper analysis.",
+    changes: { "config.contextBudget": Math.min(current + 2, 16) },
+    rationale: `SLOs unmet: ${report.sloResults.filter((s) => !s.met).map((s) => s.sloId).join(", ")}; contextBudget=${current}→${Math.min(current + 2, 16)}`,
     approved: false,
   };
   return proposal;
@@ -52,7 +52,41 @@ export const adaptParallelism = ({ manifest, report }: {
 };
 
 /** Default set of rules, in priority order. */
-export const defaultRules: ImprovementRule[] = [widenTimeoutOnFailure, adaptParallelism];
+/** Built-in rule: if runs are consistently fast and healthy, reduce parallelism to save resources. */
+export const reduceParallelism: ImprovementRule = ({ manifest, report }) => {
+  if (!healthy(report)) return null;
+  const runtimeMs = report.metrics.runtime_ms ?? 0;
+  const fast = runtimeMs < 1000 && manifest.config.maxParallel > 1;
+  if (!fast) return null;
+  const proposal: ImprovementProposal = {
+    id: nextId(manifest),
+    description: "Runs are fast and healthy; reduce parallelism to conserve resources.",
+    changes: { "config.maxParallel": manifest.config.maxParallel - 1 },
+    rationale: `runtime_ms=${runtimeMs} < 1000; maxParallel=${manifest.config.maxParallel}→${manifest.config.maxParallel - 1}`,
+    approved: false,
+  };
+  return proposal;
+};
+
+/** Built-in rule: if pass rate is flaky (intermittent failures), increase context budget. */
+export const detectFlakiness: ImprovementRule = ({ manifest, report }) => {
+  const passRate = report.metrics.pass_rate ?? 1;
+  // Flaky: some gates pass, some fail (not all fail, not all pass)
+  if (passRate === 0 || passRate === 1) return null;
+  const current = manifest.config.contextBudget;
+  if (current >= 8) return null;
+  const proposal: ImprovementProposal = {
+    id: nextId(manifest),
+    description: "Intermittent gate failures detected; increasing context budget for diagnostics.",
+    changes: { "config.contextBudget": Math.min(current + 1, 8) },
+    rationale: `pass_rate=${passRate} (partial); contextBudget=${current}→${Math.min(current + 1, 8)}`,
+    approved: false,
+  };
+  return proposal;
+};
+
+/** Default set of rules, in priority order. */
+export const defaultRules: ImprovementRule[] = [widenTimeoutOnFailure, adaptParallelism, reduceParallelism, detectFlakiness];
 
 /**
  * Run the improver against the latest report. Returns proposals; applying a
