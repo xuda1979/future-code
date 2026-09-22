@@ -155,7 +155,10 @@ Phase 1 (now):
 - `src/harness/improver` — a first, rule-based improver with audit trail
 - `src/harness/cli.ts` — `harness build|run|monitor|improve|log` subcommands
 - `tests/harness/` — unit tests for builders/runtime/monitor/improver
-- A **self-applied example**: build a harness for the future-code repo itself.
+- A **self-applied example**: build a harness for the future-code repo itself. ✅
+  `bun src/harness/cli.ts selfapply` converges the repo's own ~200s test
+  suite from a fresh harness in a single invocation (3 iterations: 60s kill →
+  widen to 120s → 120s kill → widen to 240s → suite completes healthy).
 
 Later phases (not this session):
 - HACT certificate gate integration (optional, pluggable).
