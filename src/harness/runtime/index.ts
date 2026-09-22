@@ -15,6 +15,8 @@ export interface ExecOutcome {
   exitCode: number;
   durationMs: number;
   output: string;
+  /** True when the process was killed for exceeding its timeout. */
+  timedOut?: boolean;
 }
 
 /** Execute a command string in a cwd and return code/time; used for real gates. */
@@ -25,10 +27,14 @@ export function execTool(command: string, cwd: string, timeoutMs = 60_000): Prom
     let out = "";
     child.stdout.on("data", (d) => { out += d; });
     child.stderr.on("data", (d) => { out += d; });
-    const timer = setTimeout(() => { child.kill("SIGKILL"); }, timeoutMs);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, timeoutMs);
     child.on("close", (code) => {
       clearTimeout(timer);
-      resolve({ exitCode: code ?? -1, durationMs: Date.now() - start, output: out });
+      resolve({ exitCode: code ?? -1, durationMs: Date.now() - start, output: out, timedOut });
     });
     child.on("error", () => {
       clearTimeout(timer);
@@ -49,7 +55,7 @@ export async function runGate(
   if (!tool) throw new Error(`unknown tool ${gate.toolId}`);
   const cwd = tool.cwd ? `${manifest.project}/${tool.cwd}` : manifest.project;
   const cmd = [tool.command, ...extra].join(" ");
-  const { exitCode, durationMs, output } = await execTool(cmd, cwd, tool.timeoutMs ?? 60_000);
+  const { exitCode, durationMs, output, timedOut } = await execTool(cmd, cwd, tool.timeoutMs ?? 60_000);
   const expected = gate.expectExit ?? 0;
   const passed = exitCode === expected;
 
@@ -65,7 +71,10 @@ export async function runGate(
     exitCode,
     durationMs,
     required: gate.required ?? true,
-    output: truncatedOutput,
+    timedOut,
+    output: timedOut
+      ? `${truncatedOutput}\n[harness] gate exceeded timeout of ${tool.timeoutMs ?? 60_000}ms and was killed`
+      : truncatedOutput,
   };
 }
 
@@ -95,9 +104,13 @@ export async function run(manifest: HarnessManifest, task: string): Promise<RunR
   const requiredGates = gates.filter((g) => g.required !== false);
   const requiredPassed = requiredGates.filter((g) => g.passed).length;
   const requiredPassRate = requiredGates.length ? requiredPassed / requiredGates.length : 1;
+  // Timeout observability: count gates killed for exceeding their timeout so
+  // improver rules can distinguish hangs from ordinary failures.
+  const timeoutCount = gates.filter((g) => g.timedOut).length;
   const metrics: Record<string, number> = {
     pass_rate: passRate,
     required_pass_rate: requiredPassRate,
+    timeout_count: timeoutCount,
     runtime_ms: durationMs,
     gate_count: gates.length,
     context_budget: resolveBudget(manifest),

@@ -64,6 +64,8 @@ export interface RunResult {
   durationMs: number;
   /** Whether this gate is required (advisory gates don't affect required_pass_rate). */
   required?: boolean;
+  /** True when the gate's process was killed for exceeding its timeout. */
+  timedOut?: boolean;
   output?: string;
   error?: string;
 }

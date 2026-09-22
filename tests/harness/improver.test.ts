@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "../../src/harness/builder/index.ts";
 import { loadManifest } from "../../src/harness/registry.ts";
-import { improve, applyProposal, shouldApply, defaultRules, widenTimeoutOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow } from "../../src/harness/improver/index.ts";
+import { improve, applyProposal, shouldApply, defaultRules, widenContextOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow, widenTimeoutOnHang } from "../../src/harness/improver/index.ts";
 import { annotate } from "../../src/harness/monitor/index.ts";
 import type { RunReport, HarnessManifest } from "../../src/harness/types.ts";
 
@@ -32,24 +32,24 @@ function makeReport(passed: boolean, durationMs: number, passRate?: number): Run
   };
 }
 
-test("widenTimeoutOnFailure fires when unhealthy", () => {
+test("widenContextOnFailure fires when unhealthy", () => {
   const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
   build(dir, { harnessId: "imp-test" });
   const m = loadManifest(dir);
   const r = makeReport(false, 5000);
   annotate(m, r);
-  const proposal = widenTimeoutOnFailure({ manifest: m, report: r });
+  const proposal = widenContextOnFailure({ manifest: m, report: r });
   expect(proposal).not.toBeNull();
   expect(proposal!.changes["config.contextBudget"]).toBeDefined();
 });
 
-test("widenTimeoutOnFailure does not fire when healthy", () => {
+test("widenContextOnFailure does not fire when healthy", () => {
   const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
   build(dir, { harnessId: "imp-test" });
   const m = loadManifest(dir);
   const r = makeReport(true, 100);
   annotate(m, r);
-  const proposal = widenTimeoutOnFailure({ manifest: m, report: r });
+  const proposal = widenContextOnFailure({ manifest: m, report: r });
   expect(proposal).toBeNull();
 });
 
@@ -145,7 +145,7 @@ test("improve returns multiple proposals for multiple issues", () => {
   m.config.maxParallel = 1;
   m.config.contextBudget = 1;
   
-  // Unhealthy + slow → should trigger widenTimeoutOnFailure + adaptParallelism
+  // Unhealthy + slow → should trigger widenContextOnFailure + adaptParallelism
   const r = makeReport(false, 40000);
   annotate(m, r);
   const proposals = improve(m, r, defaultRules);
@@ -251,4 +251,101 @@ test("expandContextOnOverflow respects cap at 8x", () => {
 
 test("expandContextOnOverflow is included in defaultRules", () => {
   expect(defaultRules).toContain(expandContextOnOverflow);
+});
+
+// --- widenTimeoutOnHang: real timeout handling for hung gates ---
+
+test("widenTimeoutOnHang fires when a gate timed out", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}", "bunfig.toml": "" });
+  build(dir, { harnessId: "hang-test" });
+  const m = loadManifest(dir);
+
+  // A gate result that was killed for exceeding its timeout.
+  const report: RunReport = {
+    runId: crypto.randomUUID(),
+    task: "hang",
+    startedAt: new Date().toISOString(),
+    durationMs: 60_000,
+    gates: [{ toolId: "bun-test", gateId: "unit", passed: false, exitCode: -1, durationMs: 60_000, timedOut: true }],
+    metrics: { pass_rate: 0, required_pass_rate: 0, timeout_count: 1, runtime_ms: 60_000, gate_count: 1 },
+    sloResults: [],
+  };
+  const proposal = widenTimeoutOnHang({ manifest: m, report });
+  expect(proposal).not.toBeNull();
+  // slow_gate_seconds=15 → target = 15*4*1000 = 60000ms
+  expect(proposal!.changes["tools.bun-test.timeoutMs"]).toBe(60_000);
+  expect(proposal!.rationale).toContain("timedOut[unit]=true");
+});
+
+test("widenTimeoutOnHang does not fire when no gate timed out", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}", "bunfig.toml": "" });
+  build(dir, { harnessId: "hang-none" });
+  const m = loadManifest(dir);
+  const r = makeReport(false, 1000);
+  annotate(m, r);
+  expect(widenTimeoutOnHang({ manifest: m, report: r })).toBeNull();
+});
+
+test("widenTimeoutOnHang does not exceed the 10-minute cap", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}", "bunfig.toml": "" });
+  build(dir, { harnessId: "hang-cap" });
+  const m = loadManifest(dir);
+  // Force a huge slow_gate_seconds — target must still cap at 600_000ms.
+  (m.config.improvementPolicy as Record<string, unknown>).slow_gate_seconds = 5000;
+
+  const report: RunReport = {
+    runId: crypto.randomUUID(),
+    task: "cap",
+    startedAt: new Date().toISOString(),
+    durationMs: 60_000,
+    gates: [{ toolId: "bun-test", gateId: "unit", passed: false, exitCode: -1, durationMs: 60_000, timedOut: true }],
+    metrics: { pass_rate: 0, required_pass_rate: 0, timeout_count: 1, runtime_ms: 60_000, gate_count: 1 },
+    sloResults: [],
+  };
+  const proposal = widenTimeoutOnHang({ manifest: m, report });
+  expect(proposal).not.toBeNull();
+  expect(proposal!.changes["tools.bun-test.timeoutMs"]).toBe(600_000);
+});
+
+test("widenTimeoutOnHang skips gates whose timeout is already wide enough", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}", "bunfig.toml": "" });
+  build(dir, { harnessId: "hang-wide" });
+  const m = loadManifest(dir);
+  const tool = m.tools.find((t) => t.id === "bun-test");
+  tool!.timeoutMs = 120_000; // wider than the 60s target
+
+  const report: RunReport = {
+    runId: crypto.randomUUID(),
+    task: "wide",
+    startedAt: new Date().toISOString(),
+    durationMs: 120_000,
+    gates: [{ toolId: "bun-test", gateId: "unit", passed: false, exitCode: -1, durationMs: 120_000, timedOut: true }],
+    metrics: { pass_rate: 0, required_pass_rate: 0, timeout_count: 1, runtime_ms: 120_000, gate_count: 1 },
+    sloResults: [],
+  };
+  expect(widenTimeoutOnHang({ manifest: m, report })).toBeNull();
+});
+
+test("applyProposal handles tools.<id>.timeoutMs changes", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}", "bunfig.toml": "" });
+  build(dir, { harnessId: "apply-timeout" });
+  const m = loadManifest(dir);
+  const before = m.tools.find((t) => t.id === "bun-test")!.timeoutMs;
+  expect(before).toBeUndefined(); // builder sets no default timeout
+
+  const proposal: ImprovementProposal = {
+    id: "imp-test-999",
+    description: "widen timeout",
+    changes: { "tools.bun-test.timeoutMs": 120_000 },
+    rationale: "test",
+    approved: false,
+  };
+  const m2 = applyProposal(m, proposal);
+  expect(m2.tools.find((t) => t.id === "bun-test")!.timeoutMs).toBe(120_000);
+  expect(proposal.approved).toBe(true);
+  expect(m2.improvementHistory.some((p) => p.id === "imp-test-999")).toBe(true);
+});
+
+test("widenTimeoutOnHang is included in defaultRules", () => {
+  expect(defaultRules).toContain(widenTimeoutOnHang);
 });

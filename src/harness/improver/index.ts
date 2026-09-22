@@ -26,8 +26,10 @@ const nextId = (() => {
   return (h: HarnessManifest) => `imp-${(h.improvementHistory?.length ?? 0) + ++n}`;
 })();
 
-/** Built-in rule: if the harness is unhealthy, widen the gate timeout budget. */
-export const widenTimeoutOnFailure: ImprovementRule = ({ manifest, report }) => {
+/** Built-in rule: if the harness is unhealthy, widen the context budget so the
+ * monitor/improver see more diagnostic signal. (Renamed from
+ * widenTimeoutOnFailure — it never touched timeouts.) */
+export const widenContextOnFailure: ImprovementRule = ({ manifest, report }) => {
   if (healthy(report)) return null;
   const current = manifest.config.contextBudget;
   const proposal: ImprovementProposal = {
@@ -116,6 +118,47 @@ export const expandContextOnOverflow: ImprovementRule = ({ manifest, report }) =
 };
 
 /**
+ * Built-in rule: when a gate is killed for exceeding its timeout
+ * (RunResult.timedOut / metrics.timeout_count), widen that gate's tool
+ * timeout. Distinguishes hangs from ordinary failures — a widened timeout
+ * gives genuinely slow gates room to finish instead of dying at the default.
+ * Uses improvementPolicy.slow_gate_seconds as the multiplier base: new
+ * timeout = slow_gate_seconds * 4 in ms, capped at 10 minutes.
+ */
+export const widenTimeoutOnHang: ImprovementRule = ({ manifest, report }) => {
+  const hungGates = report.gates.filter((g) => g.timedOut === true && g.gateId);
+  if (!hungGates.length) return null;
+
+  const slowGateSeconds = Number(
+    (manifest.config.improvementPolicy as Record<string, unknown>)?.slow_gate_seconds ?? 15,
+  );
+  const target = Math.min(slowGateSeconds * 4 * 1000, 600_000); // cap 10 min
+
+  // Propose for the first hung gate whose tool timeout is below target.
+  for (const g of hungGates) {
+    const gate = manifest.gates.find((x) => x.id === g.gateId);
+    if (!gate) continue;
+    const tool = manifest.tools.find((t) => t.id === gate.toolId);
+    if (!tool) continue;
+    // An unset timeout means the gate died at the runtime's implicit 60s
+    // ceiling — pin it to the policy target so the limit becomes explicit
+    // and governed (a real widening whenever policy asks for more). A set
+    // timeout only widens when it sits below the target.
+    if (tool.timeoutMs !== undefined && tool.timeoutMs >= target) continue;
+    const current = tool.timeoutMs ?? 60_000;
+    const proposal: ImprovementProposal = {
+      id: nextId(manifest),
+      description: `Gate "${g.gateId}" hung and was killed at its ${current}ms timeout; widening tool "${tool.id}" timeout to ${target}ms.`,
+      changes: { [`tools.${tool.id}.timeoutMs`]: target },
+      rationale: `timedOut[${g.gateId}]=true (killed at ${current}ms); slow_gate_seconds=${slowGateSeconds}; timeoutMs=${current}→${target}`,
+      approved: false,
+    };
+    return proposal;
+  }
+  return null;
+};
+
+/**
  * Built-in rule: quarantine a gate that keeps failing across consecutive
  * runs. A gate failing N times in a row (default 3) is likely broken at the
  * project level (env drift, missing dependency) rather than flaky — demote
@@ -156,7 +199,7 @@ export const quarantineRepeatFailure: ImprovementRule = ({ manifest, report, his
 };
 
 /** Default set of rules, in priority order. */
-export const defaultRules: ImprovementRule[] = [widenTimeoutOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow, quarantineRepeatFailure];
+export const defaultRules: ImprovementRule[] = [widenContextOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow, widenTimeoutOnHang, quarantineRepeatFailure];
 
 /**
  * Run the improver against the latest report. Returns proposals; applying a
@@ -186,6 +229,12 @@ export function applyProposal(m: HarnessManifest, p: ImprovementProposal): Harne
   for (const [path, value] of Object.entries(p.changes ?? {})) {
     if (path === "config.maxParallel") m.config.maxParallel = value as number;
     else if (path === "config.contextBudget") m.config.contextBudget = value as number;
+    else if (path.startsWith("tools.") && path.endsWith(".timeoutMs")) {
+      // Widen (or narrow) a tool timeout: tools.<id>.timeoutMs = <ms>
+      const toolId = path.slice("tools.".length, -".timeoutMs".length);
+      const tool = m.tools.find((t) => t.id === toolId);
+      if (tool) tool.timeoutMs = value as number;
+    }
     else if (path.startsWith("gates.") && path.endsWith(".required")) {
       // Quarantine/promote a gate: gates.<id>.required = false|true
       const gateId = path.slice("gates.".length, -".required".length);
