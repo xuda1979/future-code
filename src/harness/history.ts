@@ -6,6 +6,12 @@ export const DEFAULT_LIMIT = 100;
 export function toRunRecord(report: RunReport): HarnessRunRecord {
   const passed = report.gates.filter((g) => g.passed).length;
   const unmet = report.sloResults.filter((s) => !s.met).map((s) => s.sloId);
+  // Per-gate outcomes keyed by gateId — enables repeat-failure analysis
+  // in the improver without needing the full report history.
+  const gateResults: Record<string, boolean> = {};
+  for (const g of report.gates) {
+    if (g.gateId) gateResults[g.gateId] = g.passed;
+  }
   return {
     runId: report.runId,
     task: report.task,
@@ -17,6 +23,7 @@ export function toRunRecord(report: RunReport): HarnessRunRecord {
     passedCount: passed,
     metrics: report.metrics,
     unmetSlo: unmet,
+    gateResults,
   };
 }
 

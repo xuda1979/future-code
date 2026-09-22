@@ -1,14 +1,24 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 
-export type TestRunner = "bun-test" | "node-test" | "pytest" | "unknown";
+export type TestRunner =
+  | "bun-test"
+  | "node-test"
+  | "pytest"
+  | "go-test"
+  | "cargo-test"
+  | "unknown";
 
 export interface ProjectCues {
   hasPackageJson: boolean;
   hasBunfig: boolean;
   hasPytestCfg: boolean;
   hasTsConfig: boolean;
-  language: "typescript" | "javascript" | "python" | "other";
+  hasGoMod: boolean;
+  hasCargoToml: boolean;
+  /** True when typescript is resolvable locally (node_modules or declared dep). */
+  hasLocalTypescript: boolean;
+  language: "typescript" | "javascript" | "python" | "golang" | "rust" | "other";
   testRunner: TestRunner;
   hasHactPkg: boolean;
   hasPythonTests: boolean;
@@ -42,6 +52,27 @@ function anyPythonTests(projectRoot: string): boolean {
   return false;
 }
 
+/**
+ * True when TypeScript is resolvable locally: either installed in
+ * node_modules or declared as a dependency. Guards the typecheck gate —
+ * we never scaffold a gate whose command would hang fetching packages.
+ */
+function hasLocalTypescript(projectRoot: string): boolean {
+  if (existsSync(join(projectRoot, "node_modules", "typescript", "bin", "tsc"))) return true;
+  if (existsSync(join(projectRoot, "node_modules", ".bin", "tsc"))) return true;
+  const pkgPath = join(projectRoot, "package.json");
+  if (existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+      const deps = { ...pkg.devDependencies, ...pkg.dependencies };
+      if (deps && typeof deps.typescript === "string") return true;
+    } catch {
+      /* ignore malformed package.json */
+    }
+  }
+  return false;
+}
+
 export function detectCues(projectRoot: string): ProjectCues {
   const present = {
     packageJson: existsSync(join(projectRoot, "package.json")),
@@ -51,6 +82,8 @@ export function detectCues(projectRoot: string): ProjectCues {
     pyproject: existsSync(join(projectRoot, "pyproject.toml")),
     conftest: existsSync(join(projectRoot, "conftest.py")),
     hact: existsSync(join(projectRoot, "src", "hact")),
+    goMod: existsSync(join(projectRoot, "go.mod")),
+    cargoToml: existsSync(join(projectRoot, "Cargo.toml")),
   };
   const testScript = readTestScript(projectRoot);
   const pyTests = anyPythonTests(projectRoot);
@@ -59,9 +92,16 @@ export function detectCues(projectRoot: string): ProjectCues {
   let language: ProjectCues["language"] = "other";
   let testRunner: TestRunner = "unknown";
 
-  // Prefer Python when it has real .py tests OR explicit python markers,
-  // even if a package.json is present without a meaningful JS test script.
-  if (pyMarker && (pyTests || !present.packageJson)) {
+  // Go/Rust module markers are unambiguous: they take priority when present.
+  if (present.goMod) {
+    language = "golang";
+    testRunner = "go-test";
+  } else if (present.cargoToml) {
+    language = "rust";
+    testRunner = "cargo-test";
+  } else if (pyMarker && (pyTests || !present.packageJson)) {
+    // Prefer Python when it has real .py tests OR explicit python markers,
+    // even if a package.json is present without a meaningful JS test script.
     language = "python";
     testRunner = "pytest";
   } else if (pyTests && (!present.packageJson || !testScript)) {
@@ -81,6 +121,9 @@ export function detectCues(projectRoot: string): ProjectCues {
     hasBunfig: present.bunfig,
     hasPytestCfg: present.pytestIni || present.pyproject,
     hasTsConfig: present.tsconfig,
+    hasGoMod: present.goMod,
+    hasCargoToml: present.cargoToml,
+    hasLocalTypescript: hasLocalTypescript(projectRoot),
     language,
     testRunner,
     hasHactPkg: present.hact,

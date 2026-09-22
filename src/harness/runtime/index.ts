@@ -58,7 +58,15 @@ export async function runGate(
   const gateOutputBudget = Math.floor(budget * 0.1); // 10% of budget per gate
   const truncatedOutput = truncateToBudget(output, gateOutputBudget);
 
-  return { toolId: tool.id, gateId: gate.id, passed, exitCode, durationMs, output: truncatedOutput };
+  return {
+    toolId: tool.id,
+    gateId: gate.id,
+    passed,
+    exitCode,
+    durationMs,
+    required: gate.required ?? true,
+    output: truncatedOutput,
+  };
 }
 
 /** Run all required gates for a task and assemble a RunReport. */
@@ -82,8 +90,14 @@ export async function run(manifest: HarnessManifest, task: string): Promise<RunR
   const durationMs = Date.now() - t0;
   const passedCount = gates.filter((g) => g.passed).length;
   const passRate = gates.length ? passedCount / gates.length : 0;
+  // Required-gate pass rate: advisory gates (required: false) don't drag
+  // health down — they surface signal without blocking the run.
+  const requiredGates = gates.filter((g) => g.required !== false);
+  const requiredPassed = requiredGates.filter((g) => g.passed).length;
+  const requiredPassRate = requiredGates.length ? requiredPassed / requiredGates.length : 1;
   const metrics: Record<string, number> = {
     pass_rate: passRate,
+    required_pass_rate: requiredPassRate,
     runtime_ms: durationMs,
     gate_count: gates.length,
     context_budget: resolveBudget(manifest),

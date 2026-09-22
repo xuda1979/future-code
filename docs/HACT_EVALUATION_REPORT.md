@@ -72,14 +72,56 @@ and global (51.06%) workloads, where the optimizer can exploit correlation struc
 6. **Byte cap enforcement:** All packets respect the configured byte cap
 7. **Height constraint:** Trees respect maximum height for bounded depth
 
+## Harness Platform: Multi-Language Support
+
+The harness now auto-detects and runs projects beyond TypeScript/JavaScript:
+
+| Language | Detection markers | Unit-test gate |
+|----------|-------------------|----------------|
+| Go       | `go.mod`          | `go test ./...` |
+| Rust     | `Cargo.toml`      | `cargo test`    |
+| Python   | pytest markers + `.py` tests | `pytest` |
+| TS/JS    | `package.json` (with test script) or `bunfig.toml` | `bun test` |
+
+Go/Rust module markers are unambiguous and take detection priority. Both are
+covered end-to-end: a real Go project and a real Rust project are built by the
+harness and run through their unit gates in `tests/harness/multilang.test.ts`.
+
+## Harness Platform: Advisory Gates and Required Pass Rate
+
+Not every gate should block a run. The manifest now supports `required: false`
+(advisory) gates — e.g. a scaffolded `typecheck` gate surfaces type errors as
+signal without failing the harness run:
+
+- `metrics.pass_rate` — overall pass rate across all gates
+- `metrics.required_pass_rate` — pass rate across required gates only;
+  advisory failures never block it
+- `RunResult.required` records per-gate required-ness in run reports
+- `HarnessRunRecord.gateResults` persists per-gate outcomes for
+  repeat-failure analysis across runs
+
+## Harness Platform: quarantineRepeatFailure Improver Rule
+
+Sixth built-in improvement rule: when a required gate fails **3 consecutive
+runs**, the improver proposes demoting it to advisory (`required: false`) so it
+stops blocking the harness while being repaired — the failure stays visible as
+signal instead of deadlocking iteration. Proposals cite the failure streak in
+their rationale and are recorded in the run history.
+
+Built-in rules are now: `widenTimeoutOnFailure`, `adaptParallelism`,
+`reduceParallelism`, `detectFlakiness`, `expandContextOnOverflow`,
+`quarantineRepeatFailure`.
+
 ## Test Results
 
 ```
-81 pass
-0 fail
-1310 expect() calls
-Ran 81 tests across 5 files in 2.59s
+109 pass (harness)
+  0 fail
+247 expect() calls
+Ran 109 tests across 8 files in 3.27s
 ```
+
+Full suite (HACT + harness): 273 pass / 0 fail across 20 files.
 
 ## Conclusion
 

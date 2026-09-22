@@ -18,6 +18,15 @@ function toolsFor(cues: ProjectCues, scope?: string): HarnessTool[] {
     tools.push({ id: "node-test", description: "run the node test suite", command: `node --test${scopeArg}`, cwd: "." });
   } else if (cues.testRunner === "pytest") {
     tools.push({ id: "pytest", description: "run the pytest suite", command: `pytest${scopeArg}`, cwd: "." });
+  } else if (cues.testRunner === "go-test") {
+    tools.push({ id: "go-test", description: "run the go test suite", command: `go test ./...${scopeArg}`, cwd: "." });
+  } else if (cues.testRunner === "cargo-test") {
+    tools.push({ id: "cargo-test", description: "run the cargo test suite", command: `cargo test${scopeArg}`, cwd: "." });
+  }
+  // Typecheck tool for TypeScript projects — only when tsc is locally
+  // resolvable, so the gate never hangs fetching packages over the network.
+  if (cues.hasTsConfig && cues.hasLocalTypescript) {
+    tools.push({ id: "typecheck", description: "run the TypeScript typechecker", command: "bunx tsc --noEmit", cwd: "." });
   }
   return tools;
 }
@@ -31,13 +40,24 @@ function gatesFor(cues: ProjectCues, scope?: string): HarnessGate[] {
     gates.push({ id: "unit", toolId: "node-test", required: true, description: `node unit tests pass${detail}` });
   } else if (cues.testRunner === "pytest") {
     gates.push({ id: "unit", toolId: "pytest", required: true, description: `pytest unit tests pass${detail}` });
+  } else if (cues.testRunner === "go-test") {
+    gates.push({ id: "unit", toolId: "go-test", required: true, description: `go unit tests pass${detail}` });
+  } else if (cues.testRunner === "cargo-test") {
+    gates.push({ id: "unit", toolId: "cargo-test", required: true, description: `cargo unit tests pass${detail}` });
+  }
+  // Typecheck gate for TypeScript projects — catches a class of bugs the
+  // unit gate can't (type errors that only surface under tsc). Advisory:
+  // it surfaces signal without blocking, and is promoted to required by
+  // the improver once it has proven stable.
+  if (cues.hasTsConfig && cues.hasLocalTypescript) {
+    gates.push({ id: "typecheck", toolId: "typecheck", required: false, description: "tsc --noEmit passes (no type errors)" });
   }
   return gates;
 }
 
 function slosFor(cues: ProjectCues): MonitorSlo[] {
   return [
-    { id: "pass-rate", description: "gates must pass", metric: "pass_rate", op: "gte", threshold: 1.0 },
+    { id: "pass-rate", description: "required gates must pass", metric: "required_pass_rate", op: "gte", threshold: 1.0 },
     { id: "bounded-runtime", description: "run must finish quickly", metric: "runtime_ms", op: "lte", threshold: 60_000 },
     { id: "bounded-context", description: "agents must stay within context budget", metric: "context_used", op: "lte", threshold: 4096 },
   ];

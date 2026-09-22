@@ -17,6 +17,8 @@ import { resolveBudget, boundedImproverContext, estimateTokens } from "../contex
 export type ImprovementRule = (args: {
   manifest: HarnessManifest;
   report: RunReport;
+  /** Recent run records (newest last) for trend/repeat-failure analysis. */
+  history?: HarnessRunRecord[];
 }) => ImprovementProposal | null;
 
 const nextId = (() => {
@@ -113,8 +115,48 @@ export const expandContextOnOverflow: ImprovementRule = ({ manifest, report }) =
   return proposal;
 };
 
+/**
+ * Built-in rule: quarantine a gate that keeps failing across consecutive
+ * runs. A gate failing N times in a row (default 3) is likely broken at the
+ * project level (env drift, missing dependency) rather than flaky — demote
+ * it to advisory so it stops blocking the harness while still surfacing.
+ */
+export const quarantineRepeatFailure: ImprovementRule = ({ manifest, report, history }) => {
+  const runs = history ?? [];
+  const CONSECUTIVE = 3;
+  // Find required gates that failed in the latest report.
+  const failedGates = report.gates.filter((g) => !g.passed && g.required !== false && g.gateId);
+  if (!failedGates.length) return null;
+
+  for (const g of failedGates) {
+    const gateId = g.gateId!;
+    // Count consecutive failures of this gate, newest-first through history.
+    let streak = 1; // the current report counts as the first failure
+    for (let i = runs.length - 1; i >= 0; i--) {
+      const rec = runs[i];
+      const outcome = rec.gateResults?.[gateId];
+      if (outcome === undefined) continue; // gate not present in this record
+      if (outcome === false) streak++;
+      else break;
+    }
+    if (streak < CONSECUTIVE) continue;
+
+    const gate = manifest.gates.find((x) => x.id === gateId);
+    if (!gate || gate.required === false) continue; // already quarantined
+
+    return {
+      id: nextId(manifest),
+      description: `Gate "${gateId}" failed ${streak} consecutive runs; quarantining to advisory while it is repaired.`,
+      changes: { [`gates.${gateId}.required`]: false },
+      rationale: `consecutive_failures[${gateId}]=${streak} >= ${CONSECUTIVE}; required=true→false (advisory)`,
+      approved: false,
+    };
+  }
+  return null;
+};
+
 /** Default set of rules, in priority order. */
-export const defaultRules: ImprovementRule[] = [widenTimeoutOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow];
+export const defaultRules: ImprovementRule[] = [widenTimeoutOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow, quarantineRepeatFailure];
 
 /**
  * Run the improver against the latest report. Returns proposals; applying a
@@ -124,8 +166,10 @@ export const defaultRules: ImprovementRule[] = [widenTimeoutOnFailure, adaptPara
  * compacted before any rule sees them.
  */
 export function improve(manifest: HarnessManifest, report: RunReport, rules = defaultRules): ImprovementProposal[] {
+  // Bound the history each rule sees — recent records only, newest last.
+  const history = (manifest.runHistory ?? []).slice(-20);
   return rules
-    .map((rule) => rule({ manifest, report }))
+    .map((rule) => rule({ manifest, report, history }))
     .filter((p): p is ImprovementProposal => p !== null);
 }
 
@@ -142,6 +186,12 @@ export function applyProposal(m: HarnessManifest, p: ImprovementProposal): Harne
   for (const [path, value] of Object.entries(p.changes ?? {})) {
     if (path === "config.maxParallel") m.config.maxParallel = value as number;
     else if (path === "config.contextBudget") m.config.contextBudget = value as number;
+    else if (path.startsWith("gates.") && path.endsWith(".required")) {
+      // Quarantine/promote a gate: gates.<id>.required = false|true
+      const gateId = path.slice("gates.".length, -".required".length);
+      const gate = m.gates.find((g) => g.id === gateId);
+      if (gate) gate.required = Boolean(value);
+    }
   }
   p.approved = true;
   p.appliedAt = new Date().toISOString();

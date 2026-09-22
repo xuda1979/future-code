@@ -62,6 +62,8 @@ export interface RunResult {
   passed: boolean;
   exitCode: number;
   durationMs: number;
+  /** Whether this gate is required (advisory gates don't affect required_pass_rate). */
+  required?: boolean;
   output?: string;
   error?: string;
 }
@@ -107,6 +109,8 @@ export interface HarnessRunRecord {
   passedCount: number;
   metrics: Record<string, number>;
   unmetSlo: string[];
+  /** Per-gate outcomes (gateId → passed) for repeat-failure analysis. */
+  gateResults?: Record<string, boolean>;
 }
 
 /** The full harness manifest — the adaptive, persisted configuration. */

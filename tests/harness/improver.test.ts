@@ -27,7 +27,7 @@ function makeReport(passed: boolean, durationMs: number, passRate?: number): Run
     startedAt: new Date().toISOString(),
     durationMs,
     gates: [{ toolId: "test-tool", passed, exitCode: passed ? 0 : 1, durationMs }],
-    metrics: { pass_rate: pr, runtime_ms: durationMs, gate_count: 1 },
+    metrics: { pass_rate: pr, required_pass_rate: pr, runtime_ms: durationMs, gate_count: 1 },
     sloResults: [],
   };
 }

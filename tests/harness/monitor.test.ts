@@ -27,7 +27,7 @@ function makeReport(passRate: number, runtimeMs: number): RunReport {
     startedAt: new Date().toISOString(),
     durationMs: runtimeMs,
     gates: [{ toolId: "test", passed, exitCode: passed ? 0 : 1, durationMs: runtimeMs }],
-    metrics: { pass_rate: passRate, runtime_ms: runtimeMs, gate_count: 1 },
+    metrics: { pass_rate: passRate, required_pass_rate: passRate, runtime_ms: runtimeMs, gate_count: 1 },
     sloResults: [],
   };
 }
@@ -42,7 +42,7 @@ function makeRunRecord(passRate: number, durationMs: number, runId?: string): Ha
     healthy: passRate >= 1,
     gateCount: 1,
     passedCount: passRate >= 1 ? 1 : 0,
-    metrics: { pass_rate: passRate, runtime_ms: durationMs, gate_count: 1 },
+    metrics: { pass_rate: passRate, required_pass_rate: passRate, runtime_ms: durationMs, gate_count: 1 },
     unmetSlo: passRate >= 1 ? [] : ["pass-rate"],
   };
 }
