@@ -15,7 +15,12 @@ function toolsFor(cues: ProjectCues, scope?: string): HarnessTool[] {
   if (cues.testRunner === "bun-test") {
     tools.push({ id: "bun-test", description: "run the bun test suite", command: `bun test${scopeArg}`, cwd: "." });
   } else if (cues.testRunner === "node-test") {
-    tools.push({ id: "node-test", description: "run the node test suite", command: `node --test${scopeArg}`, cwd: "." });
+    // Prefer the project's own test script when it declares one — the script
+    // is the project's definition of "run my tests", and a bare `node --test`
+    // on a project without node:test files exits 0 with zero tests run (a
+    // false-pass the gate must never report).
+    const command = cues.testScript ? `npm run test${scopeArg}` : `node --test${scopeArg}`;
+    tools.push({ id: "node-test", description: "run the node test suite", command, cwd: "." });
   } else if (cues.testRunner === "pytest") {
     tools.push({ id: "pytest", description: "run the pytest suite", command: `pytest${scopeArg}`, cwd: "." });
   } else if (cues.testRunner === "go-test") {

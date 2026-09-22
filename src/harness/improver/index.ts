@@ -60,7 +60,6 @@ export const adaptParallelism = ({ manifest, report }: {
   return proposal;
 };
 
-/** Default set of rules, in priority order. */
 /** Built-in rule: if runs are consistently fast and healthy, reduce parallelism to save resources. */
 export const reduceParallelism: ImprovementRule = ({ manifest, report }) => {
   if (!healthy(report)) return null;

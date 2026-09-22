@@ -11,7 +11,7 @@ import { describeCues } from "./builder/detect.ts";
 import { loadManifest, saveManifest, hasManifest, manifestPath } from "./registry.ts";
 import { run } from "./runtime/index.ts";
 import { annotate, healthy, summary } from "./monitor/index.ts";
-import { improve, applyProposal } from "./improver/index.ts";
+import { improve, applyProposal, shouldApply } from "./improver/index.ts";
 import { recordRun, recentRuns, passRateTrend, runtimeTrend } from "./history.ts";
 import { resolveBudget, boundedMonitorContext, boundedImproverContext, estimateTokens } from "./context.ts";
 import type { HarnessManifest } from "./types.ts";
@@ -77,6 +77,13 @@ async function main(): Promise<void> {
       m.runHistory = m2.runHistory;
       const proposals = improve(m, r);
       for (const p of proposals) {
+        // Guardrail: never apply a proposal the policy rejects (e.g. unbounded
+        // maxParallel growth) — record the veto for auditability instead.
+        if (!shouldApply(m, p)) {
+          note(ctx, `vetoed ${p.id}: ${p.description}`);
+          console.log(JSON.stringify({ id: p.id, vetoed: true, changes: p.changes, rationale: p.rationale }, null, 2));
+          continue;
+        }
         const before = JSON.stringify(m.config);
         applyProposal(m, p);
         saveManifest(ctx.project, m);
@@ -113,6 +120,11 @@ async function main(): Promise<void> {
       if (!healthy(r)) {
         const proposals = improve(m, r);
         for (const p of proposals) {
+          // Guardrail: same policy as `improve` — veto unsafe proposals.
+          if (!shouldApply(m, p)) {
+            note(ctx, `vetoed ${p.id}: ${p.description}`);
+            continue;
+          }
           applyProposal(m, p);
           note(ctx, `auto-applied ${p.id}: ${p.description}`);
         }
