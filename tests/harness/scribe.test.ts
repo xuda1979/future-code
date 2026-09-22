@@ -300,6 +300,31 @@ test("runScribe records exit codes and bounded output", async () => {
   expect(promoted!.exitCode).toBe(0);
 });
 
+test("repeat-quarantined modules are skipped in later plans (failure memory)", async () => {
+  // A module that throws at import time quarantines every time; after
+  // QUARANTINE_LIMIT failures the planner must refuse to re-attempt it.
+  const dir = tempProject({
+    "package.json": JSON.stringify({ name: "repeat-broken", scripts: { test: "bun test" } }),
+    "src/broken.ts": `export const boom: number = someUnknownGlobalAtImportTime;\n`,
+  });
+  const m = manifestFor(dir);
+  // Pass 1: quarantines (attempt #1).
+  const p1 = await runScribe(dir, m);
+  expect(p1.results.find((r) => r.entry.module === "src/broken.ts")?.outcome).toBe("quarantined");
+  // Pass 2: still attempts (attempt #2) — one retry is allowed.
+  const p2 = await runScribe(dir, m);
+  expect(p2.results.find((r) => r.entry.module === "src/broken.ts")?.outcome).toBe("quarantined");
+  // Pass 3: failure memory kicks in — the module is skipped in planning.
+  const plan3 = planScribe(dir, p2.manifest);
+  expect(plan3.entries.find((e) => e.module === "src/broken.ts")).toBeUndefined();
+  const skip = plan3.skipped.find((s) => s.module === "src/broken.ts");
+  expect(skip).toBeDefined();
+  expect(skip!.reason).toContain("repeat-quarantine");
+  // And runScribe no longer produces a result for it.
+  const p3 = await runScribe(dir, p2.manifest);
+  expect(p3.results.find((r) => r.entry.module === "src/broken.ts")).toBeUndefined();
+});
+
 test("scribeLog is bounded to 100 entries", async () => {
   const dir = bunProject();
   const m = manifestFor(dir);

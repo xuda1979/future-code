@@ -30,6 +30,14 @@ import { estimateTokens, resolveBudget, truncateToBudget } from "../context.ts";
 
 const SCRIBE_LOG_LIMIT = 100;
 
+/** After this many quarantined scaffolds a module is skipped in planning. */
+const QUARANTINE_LIMIT = 2;
+
+/** Count how many times a module's scaffold was quarantined, from the audit trail. */
+function countQuarantines(manifest: HarnessManifest, module: string): number {
+  return (manifest.scribeLog ?? []).filter((a) => a.kind === "quarantine" && a.target === module).length;
+}
+
 /** Directories the scribe never scans or writes into. */
 const IGNORED_DIRS = new Set([
   "node_modules", ".git", "dist", "build", "out", ".future-code",
@@ -209,6 +217,19 @@ export function planScribe(projectRoot: string, manifest: HarnessManifest, maxMo
     const covering = findCoveringTest(projectRoot, mod, files);
     if (covering) {
       skipped.push({ module: rel, reason: `covered by ${covering}` });
+      continue;
+    }
+    // Failure memory: a module whose scaffolds quarantined QURARANTINE_LIMIT
+    // times keeps failing validation for a structural reason (broken import,
+    // missing dependency). Re-drafting it every pass wastes work without
+    // progress — skip it with the failure count recorded, mirroring the
+    // improver's quarantine-repeat-failure discipline for gates.
+    const quarantineCount = countQuarantines(manifest, rel);
+    if (quarantineCount >= QUARANTINE_LIMIT) {
+      skipped.push({
+        module: rel,
+        reason: `repeat-quarantine (failed validation ${quarantineCount}x; skipping until the module is fixed)`,
+      });
       continue;
     }
     entries.push({ module: rel, testFile: destinationFor(projectRoot, rel), reason: "untested", exports });
