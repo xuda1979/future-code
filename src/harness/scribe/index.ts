@@ -252,6 +252,52 @@ export function planScribe(projectRoot: string, manifest: HarnessManifest, maxMo
 }
 
 /**
+ * Parse a function declaration's parameter list (source text after the
+ * name, up to the matching close paren) and return its arity, counting a
+ * trailing rest param. Returns null when the declaration is a function
+ * expression assigned to a const whose parameter text cannot be located.
+ */
+export function parseArity(src: string, name: string): number | null {
+  // Named function declarations and class methods.
+  let m = new RegExp(`(?:function\\s+|method\\s+)${name}\\s*\\(([^)]*)\\)`).exec(src);
+  if (!m) {
+    // Arrow/function expression assigned to a const/let/var of that name.
+    // An optional return-type annotation may sit between ) and =>.
+    m = new RegExp(`(?:const|let|var)\\s+${name}\\s*(?::[^=]+)?=\\s*(?:async\\s*)?\\(([^)]*)\\)\\s*(?::[^=]*)?=>`).exec(src)
+      ?? new RegExp(`(?:const|let|var)\\s+${name}\\s*(?::[^=]+)?=\\s*(?:async\\s+)?function\\s*\\(([^)]*)\\)`).exec(src);
+  }
+  if (!m) return null;
+  const params = m[1].trim();
+  if (!params) return 0;
+  // Destructured/object params carry no reliable per-name arity signal —
+  // count top-level commas only (parens/braces/brackets balanced).
+  let depth = 0;
+  let count = 1;
+  for (const ch of params) {
+    if ("([{".includes(ch)) depth++;
+    else if (")]}".includes(ch)) depth--;
+    else if (ch === "," && depth === 0) count++;
+  }
+  return count;
+}
+
+/**
+ * Extract literal initializers: exported consts initialized to a string,
+ * number, or boolean literal. These get typeof-assertions in scaffolds —
+ * a real API-surface signal (type drift caught) with zero execution risk.
+ */
+export function literalExports(src: string): Map<string, "string" | "number" | "boolean"> {
+  const out = new Map<string, "string" | "number" | "boolean">();
+  for (const m of src.matchAll(/export\s+const\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(?:"([^"]*)"|'([^']*)'|(\d+(?:\.\d+)?)|(true|false))\s*[;\n]/g)) {
+    const name = m[1];
+    if (m[2] !== undefined || m[3] !== undefined) out.set(name, "string");
+    else if (m[4] !== undefined) out.set(name, "number");
+    else if (m[5] !== undefined) out.set(name, "boolean");
+  }
+  return out;
+}
+
+/**
  * Generate the scaffold test source for one plan entry. Deterministic:
  * same module + exports always yield the same test.
  */
@@ -278,9 +324,23 @@ export function generateScaffold(entry: ScribePlanEntry, projectRoot: string): s
   lines.push("");
   // Type-only modules never reach here — planScribe skips them (a vacuous
   // "true === true" scaffold is noise, not coverage).
+  const literals = literalExports(src);
+  const funcLike = new Set<string>();
+  for (const m of src.matchAll(/export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)) funcLike.add(m[1]);
+  for (const m of src.matchAll(/export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(?:async\s*)?(?:\([^)]*\)\s*(?::[^=]*)?=>|function\b)/g)) funcLike.add(m[1]);
   for (const name of runtimeExports) {
+    const arity = funcLike.has(name) ? parseArity(src, name) : null;
+    const lit = literals.get(name);
     lines.push(`test("scribe: ${name} is defined", () => {`);
     lines.push(`  expect(${name}).toBeDefined();`);
+    if (arity !== null && arity > 0) {
+      lines.push(`  // Arity pinned from the module source — catches signature drift.`);
+      lines.push(`  expect(typeof ${name} === "function" && ${name}.length).toBe(${arity});`);
+    }
+    if (lit) {
+      lines.push(`  // Literal type pinned from the initializer — catches type drift.`);
+      lines.push(`  expect(typeof ${name}).toBe("${lit}");`);
+    }
     lines.push("});");
     lines.push("");
   }
@@ -473,14 +533,90 @@ export async function runScribe(
     manifest.scribeLog = manifest.scribeLog ?? [];
     manifest.scribeLog.push(action);
   }
+  // Upgrade pass: scribe-authored scaffolds that predate the enrichment
+  // (arity pins / literal-type pins) are regenerated and re-validated in
+  // place. The scribe improves its own prior work — same module, same
+  // determinism, stronger assertions — without touching human-written tests.
+  const upgraded = await upgradePriorScaffolds(projectRoot, manifest);
+  results.push(...upgraded.results);
+  manifest.scribeLog = manifest.scribeLog ?? [];
+  for (const a of upgraded.actions) manifest.scribeLog.push(a);
   manifest.scribeLog = manifest.scribeLog ?? [];
   manifest.scribeLog.push({
     id: nextScribeId(manifest, "plan", "(plan)"),
     kind: "plan",
     target: "(plan)",
-    rationale: `planned ${plan.entries.length} module(s); skipped ${plan.skipped.length} (context ${plan.contextTokens} tokens)`,
+    rationale: `planned ${plan.entries.length} module(s); skipped ${plan.skipped.length}; upgraded ${upgraded.results.length} prior scaffold(s) (context ${plan.contextTokens} tokens)`,
     at: new Date().toISOString(),
   });
   if (manifest.scribeLog.length > SCRIBE_LOG_LIMIT) manifest.scribeLog = manifest.scribeLog.slice(-SCRIBE_LOG_LIMIT);
   return { plan, results, manifest };
+}
+
+/**
+ * Upgrade pass — regenerate the scribe's own prior scaffolds when they
+ * lack the enrichment the current generator would produce. Only files
+ * carrying the scribe's signature header are eligible: human tests are
+ * never rewritten.
+ */
+async function upgradePriorScaffolds(
+  projectRoot: string,
+  manifest: HarnessManifest,
+): Promise<{ results: ScribeResult[]; actions: ScribeAction[] }> {
+  const results: ScribeResult[] = [];
+  const actions: ScribeAction[] = [];
+  const scribeRoot = manifest.config.scribeRoot?.trim();
+  const files = listFiles(projectRoot).filter((f) => !relative(projectRoot, f).startsWith(".future-code"));
+  for (const f of files) {
+    if (!isTestFile(f)) continue;
+    const rel = relative(projectRoot, f);
+    let body = "";
+    try {
+      body = readFileSync(f, "utf8");
+    } catch { continue; }
+    if (!body.includes("Scribe-generated scaffold test")) continue;
+    if (body.includes("// Arity pinned from the module source")) continue; // already enriched
+    // Recover the module this scaffold targets from its header comment.
+    // The path itself contains dots (".ts"), so the delimiter is the
+    // period followed by end-of-line, not any period.
+    const m = /Scribe-generated scaffold test for (\S+?)\.\s/.exec(body)
+      ?? /Scribe-generated scaffold test for (\S+?)\.$/.exec(body);
+    if (!m) continue;
+    const modRel = m[1];
+    // Respect the scribeRoot boundary for upgrades too.
+    if (scribeRoot && !modRel.startsWith(`${scribeRoot}/`)) continue;
+    // Only upgrade when the module still exists.
+    if (!existsSync(join(projectRoot, modRel))) continue;
+    // Rebuild the entry from the module's current exports.
+    let src = "";
+    try {
+      src = readFileSync(join(projectRoot, modRel), "utf8");
+    } catch { continue; }
+    const exports = extractExports(src);
+    if (exports.length === 0) continue;
+    const entry: ScribePlanEntry = {
+      module: modRel,
+      testFile: rel,
+      reason: "untested",
+      exports,
+    };
+    // Regenerate and validate the enriched scaffold.
+    const { result, action } = await scribeEntry(projectRoot, manifest, entry);
+    if (result.outcome === "promoted") {
+      actions.push({
+        ...action,
+        rationale: `prior scribe scaffold upgraded with arity/literal pins; re-validated (exit 0) at ${result.file}`,
+      });
+      results.push({ ...result, outcome: "promoted" });
+    } else {
+      // The enriched scaffold failed validation — the prior scaffold stays
+      // (it is still passing); record the failed upgrade without replacing it.
+      actions.push({
+        ...action,
+        kind: "skip",
+        rationale: `enriched regeneration failed validation (exit ${result.exitCode}); prior scaffold retained`,
+      });
+    }
+  }
+  return { results, actions };
 }

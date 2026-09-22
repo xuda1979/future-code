@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   planScribe, generateScaffold, extractExports, relativeImportPath,
-  runScribe, detectRunner,
+  runScribe, detectRunner, parseArity,
 } from "../../src/harness/scribe/index.ts";
 import { build } from "../../src/harness/builder/index.ts";
 import { loadManifest, saveManifest } from "../../src/harness/registry.ts";
@@ -220,6 +220,49 @@ test("generateScaffold filters type-only exports from runtime imports", () => {
   expect(s).not.toContain("import { ISquare");
 });
 
+test("scaffolds pin function arity and literal types from source", () => {
+  const dir = tempProject({
+    "package.json": JSON.stringify({ name: "arity" }),
+    "src/api.ts": `export function twoArgs(a: string, b: number): string { return a + b; }\nexport const arrow = (x: number, y: number, z: number): number => x + y + z;\nexport const NAME = "future-code";\nexport const COUNT = 42;\nexport const FLAG = true;\nexport const obj = { a: 1 };\n`,
+  });
+  const entry: ScribePlanEntry = {
+    module: "src/api.ts",
+    testFile: "src/api.test.ts",
+    reason: "untested",
+    exports: ["twoArgs", "arrow", "NAME", "COUNT", "FLAG", "obj"],
+  };
+  const s = generateScaffold(entry, dir);
+  // Function declarations pin arity via fn.length.
+  expect(s).toContain("twoArgs.length).toBe(2)");
+  // Arrow functions assigned to consts pin arity too.
+  expect(s).toContain("arrow.length).toBe(3)");
+  // String/number/boolean literals pin typeof.
+  expect(s).toContain('typeof NAME).toBe("string")');
+  expect(s).toContain('typeof COUNT).toBe("number")');
+  expect(s).toContain('typeof FLAG).toBe("boolean")');
+  // Non-literal object exports get no typeof pin (no reliable signal).
+  expect(s).not.toContain('typeof obj)');
+});
+
+test("enriched scaffolds validate and promote end-to-end", async () => {
+  const dir = tempProject({
+    "package.json": JSON.stringify({ name: "arity-e2e", scripts: { test: "bun test" } }),
+    "src/api.ts": `export function twoArgs(a: string, b: number): string { return a + b; }\nexport const NAME = "future-code";\n`,
+  });
+  const m = manifestFor(dir);
+  const { results } = await runScribe(dir, m);
+  const promoted = results.find((r) => r.entry.module === "src/api.ts");
+  expect(promoted!.outcome).toBe("promoted");
+  const body = readFileSync(join(dir, "src/api.test.ts"), "utf8");
+  expect(body).toContain("twoArgs.length).toBe(2)");
+  expect(body).toContain('typeof NAME).toBe("string")');
+});
+
+test("parseArity handles destructured params by top-level commas only", () => {
+  const src = `export function destructure({ a, b }: T, c: number): number { return c; }\n`;
+  expect(parseArity(src, "destructure")).toBe(2);
+});
+
 test("planScribe skips type-only modules — vacuous scaffolds are noise", () => {
   const dir = tempProject({
     "package.json": JSON.stringify({ name: "pure-types" }),
@@ -298,6 +341,57 @@ test("runScribe records exit codes and bounded output", async () => {
   const { results } = await runScribe(dir, m);
   const promoted = results.find((r) => r.entry.module === "src/math.ts");
   expect(promoted!.exitCode).toBe(0);
+});
+
+test("upgrade pass enriches prior scribe scaffolds with arity pins", async () => {
+  // Simulate a prior-era scaffold: scribe-authored but un-enriched.
+  const dir = tempProject({
+    "package.json": JSON.stringify({ name: "upgrade", scripts: { test: "bun test" } }),
+    "src/old.ts": `export function twoArgs(a: string, b: number): string { return a + b; }\n`,
+    "src/old.test.ts": `/**\n * Scribe-generated scaffold test for src/old.ts.\n * Deterministically drafted by the future-code harness scribe to close a\n * coverage gap; validated before promotion.\n */\nimport { test, expect } from "bun:test";\nimport { twoArgs } from "./old";\ntest("scribe: twoArgs is defined", () => {\n  expect(twoArgs).toBeDefined();\n});\n`,
+  });
+  const m = manifestFor(dir);
+  const { results, manifest } = await runScribe(dir, m);
+  // The prior scaffold was upgraded (planned 0 new; upgraded 1).
+  const upgraded = results.find((r) => r.entry.module === "src/old.ts");
+  expect(upgraded).toBeDefined();
+  expect(upgraded!.outcome).toBe("promoted");
+  const body = readFileSync(join(dir, "src/old.test.ts"), "utf8");
+  expect(body).toContain("twoArgs.length).toBe(2)");
+  // The upgrade is audited.
+  const action = (manifest.scribeLog ?? []).find((a) => a.rationale.includes("upgraded"));
+  expect(action).toBeDefined();
+});
+
+test("upgrade pass never touches human-written tests", async () => {
+  const human = `import { test, expect } from "bun:test";\nimport { twoArgs } from "./human";\ntest("human test", () => { expect(twoArgs("a", 1)).toBe("a1"); });\n`;
+  const dir = tempProject({
+    "package.json": JSON.stringify({ name: "no-human-touch", scripts: { test: "bun test" } }),
+    "src/human.ts": `export function twoArgs(a: string, b: number): string { return a + b; }\n`,
+    "src/human.test.ts": human,
+  });
+  const m = manifestFor(dir);
+  await runScribe(dir, m);
+  expect(readFileSync(join(dir, "src/human.test.ts"), "utf8")).toBe(human);
+});
+
+test("upgrade pass retains the prior scaffold when enrichment fails validation", async () => {
+  // Prior scaffold passing; enrichment would add an arity pin for a
+  // function whose source changed shape mid-flight is hard to force —
+  // instead force failure via a module that imports a missing sibling at
+  // import time: validation fails, prior scaffold stays.
+  const prior = `/**\n * Scribe-generated scaffold test for src/flaky.ts.\n */\nimport { test, expect } from "bun:test";\ntest("scribe: prior", () => { expect(true).toBe(true); });\n`;
+  const dir = tempProject({
+    "package.json": JSON.stringify({ name: "retain", scripts: { test: "bun test" } }),
+    "src/flaky.ts": `import { missing } from "./does-not-exist";\nexport const use = missing;\n`,
+    "src/flaky.test.ts": prior,
+  });
+  const m = manifestFor(dir);
+  const { manifest } = await runScribe(dir, m);
+  // Prior scaffold retained unchanged.
+  expect(readFileSync(join(dir, "src/flaky.test.ts"), "utf8")).toBe(prior);
+  const skip = (manifest.scribeLog ?? []).find((a) => a.rationale.includes("prior scaffold retained"));
+  expect(skip).toBeDefined();
 });
 
 test("repeat-quarantined modules are skipped in later plans (failure memory)", async () => {
