@@ -64,7 +64,7 @@ function slosFor(cues: ProjectCues): MonitorSlo[] {
   return [
     { id: "pass-rate", description: "required gates must pass", metric: "required_pass_rate", op: "gte", threshold: 1.0 },
     { id: "bounded-runtime", description: "run must finish quickly", metric: "runtime_ms", op: "lte", threshold: 60_000 },
-    { id: "bounded-context", description: "agents must stay within context budget", metric: "context_used", op: "lte", threshold: 4096 },
+    { id: "bounded-context", description: "agents must stay within the effective context budget", metric: "context_utilization", op: "lte", threshold: 1.0 },
   ];
 }
 

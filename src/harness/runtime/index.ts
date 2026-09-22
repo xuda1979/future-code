@@ -107,14 +107,20 @@ export async function run(manifest: HarnessManifest, task: string): Promise<RunR
   // Timeout observability: count gates killed for exceeding their timeout so
   // improver rules can distinguish hangs from ordinary failures.
   const timeoutCount = gates.filter((g) => g.timedOut).length;
+  // Context boundedness, absolute and relative forms. The utilization ratio
+  // (used/budget) stays meaningful when the improver widens the budget —
+  // unlike an absolute token threshold, which widening would obsolete.
+  const contextBudget = resolveBudget(manifest);
+  const contextUsed = estimateTokens(boundedTask);
   const metrics: Record<string, number> = {
     pass_rate: passRate,
     required_pass_rate: requiredPassRate,
     timeout_count: timeoutCount,
     runtime_ms: durationMs,
     gate_count: gates.length,
-    context_budget: resolveBudget(manifest),
-    context_used: estimateTokens(boundedTask),
+    context_budget: contextBudget,
+    context_used: contextUsed,
+    context_utilization: contextBudget > 0 ? Math.round((contextUsed / contextBudget) * 1000) / 1000 : 0,
   };
   return { runId, task: boundedTask, startedAt, durationMs, gates, metrics, sloResults: [] };
 }

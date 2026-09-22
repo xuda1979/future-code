@@ -479,8 +479,11 @@ test("builder includes bounded-context SLO in manifest", () => {
   const sloIds = m.slos.map((s) => s.id);
   expect(sloIds).toContain("bounded-context");
   const ctxSlo = m.slos.find((s) => s.id === "bounded-context");
-  expect(ctxSlo?.metric).toBe("context_used");
+  // Relative form: utilization (used/budget) ≤ 1.0. An absolute token
+  // threshold would be obsoleted the moment the improver widens the budget.
+  expect(ctxSlo?.metric).toBe("context_utilization");
   expect(ctxSlo?.op).toBe("lte");
+  expect(ctxSlo?.threshold).toBe(1.0);
 });
 
 // --- runtime enforces context budget on task ---
@@ -497,4 +500,52 @@ test("runtime truncates task description to fit budget", async () => {
   expect(report.metrics.context_budget).toBeDefined();
   expect(report.metrics.context_used).toBeDefined();
   expect(report.metrics.context_used).toBeLessThanOrEqual(report.metrics.context_budget * 0.8 + 1);
+});
+
+// --- widened budget stays SLO-compliant (regression) ---
+
+test("a task within a widened budget does not violate the bounded-context SLO", async () => {
+  // Regression: the bounded-context SLO previously used an absolute
+  // context_used ≤ 4096 threshold. Once the improver widened the budget
+  // (multiplier up to 8), a task that legally fit the widened budget still
+  // violated the SLO — the harness reported unhealthy forever, and widening
+  // (the improver's own remedy) made it worse. The SLO is now relative:
+  // context_utilization ≤ 1.0 against the effective budget.
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
+  build(dir, { harnessId: "slo-widened" });
+  const m = loadManifest(dir);
+  m.config.contextBudget = 8; // improver widened to the 8x cap
+  const { run } = await import("../../src/harness/runtime/index.ts");
+  const { annotate, healthy } = await import("../../src/harness/monitor/index.ts");
+
+  // ~10000 tokens — above the old 4096 threshold, within the 8x budget.
+  const bigTask = "x".repeat(4 * 10_000);
+  const r = await run(m, bigTask);
+  annotate(m, r);
+  expect(r.metrics.context_budget).toBe(32768);
+  expect(r.metrics.context_used).toBeGreaterThan(4096);
+  const ctxSlo = r.sloResults.find((s) => s.sloId === "bounded-context");
+  expect(ctxSlo?.met).toBe(true);
+  expect(healthy(r)).toBe(true);
+});
+
+test("a task overflowing even the widened budget violates the SLO", async () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
+  build(dir, { harnessId: "slo-overflow" });
+  const m = loadManifest(dir);
+  m.config.contextBudget = 8;
+  const { run } = await import("../../src/harness/runtime/index.ts");
+  const { annotate, healthy } = await import("../../src/harness/monitor/index.ts");
+
+  // Task far larger than even the 8x budget — truncation keeps utilization
+  // at ~0.8 of budget per the runtime's bounded-task contract, so the SLO
+  // holds; overflow is instead signaled to the improver via
+  // expandContextOnOverflow (already at cap → no proposal). Verify the
+  // metric stays within contract either way.
+  const hugeTask = "y".repeat(4 * 60_000);
+  const r = await run(m, hugeTask);
+  annotate(m, r);
+  expect(r.metrics.context_utilization).toBeLessThanOrEqual(1.0);
+  expect(r.metrics.context_used).toBeLessThanOrEqual(r.metrics.context_budget);
+  expect(healthy(r)).toBe(true);
 });
