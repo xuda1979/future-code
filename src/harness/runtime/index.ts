@@ -23,14 +23,29 @@ export interface ExecOutcome {
 export function execTool(command: string, cwd: string, timeoutMs = 60_000): Promise<ExecOutcome> {
   return new Promise((resolve) => {
     const start = Date.now();
-    const child = spawn(command, { cwd, shell: true, stdio: ["ignore", "pipe", "pipe"] });
+    // Run the command as its own process-group leader (detached, POSIX):
+    // with shell:true the spawned process is only the shell, and killing
+    // just it would orphan whatever the command actually launched. A
+    // group kill (-pid) takes down the shell and every descendant.
+    const child = spawn(command, {
+      cwd,
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: process.platform !== "win32",
+    });
     let out = "";
     child.stdout.on("data", (d) => { out += d; });
     child.stderr.on("data", (d) => { out += d; });
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      // Kill the entire process group; fall back to a direct kill where
+      // process groups are unsupported (Windows) or already gone (ESRCH).
+      try {
+        process.kill(-child.pid!, "SIGKILL");
+      } catch {
+        child.kill("SIGKILL");
+      }
     }, timeoutMs);
     child.on("close", (code) => {
       clearTimeout(timer);

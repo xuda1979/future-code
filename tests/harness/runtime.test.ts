@@ -105,3 +105,33 @@ test("run with multiple gates reports correct pass rate", async () => {
     : 0;
   expect(report.metrics.pass_rate).toBeCloseTo(expectedPassRate, 5);
 });
+
+// --- timed-out gates: group kill leaves no orphans ---
+
+test("a hung gate is killed at its timeout with no orphaned descendants", async () => {
+  // Regression: execTool used shell:true and killed only the shell process,
+  // orphaning whatever the command actually launched (e.g. the test runner
+  // under `sh -c`). Gates now run as process-group leaders and the timeout
+  // kills the whole group.
+  const dir = tempProject({
+    "package.json": JSON.stringify({ name: "hang-e2e", scripts: { test: "sleep 30 && exit 0" } }),
+  });
+  build(dir, { harnessId: "hang-e2e" });
+  const m = loadManifest(dir);
+  const tool = m.tools.find((t) => t.id === "node-test");
+  expect(tool).toBeDefined();
+  tool!.timeoutMs = 700; // kill after 700ms — the 30s test never finishes
+
+  const r = await run(m, "hang probe");
+  const hung = r.gates.find((g) => g.gateId === "unit");
+  expect(hung).toBeDefined();
+  expect(hung!.timedOut).toBe(true);
+  expect(hung!.exitCode).not.toBe(0);
+  expect(r.metrics.timeout_count).toBe(1);
+  expect(hung!.output).toContain("exceeded timeout");
+
+  // No orphaned sleep remains: the group kill took down every descendant.
+  await new Promise((res) => setTimeout(res, 300));
+  const probe = Bun.spawnSync(["bash", "-c", "pgrep -f 'sleep 30 && exit 0' | wc -l"], { stdout: "pipe" });
+  expect(Number(probe.stdout.toString().trim())).toBe(0);
+}, 15_000);
