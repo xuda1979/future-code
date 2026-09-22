@@ -22,9 +22,17 @@ if ! command -v bun >/dev/null 2>&1; then
 fi
 echo "==> Using bun: $(bun --version)"
 
-# 2. Install dependencies (platform-correct native binaries for THIS machine)
-echo "==> Installing dependencies (platform-correct for $(uname -s)/$(uname -m))..."
-bun install
+# 2. Install dependencies (platform-correct native binaries for THIS machine).
+#    Skipped when node_modules is already populated: the internal @future/*
+#    registry aliases cannot resolve against public npm, so a re-install
+#    breaks offline/intranet builds even though dependencies are complete.
+if [[ -d node_modules/@future/sdk ]]; then
+  echo "==> Dependencies already installed (node_modules present); skipping 'bun install'."
+  echo "    (Delete node_modules to force a fresh install.)"
+else
+  echo "==> Installing dependencies (platform-correct for $(uname -s)/$(uname -m))..."
+  bun install
+fi
 
 # 3. Compile the standalone agent from source
 echo "==> Compiling future-code from src/entrypoints/cli-bundle.ts ..."
