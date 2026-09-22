@@ -123,3 +123,59 @@ test("recordRun respects default limit of 100", () => {
   expect(m.runHistory[0].runId).toBe("run-10");
   expect(m.runHistory[99].runId).toBe("run-109");
 });
+
+// --- defensive health recording ---
+
+test("toRunRecord derives health from required gates when SLOs are not annotated", () => {
+  // A caller that skips annotate() must never record a fully-failing run
+  // as healthy — health falls back to required-gate outcomes.
+  const failing: RunReport = {
+    runId: "no-anno-fail",
+    task: "t",
+    startedAt: new Date().toISOString(),
+    durationMs: 10,
+    gates: [
+      { toolId: "node-test", gateId: "unit", passed: false, exitCode: 1, durationMs: 5, required: true },
+    ],
+    metrics: { pass_rate: 0, required_pass_rate: 0, runtime_ms: 10, gate_count: 1 },
+    sloResults: [], // unannotated
+  };
+  const rec = toRunRecord(failing);
+  expect(rec.healthy).toBe(false);
+
+  const passing: RunReport = {
+    ...failing,
+    runId: "no-anno-pass",
+    gates: [{ toolId: "node-test", gateId: "unit", passed: true, exitCode: 0, durationMs: 5, required: true }],
+    metrics: { pass_rate: 1, required_pass_rate: 1, runtime_ms: 10, gate_count: 1 },
+  };
+  const rec2 = toRunRecord(passing);
+  expect(rec2.healthy).toBe(true);
+
+  // An advisory gate failing alone does not imply unhealthy.
+  const advisoryFail: RunReport = {
+    ...failing,
+    runId: "no-anno-adv",
+    gates: [
+      { toolId: "node-test", gateId: "unit", passed: true, exitCode: 0, durationMs: 5, required: true },
+      { toolId: "typecheck", gateId: "typecheck", passed: false, exitCode: 2, durationMs: 5, required: false },
+    ],
+  };
+  const rec3 = toRunRecord(advisoryFail);
+  expect(rec3.healthy).toBe(true);
+});
+
+test("toRunRecord keeps SLO-derived health when annotated", () => {
+  const report: RunReport = {
+    runId: "anno",
+    task: "t",
+    startedAt: new Date().toISOString(),
+    durationMs: 10,
+    gates: [{ toolId: "node-test", gateId: "unit", passed: true, exitCode: 0, durationMs: 5, required: true }],
+    metrics: { pass_rate: 1, required_pass_rate: 1, runtime_ms: 10, gate_count: 1, context_utilization: 2.0 },
+    sloResults: [{ sloId: "bounded-context", met: false, observed: 2.0, threshold: 1.0, op: "lte" }],
+  };
+  const rec = toRunRecord(report);
+  expect(rec.healthy).toBe(false);
+  expect(rec.unmetSlo).toEqual(["bounded-context"]);
+});

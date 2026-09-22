@@ -12,13 +12,19 @@ export function toRunRecord(report: RunReport): HarnessRunRecord {
   for (const g of report.gates) {
     if (g.gateId) gateResults[g.gateId] = g.passed;
   }
+  // Health: SLO-based when the report was annotated; otherwise fall back to
+  // required-gate outcomes so a caller that skips annotate() can never
+  // record a fully-failing run as healthy.
+  const annotated = report.sloResults.length > 0;
+  const requiredFailed = report.gates.some((g) => !g.passed && g.required !== false);
+  const healthy = annotated ? unmet.length === 0 : !requiredFailed;
   return {
     runId: report.runId,
     task: report.task,
     startedAt: report.startedAt,
     durationMs: report.durationMs,
     passRate: report.metrics.pass_rate ?? (report.gates.length ? passed / report.gates.length : 0),
-    healthy: unmet.length === 0,
+    healthy,
     gateCount: report.gates.length,
     passedCount: passed,
     metrics: report.metrics,

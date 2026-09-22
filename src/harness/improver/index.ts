@@ -307,8 +307,10 @@ export const defaultRules: ImprovementRule[] = [widenContextOnFailure, adaptPara
  * Run the improver against the latest report. Returns proposals; applying a
  * proposal is a separate step that records it in the manifest history.
  *
- * The improver operates on bounded context — the report and history are
- * compacted before any rule sees them.
+ * The improver operates on bounded context — rules see at most the last 20
+ * run records (newest last). The current report is passed as-is: rules need
+ * its full per-gate detail, and its size is bounded upstream by the
+ * runtime's gate-output truncation.
  */
 export function improve(manifest: HarnessManifest, report: RunReport, rules = defaultRules): ImprovementProposal[] {
   // Bound the history each rule sees — recent records only, newest last.
@@ -354,6 +356,10 @@ export function applyProposal(m: HarnessManifest, p: ImprovementProposal): Harne
   p.appliedAt = new Date().toISOString();
   m.improvementHistory = m.improvementHistory ?? [];
   m.improvementHistory.push(p);
+  // Keep the audit trail bounded — the same policy as runHistory: the most
+  // recent decisions are what the improver and humans inspect; an unbounded
+  // trail would bloat the manifest without adding signal.
+  if (m.improvementHistory.length > 100) m.improvementHistory = m.improvementHistory.slice(-100);
   return m;
 }
 

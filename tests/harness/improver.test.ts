@@ -454,3 +454,22 @@ test("applyProposal handles slos.<id>.threshold changes", () => {
   });
   expect(m2.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(90_000);
 });
+
+test("applyProposal caps the improvement history at 100 entries", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
+  build(dir, { harnessId: "cap-hist" });
+  const m = loadManifest(dir);
+  for (let i = 0; i < 130; i++) {
+    applyProposal(m, {
+      id: `imp-cap-${i}`,
+      description: `cycle ${i}`,
+      changes: { "config.maxParallel": 1 + (i % 4) },
+      rationale: "test",
+      approved: false,
+    });
+  }
+  expect(m.improvementHistory!.length).toBe(100);
+  // Newest kept, oldest dropped.
+  expect(m.improvementHistory![0].id).toBe("imp-cap-30");
+  expect(m.improvementHistory![99].id).toBe("imp-cap-129");
+});
