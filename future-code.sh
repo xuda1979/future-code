@@ -112,10 +112,15 @@ if [[ "$DIRECT" -eq 0 ]]; then
   else
     APPCODE_ARG=()
   fi
+  # The proxy appends "/v1/chat/completions" to the upstream URL itself, so a
+  # base URL that already carries the "/v1" suffix (e.g. the CMRI gateway's
+  # http://172.23.31.2/token/v1) must be trimmed back — otherwise requests hit
+  # ".../v1/v1/chat/completions" and the gateway 404s with "model not found".
+  UPSTREAM_URL="${BASE_URL%/v1}"
   echo "future-code: starting local proxy on port $PROXY_PORT (log: $LOG_FILE)" >&2
   python3 "$PROXY_SCRIPT" \
     --host 127.0.0.1 --port "$PROXY_PORT" \
-    --upstream-url "$BASE_URL" \
+    --upstream-url "$UPSTREAM_URL" \
     --upstream-token "$AUTH $API_KEY" \
     --model-name "$MODEL" \
     --max-input-chars "$MAX_INPUT_CHARS" \
