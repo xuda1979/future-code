@@ -11,6 +11,8 @@ set -uo pipefail
 # Usage:
 #   future-code --print "hi"   # headless one-shot
 #   future-code                # interactive session
+#   future-code --list-models  # list all CMRI + Huanxin models
+#                               # (default: cmri GLM-5.3)
 # --------------------------------------------------------------------------- #
 export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:$PATH"
 
