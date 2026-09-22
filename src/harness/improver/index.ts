@@ -90,8 +90,31 @@ export const detectFlakiness: ImprovementRule = ({ manifest, report }) => {
   return proposal;
 };
 
+/**
+ * Built-in rule: if context budget is being exceeded by an agent,
+ * increase the context budget multiplier so agents have more room.
+ * This ensures agents never silently operate with insufficient context.
+ */
+export const expandContextOnOverflow: ImprovementRule = ({ manifest, report }) => {
+  const contextUsed = report.metrics.context_used ?? 0;
+  const contextBudget = report.metrics.context_budget ?? 0;
+  if (contextBudget === 0 || contextUsed <= contextBudget) return null;
+
+  const current = manifest.config.contextBudget;
+  if (current >= 8) return null; // cap at 8x
+
+  const proposal: ImprovementProposal = {
+    id: nextId(manifest),
+    description: "Context budget exceeded; increasing budget multiplier to prevent agent context overflow.",
+    changes: { "config.contextBudget": Math.min(current + 1, 8) },
+    rationale: `context_used=${contextUsed} > context_budget=${contextBudget}; contextBudget=${current}→${Math.min(current + 1, 8)}`,
+    approved: false,
+  };
+  return proposal;
+};
+
 /** Default set of rules, in priority order. */
-export const defaultRules: ImprovementRule[] = [widenTimeoutOnFailure, adaptParallelism, reduceParallelism, detectFlakiness];
+export const defaultRules: ImprovementRule[] = [widenTimeoutOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow];
 
 /**
  * Run the improver against the latest report. Returns proposals; applying a

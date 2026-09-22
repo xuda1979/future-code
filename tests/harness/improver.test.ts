@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "../../src/harness/builder/index.ts";
 import { loadManifest } from "../../src/harness/registry.ts";
-import { improve, applyProposal, shouldApply, defaultRules, widenTimeoutOnFailure, adaptParallelism, reduceParallelism, detectFlakiness } from "../../src/harness/improver/index.ts";
+import { improve, applyProposal, shouldApply, defaultRules, widenTimeoutOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow } from "../../src/harness/improver/index.ts";
 import { annotate } from "../../src/harness/monitor/index.ts";
 import type { RunReport, HarnessManifest } from "../../src/harness/types.ts";
 
@@ -192,4 +192,63 @@ test("shouldApply guardrail prevents unbounded maxParallel", () => {
     approved: false,
   };
   expect(shouldApply(m, safeProposal)).toBe(true);
+});
+
+// --- expandContextOnOverflow rule ---
+
+test("expandContextOnOverflow proposes increase when context used exceeds budget", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
+  build(dir, { harnessId: "ctx-overflow" });
+  const m = loadManifest(dir);
+  const report: RunReport = {
+    runId: "overflow-run",
+    task: "test",
+    startedAt: new Date().toISOString(),
+    durationMs: 100,
+    gates: [],
+    metrics: { pass_rate: 1, runtime_ms: 100, gate_count: 0, context_budget: 4096, context_used: 5000 },
+    sloResults: [],
+  };
+  const proposal = expandContextOnOverflow({ manifest: m, report });
+  expect(proposal).not.toBeNull();
+  expect(proposal!.changes["config.contextBudget"]).toBe(2); // 1 -> 2
+});
+
+test("expandContextOnOverflow returns null when context is within budget", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
+  build(dir, { harnessId: "ctx-ok" });
+  const m = loadManifest(dir);
+  const report: RunReport = {
+    runId: "ok-run",
+    task: "test",
+    startedAt: new Date().toISOString(),
+    durationMs: 100,
+    gates: [],
+    metrics: { pass_rate: 1, runtime_ms: 100, gate_count: 0, context_budget: 4096, context_used: 1000 },
+    sloResults: [],
+  };
+  const proposal = expandContextOnOverflow({ manifest: m, report });
+  expect(proposal).toBeNull();
+});
+
+test("expandContextOnOverflow respects cap at 8x", () => {
+  const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
+  build(dir, { harnessId: "ctx-cap" });
+  const m = loadManifest(dir);
+  m.config.contextBudget = 8;
+  const report: RunReport = {
+    runId: "cap-run",
+    task: "test",
+    startedAt: new Date().toISOString(),
+    durationMs: 100,
+    gates: [],
+    metrics: { pass_rate: 1, runtime_ms: 100, gate_count: 0, context_budget: 4096, context_used: 99999 },
+    sloResults: [],
+  };
+  const proposal = expandContextOnOverflow({ manifest: m, report });
+  expect(proposal).toBeNull(); // already at 8x cap
+});
+
+test("expandContextOnOverflow is included in defaultRules", () => {
+  expect(defaultRules).toContain(expandContextOnOverflow);
 });
