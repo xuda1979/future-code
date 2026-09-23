@@ -1,0 +1,10 @@
+{
+  "name": "offline-code-artifact-demo",
+  "environmentId": "offline-demo-v1",
+  "requiredChecks": ["behavior"],
+  "slos": [{"metric": "durationMs", "maximum": 3000}],
+  "limits": {"parallelism": 4, "attempts": 2, "contextBytes": 32768, "outputBytes": 1048576, "timeoutMs": 5000, "tasks": 100},
+  "recipe": {"parallelism": 1, "attempts": 1, "contextBytes": 8192, "timeoutMs": 4000},
+  "worker": {"argv": ["$RUNTIME", "./examples/foundry/demo-worker.mjs"], "files": ["./examples/foundry/demo-worker.mjs"]},
+  "verifier": {"argv": ["$RUNTIME", "./examples/foundry/demo-verifier.mjs"], "files": ["./examples/foundry/demo-verifier.mjs"]}
+}

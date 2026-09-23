@@ -1,0 +1,69 @@
+{
+  "datasetId": "offline-demo-holdout-fixture-v1",
+  "environmentId": "offline-demo-v1",
+  "tasks": [
+    {
+      "id": "add-a",
+      "goal": "Produce a two-argument addition function.",
+      "acceptance": [
+        "Pass independent integer and decimal cases."
+      ],
+      "dependencies": [],
+      "writeScope": [
+        "src/add-a.js"
+      ],
+      "input": {
+        "operation": "add"
+      }
+    },
+    {
+      "id": "add-b",
+      "goal": "Produce a second independently checked addition function.",
+      "acceptance": [
+        "Pass independent integer and decimal cases."
+      ],
+      "dependencies": [],
+      "writeScope": [
+        "src/add-b.js"
+      ],
+      "input": {
+        "operation": "add"
+      }
+    },
+    {
+      "id": "add-c",
+      "goal": "Produce a third independently checked addition function.",
+      "acceptance": [
+        "Pass independent integer and decimal cases."
+      ],
+      "dependencies": [],
+      "writeScope": [
+        "src/add-c.js"
+      ],
+      "input": {
+        "operation": "add"
+      }
+    },
+    {
+      "id": "integrate",
+      "goal": "Produce a checked code artifact after its dependencies pass.",
+      "acceptance": [
+        "All upstream artifacts are verified and this artifact passes behavior checks."
+      ],
+      "dependencies": [
+        "add-a",
+        "add-b",
+        "add-c"
+      ],
+      "writeScope": [
+        "src/integrate.js"
+      ],
+      "input": {
+        "operation": "add"
+      }
+    }
+  ],
+  "repetitions": 4,
+  "objective": "durationMs",
+  "minRelativeGain": 0.1
+}
