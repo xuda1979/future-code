@@ -34,14 +34,45 @@ conditional optimum and reference. It can still produce smaller evidence than th
 practical default, as our source replays show. Low fitting cost and lowest byte
 cost are different objectives.
 
-\paragraph{Contributions and evidence boundaries.}
-The substantive research contribution remains hyperedge-scored,
-identity-preserving verification aggregation and its conditional guarantees.
-This revision resolves an implementation choice, adds service-matched cost
-accounting, and evaluates the no-DP practical catalogue on fresh frozen
-synthetic splits. It separately replays archived source evidence and provides
-tools for the unmeasured token and WAN boundaries. Clustering, balanced trees,
-alphabetic DP, compression, break-even arithmetic and TLS are established
-techniques, not new inventions claimed here. The artifact is a tested research
-implementation; its tests do not establish production readiness or
-top-conference acceptance.
+\paragraph{Core contributions and architecture.}
+Adaptive HACT v5.1 serializes verification evidence under fixed test execution
+schedules. Its architecture separates two kinds of state that many systems
+conflate. \emph{Immutable check identities}---registry IDs, acceptance
+predicates, and the candidate binding---define what must hold for a candidate
+to be accepted; they are fixed when the registry and candidate identity are
+published and are never rewritten by execution, layout choice, or learning.
+\emph{Mutable execution state}---tokens, timestamps, generation counters, and
+the order in which checks actually ran---records one run of those checks and
+may differ run to run. A result token carries the immutable semantic ID plus
+the run's binding; a layout-specific kernel maps stable IDs to display
+positions. Because identities are stable, permuting the layout or replaying
+under a different schedule moves records without changing their meaning
+(Section~\ref{sec:soundness}). The execution schedule $\sigma_e$ is an input
+the serializer must respect, not a variable it optimizes: HACT changes how
+evidence from an unchanged schedule is laid out and aggregated, never when
+checks run or what their outcomes mean. The substantive research contribution
+remains hyperedge-scored, identity-preserving verification aggregation and its
+conditional guarantees. This revision resolves an implementation choice, adds
+service-matched cost accounting, and evaluates the no-DP practical catalogue
+on fresh frozen synthetic splits. It separately replays archived source
+evidence and provides tools for the unmeasured token and WAN boundaries.
+Clustering, balanced trees, alphabetic DP, compression, break-even arithmetic
+and TLS are established techniques, not new inventions claimed here. The
+artifact is a tested research implementation; its tests do not establish
+production readiness or top-conference acceptance.
+
+\paragraph{Positioning: evidence serialization, not agent acceleration.}
+Every design decision in v5.1 follows from a deliberately narrow scope: HACT is
+an evidence-serialization component. It reduces the bytes needed to publish
+which declared checks hold, under a delivery service that already requires
+protected verification and hierarchical evidence. It does not schedule checks,
+does not parallelize work, does not alter the agent's planning or repository
+exploration, and does not claim that a smaller transcript makes any agent
+faster or more productive. Where the review's larger program---verified-frontier
+context retirement, dependency-aware parallelism, task granularity---would use
+this certificate as a backend, that program is an evaluation protocol in
+progress (Section~\ref{sec:productivity}); its experiments have not been run.
+The negative controls in Section~\ref{sec:productivity} exist precisely to
+keep this boundary honest: flat checker timings and per-episode verification
+overhead are reported as limits of the serialization claim, not evidence
+against it or support for an acceleration claim.

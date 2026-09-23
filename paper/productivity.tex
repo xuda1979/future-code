@@ -8,17 +8,21 @@ method, what the present evidence does---and does not---establish about that
 objective.
 
 \paragraph{The certificate problem is not yet a productivity result.}
-Adaptive HACT optimizes the \emph{layout} that serializes verification evidence
-under a fixed check-execution sequence. It does not change the agent's planning,
+Adaptive HACT is an evidence-serialization component: it optimizes the
+\emph{layout} that serializes verification evidence under fixed test execution
+schedules, separating immutable check identities from the mutable execution
+state that records a run. It does not change the agent's planning,
 repository exploration, reasoning history, number of failed patches, or
-allocation of work. A strong result on the certificate objective can therefore
+allocation of work; it does not schedule, reorder, or parallelize checks. A
+strong result on the certificate objective can therefore
 coexist with no improvement in whole-project productivity, and the manuscript
 acknowledges exactly this boundary throughout. Historical checker timings were
 essentially flat (39.69\,s versus 39.77\,s for fixed and learned layouts), and a
 separate small harness paid roughly five seconds per episode for strict
 verification versus direct pytest. These are \emph{negative controls}: they
 show that a smaller certificate transcript is not automatically a faster build,
-a better agent, or a smaller root-status prompt.
+a better agent, or a smaller root-status prompt, and they delimit the
+serialization claim rather than support any acceleration claim.
 
 \paragraph{Where the measurement stops.}
 No hosted model was called; no physical WAN and no actual public-vocabulary BPE

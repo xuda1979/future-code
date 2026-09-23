@@ -9,6 +9,20 @@ identical source bytes. Only a trusted runner submits final \PASS{}, \FAIL{}, or
 \UNKNOWN{} records. Missing, stale, skipped, incompatible, or timed-out outcomes
 are not passes.
 
+\paragraph{Immutable identities versus mutable execution state.}
+The model splits its state into two disjoint layers.
+\emph{Immutable check identities} are the registry $\R$, the candidate
+identity $e$, and the acceptance predicate each check declares; they are fixed
+at publication and are never rewritten by execution, layout choice, or
+learning. \emph{Mutable execution state} is everything a run may change: the
+result tokens, their generation counters, epoch-local timestamps, and the
+execution permutation $\sigma_e$ that determines when checks run. A record's
+identity is its semantic ID bound to $e$; its display position is not part of
+that identity. This separation is what makes evidence serialization under
+fixed schedules well-posed: the schedule and outcomes are observed inputs, and
+only the aggregation layout is chosen. No layout or learner writes execution
+state, and no execution mutates the registry or acceptance predicates.
+
 An execution permutation $\sigma_e$ determines when checks run. A layout
 $L=(\pi,T)$ independently maps tree positions to semantic registry indices. For
 a node covering positional interval $[i,j]$, its semantic coverage is

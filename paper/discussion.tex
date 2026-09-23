@@ -1,6 +1,10 @@
 \section{Deployment Recommendation, Limitations, and Next Experiments}\label{sec:discussion}
 \subsection{Deployment recommendation}\label{sec:deploy}
-Choose a service before an algorithm. Do not deploy the strict wrapper solely on
+HACT v5.1 is an evidence-serialization component, and the recommendation is
+scoped accordingly: it applies where a service already requires protected
+verification evidence and hierarchical delivery, not as a general agent or
+build accelerator. Choose a service before an algorithm. Do not deploy the
+strict wrapper solely on
 the strength of these transmission savings. For local trusted status, use the
 root projection; for final per-test states, a flat ledger may suffice. Where
 protected hierarchical evidence is already required, enable a suitable codec,
@@ -36,6 +40,24 @@ there is no new SWE-bench or natural historical-bug cohort. The actual SWE-bench
 harness uses isolated repository environments~\cite{swebenchharness}; scripted
 source mutations are not equivalent. Source-level token counts, when measured
 later, will still not establish provider billing or better agent reasoning.
+
+\paragraph{Closing the BPE gap.}
+Three concrete steps would close the tokenization measurement gap without
+inflating its meaning. First, the supplied admission tool already implements
+exact content-only counting for \texttt{cl100k\_base} and \texttt{o200k\_base}
+via \texttt{tiktoken}~\cite{tiktoken}; it needs only a working vocabulary file
+to produce real counts. A reproducible packaging step---pinning the
+\texttt{tiktoken} wheel and its \texttt{.bpe} vocabulary to a hashed
+release---would make the measurement portable. Second, because the paper's
+layout objective minimizes \emph{bytes} not tokens, the BPE measurement should
+be reported as a diagnostic alongside the byte result, not as a replacement
+primary metric: a layout that reduces padded bytes may or may not reduce tokens
+under a specific BPE vocabulary, and both directions are informative. Third,
+the token count should be reported per-page with the framing budget $r$
+separated from payload, so that a reader can verify that the savings are not
+absorbed by framing overhead. None of these steps would establish a billing or
+reasoning improvement; they would only complete the admission tool's stated
+purpose with a real vocabulary.
 
 Trust and scope: Future Code remains a single-host supervisor. The guard and TLS
 utility are not a distributed consensus protocol or fault-tolerant deployment. A
@@ -110,6 +132,33 @@ plan, timeout handling and failed-run accounting fixed before outcomes. No benef
 over masking, verified-board and fixed-scheduler baselines means the expensive new
 controller should not be promoted. If HACT's tree adds no improvement after
 flattening evidence while keeping the contract, HACT remains optional and the
-productivity gain, if any, belongs to the context/scheduling layer. Until this live
-cohort is run, this direction is labeled a design and evaluation protocol; there is
-no justified replacement numerical abstract.
+productivity gain, if any, belongs to the context/scheduling layer.
+
+\paragraph{Pre-registration and falsification closure.}
+The protocol should be frozen in a versioned document before any live data
+collection: the six arms, the acceptance contract, the quality margin, the
+sample-size calculation, and the censoring rule for timed-out runs are all
+declared ex ante. Two explicit closure rules prevent indefinite iteration.
+\emph{Null closure}: if the retirement arm's cost-per-accepted-project is not at
+least 20\% below the best baseline after the planned sample size, the
+productivity hypothesis is rejected and HACT is not promoted beyond its
+serialization role. \emph{Attribution closure}: if the scheduler alone (arm~vi)
+matches the retirement-plus-scheduler arm (arm~v) within the pre-registered
+margin, the contribution is assigned to scheduling, not to frontier-aware
+retirement. Either closure terminates the protocol with a written result; no
+post-hoc arm addition or margin relaxation is permitted without a new
+pre-registered protocol.
+
+\paragraph{Capsule integrity check.}
+Each emitted capsule must carry a typed manifest listing verified predicates,
+unresolved questions, and artifact references; a post-episode auditor
+reconstructs the full task context from capsules alone and checks that the
+reconstructed context passes the same frozen acceptance contract. If the
+capsule reconstruction fails acceptance for any task in a completed project,
+that project is scored as a failure of the retirement policy, not as a
+serialization artifact. This ensures that information loss from context
+retirement is counted in the quality metric rather than hidden in a downstream
+re-check.
+
+Until this live cohort is run, this direction is labeled a design and evaluation
+protocol; there is no justified replacement numerical abstract.
