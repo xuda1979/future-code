@@ -88,3 +88,41 @@ o_f/o_m)$ the inequality $R(c) \le \rho$ holds exactly for
 $c \ge c_\rho$. Consequence: a deployment pilot that estimates the four
 means, plus the deployment's round-trip price, yields an exact go/no-go
 decision for the promotion gate; no sweep is needed.
+
+## Amendment E6 (2026-09-24, after E1's pre-specified run, before any E6 run)
+
+**Disclosure of motivation.** E1 as pre-specified compares frontier to
+masking only. Running it produced the table above and revealed that
+\texttt{bounded-hier} (a 64-gate recency window, a frozen v1 arm carried
+into v2) is cheaper than frontier on regime-B bytes AND regime-O cost at
+the frozen 4,096 B round-trip price, at equal acceptance (84/84). The
+frozen null closure is unaffected (its comparator is masking, as
+frozen), but the manuscript's deployment story cannot be honest without
+analyzing bounded-hier head-on. This amendment is therefore written
+after E1's output was observed and before any E6 analysis is run; the
+sequence is disclosed here and will be disclosed in the manuscript.
+
+- **E6a.** Per-family (B, o) for bounded-hier at S=fixed on the frozen
+  grid; closed-form break-even prices $c^*$ at which frontier becomes
+  cheaper than bounded-hier, per family and pooled; the same for
+  masking (which the E1 table already suggests is dominated by both at
+  every price).
+- **E6b.** Pending-eviction exposure: on the frozen streams, count for
+  bounded-hier the episodes in which a gate carrying a still-pending
+  obligation, or a gate inside the current dependency footprint, is
+  evicted from the window (and therefore must be re-fetched to resolve).
+  Report the rate. This quantifies bounded-hier's dependence on
+  reliable retrieval: frontier retains these gates by construction.
+- **E6c.** Sign tests, frontier vs bounded-hier and masking vs
+  bounded-hier, on regime-B and regime-O per cell (84 paired cells,
+  exact two-sided binomial), as in E2 but with bounded-hier.
+- **E6d.** Bounded-hier at the long horizon (n=1024, 160 episodes, 3
+  families x 7 seeds, S=fixed = 21 new runs, same frozen engine and
+  stream machinery; new data, labeled exploratory) to complete the
+  horizon row of the decision table.
+
+No claim from E6 is confirmatory. If E6 shows bounded-hier dominating
+frontier at deployment-plausible round-trip prices, the manuscript's
+deployment recommendation must say so, and frontier's case must rest on
+what E6b measures plus the unreliable-retrieval boundary stated as
+theory, not on the frozen closure alone.
