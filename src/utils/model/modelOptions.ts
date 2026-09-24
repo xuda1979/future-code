@@ -16,6 +16,7 @@ import { getSettings_DEPRECATED } from '../settings/settings.js'
 import { checkOpus1mAccess, checkSonnet1mAccess } from './check1mAccess.js'
 import { getAPIProvider } from './providers.js'
 import { isModelAllowed } from './modelAllowlist.js'
+import { listModelsByProvider, DEFAULT_MODEL_ID } from './cmriHuanxinCatalog.js'
 import {
   getCanonicalName,
   getFutureAiUserDefaultModelDescription,
@@ -341,37 +342,32 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
     return payg1POptions
   }
 
-  // PAYG 3P: Default (Sonnet 4.5) + Sonnet (3P custom) or Sonnet 4.6/1M + Opus (3P custom) or Opus 4.1/Opus 4.6/Opus1M + Haiku + Opus 4.1
+  // PAYG 3P: Use CMRI + Huanxin catalog instead of Anthropic models.
+  // The catalog is the authoritative model list for this deployment.
   const payg3pOptions = [getDefaultOptionForUser(fastMode)]
 
-  const customSonnet = getCustomSonnetOption()
-  if (customSonnet !== undefined) {
-    payg3pOptions.push(customSonnet)
-  } else {
-    // Add Sonnet 4.6 since Sonnet 4.5 is the default
-    payg3pOptions.push(getSonnet46Option())
-    if (checkSonnet1mAccess()) {
-      payg3pOptions.push(getSonnet46_1MOption())
+  // Add all CMRI models from the catalog (marked as CMRI models).
+  for (const m of listModelsByProvider('cmri')) {
+    // Skip the default — it's already in getDefaultOptionForUser.
+    if (m.id === DEFAULT_MODEL_ID) continue
+    payg3pOptions.push({
+      value: m.id,
+      label: m.label,
+      description: `CMRI model — ${m.description}`,
+    })
+  }
+
+  // Add Huanxin DP4 model (keep it in the list per requirement).
+  for (const m of listModelsByProvider('huanxin')) {
+    if (m.id === 'dp4') {
+      payg3pOptions.push({
+        value: m.id,
+        label: m.label,
+        description: `Huanxin model — ${m.description}`,
+      })
     }
   }
 
-  const customOpus = getCustomOpusOption()
-  if (customOpus !== undefined) {
-    payg3pOptions.push(customOpus)
-  } else {
-    // Add Opus 4.1, Opus 4.6 and Opus 4.6 1M
-    payg3pOptions.push(getOpus41Option()) // This is the default opus
-    payg3pOptions.push(getOpus46Option(fastMode))
-    if (checkOpus1mAccess()) {
-      payg3pOptions.push(getOpus46_1MOption(fastMode))
-    }
-  }
-  const customHaiku = getCustomHaikuOption()
-  if (customHaiku !== undefined) {
-    payg3pOptions.push(customHaiku)
-  } else {
-    payg3pOptions.push(getHaikuOption())
-  }
   return payg3pOptions
 }
 

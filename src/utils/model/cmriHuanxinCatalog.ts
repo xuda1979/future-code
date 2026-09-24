@@ -44,68 +44,96 @@ export const PROVIDER_DESCRIPTIONS: Record<CatalogProvider, string> = {
 
 /** The complete model catalog. */
 export const MODEL_CATALOG: CatalogModel[] = [
-  // ── CMRI models ────────────────────────────────────────────────────────
+  // ── CMRI models (all served by the CMRI gateway endpoint) ──────────────
   {
     id: "GLM-5.3",
     provider: "cmri",
     label: "CMRI GLM-5.3",
     description:
-      "Current-generation CMRI GLM model served by the CMRI provider endpoint. " +
-      "The default model for the future-code binary.",
+      "CMRI model — current-generation GLM served by the CMRI provider endpoint. " +
+      "The default main-loop model for future-code.",
     default: true,
   },
   {
     id: "GLM-5.2",
     provider: "cmri",
-    label: "CMRI GLM 5.2",
+    label: "CMRI GLM-5.2",
     description:
-      "Previous-generation CMRI GLM model. The proxy enables streaming, reasoning " +
-      "params, and shared-window budgeting for it; the upstream id is overridable " +
-      "via HUANXIN_GLM52_UPSTREAM_MODEL (legacy dev.cmri.cn id: glm-5.2).",
-    upstreamIdEnv: "HUANXIN_GLM52_UPSTREAM_MODEL",
-    upstreamDefaultId: "glm-5.2",
+      "CMRI model — previous-generation GLM with streaming, reasoning params, " +
+      "and 128K context-window budgeting.",
+  },
+  {
+    id: "GLM-4.7",
+    provider: "cmri",
+    label: "CMRI GLM-4.7",
+    description:
+      "CMRI model — GLM 4.7 generation, served by the CMRI gateway.",
+  },
+  {
+    id: "DeepSeek-V4",
+    provider: "cmri",
+    label: "CMRI DeepSeek-V4",
+    description:
+      "CMRI model — DeepSeek V4 served through the CMRI gateway. Strong reasoning tier.",
+  },
+  {
+    id: "DeepSeek-V4-Flash-0731",
+    provider: "cmri",
+    label: "CMRI DeepSeek-V4-Flash",
+    description:
+      "CMRI model — DeepSeek V4 Flash (0731 build), fast tier for lower-latency tasks.",
+  },
+  {
+    id: "Qwen3.5-397B",
+    provider: "cmri",
+    label: "CMRI Qwen3.5-397B",
+    description:
+      "CMRI model — Qwen 3.5 (397B parameters) served by the CMRI gateway.",
+  },
+  {
+    id: "qwen3.6-27b",
+    provider: "cmri",
+    label: "CMRI Qwen3.6-27B",
+    description:
+      "CMRI model — Qwen 3.6 (27B parameters) served by the CMRI gateway.",
+  },
+  {
+    id: "MiniMax-M2.7",
+    provider: "cmri",
+    label: "CMRI MiniMax-M2.7",
+    description:
+      "CMRI model — MiniMax M2.7 served by the CMRI gateway.",
+  },
+  {
+    id: "hy3",
+    provider: "cmri",
+    label: "CMRI hy3",
+    description:
+      "CMRI model — hy3 served by the CMRI gateway.",
+  },
+  {
+    id: "DeepSeek-V4-Flash-0731-dev",
+    provider: "cmri",
+    label: "CMRI DeepSeek-V4-Flash (dev)",
+    description:
+      "CMRI model — DeepSeek V4 Flash dev build, for testing upstream changes.",
+  },
+  {
+    id: "GLM-5.2-dev",
+    provider: "cmri",
+    label: "CMRI GLM-5.2 (dev)",
+    description:
+      "CMRI model — GLM-5.2 dev build, for testing upstream changes.",
   },
   // ── Huanxin models ─────────────────────────────────────────────────────
-  {
-    id: "glm5.2",
-    provider: "huanxin",
-    label: "Huanxin GLM 5.2",
-    description:
-      "Huanxin-served GLM 5.2. The proxy special-cases it: forced streaming, " +
-      "reasoning params, and ~128K shared context-window budgeting.",
-    upstreamIdEnv: "HUANXIN_GLM52_UPSTREAM_MODEL",
-    upstreamDefaultId: "glm-5.2",
-  },
   {
     id: "dp4",
     provider: "huanxin",
     label: "Huanxin DP4",
     description:
-      "DeepSeek-class model behind Huanxin (OpenAI chat API); upstream id " +
-      "overridable via HUANXIN_DP4_UPSTREAM_MODEL.",
+      "Huanxin model — DeepSeek-class model behind Huanxin (OpenAI chat API); " +
+      "upstream id overridable via HUANXIN_DP4_UPSTREAM_MODEL.",
     upstreamIdEnv: "HUANXIN_DP4_UPSTREAM_MODEL",
-  },
-  {
-    id: "deepseekv4_master",
-    provider: "huanxin",
-    label: "Huanxin DeepSeek v4 Master",
-    description:
-      "Huanxin DeepSeek v4 Master subscription tier (may require --appcode).",
-  },
-  {
-    id: "deepseek-v4-flash",
-    provider: "huanxin",
-    label: "DeepSeek v4 Flash",
-    description:
-      "DeepSeek v4 Flash — fast tier (former bundle default for small/fast tasks).",
-  },
-  {
-    id: "deepseek-v4-pro",
-    provider: "huanxin",
-    label: "DeepSeek v4 Pro",
-    description:
-      "DeepSeek v4 Pro — strong tier; append [1m] for the 1M-context variant " +
-      "(e.g. deepseek-v4-pro[1m]).",
   },
 ];
 
