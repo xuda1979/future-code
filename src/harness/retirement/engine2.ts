@@ -244,19 +244,31 @@ export function runPolicy2(
     // ── Audit tail (three-evaluation separation; audit defects are
     //    counted, never costed).
     if (ep.index >= tailStart) {
-      // A1: stale retention — a held binding whose stored generation is
-      // older than the stream's current generation.
+      // A1: stale retention — a *submitted* binding (present in the
+      // policy's context artifact for retention policies; a fetched
+      // in-flight value for fetch-only policies) whose stored generation
+      // is older than the stream's current generation.
       let staleBindings = 0;
-      for (const g of st.known) {
-        const tg = trueGeneration.get(g);
-        if (tg !== undefined && (st.generation.get(g) ?? -1) < tg) staleBindings++;
+      if (cfg.name === "frontier" || cfg.name === "frontier-adaptive") {
+        for (const g of st.frontier) {
+          if (!st.known.has(g)) continue; // demand, not a held binding
+          const tg = trueGeneration.get(g);
+          if (tg !== undefined && (st.generation.get(g) ?? -1) < tg) staleBindings++;
+        }
       }
       audit.staleRetention += staleBindings;
 
       // A2: pending-set mismatch against the stream's true pending set
-      // {obligations opened at o : e - OBLIGATION_WINDOW < o <= e}.
+      // {obligations opened at o : e - OBLIGATION_WINDOW < o <= e},
+      // where each gate contributes its LATEST opening at or before e
+      // (a gate may be re-opened after an earlier obligation resolved).
       const truePending = new Set<number>();
+      const latestOpening = new Map<number, number>();
       for (const [g, o] of streamOpenings(episodes, ep.index)) {
+        const prev = latestOpening.get(g);
+        if (prev === undefined || o > prev) latestOpening.set(g, o);
+      }
+      for (const [g, o] of latestOpening) {
         if (ep.index - OBLIGATION_WINDOW < o && o <= ep.index) truePending.add(g);
       }
       const held = new Set(st.pending.map(p => p.gate));
@@ -264,7 +276,11 @@ export function runPolicy2(
       for (const g of held) if (!truePending.has(g)) audit.phantomObligations++;
 
       // A3: required reads served retained-fresh from a stale binding;
-      // obligations resolved from a phantom pending entry.
+      // obligations resolved from a phantom pending entry. A phantom
+      // obligation resolves only when its gate is read this episode
+      // (frozen A2→A3 escalation clause).
+      const phantomSet = new Set<number>();
+      for (const g of held) if (!truePending.has(g)) phantomSet.add(g);
       for (const g of ep.requiredReads) {
         if (currentFacts.has(g)) continue;
         if (servedFresh.has(g)) {
@@ -275,6 +291,7 @@ export function runPolicy2(
             audit.defectiveService++;
           }
         }
+        if (phantomSet.has(g)) audit.defectiveService++;
       }
     }
 
@@ -304,6 +321,9 @@ export function runPolicy2(
 
 /** Openings (gate, openedAt) with openedAt <= upto, derived from the stream. */
 function streamOpenings(episodes: readonly Episode[], upto: number): [number, number][] {
+  // LATEST opening per gate (a gate may be re-opened after an earlier
+  // obligation resolved); first-opening dedupe would lose re-openings
+  // and misclassify correctly-held obligations as phantoms.
   const out: [number, number][] = [];
   const seen = new Map<number, number>();
   for (const ep of episodes) {
@@ -311,10 +331,11 @@ function streamOpenings(episodes: readonly Episode[], upto: number): [number, nu
     for (const f of ep.facts) {
       if (f.obligation) {
         const g = gateIndex(f.id);
-        if (!seen.has(g)) { seen.set(g, ep.index); out.push([g, ep.index]); }
+        seen.set(g, ep.index);
       }
     }
   }
+  for (const [g, o] of seen) out.push([g, o]);
   return out;
 }
 
