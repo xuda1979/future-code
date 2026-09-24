@@ -42,17 +42,20 @@ test("cmri models are listed", () => {
 test("huanxin models are listed", () => {
   const huanxin = listModelsByProvider("huanxin");
   const ids = huanxin.map((m) => m.id);
-  expect(ids).toContain("glm5.2");
-  expect(ids).toContain("dp4");
-  expect(ids).toContain("deepseekv4_master");
-  expect(ids).toContain("deepseek-v4-flash");
-  expect(ids).toContain("deepseek-v4-pro");
+  // Per a961b88: Huanxin keeps only dp4 (Huanxin DP4); the full CMRI
+  // catalog (GLM/DeepSeek/Qwen/MiniMax/hy3) lives under provider "cmri".
+  expect(ids).toEqual(["dp4"]);
+  // All 12 catalog models are accounted for: 11 cmri + 1 huanxin.
+  expect(MODEL_CATALOG).toHaveLength(12);
+  expect(listModelsByProvider("cmri")).toHaveLength(11);
 });
 
 test("findModel is case-insensitive", () => {
   expect(findModel("glm-5.3")!.id).toBe("GLM-5.3");
   expect(findModel("glm-5.2")!.id).toBe("GLM-5.2");
-  expect(findModel("DeepSeek-V4-Flash")!.id).toBe("deepseek-v4-flash");
+  expect(findModel("deepseek-v4-flash-0731")!.id).toBe("DeepSeek-V4-Flash-0731");
+  expect(findModel("Deepseek-V4-Flash-0731")!.id).toBe("DeepSeek-V4-Flash-0731");
+  expect(findModel("DP4")!.id).toBe("dp4");
   expect(findModel("no-such-model")).toBeUndefined();
 });
 
