@@ -148,7 +148,18 @@ agent-evaluation gap. A reproducible deployment protocol is supplied, rather tha
 a claimed remote experiment.
 
 \subsection{Software and independent audit}\label{sec:audit}
-The v5 prototype passes 329 tests, including 76 new cases; the existing
+The prototype suite now spans both protocol generations of the
+retirement study: the v1 engine's 10 pinned invariants
+(determinism, summary/reset failure, full-replay coverage, flat
+steel-man accounting, closure outcomes) and the v2 engine's 12
+(factorial coverage, scheduler byte-neutrality, phase-sum identity,
+audit cleanliness, closure directions, long-horizon persistence,
+bit-identical fast layouts). The v2 suite caught a real defect during
+development---the audit's ground-truth pending set deduplicated
+obligation openings by first rather than latest opening---which is
+disclosed in Section~\ref{sec:retire-results}; the frozen cohort was
+regenerated before any v2 manuscript text was written. The earlier
+serialization prototype passes 329 tests, including 76 new cases; the existing
 version-equality assertion is updated to require 5.0.0 consistently in runtime and
 package metadata. A duplicate test-module basename and the initially inconsistent
 version were corrected without weakening behavior checks; failure logs are
