@@ -10,9 +10,10 @@ function validateProtocol(store: Store, p: Protocol): void {
   invariant(typeof p.datasetId === "string" && p.datasetId.length > 0, "dataset identity required");
   invariant(p.environmentId === store.contract().environmentId, "evaluation environment mismatch");
   invariant(Number.isSafeInteger(p.repetitions) && p.repetitions >= 2 && p.repetitions <= 100, "use 2..100 predeclared repetitions");
-  invariant(["durationMs", "costUsd", "tokens"].includes(p.objective), "invalid objective");
+  invariant(["durationMs", "costUsd", "tokens", "progressDensity"].includes(p.objective), "invalid objective");
   invariant(Number.isFinite(p.minRelativeGain) && p.minRelativeGain > 0 && p.minRelativeGain < 1, "declare a positive gain threshold");
 }
+/** This is an engineering admission test, not a statistical significance claim. */
 /** This is an engineering admission test, not a statistical significance claim. */
 export function score(e: Evaluation): Pick<Evaluation, "decision" | "reasons" | "relativeGain"> {
   if (e.pairs.length !== e.protocol.repetitions) return { decision: "UNKNOWN", reasons: ["incomplete evaluation"], relativeGain: null };
@@ -28,8 +29,16 @@ export function score(e: Evaluation): Pick<Evaluation, "decision" | "reasons" | 
     baseline += pair.baseline[e.protocol.objective]!;
     candidate += pair.candidate[e.protocol.objective]!;
   }
-  if (baseline <= 0) return { decision: "UNKNOWN", reasons: ["baseline cost is zero; relative improvement undefined"], relativeGain: null };
-  const relativeGain = 1 - candidate / baseline;
+  // For "lower is better" metrics (durationMs, tokens, costUsd): gain = 1 - candidate/baseline.
+  // For "higher is better" metrics (progressDensity): gain = candidate/baseline - 1.
+  let relativeGain: number;
+  if (e.protocol.objective === "progressDensity") {
+    if (baseline <= 0) return { decision: "UNKNOWN", reasons: ["baseline progressDensity is zero; relative improvement undefined"], relativeGain: null };
+    relativeGain = candidate / baseline - 1;
+  } else {
+    if (baseline <= 0) return { decision: "UNKNOWN", reasons: ["baseline cost is zero; relative improvement undefined"], relativeGain: null };
+    relativeGain = 1 - candidate / baseline;
+  }
   return { decision: relativeGain >= e.protocol.minRelativeGain ? "ADMIT" : "REJECT",
     reasons: [relativeGain >= e.protocol.minRelativeGain ? "fixed quality contract and gain threshold satisfied" : "insufficient measured improvement"], relativeGain };
 }
@@ -103,18 +112,35 @@ export function rollback(store: Store, target: string): void {
     const from = store.active(); store.setMeta("active", target); store.event("harness.rollback", { from, to: target });
   });
 }
-/** One conservative proposal from actual workload structure; never changes gates. */
+/** One conservative proposal from actual workload structure; never changes gates.
+ *  Proposes either increased parallelism (when there are more independent ready
+ *  tasks than current parallelism) or priority-based context allocation (when
+ *  tasks have varied priorities and would benefit from asymmetric context). */
 export function suggest(store: Store): string | null {
   const active = store.active(); const recipe = store.recipe(active); const contract = store.contract();
-  if (recipe.parallelism >= contract.limits.parallelism) return null;
   const rows = store.db.prepare("SELECT id FROM runs WHERE recipe=? AND status='PASS' ORDER BY started DESC LIMIT 3").all(active);
   if (rows.length < 3) return null;
-  const useful = rows.some(r => {
+
+  // Check if more parallelism would help: are there more independent ready tasks
+  // than current parallelism?
+  const parallelismUseful = recipe.parallelism < contract.limits.parallelism && rows.some(r => {
     const tasks: Task[] = store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(r.id).map(t => JSON.parse(t.spec));
     const roots = tasks.filter(t => !t.dependencies.length);
     const independent: Task[] = [];
     for (const t of roots) if (independent.every(x => !conflicts(t.writeScope, x.writeScope))) independent.push(t);
     return independent.length > recipe.parallelism;
   });
-  return useful ? store.propose({ parallelism: recipe.parallelism + 1 }) : null;
+
+  // Check if priority-based context allocation would help: are there tasks
+  // with varied priorities and the recipe doesn't already use priority sharing?
+  const priorityUseful = (recipe.priorityContextShare ?? 0) === 0 && rows.some(r => {
+    const tasks: Task[] = store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(r.id).map(t => JSON.parse(t.spec));
+    const priorities = tasks.map(t => t.priority ?? 0);
+    return Math.max(...priorities) > Math.min(...priorities);
+  });
+
+  // Prefer parallelism if both would help; otherwise try priority context.
+  if (parallelismUseful) return store.propose({ parallelism: recipe.parallelism + 1 });
+  if (priorityUseful) return store.propose({ priorityContextShare: 0.7 });
+  return null;
 }

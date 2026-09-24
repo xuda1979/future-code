@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Store } from "./store.ts";
-import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence } from "./kernel.ts";
+import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, allocateContext, progressDensity } from "./kernel.ts";
 import type { Capsule, Json, Lease, Measurement, RunSummary, Task } from "./types.ts";
 
 export class Scheduler {
@@ -83,7 +83,12 @@ export class Scheduler {
       return { taskId: id, artifactHash: dep.artifact as string, artifact: this.store.readArtifact(dep.artifact) };
     });
     const capsule: Capsule = { schema: 1, runId: lease.runId, task, contractHash: lease.contractHash, recipeHash: lease.recipeHash, fence: lease.fence, dependencies };
-    encodeCapsule(capsule, this.store.recipe(lease.recipeHash).contextBytes);
+    // Use per-task context budget when available, falling back to recipe default.
+    const recipe = this.store.recipe(lease.recipeHash);
+    const allTasks: Task[] = this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(lease.runId).map(r => JSON.parse(r.spec));
+    const budgets = allocateContext(allTasks, recipe);
+    const taskBudget = budgets.get(lease.taskId) ?? recipe.contextBytes;
+    encodeCapsule(capsule, taskBudget);
     return capsule;
   }
   /** Only the trusted runtime calls finish after independent verification. */
@@ -123,9 +128,15 @@ export class Scheduler {
     const tasks = this.store.db.prepare("SELECT status FROM tasks WHERE run=?").all(id);
     const attempts = this.store.db.prepare("SELECT tokens,cost FROM attempts WHERE run=?").all(id);
     const sum = (key: string): number | null => attempts.length && attempts.every(a => a[key] !== null && Number.isFinite(a[key])) ? attempts.reduce((n, a) => n + a[key], 0) : null;
+    const accepted = tasks.filter(t => t.status === "PASS").length;
+    const recipe = this.store.recipe(r.recipe);
+    // Progress density: verified accepted tasks per total context budget allocated.
+    const totalContext = tasks.length * recipe.contextBytes;
+    const pd = progressDensity(accepted, totalContext);
     return { id, recipeHash: r.recipe, contractHash: r.contract, status: r.status,
-      accepted: tasks.filter(t => t.status === "PASS").length, failed: tasks.filter(t => t.status === "FAIL").length,
+      accepted, failed: tasks.filter(t => t.status === "FAIL").length,
       blocked: tasks.filter(t => t.status === "BLOCKED").length, attempts: attempts.length,
-      durationMs: Math.max(0, (r.ended ?? now) - r.started), tokens: sum("tokens"), costUsd: sum("cost") };
+      durationMs: Math.max(0, (r.ended ?? now) - r.started), tokens: sum("tokens"), costUsd: sum("cost"),
+      progressDensity: pd };
   }
 }

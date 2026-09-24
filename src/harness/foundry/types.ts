@@ -1,7 +1,7 @@
 /** A bounded, single-host harness lifecycle. The contract is not optimizer state. */
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Verdict = "PASS" | "FAIL" | "UNKNOWN" | "INVALID";
-export type Metric = "durationMs" | "tokens" | "costUsd";
+export type Metric = "durationMs" | "tokens" | "costUsd" | "progressDensity";
 export interface Contract {
   schema: 1;
   name: string;
@@ -9,7 +9,7 @@ export interface Contract {
   workerId: string;
   environmentId: string;
   requiredChecks: string[];
-  slos: { metric: Metric; maximum: number }[];
+  slos: { metric: Metric; maximum?: number; minimum?: number }[];
   limits: {
     parallelism: number;
     attempts: number;
@@ -24,6 +24,10 @@ export interface Recipe {
   attempts: number;
   contextBytes: number;
   timeoutMs: number;
+  /** Fraction of contextBytes reserved for high-priority tasks (0–1).
+   *  0 means equal allocation; 0.7 means top-priority tasks get 70% of
+   *  the context budget. Defaults to 0 (equal allocation). */
+  priorityContextShare?: number;
 }
 export interface Task {
   id: string;
@@ -34,6 +38,9 @@ export interface Task {
   writeScope: string[];
   input: Json;
   priority?: number;
+  /** Per-task context budget override (bytes). When omitted, the scheduler
+   *  allocates from recipe.contextBytes based on relative priority. */
+  contextBudget?: number;
 }
 export interface Capsule {
   schema: 1;
@@ -88,6 +95,9 @@ export interface RunSummary {
   durationMs: number;
   tokens: number | null;
   costUsd: number | null;
+  /** Verified accepted tasks per total context bytes consumed.
+   *  Higher is better: measures progress density, not raw activity. */
+  progressDensity: number | null;
 }
 export interface Protocol {
   datasetId: string;

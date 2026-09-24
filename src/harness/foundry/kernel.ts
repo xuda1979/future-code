@@ -22,8 +22,13 @@ export function identifier(s: string): void {
   invariant(typeof s === "string" && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(s) &&
     !["__proto__", "constructor", "prototype"].includes(s), "invalid identifier");
 }
-function exactKeys(value: object, keys: string[]): void {
-  invariant(Object.keys(value).sort().join(",") === keys.sort().join(","), "unexpected or missing configuration fields");
+function exactKeys(value: object, required: string[], optional: string[] = []): void {
+  const present = Object.keys(value).sort();
+  const allowed = [...required, ...optional].sort();
+  // All required keys must be present.
+  for (const k of required) invariant(present.includes(k), `missing required field ${k}`);
+  // No keys outside the allowed set.
+  for (const k of present) invariant(allowed.includes(k), `unexpected field ${k}`);
 }
 export function validateContract(c: Contract): void {
   canonical(c);
@@ -35,8 +40,11 @@ export function validateContract(c: Contract): void {
   invariant(Array.isArray(c.slos), "invalid SLOs");
   const seen = new Set<string>();
   for (const s of c.slos) {
-    exactKeys(s, ["metric", "maximum"]);
-    invariant(["durationMs", "tokens", "costUsd"].includes(s.metric) && Number.isFinite(s.maximum) && s.maximum >= 0, "invalid SLO");
+    exactKeys(s, ["metric"], ["maximum", "minimum"]);
+    invariant(["durationMs", "tokens", "costUsd", "progressDensity"].includes(s.metric), "invalid SLO metric");
+    invariant(s.maximum !== undefined || s.minimum !== undefined, "SLO must have maximum or minimum");
+    if (s.maximum !== undefined) invariant(Number.isFinite(s.maximum) && s.maximum >= 0, "invalid SLO maximum");
+    if (s.minimum !== undefined) invariant(Number.isFinite(s.minimum) && s.minimum >= 0, "invalid SLO minimum");
     invariant(!seen.has(s.metric), "duplicate SLO"); seen.add(s.metric);
   }
   exactKeys(c.limits, ["parallelism", "attempts", "contextBytes", "outputBytes", "timeoutMs", "tasks"]);
@@ -48,8 +56,11 @@ export function validateContract(c: Contract): void {
   positive(c.limits.tasks, 100_000, "task ceiling");
 }
 export function validateRecipe(c: Contract, p: Recipe): void {
-  exactKeys(p, ["parallelism", "attempts", "contextBytes", "timeoutMs"]);
+  exactKeys(p, ["parallelism", "attempts", "contextBytes", "timeoutMs"], ["priorityContextShare"]);
   for (const k of ["parallelism", "attempts", "contextBytes", "timeoutMs"] as const) positive(p[k], c.limits[k], k);
+  if (p.priorityContextShare !== undefined) {
+    invariant(typeof p.priorityContextShare === "number" && Number.isFinite(p.priorityContextShare) && p.priorityContextShare >= 0 && p.priorityContextShare <= 1, "invalid priorityContextShare");
+  }
 }
 export function validateTasks(c: Contract, tasks: Task[]): void {
   invariant(Array.isArray(tasks), "tasks must be an array");
@@ -120,7 +131,8 @@ export function verdict(c: Contract, artifact: Json, v: Verification, metrics: M
     const n = metrics[s.metric];
     if (n === null || !Number.isFinite(n)) return "UNKNOWN";
     if (n < 0) return "INVALID";
-    if (n > s.maximum) return "FAIL";
+    if (s.maximum !== undefined && n > s.maximum) return "FAIL";
+    if (s.minimum !== undefined && n < s.minimum) return "FAIL";
   }
   return "PASS";
 }
@@ -133,4 +145,51 @@ export function validateEvidence(contract: Contract, recipeHash: string, task: T
   invariant(e.metrics && Number.isFinite(e.metrics.durationMs) && e.metrics.durationMs >= 0, "missing duration evidence");
   validMeasurement(e.metrics);
   invariant(e.verification && verdict(contract, artifact, e.verification, e.metrics) === "PASS", "evidence does not satisfy acceptance contract");
+}
+
+/** Progress density: verified accepted tasks per total context bytes consumed.
+ *  This is the core shift from bounding activity to bounding the decision problem.
+ *  Higher density means more verified progress per unit of context — not just
+ *  more agent activity, file size, or conversation length. */
+export function progressDensity(accepted: number, contextBytes: number): number | null {
+  if (!Number.isFinite(accepted) || accepted < 0 || !Number.isFinite(contextBytes) || contextBytes <= 0) return null;
+  return accepted / contextBytes;
+}
+
+/** Allocate per-task context budget based on priority and the recipe's
+ *  priorityContextShare. The recipe's contextBytes is the default per-task
+ *  budget. When priorityContextShare > 0, high-priority tasks get a multiplied
+ *  budget and low-priority tasks get a reduced budget, keeping the average
+ *  at contextBytes. This ensures each agent gets enough — but not excessive —
+ *  context for its decision problem. */
+export function allocateContext(tasks: Task[], recipe: Recipe): Map<string, number> {
+  const budget = new Map<string, number>();
+  const share = recipe.priorityContextShare ?? 0;
+  const base = recipe.contextBytes;
+  if (tasks.length === 0) return budget;
+
+  // Tasks with explicit contextBudget use it directly (capped to contract limit).
+  for (const t of tasks) {
+    if (t.contextBudget !== undefined) {
+      budget.set(t.id, Math.min(t.contextBudget, base * 2));
+    }
+  }
+  const remaining = tasks.filter(t => t.contextBudget === undefined);
+  if (remaining.length === 0) return budget;
+
+  if (share === 0 || remaining.every(t => (t.priority ?? 0) === (remaining[0].priority ?? 0))) {
+    // Equal allocation: every task gets the base budget.
+    for (const t of remaining) budget.set(t.id, base);
+    return budget;
+  }
+
+  // Priority-weighted allocation: high-priority tasks get share*2 multiplier,
+  // low-priority tasks get (1-share) multiplier, keeping average ≈ base.
+  const sorted = [...remaining].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+  const topCount = Math.max(1, Math.floor(sorted.length * share));
+  for (let i = 0; i < sorted.length; i++) {
+    const multiplier = i < topCount ? 1 + share : 1 - share * (topCount / (sorted.length - topCount || 1));
+    budget.set(sorted[i].id, Math.max(1, Math.floor(base * multiplier)));
+  }
+  return budget;
 }

@@ -5,4 +5,4 @@ export { Scheduler } from "./scheduler.ts";
 export { runTasks } from "./runtime.ts";
 export { evaluate, promote, rollback, suggest, loadEvaluation } from "./evolution.ts";
 export { CommandDriver, pinCommand, commandVerifierId } from "./commands.ts";
-export { canonical, digest, validateContract, validateRecipe, validateTasks, encodeCapsule } from "./kernel.ts";
+export { canonical, digest, validateContract, validateRecipe, validateTasks, encodeCapsule, progressDensity, allocateContext } from "./kernel.ts";
