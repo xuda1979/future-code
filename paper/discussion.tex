@@ -1,164 +1,75 @@
-\section{Deployment Recommendation, Limitations, and Next Experiments}\label{sec:discussion}
+\section{Deployment Recommendation, Limitations, and the Pre-Registered Live Cohort}\label{sec:discussion}
 \subsection{Deployment recommendation}\label{sec:deploy}
-HACT v5.1 is an evidence-serialization component, and the recommendation is
-scoped accordingly: it applies where a service already requires protected
-verification evidence and hierarchical delivery, not as a general agent or
-build accelerator. Choose a service before an algorithm. Do not deploy the
-strict wrapper solely on
-the strength of these transmission savings. For local trusted status, use the
-root projection; for final per-test states, a flat ledger may suffice. Where
-protected hierarchical evidence is already required, enable a suitable codec,
-retain the incumbent, and consider learned-order balanced fixed8 as the
-low-fitting-cost candidate. Exact DP remains an offline reference and can be
-worthwhile when its extra byte reduction pays back. Block DP is an ablation, not
-the default.
+The recommendation now has two tiers, one measured at mechanism level
+and one still protocol-only.
 
-A cost calculator is not measured payback. The new scenarios expose when assumed
-extra costs dominate compressed delivery savings. They neither import a
-five-second overhead from a different fixture as though paired with each source
-case nor assume unlimited repeat exports. Dynamic adaptation is optional; the
-priced window selects already compiled candidates and can regress under rapid
-change. Whole-epoch compression changes streaming latency, and high-latency links
-do not necessarily favor HACT. Those are deployment questions, not consequences of
-the tree objective.
+\paragraph{Mechanism-level (measured this paper).}
+Where a service already requires protected verification evidence and a
+constrained channel, the serialized-evidence component of
+Sections~\ref{sec:model}--\ref{sec:eval} applies as before. The
+retirement study adds a sharper rule for context policy: a policy may
+retire history only after converting it into current verified
+bindings, a typed pending-obligation set, and dependency interfaces;
+policies that rely on lossy summaries of obligations, or that revert
+values to beliefs older than the current working window, measurably
+fail (Section~\ref{sec:retire-results}). Between grouped certificate
+layouts and flat delta ledgers, select by update density: dense
+updates favor the tree, sparse deltas favor the flat ledger; the
+density signal is observable on a training half of any real stream.
+Retrieval-operations, not bytes, are the live-cost measure worth
+optimizing; frontier retirement cuts them 48.3\% against masking at
+equal correctness in the mechanism study.
 
-\paragraph{New default, new evidence boundary.}
-The practical recommendation changed after the v4 review. It is therefore tested
-on new frozen synthetic seeds with disjoint train/validation/held-out draws. The
-twelve source candidates are reused diagnostic evidence and are not an independent
-test of model-generated repairs. On these replays, learned balanced trees are
-smaller than original-order fixed8 yet larger than exact learned layouts. The
-recommendation is about compilation simplicity, not universal superiority. Three
-seeds per setting support descriptive ranges, not precise generalization claims.
+\paragraph{Live-agent cohort (pre-registered, not run).}\label{sec:live-protocol}
+The mechanism study predicts, but cannot confirm, that avoided
+retrieval operations translate into live savings. The confirmatory
+cohort is therefore pre-registered with operations as the primary cost
+measure:
+\begin{enumerate}[leftmargin=*,itemsep=1pt]
+\item \textbf{Workload.} Multi-stage changes on a fixed public issue
+benchmark (SWE-bench-class), screened for dependency coupling; the
+same frozen independent acceptance contract for all arms; equal total
+budgets, sandbox, and protected state; every failed branch in the
+numerator.
+\item \textbf{Arms.} The four arms the mechanism study separates:
+observation masking; summary/reset; verified-frontier retirement; and
+frontier+flat-evidence versus frontier+HACT-evidence as the nested
+layout ablation, selected by the measured update density of the pilot.
+\item \textbf{Primary outcomes.} Tool-call round trips per accepted
+project (the pre-registered live-cost measure, from the mechanism
+result); cost per accepted project (all provider metering preserved,
+unknowns never zero-imputed); acceptance rate; deadline success with
+censored timeouts. Pre-specified noninferiority margin on acceptance:
+no arm may trail masking by more than 5\% absolute.
+\item \textbf{Closure rules.} \emph{Null closure}: if frontier
+retirement does not reduce tool-call operations per accepted project
+by at least 20\% versus masking at noninferior acceptance, the
+live-cohort hypothesis is rejected and retirement is not promoted.
+\emph{HACT closure}: if the density-selected layout does not beat
+flat-delta evidence by at least 5\% on measured evidence bytes at
+equal correctness, the tree is not deployed.
+\end{enumerate}
+Two explicit closure rules prevent indefinite iteration; either rule
+terminates the program with a written result. This protocol is frozen
+here, before any live data collection.
 
-\subsection{Limitations}\label{sec:limits}
-Unclosed empirical requests: neither a physical WAN nor actual public-vocabulary
-BPE was evaluated in this release. Software/vocabulary retrieval failed, and no
-authorized pair of remote controlled hosts was available. The optional tools and
-local tests do not close these experimental gaps. No hosted model was called, and
-there is no new SWE-bench or natural historical-bug cohort. The actual SWE-bench
-harness uses isolated repository environments~\cite{swebenchharness}; scripted
-source mutations are not equivalent. Source-level token counts, when measured
-later, will still not establish provider billing or better agent reasoning.
+\paragraph{What remains unmeasured.}
+No hosted model was called for any number in this paper; BPE
+tokenization, physical-WAN behavior, and provider billing remain
+unknown and are never zero-imputed. The mechanism cohort's cost model
+is a frozen accounting of a frozen model of information flow; real
+payloads are not lognormal, and real summaries may retain obligations
+better or worse than the seeded boundary survival. The tool-call
+prediction is the only bridge from the mechanism result to live cost,
+and it is pre-registered as such rather than assumed.
 
-\paragraph{Closing the BPE gap.}
-Three concrete steps would close the tokenization measurement gap without
-inflating its meaning. First, the supplied admission tool already implements
-exact content-only counting for \texttt{cl100k\_base} and \texttt{o200k\_base}
-via \texttt{tiktoken}~\cite{tiktoken}; it needs only a working vocabulary file
-to produce real counts. A reproducible packaging step---pinning the
-\texttt{tiktoken} wheel and its \texttt{.bpe} vocabulary to a hashed
-release---would make the measurement portable. Second, because the paper's
-layout objective minimizes \emph{bytes} not tokens, the BPE measurement should
-be reported as a diagnostic alongside the byte result, not as a replacement
-primary metric: a layout that reduces padded bytes may or may not reduce tokens
-under a specific BPE vocabulary, and both directions are informative. Third,
-the token count should be reported per-page with the framing budget $r$
-separated from payload, so that a reader can verify that the savings are not
-absorbed by framing overhead. None of these steps would establish a billing or
-reasoning improvement; they would only complete the admission tool's stated
-purpose with a real vocabulary.
-
-Trust and scope: Future Code remains a single-host supervisor. The guard and TLS
-utility are not a distributed consensus protocol or fault-tolerant deployment. A
-passing declared suite cannot establish absence of arbitrary defects.
-Authorization requires an uncompromised checker, correctly scoped inputs and
-protected reference state. A separate integration service must bind the verified
-candidate and integration head atomically; no PDF table or root JSON card
-substitutes for that step.
-
-\paragraph{Changing the tree is not free.}
-Our metric is steady-state refresh traffic. Constructing a new layout requires
-planning and initializing its internal records; switching may also create
-scheduling or audit overhead. If a proposed tree is expected to save $d>0$ bytes
-per future episode and its migration costs $B_{\mathrm{switch}}$ bytes, the
-simplest break-even count is $B_{\mathrm{switch}}/d$. This arithmetic is not a
-validated online switching policy. A deployable policy should estimate savings on
-independent recent batches, account for drift and planning cost in compatible
-units, and require a margin before replacement.
-
-\paragraph{A small verification context is not a small total intelligence requirement.}
-A conjunction of trusted gate verdicts has an exact compact aggregate. Arbitrary
-design tradeoffs, theorem discovery, research assessment, and natural-language
-correctness generally do not. An encoder supporting exact recovery of every bit of
-an unrestricted $n$-bit state without retrieval must distinguish $2^n$ states and
-needs at least $n$ bits. Durable evidence and selective reads relocate information;
-they do not make it disappear. HACT therefore makes no claim that every difficult
-project can be solved by short independent conversations.
-
-\subsection{Toward a productivity claim: design and evaluation protocol}\label{sec:protocol}
-The review (\texttt{HACT\_v5\_Review\_and\_Productivity\_Redesign.pdf})
-recommends treating HACT as the evidence substrate of a substantially different
-program about \emph{verified-frontier context retirement}, dependency-aware
-parallelism, and task granularity. We record that program here as a protocol, not
-as a completed experiment, and we give the concrete acceptance gates it must pass.
-
-The central hypothesis is that validated task boundaries make selective forgetting
-and reuse safer and more economical than unconditional replay or length-only
-truncation. A task-local capsule carries typed fields: task and requirement IDs;
-candidate/head IDs and read-set bindings; write scope and interface versions;
-verified predicates and evidence references; unresolved questions and
-counterexamples; pending messages and ownership; and artifact references, budget,
-and next gate. Executable facts, source observations, and unverified model
-hypotheses must have different types: a test \PASS{} does not certify the semantic
-completeness of a natural-language summary.
-
-A defensible accounting identity (exact under its stated assumptions, not a
-guarantee) is that, with $N$ model calls, fixed header $h$, and $g$ retained
-tokens per call, complete replay submits $I_{\mathrm{full}}=Nh+gN(N-1)/2$, while
-renewing context every $L$ calls with capsule size $s$, extra capsule construction
-tokens $F$, and renewal rework $Q$ submits
-\begin{equation}I_{\mathrm{renew}}=N(h+s)+gN(L-1)/2+F+Q.\end{equation}
-The policy loses when $F$ or $Q$ is large. Against a good observation-masking
-baseline~\cite{complexitytrap}, the quadratic history term may already be absent,
-so this bookkeeping alone does not establish a productivity win.
-
-Required causal ablations separate context policy from coordination policy and
-compare against the falsifying baselines: (i) a strong single agent with
-observation masking and focused retrieval; (ii) the same single agent with
-periodic summary/reset; (iii) the existing hierarchical Future Code bounded
-contexts; (iv) a decentralized verified-board baseline; (v) the proposed
-retirement with a fixed scheduler; and (vi) the scheduler without frontier-aware
-retirement. All main arms must use equal total budgets and the same final checks,
-sandbox and protected state; a many-agent system must not receive a multiplied
-budget unnoticed. The primary quality variable is whole-project acceptance under
-a frozen independent contract, reported as \emph{cost per accepted project} next
-to acceptance rate, with deadline success and time-to-acceptance distributions
-retaining failures as censored observations.
-
-A practical go/no-go gate, proposed (not measured) is at least a 20\% reduction in
-cost at a prespecified quality margin, with the confidence interval, sample-size
-plan, timeout handling and failed-run accounting fixed before outcomes. No benefit
-over masking, verified-board and fixed-scheduler baselines means the expensive new
-controller should not be promoted. If HACT's tree adds no improvement after
-flattening evidence while keeping the contract, HACT remains optional and the
-productivity gain, if any, belongs to the context/scheduling layer.
-
-\paragraph{Pre-registration and falsification closure.}
-The protocol should be frozen in a versioned document before any live data
-collection: the six arms, the acceptance contract, the quality margin, the
-sample-size calculation, and the censoring rule for timed-out runs are all
-declared ex ante. Two explicit closure rules prevent indefinite iteration.
-\emph{Null closure}: if the retirement arm's cost-per-accepted-project is not at
-least 20\% below the best baseline after the planned sample size, the
-productivity hypothesis is rejected and HACT is not promoted beyond its
-serialization role. \emph{Attribution closure}: if the scheduler alone (arm~vi)
-matches the retirement-plus-scheduler arm (arm~v) within the pre-registered
-margin, the contribution is assigned to scheduling, not to frontier-aware
-retirement. Either closure terminates the protocol with a written result; no
-post-hoc arm addition or margin relaxation is permitted without a new
-pre-registered protocol.
-
-\paragraph{Capsule integrity check.}
-Each emitted capsule must carry a typed manifest listing verified predicates,
-unresolved questions, and artifact references; a post-episode auditor
-reconstructs the full task context from capsules alone and checks that the
-reconstructed context passes the same frozen acceptance contract. If the
-capsule reconstruction fails acceptance for any task in a completed project,
-that project is scored as a failure of the retirement policy, not as a
-serialization artifact. This ensures that information loss from context
-retirement is counted in the quality metric rather than hidden in a downstream
-re-check.
-
-Until this live cohort is run, this direction is labeled a design and evaluation
-protocol; there is no justified replacement numerical abstract.
+\paragraph{Trust and scope.}
+Future Code remains a single-host supervisor. The guard and TLS
+utility are not a distributed consensus protocol or fault-tolerant
+deployment. A passing declared suite cannot establish absence of
+arbitrary defects. Authorization requires an uncompromised checker,
+correct protected reference data, immutable candidate identity, and
+local monotone state; Theorem~\ref{thm:soundness} stands as before.
+TLS authenticates the configured server, not the checker's
+truthfulness. The receiver is a bounded measurement utility behind an
+operator-controlled firewall, not a production ingestion service.

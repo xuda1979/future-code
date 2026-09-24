@@ -244,5 +244,55 @@ Source replay reductions & Table~\ref{tab:replay}; 36 replays & Diagnostic, not 
 Root status identical & Equation~\eqref{eq:rootid}; 593--594 bytes & Fixed tokenizer, layout-independent\\
 Break-even accounting & Equations~\eqref{eq:netbenefit}--\eqref{eq:qmin} & Declared $C,E,R$, codec-matched\\
 BPE tokenization gap & \texttt{cl100k\_base}/\texttt{o200k\_base} remain \UNKNOWN{}; admission tool supplied & Vocabulary retrieval failed; no billing claim\\
-Context-retirement protocol & Pre-registered design; null and attribution closure rules & Not measured; six arms, frozen contract\\
+Context-retirement mechanism study & Pre-registered, executed: 630 runs, ten arms, three closures (two triggered) & Measured at mechanism level; live cohort still protocol-only\\
 \bottomrule\end{tabularx}\end{center}
+
+\section{Retirement-Study Protocol Deviations and Engine History}\label{app:retire-deviations}
+The retirement protocol (frozen as
+\texttt{docs/protocols/CONTEXT\_RETIREMENT\_PROTOCOL\_v1.md} with
+amendments v1.1--v1.4) was written before cohort data generation, and
+each amendment was written before the run it governs. The engine went
+through four substantive revisions during that pre-data window; the
+final cohort was generated once, by the amended engine, and never
+regenerated after any manuscript text was written. For auditability we
+disclose the full history, including the errors that motivated each
+amendment:
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+\item \textbf{Amendment v1.1 (pre-data).} The HACT workload generators
+draw invalidation sets i.i.d.; retirement is temporal, so persistence
+transitions (0.6) and fixed obligation windows (six episodes) were
+added. A single-stream smoke test of the original design exposed
+nominal (name-based) obligation retention; the amendment made
+retention emergent from each policy's mechanism.
+\item \textbf{Amendment v1.2 (pre-data).} A 630-run smoke test to a
+temporary directory (results void, never cited) exposed three
+under-specifications: hand-rolled evidence accounting, summary/reset
+modeled as sleeping between resets rather than attending, and a
+frontier capsule that did not scale with contents. All were pinned
+before the final run.
+\item \textbf{Amendment v1.3 (pre-data).} A single-stream check
+showed facts carrying no payload, making replay artificially cheap;
+payloads (lognormal, median 128\,B), payload-charged retrieval, and
+interface-only capsules were pinned.
+\item \textbf{Amendment v1.4 (pre-data).} Final verification exposed
+missing dependency footprints (the review's exported interfaces), an
+inconsistent summary/reset failure model, and the need for retrieval
+operations as a co-primary outcome. The evidence ablation was refined
+to a held-out half with a learned layout order and a steel-manned
+flat ledger taking the better of full and delta exports.
+\item \textbf{Post-freeze fixes.} A flat-ledger registry-size
+off-by-one was corrected after the first final-format cohort; the
+cohort was regenerated once, before any manuscript table was
+generated from it. One obligation-resolution accounting error
+(retained-value reads not crediting resolution) was fixed during
+pre-data engine verification; all obligation flows are now covered by
+the test suite (\texttt{tests/retirement}), which also pins
+determinism, the closure outcomes, and the per-family evidence
+directions.
+\end{enumerate}
+
+No amendment was written after the final cohort was generated. The
+cohort, closures, and summary JSON are reproduced by
+\texttt{bun src/harness/retirement/cli.ts} in under two minutes and
+are byte-identical across runs.

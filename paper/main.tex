@@ -7,7 +7,7 @@
 \usepackage[font=small,labelfont=bf]{caption}
 \usepackage[hidelinks]{hyperref}
 \usepackage{fancyhdr}
-\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Research manuscript v5.1}\fancyfoot[C]{\thepage}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Verified-Frontier Context Retirement}\fancyhead[R]{\small Research manuscript v6.0}\fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}\setlength{\parskip}{3pt}\setlength{\emergencystretch}{2em}
 \newtheorem{theorem}{Theorem}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{lemma}[theorem]{Lemma}
 \theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
@@ -17,21 +17,55 @@
 \newcommand{\E}{\mathbb E}\newcommand{\Prb}{\mathbb P}\newcommand{\ind}{\mathbf 1}\newcommand{\R}{\mathcal R}
 \DeclareMathOperator*{\argmin}{arg\,min}
 \hypersetup{pdftitle={Adaptive HACT: Service-Matched Verification Evidence and Deployment Boundaries},pdfauthor={Research manuscript; author information pending confirmation}}
-\title{\vspace{-9mm}\textbf{Adaptive HACT: Service-Matched Verification Evidence and Deployment Boundaries}}
+\title{\vspace{-9mm}\textbf{When Can an Agent Stop Remembering? Verified-Frontier Context Retirement, Its Falsifying Baselines, and a Conditional Role for Certificate Trees}}
 \author{Research manuscript\\[1mm]
 \small This artifact candidacy draft accompanies the \texttt{future-code} research repository. Author names and affiliations require confirmation before any submission. Mathematical development, implementation, experiments, and writing were AI-assisted. This is a research artifact, not an accepted or peer-reviewed venue.}
-\date{September 23, 2026 \quad | \quad Version 5.1 (evidence-serialization revision)}
+\date{September 23, 2026 \quad | \quad Version 6.0 (retirement-mechanism revision)}
 \begin{document}
 \maketitle
 \begin{abstract}
-Adaptive HACT v5.1 serializes verification evidence under fixed test execution schedules by separating immutable check identities from the mutable execution state that records when each check ran; identities and acceptance predicates are likewise held apart from the layout used to aggregate their completion records. Full completion hyperedges, rather than pairwise similarity alone, score feasible layouts; generation fencing preserves conditional publication soundness across permutations. We retain exact alphabetic dynamic programming as a reference, but make a learned-order compact balanced eight-ary tree the low-compilation-cost baseline and relegate the slower, empirically inferior block compiler to an ablation. A fresh, frozen-seed study contains 27 train/validation/held-out workloads. On clustered completions, the practical catalogue reduces held-out padded cost by 23.43\%, 10.75\%, and 5.56\% at 128, 512, and 1,024 checks; independent and global controls give essentially no improvement. Re-aggregating twelve archived source candidates under three layouts produces 36 layout replays, not new code-generation or checker trials. The practical balanced layout reduces whole-epoch compressed bytes by 4.36--41.84\% versus original-order fixed8, but remains larger than learned-order exact layouts. We derive an explicit, codec- and service-matched deployment test rather than claiming that historical export savings cancel a different harness's verification overhead. Root-status inputs remain identical across layouts. BPE and physical-WAN measurements remain unavailable; we supply actual-tokenizer admission and authenticated TLS measurement tools without presenting local protocol tests as those missing experiments. The result identifies both a lower-cost implementation and a narrow, auditable operating region, not a universal agent or verification accelerator.
+When can an agent stop remembering its execution history without losing
+the current evidence and obligations it needs to finish correctly? We
+answer this question at the mechanism level with a pre-registered,
+frozen-protocol study: six hundred thirty deterministic runs over ten
+context policies---full replay, observation masking, periodic
+summary/reset, bounded hierarchical pages, a verified status board,
+verified-frontier retirement with typed capsules, and factorial
+scheduler ablations---across three registry sizes, three dependency
+families, and seven seeds, with temporal persistence and obligation
+lifetimes. Three closure rules were declared before data generation.
+The result is deliberately asymmetric. \emph{Null closure triggered}:
+frontier retirement does not beat strong observation masking on
+submitted bytes (the pre-registered 20\% gate failed), so we claim no
+byte-cost productivity win. What retirement buys is correctness and
+fewer retrieval operations: periodic summary/reset---the cheapest
+policy on submitted bytes---fails the acceptance contract on 42 of 63
+runs (30{,}820 stale reads; 280 lost obligations), whereas
+verified-frontier retirement, masking, and the verified board accept
+63/63; frontier retirement cuts on-demand retrieval operations by
+48.3\% versus masking (66.8\% on clustered work), pre-registering the
+hypothesis that live-agent savings come from tool-call round trips
+rather than bytes. The scheduler ablation is byte-neutral by design and
+reduces makespan rounds by 87.4\%, a separate dimension from cost. The
+HACT certificate-tree evidence layout survives only conditionally:
+against a steel-manned flat ledger that takes the better of full and
+delta exports at identical record cost, the learned tree reduces
+held-out evidence bytes by 59.8\% pooled, but \emph{loses} on sparse
+clustered and independent deltas ($+88.7\%$ and $+49.2\%$) and wins on
+dense global updates ($-87.1\%$); we demote it from the paper's center
+to a conditional component with an explicit decision rule. All
+experiments are synthetic and mechanism-level: no hosted model was
+called, no token or billing claim is made, and the live-agent cohort
+remains future work with its protocol pre-registered here.
 \end{abstract}
 
 \noindent\textbf{Keywords:} bounded evidence; verification contracts; bandwidth-limited logging; completion hyperedges; cost-aware layout selection.
 
+\input{generated/retirement_macros.tex}
 \input{productivity.tex}
 \input{intro.tex}
 \input{related.tex}
+\input{retirement.tex}
 \input{model.tex}
 \input{compiler.tex}
 \input{soundness.tex}

@@ -1,45 +1,45 @@
-\section{Productivity Boundary and Research Scope}
-\label{sec:productivity}
-This manuscript and its companion review were produced together. The governing
-research objective is to reduce the cost and time required for agents to complete
-large software projects correctly, without increasing coordination failures or
-weakening acceptance criteria. It is therefore useful to state, before the
-method, what the present evidence does---and does not---establish about that
-objective.
+\section{Productivity Boundary and Research Scope}\label{sec:productivity}
+This manuscript and its companion review were produced together. The
+governing research objective is to reduce the cost and time required
+for agents to complete large software projects correctly, without
+increasing coordination failures or weakening acceptance
+contracts. That objective outruns what any single paper can measure,
+and this version is explicit about the ladder of evidence it occupies.
 
-\paragraph{The certificate problem is not yet a productivity result.}
-Adaptive HACT is an evidence-serialization component: it optimizes the
-\emph{layout} that serializes verification evidence under fixed test execution
-schedules, separating immutable check identities from the mutable execution
-state that records a run. It does not change the agent's planning,
-repository exploration, reasoning history, number of failed patches, or
-allocation of work; it does not schedule, reorder, or parallelize checks. A
-strong result on the certificate objective can therefore
-coexist with no improvement in whole-project productivity, and the manuscript
-acknowledges exactly this boundary throughout. Historical checker timings were
-essentially flat (39.69\,s versus 39.77\,s for fixed and learned layouts), and a
-separate small harness paid roughly five seconds per episode for strict
-verification versus direct pytest. These are \emph{negative controls}: they
-show that a smaller certificate transcript is not automatically a faster build,
-a better agent, or a smaller root-status prompt, and they delimit the
-serialization claim rather than support any acceleration claim.
+\paragraph{What changed in this version.}
+Version 5.1 presented HACT as an evidence-serialization component and
+labeled the retirement question a future protocol. The review's
+recommendation was to make that protocol the paper or to publish HACT
+as a scoped component. This version does the former.
+Section~\ref{sec:retire} executes the pre-registered context-
+retirement study: ten arms, 630 deterministic runs, three closure
+rules frozen before data generation. The result is asymmetric and is
+reported as measured. The null closure \emph{triggered}: frontier
+retirement does not beat strong observation masking on submitted
+bytes, and no byte-cost productivity claim is made. What survives is
+(i)~a correctness falsification---periodic summary/reset, the cheapest
+policy on bytes, fails the frozen acceptance contract on 42 of 63 runs
+through silent staleness and lost obligations, while retention
+policies hold 63/63; (ii)~a 48.3\% reduction in on-demand retrieval
+operations at equal correctness, pre-registering the live-cohort
+hypothesis that savings come from tool-call round trips, not bytes;
+(iii)~a conditional decision rule for certificate-tree evidence
+layouts, which win on dense updates and lose on sparse ones. HACT
+leaves the paper's center: it survives only where its ablation says it
+matters, and Sections~\ref{sec:model}--\ref{sec:eval} now carry it as
+a scoped component with unchanged scope labels.
 
-\paragraph{Where the measurement stops.}
-No hosted model was called; no physical WAN and no actual public-vocabulary BPE
-encoding were evaluated; and there is no new SWE-bench or natural historical-bug
-cohort. The 288 loopback transfers belong to an earlier version and use
-application pacing rather than real network conditions. Consequently this paper
-does not claim a latency, token, or billing win. Its contribution is a scoped
-systems component: when protected hierarchical evidence must cross a constrained
-link, a learned-order balanced layout can reduce the bytes that must cross it,
-and we provide the accounting, the codec-matched test, and the honesty about
-what remains unmeasured.
-
-\paragraph{The direction implied by the review.}
-The review recommends treating this certificate result as the evidence
-\emph{backend} of a larger program about verified-frontier context retirement,
-dependency-aware parallelism, and task granularity. That program is a design and
-evaluation protocol in progress, not a completed experiment; Section~11 of the
-review and our discussion articulate the concrete experiment that would promote
-this component to a productivity claim. We do not relabel the scripted evidence
-below as an evaluation of that larger controller.
+\paragraph{The boundary that remains.}
+The retirement study is mechanism-level. It models information flow
+between a context policy and a seeded work stream; it does not call a
+hosted model, and it cannot establish that any agent finishes faster,
+bills less, or reasons better. Its staleness and obligation-loss
+results are structural predictions about policies, not measurements of
+agents. The live-agent cohort that could test those predictions has
+its protocol pre-registered in Section~\ref{sec:live-protocol} and has
+not been run. The negative controls below---flat checker timings,
+per-episode verification overhead, unchanged root-status inputs---are
+reported as limits of the serialization claim, and the retirement
+cohort's own closures are reported as limits of the mechanism claim.
+Nothing in this paper is an agent-productivity measurement, and the
+abstract says so.

@@ -1,78 +1,63 @@
 \section{Introduction}\label{sec:intro}
-Many-agent systems need a reliable answer to ``which declared checks hold on
-this exact candidate?'' Their task graph and conversational organization need
-not be the layout that aggregates this evidence. HACT separates the two:
-immutable check identities determine the acceptance contract, while a
-bounded-packet tree represents intermediate results. A smaller tree transcript
-is not automatically a faster build, a better agent, or a smaller root-status
-prompt.
+Long-horizon software agents accumulate execution history, and the
+accumulation is not free: resubmitting it costs bytes that grow with
+project length, and naively discarding it costs correctness. The
+research question of this paper is the review's stronger form:
 
-The distinction matters economically. Historical source timings were 39.69
-versus 39.77 seconds for fixed and learned layouts. A separate small harness
-paid roughly five seconds per episode for strict verification compared with
-direct pytest. Meanwhile, a historical compressed loopback export saved
-approximately 2.21 seconds across twelve source streams. These different
-cohorts cannot be combined into a measured end-to-end speedup, and neither
-observation justifies adding a strict wrapper solely to save transmission time.
+\begin{quote}\itshape
+When can an agent stop remembering its execution history without
+losing the current evidence and obligations needed to finish correctly?
+\end{quote}
 
-\paragraph{Three deployment decisions, not one.}
-A trusted root-status consumer needs neither a learned tree nor all intermediate
-packets. A deployment that already requires protected verification and
-hierarchical evidence can compare fixed and learned layouts at marginal cost
-under that unchanged service. Adopting protected verification where ordinary
-pytest was sufficient is a different decision: its additional preparation and
-checking costs must be justified independently. We make this service distinction
-explicit in both the paper and a fail-closed planning API.
+We answer it with a pre-registered mechanism study
+(Section~\ref{sec:retire}). Ten context policies---from full replay
+through observation masking, periodic summary/reset, bounded pages,
+and a verified board, to verified-frontier retirement with typed
+capsules---consume byte-identical seeded work streams with temporal
+persistence, payload-bearing facts, persistent dependency footprints,
+and obligations that come due later. Three closure rules were frozen
+before data generation. Two fired against our own proposal, and the
+manuscript is organized around the survivors.
 
-\paragraph{The simpler compiler is now primary.}
-The prior block compiler was 1.54--5.34\% more expensive in held-out bytes than
-a compact balanced eight-ary tree on the same learned order. We therefore remove
-block DP from the practical path. The new default catalogue retains the
-incumbent and proposes a balanced tree on a training-learned average-linkage
-order; separate validation compares full-wave costs. Exact DP remains a useful
-conditional optimum and reference. It can still produce smaller evidence than the
-practical default, as our source replays show. Low fitting cost and lowest byte
-cost are different objectives.
+The survivors are three. First, a falsification: the cheapest policy on
+submitted bytes, periodic summary/reset, silently loses obligations
+across reset boundaries and acts on stale values within windows,
+failing the frozen acceptance contract on 42 of 63 runs; retention
+policies that keep a typed pending set and current bindings hold
+63/63. Stopping remembering is safe exactly when the discarded history
+has been converted into (i)~current verified bindings for what the
+work still touches, (ii)~a typed record of unresolved obligations, and
+(iii)~interfaces to completed components the active work depends
+on---and it is unsafe when any of those three survives only through a
+lossy summary. Second, an operations result at equal correctness:
+frontier retirement cuts on-demand retrieval operations by 48.3\%
+versus observation masking, pre-registering the hypothesis that
+live-agent savings, if any, come from avoided tool-call round trips
+rather than bytes; the byte-level null closure triggered, and we claim
+no byte-cost win over masking. Third, a conditional rule for the HACT
+certificate-tree evidence layout: against a steel-manned flat ledger,
+the learned tree wins on dense global updates ($-87.1\%$ held-out
+bytes) and loses on sparse clustered and independent deltas
+($+88.7\%$, $+49.2\%$), so it is demoted from the paper's center to a
+density-selected component. The scheduler dimension is reported
+separately and is byte-neutral by design.
 
-\paragraph{Core contributions and architecture.}
-Adaptive HACT v5.1 serializes verification evidence under fixed test execution
-schedules. Its architecture separates two kinds of state that many systems
-conflate. \emph{Immutable check identities}---registry IDs, acceptance
-predicates, and the candidate binding---define what must hold for a candidate
-to be accepted; they are fixed when the registry and candidate identity are
-published and are never rewritten by execution, layout choice, or learning.
-\emph{Mutable execution state}---tokens, timestamps, generation counters, and
-the order in which checks actually ran---records one run of those checks and
-may differ run to run. A result token carries the immutable semantic ID plus
-the run's binding; a layout-specific kernel maps stable IDs to display
-positions. Because identities are stable, permuting the layout or replaying
-under a different schedule moves records without changing their meaning
-(Section~\ref{sec:soundness}). The execution schedule $\sigma_e$ is an input
-the serializer must respect, not a variable it optimizes: HACT changes how
-evidence from an unchanged schedule is laid out and aggregated, never when
-checks run or what their outcomes mean. The substantive research contribution
-remains hyperedge-scored, identity-preserving verification aggregation and its
-conditional guarantees. This revision resolves an implementation choice, adds
-service-matched cost accounting, and evaluates the no-DP practical catalogue
-on fresh frozen synthetic splits. It separately replays archived source
-evidence and provides tools for the unmeasured token and WAN boundaries.
-Clustering, balanced trees, alphabetic DP, compression, break-even arithmetic
-and TLS are established techniques, not new inventions claimed here. The
-artifact is a tested research implementation; its tests do not establish
-production readiness or top-conference acceptance.
+This ordering is deliberate. The earlier versions of this work
+(Sections~\ref{sec:model}--\ref{sec:eval}) optimized how verification
+evidence is serialized under fixed test schedules; the review
+correctly observed that this changes neither what an agent remembers
+nor when it may forget. Those component results---the separation of
+immutable check identities from mutable execution state, generation
+fencing, the learned-order layouts, the codec- and service-matched
+deployment test---are retained with their scope labels unchanged, now
+in service of the retirement question: a capsule that carries verified
+bindings and pending obligations needs an evidence layout when its
+contents must cross a link, and the layout's value is conditional in
+exactly the way the new ablation measures.
 
-\paragraph{Positioning: evidence serialization, not agent acceleration.}
-Every design decision in v5.1 follows from a deliberately narrow scope: HACT is
-an evidence-serialization component. It reduces the bytes needed to publish
-which declared checks hold, under a delivery service that already requires
-protected verification and hierarchical evidence. It does not schedule checks,
-does not parallelize work, does not alter the agent's planning or repository
-exploration, and does not claim that a smaller transcript makes any agent
-faster or more productive. Where the review's larger program---verified-frontier
-context retirement, dependency-aware parallelism, task granularity---would use
-this certificate as a backend, that program is an evaluation protocol in
-progress (Section~\ref{sec:productivity}); its experiments have not been run.
-The negative controls in Section~\ref{sec:productivity} exist precisely to
-keep this boundary honest: flat checker timings and per-episode verification
-overhead are reported as limits of the serialization claim, not evidence
-against it or support for an acceleration claim.
+The negative controls remain: flat checker timings and per-episode
+verification overhead are limits of the serialization claim; the
+mechanism-level cohort is a limit of the retirement claim; the
+live-agent protocol of Section~\ref{sec:live-protocol} has not been
+run, and no hosted model, token count, or billing figure appears
+anywhere in this paper as a measurement.
