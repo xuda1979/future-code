@@ -4,12 +4,13 @@ Observation masking with focused retrieval is the strongest simple
 baseline for bounded context~\cite{complexitytrap}; context
 folding~\cite{contextfolding} branches and folds trajectories; periodic
 summary/reset is the generic compaction baseline. Our mechanism study
-steel-mans all three and reports where each fails: masking is
-near-optimal on submitted bytes but pays for every non-current read
-with a retrieval operation (48.3\% more operations than frontier
-retirement at equal correctness), while summary/reset---cheapest on
-bytes---fails the acceptance contract on 42 of 63 runs through silent
-staleness and lost obligations. This locates our contribution
+steel-mans all three in a factorial design and reports where each
+fails: masking is near-optimal on submitted bytes but pays for every
+non-current read
+with a retrieval operation (\RetwoOpsReduction{} more operations than
+frontier retirement at equal correctness), while summary/reset
+---cheapest on bytes---fails the acceptance contract on 56 of 84 runs
+through silent staleness and lost obligations. This locates our contribution
 precisely: not a better compaction heuristic, but a measured
 characterization of \emph{which retained structures} (typed pending
 obligations, current verified bindings, dependency interfaces) make
@@ -21,10 +22,10 @@ Decentralized shared context~\cite{delm} and adaptive communication
 topologies address central-manager bottlenecks; controlled
 scaling studies~\cite{scale} show coordination can hurt sequential or
 tool-heavy work. Our verified-board arm is exactly such a baseline and
-holds correctness (63/63) at the cost of shipping a full present-state
-row per gate; the scheduler dimension is orthogonal and byte-neutral
-by design, consistent with the task-architecture alignment those
-studies report.
+holds correctness (84/84) at the cost of shipping a full present-state
+row per gate; the scheduler factor is orthogonal and byte-neutral by
+design (measured leak \RetwoSEffectOnBytes{}), consistent with the
+task-architecture alignment those studies report.
 
 \paragraph{Testing, impact analysis, and incremental computation.}
 Test prioritization seeks earlier fault exposure~\cite{rothermel};

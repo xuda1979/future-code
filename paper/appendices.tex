@@ -74,8 +74,8 @@ Let a declared bound $R$ cover each round's loss spread,
 $\max_i\ell_t(i)-\min_i\ell_t(i)\le R$. Reject a measurement exceeding it instead
 of clipping the cost. Define $z_{t,i}=(\ell_t(i)-\min_j\ell_t(j))/R$. Starting at
 $p_1(i)=1/K$, update
-\begin{align}q_{t+1}(i)&=\frac{p_t(i)\exp(-\eta z_{t,i})}{\sum_j p_t(j)\exp(-\eta z_{t,j})},\\
-p_{t+1}(i)&=(1-\alpha)q_{t+1}(i)+\alpha/K,\qquad 0<\eta\le1,\ 0\le\alpha<1.\end{align}
+\begin{align}q_{t+1}(i)&=\frac{p_t(i)\exp(-\eta z_{t,i})}{\sum_j p_t(j)\exp(-\eta z_{t,j})},\label{eq:fixedshare}\\
+p_{t+1}(i)&=(1-\alpha)q_{t+1}(i)+\alpha/K,\qquad 0<\eta\le1,\ 0\le\alpha<1.\label{eq:mixing}\end{align}
 Independent draws from each new distribution can waste migrations. Instead,
 conditional on $A_t=i$, retain $i$ with probability
 $\min\{1,p_{t+1}(i)/p_t(i)\}$. If it is not retained, sample from the normalized
@@ -117,6 +117,20 @@ $s$ leaves, and fix a compact $b$-ary macro-tree on those blocks. Optimize each
 block's microtree using its restricted completion waves and strict-epoch
 initialization cost. Replace each macro leaf by its optimized microtree. No
 evaluation waves enter this process.
+
+The proposition below is exact only under its stated restrictions, and one
+restriction deserves emphasis because it is easy to misread as a general
+claim: \emph{every update wave that intersects a macro node's span must
+cover whole blocks within it}. If a wave can hit a partial block---some
+but not all of the leaves a macro node covers---then that node's
+activation weight varies within the class and the objective no longer
+separates into per-block subproblems; the $O(bns^2)$ claim then fails
+and the decomposition is only a heuristic. The frozen streams of this
+paper never emit partial-block waves (a wave's gate set is a union of
+whole invalidation sets, and the measured waves intersect macro spans
+block-completely), which is why the decomposition is exact on them; a
+deployment with partial-block waves must either re-block or fall back
+to the full exact compiler.
 
 \begin{proposition}[Exactness in the block-backbone class]\label{prop:block}
 With display order, block boundaries and macro-tree fixed, independent exact
@@ -244,13 +258,13 @@ Source replay reductions & Table~\ref{tab:replay}; 36 replays & Diagnostic, not 
 Root status identical & Equation~\eqref{eq:rootid}; 593--594 bytes & Fixed tokenizer, layout-independent\\
 Break-even accounting & Equations~\eqref{eq:netbenefit}--\eqref{eq:qmin} & Declared $C,E,R$, codec-matched\\
 BPE tokenization gap & \texttt{cl100k\_base}/\texttt{o200k\_base} remain \UNKNOWN{}; admission tool supplied & Vocabulary retrieval failed; no billing claim\\
-Context-retirement mechanism study & Pre-registered, executed: 630 runs, ten arms, three closures (two triggered) & Measured at mechanism level; live cohort still protocol-only\\
+Context-retirement mechanism study & Pre-registered, factorial, executed: v2 = 1{,}176 runs + 63 long-horizon, seven retention levels $\times$ scheduler factor, five closures (two proposals rejected by their gates) & Measured at mechanism level; live cohort still protocol-only\\
 \bottomrule\end{tabularx}\end{center}
 
 \section{Retirement-Study Protocol Deviations and Engine History}\label{app:retire-deviations}
-The retirement protocol (frozen as
-\texttt{docs/protocols/CONTEXT\_RETIREMENT\_PROTOCOL\_v1.md} with
-amendments v1.1--v1.4) was written before cohort data generation, and
+Two protocol generations were run. Generation v1 (file-frozen
+2026-09-23; \texttt{docs/\allowbreak protocols/\allowbreak CONTEXT\_\allowbreak RETIREMENT\_\allowbreak PROTOCOL\_\allowbreak v1.md}
+with amendments v1.1--v1.4) was written before cohort data generation, and
 each amendment was written before the run it governs. The engine went
 through four substantive revisions during that pre-data window; the
 final cohort was generated once, by the amended engine, and never
@@ -293,6 +307,62 @@ directions.
 \end{enumerate}
 
 No amendment was written after the final cohort was generated. The
-cohort, closures, and summary JSON are reproduced by
+v1 cohort, closures, and summary JSON are reproduced by
 \texttt{bun src/harness/retirement/cli.ts} in under two minutes and
-are byte-identical across runs.
+are byte-identical across runs; the v2 cohort, closures, and tables
+are reproduced by \texttt{bun src/harness/retirement/run2.ts} and
+\texttt{bun src/harness/retirement/tex2.ts} with the same property.
+Both engines, both protocols, and both frozen cohorts are committed;
+v2's protocol and engine-notes commits precede its data commit, which
+precedes the first v2 manuscript-text commit.
+
+
+\section{Generation-v1 Record (Complete)}\label{app:retire-v1}
+The v1 study is superseded by the v2 factorial
+(Section~\ref{sec:retire}) but is retained in full for provenance: v2's
+design was chosen to repair v1's weaknesses, and v1's closures
+motivated v2's frozen rules. The v1 protocol was frozen in files on
+2026-09-23, before its cohort ran; it was first committed to git on 2026-09-24, after the v2 protocol commit
+(333d495). v1's freeze is
+therefore file-attested, and the ordering is disclosed rather than
+smoothed.
+
+\paragraph{Design.} Ten arms over $3\times3\times7=63$ cells (630
+runs, 40 episodes each): full-replay, masking, summary-reset,
+bounded-hier, verified-board, frontier, frontier+adapt, adapt-only,
+frontier+flat, frontier+hact. Three closure rules: null (frontier
+$\le$80\% of best-baseline cost-per-accepted), attribution (frontier+adapt
+within 10\% of adapt-only), HACT (tree $\le$95\% of flat steel-man on
+held-out evidence bytes).
+
+\paragraph{Frozen outcomes (as generated 2026-09-23, never
+recomputed).}
+\begin{itemize}[leftmargin=*,itemsep=1pt]
+\item \emph{Null closure triggered}: frontier cost-per-accepted
+1{,}906{,}765 versus best baseline 564{,}773 (threshold $\le$451{,}818).
+No byte-cost claim for frontier retirement.
+\item \emph{Summary/reset falsified}: 21/63 accepted, 30{,}820 stale
+reads, 280 lost obligations---the lossy-conversion failure mode.
+\item \emph{Operations}: frontier cut retrieval operations 48.3\%
+versus masking (27{,}728 vs 53{,}583 across the cohort), the
+observation that became v2's regime-O hypothesis.
+\item \emph{Attribution closure triggered}: scheduler dimension
+byte-neutral (frontier+adapt identical to frontier on bytes); read
+dimension-separated (makespan only; 87.4\% fewer rounds with adaptive
+batching).
+\item \emph{HACT closure not triggered}: held-out evidence bytes 59.8\%
+lower than the flat steel-man pooled; per-family split
+($+88.7\%$ clustered, $+49.2\%$ independent, $-87.1\%$ global) forced
+the conditional reading formalized in v2's density rule.
+\end{itemize}
+
+\paragraph{Why v2 replaced the design.} v1's arms were hand-picked
+combinations, so factor attribution leaned on pairwise comparisons and
+a single attribution closure; its null rule read one pooled byte
+threshold; its capsule accounting was an end-of-run total with no
+independent audit; and it priced one cost regime, which is why the
+operations result could only be reported as a hypothesis. Each weakness
+became a v2 design item (Section~\ref{sec:retire-provenance}). v1's
+cohort, closures, and summary remain reproducible byte-identically
+from the committed v1 engine via
+\texttt{bun src/harness/retirement/cli.ts}.

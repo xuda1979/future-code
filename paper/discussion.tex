@@ -12,13 +12,23 @@ retire history only after converting it into current verified
 bindings, a typed pending-obligation set, and dependency interfaces;
 policies that rely on lossy summaries of obligations, or that revert
 values to beliefs older than the current working window, measurably
-fail (Section~\ref{sec:retire-results}). Between grouped certificate
-layouts and flat delta ledgers, select by update density: dense
-updates favor the tree, sparse deltas favor the flat ledger; the
-density signal is observable on a training half of any real stream.
-Retrieval-operations, not bytes, are the live-cost measure worth
-optimizing; frontier retirement cuts them 48.3\% against masking at
-equal correctness in the mechanism study.
+fail at every scale tested (Section~\ref{sec:retire-results}). The
+conversion is necessary; whether it is worth adopting depends on the
+cost regime: it buys \RetwoOpsReduction{} fewer retrieval round trips
+at equal correctness, which is worth a great deal when round trips are
+expensive (regime-O cost \RetwoCostOReduction{} lower than masking)
+and almost nothing when only bandwidth is priced (regime-B bytes
+\RetwoBytesDelta{}). An adopter should therefore price their retrieval
+path before choosing: the frozen $4{,}096$\,B-per-round-trip
+accounting brackets the answer with a sensitivity range
+(\RetwoSensK{}--\RetwoSensXxl{}), not a measurement. Between grouped
+certificate layouts and flat delta ledgers, select by update density:
+the measured-density rule matched the per-cell oracle on every cell of
+the frozen cohort (\RetwoDensityRegret{} regret); dense updates favor
+the tree, sparse deltas favor the flat ledger, and the density signal
+is observable on a training half of any real stream. Do not adopt the
+demand-driven adaptive variant: its pre-registered promotion gate
+failed ($\RetwoAdaptiveReduction{}$ versus plain frontier).
 
 \paragraph{Live-agent cohort (pre-registered, not run).}\label{sec:live-protocol}
 The mechanism study predicts, but cannot confirm, that avoided
@@ -31,10 +41,13 @@ benchmark (SWE-bench-class), screened for dependency coupling; the
 same frozen independent acceptance contract for all arms; equal total
 budgets, sandbox, and protected state; every failed branch in the
 numerator.
-\item \textbf{Arms.} The four arms the mechanism study separates:
+\item \textbf{Arms.} The arms the mechanism study separates:
 observation masking; summary/reset; verified-frontier retirement; and
-frontier+flat-evidence versus frontier+HACT-evidence as the nested
-layout ablation, selected by the measured update density of the pilot.
+the density-selected evidence layout (flat delta ledger versus
+grouped tree, chosen per the measured update density of the pilot).
+The demand-driven adaptive variant is excluded because its promotion
+gate failed at mechanism level; including it would re-litigate a
+pre-registered decision.
 \item \textbf{Primary outcomes.} Tool-call round trips per accepted
 project (the pre-registered live-cost measure, from the mechanism
 result); cost per accepted project (all provider metering preserved,
@@ -59,9 +72,11 @@ tokenization, physical-WAN behavior, and provider billing remain
 unknown and are never zero-imputed. The mechanism cohort's cost model
 is a frozen accounting of a frozen model of information flow; real
 payloads are not lognormal, and real summaries may retain obligations
-better or worse than the seeded boundary survival. The tool-call
-prediction is the only bridge from the mechanism result to live cost,
-and it is pre-registered as such rather than assumed.
+better or worse than the seeded boundary survival. The round-trip
+regime's $4{,}096$\,B constant is an accounting choice bracketed by a
+sensitivity range, not a measured latency. The tool-call prediction
+is the only bridge from the mechanism result to live cost, and it is
+pre-registered as such rather than assumed.
 
 \paragraph{Trust and scope.}
 Future Code remains a single-host supervisor. The guard and TLS

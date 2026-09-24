@@ -1,45 +1,47 @@
 \section{Productivity Boundary and Research Scope}\label{sec:productivity}
-This manuscript and its companion review were produced together. The
-governing research objective is to reduce the cost and time required
-for agents to complete large software projects correctly, without
-increasing coordination failures or weakening acceptance
+The governing research objective is to reduce the cost and time
+required for agents to complete large software projects correctly,
+without increasing coordination failures or weakening acceptance
 contracts. That objective outruns what any single paper can measure,
-and this version is explicit about the ladder of evidence it occupies.
+and this manuscript is explicit about the ladder of evidence it
+occupies.
 
-\paragraph{What changed in this version.}
-Version 5.1 presented HACT as an evidence-serialization component and
-labeled the retirement question a future protocol. The review's
-recommendation was to make that protocol the paper or to publish HACT
-as a scoped component. This version does the former.
-Section~\ref{sec:retire} executes the pre-registered context-
-retirement study: ten arms, 630 deterministic runs, three closure
-rules frozen before data generation. The result is asymmetric and is
-reported as measured. The null closure \emph{triggered}: frontier
-retirement does not beat strong observation masking on submitted
-bytes, and no byte-cost productivity claim is made. What survives is
-(i)~a correctness falsification---periodic summary/reset, the cheapest
-policy on bytes, fails the frozen acceptance contract on 42 of 63 runs
-through silent staleness and lost obligations, while retention
-policies hold 63/63; (ii)~a 48.3\% reduction in on-demand retrieval
-operations at equal correctness, pre-registering the live-cohort
-hypothesis that savings come from tool-call round trips, not bytes;
-(iii)~a conditional decision rule for certificate-tree evidence
-layouts, which win on dense updates and lose on sparse ones. HACT
-leaves the paper's center: it survives only where its ablation says it
-matters, and Sections~\ref{sec:model}--\ref{sec:eval} now carry it as
-a scoped component with unchanged scope labels.
+\paragraph{What this paper is.}
+It is a mechanism study of context retirement
+(Section~\ref{sec:retire}) plus the verification and evidence
+components the surviving rule depends on
+(Sections~\ref{sec:model}--\ref{sec:eval}). Two protocol generations
+were run; the current one is factorial, pre-registered, and
+git-frozen before data generation. Five closure rules were declared
+before data; two of the paper's own proposed extensions failed their
+gates and are reported as rejected: the byte-regime productivity
+claim for frontier retirement (it saves \RetwoBytesDelta{} on
+submitted bytes versus masking---no win claimed) and the demand-driven
+adaptive-coordination variant ($\RetwoAdaptiveReduction{}$ regime-O
+versus plain frontier; promotion gate $\ge$10\%). What survives is
+(i)~a necessary conversion rule---retire history only after
+converting it into verified bindings, typed obligations, and declared
+dependencies; lossy conversion fails the acceptance contract at every
+scale tested (28/84 at the largest grid); (ii)~an operations result
+at equal correctness---frontier retirement cuts on-demand retrieval
+operations \RetwoOpsReduction{} and round-trip-regime cost
+\RetwoCostOReduction{} versus observation masking, persisting at
+$4\times$ horizon, with a clean capsule audit; and (iii)~a
+density-selected conditional role for certificate-tree evidence
+layouts (\RetwoDensityRegret{} decision-rule regret). HACT is not the
+paper's center; it survives only where its ablation says it wins.
 
 \paragraph{The boundary that remains.}
 The retirement study is mechanism-level. It models information flow
 between a context policy and a seeded work stream; it does not call a
 hosted model, and it cannot establish that any agent finishes faster,
-bills less, or reasons better. Its staleness and obligation-loss
-results are structural predictions about policies, not measurements of
-agents. The live-agent cohort that could test those predictions has
-its protocol pre-registered in Section~\ref{sec:live-protocol} and has
-not been run. The negative controls below---flat checker timings,
-per-episode verification overhead, unchanged root-status inputs---are
-reported as limits of the serialization claim, and the retirement
-cohort's own closures are reported as limits of the mechanism claim.
-Nothing in this paper is an agent-productivity measurement, and the
-abstract says so.
+bills less, or reasons better. Its staleness, obligation-loss, and
+audit results are structural predictions about policies, not
+measurements of agents. The live-agent cohort that could test those
+predictions has its protocol pre-registered in
+Section~\ref{sec:live-protocol} and has not been run. The negative
+controls below---flat checker timings, per-episode verification
+overhead, unchanged root-status inputs---are reported as limits of
+the serialization claim, and the retirement cohort's own closures are
+reported as limits of the mechanism claim. Nothing in this paper is
+an agent-productivity measurement, and the abstract says so.

@@ -4,56 +4,73 @@ accumulation is not free: resubmitting it costs bytes that grow with
 project length, and naively discarding it costs correctness. The
 research question of this paper is the review's stronger form:
 
-\begin{quote}\itshape
+\begin{quote}
 When can an agent stop remembering its execution history without
-losing the current evidence and obligations needed to finish correctly?
+losing the current evidence and obligations needed to finish
+correctly---and in which cost regime does the answer pay?
 \end{quote}
 
-We answer it with a pre-registered mechanism study
-(Section~\ref{sec:retire}). Ten context policies---from full replay
-through observation masking, periodic summary/reset, bounded pages,
-and a verified board, to verified-frontier retirement with typed
-capsules---consume byte-identical seeded work streams with temporal
-persistence, payload-bearing facts, persistent dependency footprints,
-and obligations that come due later. Three closure rules were frozen
-before data generation. Two fired against our own proposal, and the
-manuscript is organized around the survivors.
+We answer it with a pre-registered, factorial mechanism study
+(Section~\ref{sec:retire}). Seven retention policies---from full
+replay through observation masking, periodic summary/reset, bounded
+pages, and a verified board, to verified-frontier retirement with
+typed capsules, plus a demand-driven adaptive variant---are crossed
+with a scheduler factor in a full factorial, and consume
+byte-identical seeded work streams with temporal persistence,
+payload-bearing facts, persistent dependency footprints, and
+obligations that come due later. Accounting is split into
+construction, steady state, and a five-episode audit tail that
+compares each policy's capsule against stream ground truth; two cost
+regimes are frozen ex ante, one byte-bound and one round-trip-bound.
+The v2 protocol and its five closure rules were committed to git
+before any v2 data was generated; the cohort and its tables were
+committed before any v2 manuscript text was written. Two protocol
+generations were run; the first's design limitations are stated in
+Section~\ref{sec:retire-provenance} and its full record is retained in
+Appendix~\ref{app:retire-v1}.
 
-The survivors are three. First, a falsification: the cheapest policy on
-submitted bytes, periodic summary/reset, silently loses obligations
-across reset boundaries and acts on stale values within windows,
-failing the frozen acceptance contract on 42 of 63 runs; retention
-policies that keep a typed pending set and current bindings hold
-63/63. Stopping remembering is safe exactly when the discarded history
-has been converted into (i)~current verified bindings for what the
-work still touches, (ii)~a typed record of unresolved obligations, and
-(iii)~interfaces to completed components the active work depends
-on---and it is unsafe when any of those three survives only through a
-lossy summary. Second, an operations result at equal correctness:
-frontier retirement cuts on-demand retrieval operations by 48.3\%
-versus observation masking, pre-registering the hypothesis that
-live-agent savings, if any, come from avoided tool-call round trips
-rather than bytes; the byte-level null closure triggered, and we claim
-no byte-cost win over masking. Third, a conditional rule for the HACT
-certificate-tree evidence layout: against a steel-manned flat ledger,
-the learned tree wins on dense global updates ($-87.1\%$ held-out
-bytes) and loses on sparse clustered and independent deltas
-($+88.7\%$, $+49.2\%$), so it is demoted from the paper's center to a
-density-selected component. The scheduler dimension is reported
-separately and is byte-neutral by design.
+The answer that survives both generations is a conversion rule with a
+regime-conditional payoff. \emph{Necessity}: an agent may retire its
+history only after converting it into verified interface bindings, a
+typed pending-obligation set, and declared dependencies; policies that
+convert lossily---periodic summary/reset---fail the frozen acceptance
+contract at every scale measured (28/84 runs at the v2 scale; 21/63 at
+the v1 scale), silently reverting values to beliefs older than the
+working window and dropping obligations that cross reset boundaries.
+\emph{Payoff}: the payoff is operations, not bytes. Frontier
+retirement saves only \RetwoBytesDelta{} on submitted bytes---the
+byte-level result of the first generation, repeated---but cuts
+on-demand retrieval operations by \RetwoOpsReduction{} versus
+observation masking and reduces round-trip-regime cost per accepted
+run by \RetwoCostOReduction{} (gate $\ge$20\%, sensitivity
+\RetwoSensK{}--\RetwoSensXxl{} across the frozen round-trip
+constants), with the advantage persisting at four times the horizon
+(\RetwoLongOpsReduction{} operations). The live-agent hypothesis this
+pre-registers is precise: savings, if any, come from avoided tool-call
+round trips, not from smaller prompts. \emph{Audit}: the promoted
+mechanism passes a capsule audit against stream ground truth with zero
+defective service, and the audit's development history includes a
+disclosed, test-caught reference fix (Section~\ref{sec:retire-results}).
+\emph{Rejected extensions}: a demand-driven adaptive-coordination
+variant was evaluated against a pre-registered promotion gate and
+rejected ($\RetwoAdaptiveReduction{}$ regime-O versus plain frontier;
+the gate required $\ge$10\%), and the HACT certificate-tree evidence
+layout remains a conditional component---against a steel-manned flat
+ledger it wins dense updates and loses sparse ones, so it is selected
+by a measured-density rule with \RetwoDensityRegret{} regret rather
+than by default. The scheduler factor is cleanly separated: measured
+byte leak \RetwoSEffectOnBytes{}, makespan reduction
+\RetwoMakespanReduction{}.
 
-This ordering is deliberate. The earlier versions of this work
-(Sections~\ref{sec:model}--\ref{sec:eval}) optimized how verification
-evidence is serialized under fixed test schedules; the review
-correctly observed that this changes neither what an agent remembers
-nor when it may forget. Those component results---the separation of
-immutable check identities from mutable execution state, generation
-fencing, the learned-order layouts, the codec- and service-matched
-deployment test---are retained with their scope labels unchanged, now
-in service of the retirement question: a capsule that carries verified
-bindings and pending obligations needs an evidence layout when its
-contents must cross a link, and the layout's value is conditional in
-exactly the way the new ablation measures.
+Sections~\ref{sec:model}--\ref{sec:eval} develop the verification and
+evidence components the conversion rule relies on, unchanged in
+substance: immutable identities, packet cost models, layout learning,
+and the negative controls that bound what serialized evidence can
+claim. A capsule that carries verified bindings and pending
+obligations needs an evidence layout when its contents must cross a
+link, and the layout's value is conditional in exactly the way the
+ablation measures. Sections~\ref{sec:delivery}--\ref{sec:discussion}
+bound the delivery, adoption, and trust claims.
 
 The negative controls remain: flat checker timings and per-episode
 verification overhead are limits of the serialization claim; the

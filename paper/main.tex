@@ -7,7 +7,7 @@
 \usepackage[font=small,labelfont=bf]{caption}
 \usepackage[hidelinks]{hyperref}
 \usepackage{fancyhdr}
-\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Verified-Frontier Context Retirement}\fancyhead[R]{\small Research manuscript v6.0}\fancyfoot[C]{\thepage}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Context Retirement Mechanism Study}\fancyhead[R]{\small Research manuscript v7.0}\fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}\setlength{\parskip}{3pt}\setlength{\emergencystretch}{2em}
 \newtheorem{theorem}{Theorem}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{lemma}[theorem]{Lemma}
 \theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
@@ -16,52 +16,57 @@
 \newcommand{\T}{\mathcal T}
 \newcommand{\E}{\mathbb E}\newcommand{\Prb}{\mathbb P}\newcommand{\ind}{\mathbf 1}\newcommand{\R}{\mathcal R}
 \DeclareMathOperator*{\argmin}{arg\,min}
-\hypersetup{pdftitle={Adaptive HACT: Service-Matched Verification Evidence and Deployment Boundaries},pdfauthor={Research manuscript; author information pending confirmation}}
-\title{\vspace{-9mm}\textbf{When Can an Agent Stop Remembering? Verified-Frontier Context Retirement, Its Falsifying Baselines, and a Conditional Role for Certificate Trees}}
+\hypersetup{pdftitle={When Can an Agent Stop Remembering? A Pre-Registered Mechanism Study of Context Retirement},pdfauthor={Research manuscript; author information pending confirmation}}
+\title{\vspace{-9mm}\textbf{When Can an Agent Stop Remembering? A Pre-Registered Mechanism Study of Context Retirement, Its Audit, and the Cost Regime That Pays}}
 \author{Research manuscript\\[1mm]
 \small This artifact candidacy draft accompanies the \texttt{future-code} research repository. Author names and affiliations require confirmation before any submission. Mathematical development, implementation, experiments, and writing were AI-assisted. This is a research artifact, not an accepted or peer-reviewed venue.}
-\date{September 23, 2026 \quad | \quad Version 6.0 (retirement-mechanism revision)}
+\date{September 24, 2026 \quad | \quad Version 7.0 (factorial retirement revision)}
+\input{generated/retirement_macros.tex}
+\input{generated/retirement2_macros.tex}
 \begin{document}
 \maketitle
 \begin{abstract}
 When can an agent stop remembering its execution history without losing
-the current evidence and obligations it needs to finish correctly? We
-answer this question at the mechanism level with a pre-registered,
-frozen-protocol study: six hundred thirty deterministic runs over ten
-context policies---full replay, observation masking, periodic
-summary/reset, bounded hierarchical pages, a verified status board,
-verified-frontier retirement with typed capsules, and factorial
-scheduler ablations---across three registry sizes, three dependency
-families, and seven seeds, with temporal persistence and obligation
-lifetimes. Three closure rules were declared before data generation.
-The result is deliberately asymmetric. \emph{Null closure triggered}:
-frontier retirement does not beat strong observation masking on
-submitted bytes (the pre-registered 20\% gate failed), so we claim no
-byte-cost productivity win. What retirement buys is correctness and
-fewer retrieval operations: periodic summary/reset---the cheapest
-policy on submitted bytes---fails the acceptance contract on 42 of 63
-runs (30{,}820 stale reads; 280 lost obligations), whereas
-verified-frontier retirement, masking, and the verified board accept
-63/63; frontier retirement cuts on-demand retrieval operations by
-48.3\% versus masking (66.8\% on clustered work), pre-registering the
-hypothesis that live-agent savings come from tool-call round trips
-rather than bytes. The scheduler ablation is byte-neutral by design and
-reduces makespan rounds by 87.4\%, a separate dimension from cost. The
-HACT certificate-tree evidence layout survives only conditionally:
-against a steel-manned flat ledger that takes the better of full and
-delta exports at identical record cost, the learned tree reduces
-held-out evidence bytes by 59.8\% pooled, but \emph{loses} on sparse
-clustered and independent deltas ($+88.7\%$ and $+49.2\%$) and wins on
-dense global updates ($-87.1\%$); we demote it from the paper's center
-to a conditional component with an explicit decision rule. All
-experiments are synthetic and mechanism-level: no hosted model was
-called, no token or billing claim is made, and the live-agent cohort
-remains future work with its protocol pre-registered here.
+the current evidence and obligations it needs to finish correctly---and
+in which cost regime does the answer pay? We answer at the mechanism
+level with a pre-registered, factorial, frozen-protocol study of
+context retirement: 1{,}176 runs crossing seven retention policies with
+a scheduler factor, plus a 160-episode long-horizon sub-cohort, across
+four registry sizes, three dependency families, and seven seeds, with
+temporal persistence, obligation lifetimes, three-phase accounting, a
+five-episode capsule audit against stream ground truth, and two frozen
+cost regimes (bytes; bytes plus a per-round-trip constant). The result
+that survives is a \emph{conversion rule with a regime-conditional
+payoff}. An agent may retire its history only after converting it into
+verified interface bindings, a typed pending-obligation set, and
+declared dependencies; lossy conversion measurably fails (periodic
+summary/reset accepts 28 of 84 runs at the new scale, with 109{,}761
+stale reads and 385 lost obligations), while verified-frontier
+retirement accepts 84/84 and passes the capsule audit with zero
+defective service. The payoff is regime-conditional and was
+pre-registered as such: in the bandwidth regime frontier retirement
+saves only \RetwoBytesDelta{} on submitted bytes---no byte-cost win is
+claimed---but in the round-trip regime, where each on-demand retrieval
+costs latency-equivalent bytes, it reduces cost per accepted run by
+\RetwoCostOReduction{} versus strong observation masking (sensitivity
+\RetwoSensK{} to \RetwoSensXxl{} across round-trip constants), cutting
+retrieval operations \RetwoOpsReduction{} pooled and
+\RetwoLongOpsReduction{} at four times the horizon. The scheduler
+factor is byte-neutral by design and measured at \RetwoSEffectOnBytes{}
+leak with an \RetwoMakespanReduction{} makespan reduction. Grouped
+certificate layouts survive only as a conditional component selected by
+measured update density (dense stratum pass; \RetwoDensityRegret{}
+decision-rule regret), and a demand-driven adaptive-coordination
+variant was evaluated against pre-registered promotion gates and
+\emph{rejected} ($\RetwoAdaptiveReduction{}$ versus frontier; the
+correctness-preserving mechanism does not need it). All experiments are
+synthetic and mechanism-level: no hosted model was called, no token or
+billing claim is made, and the live-agent cohort remains future work
+with its protocol pre-registered here.
 \end{abstract}
 
 \noindent\textbf{Keywords:} bounded evidence; verification contracts; bandwidth-limited logging; completion hyperedges; cost-aware layout selection.
 
-\input{generated/retirement_macros.tex}
 \input{productivity.tex}
 \input{intro.tex}
 \input{related.tex}

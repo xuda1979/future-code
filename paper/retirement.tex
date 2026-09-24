@@ -1,230 +1,264 @@
-\input{generated/retirement_table.tex}
-\input{generated/frontier_masking_table.tex}
-\input{generated/evidence_table.tex}
+\input{generated/retirement2_table.tex}
+\input{generated/retirement2_stratum.tex}
+\input{generated/retirement2_long.tex}
+\input{generated/retirement2_evidence.tex}
+\input{generated/retirement2_macros.tex}
 \section{When Can an Agent Stop Remembering? A Pre-Registered Mechanism Study}\label{sec:retire}
 
-\subsection{The question and why the old framing could not answer it}\label{sec:retire-question}
-Version 5.1 of this manuscript answered a serialization question: given
-a fixed test-execution schedule, which layout of completion records
-crosses a constrained link most cheaply? The companion review's central
-objection was that this optimizes an immaterial contributor to agent
-cost and cannot, by construction, say anything about when an agent may
-safely forget. This section answers the review's stronger question
-directly, at the level the evidence can support:
-
-\begin{quote}\itshape
-When can an agent stop remembering its execution history without
-losing the current evidence and obligations needed to finish correctly,
-and what does stopping remember cost and save?
+\subsection{The question}\label{sec:retire-question}
+Long-horizon agents face a retention decision every episode: resubmit
+history, mask it and re-fetch on demand, or summarize it away. The
+research question is when the third option---\emph{retirement}---is
+safe, and what it buys:
+\begin{quote}
+\emph{When can an agent stop remembering its execution history without
+losing the current evidence and obligations it needs to finish
+correctly, and in which cost regime does the answer pay?}
 \end{quote}
 
 The study is \emph{mechanism-level}: every number below is produced by
 a deterministic engine that models information flow between a context
 policy and a seeded work stream. No hosted model is called. The
-protocol---arms, cohort, outcomes, and three closure rules---was frozen
-in a versioned document before data generation, and all four amendments
-were also written before the final cohort ran. Deviations and their
-reasons are disclosed in Appendix~\ref{app:retire-deviations}.
+answer that survives two frozen protocol generations is a
+\textbf{conversion rule with a regime-conditional payoff}:
+\begin{quote}
+\emph{An agent may retire its history only after converting it into
+(i)~verified interface bindings for every fact another component will
+read, (ii)~a typed pending-obligation set, and (iii)~declared
+dependency interfaces. The payoff is not bytes: it is avoided
+retrieval round trips, which pay only in the round-trip-bound regime.}
+\end{quote}
 
-\subsection{The frozen protocol}\label{sec:retire-protocol}
-\paragraph{Cohort.} Three registry sizes ($n\in\{128,512,1{,}024\}$
-component gates), three dependency families reused from the HACT
-workload generators (clustered, independent, global), seven seeds
-(55011--55017), forty episodes per run: $3\times3\times7=63$ cells.
-Every arm consumes the byte-identical episode stream; only the context
-policy differs.
+\subsection{Study provenance and what changed between generations}\label{sec:retire-provenance}
+Two protocol generations were run, both pre-registered.
+\paragraph{Generation v1 (file-frozen 2026-09-23).} Ten hand-picked
+arms over $3\times3\times7=63$ cells (630 runs) with three closure
+rules. Its closures fired: no byte-cost win for frontier retirement
+over masking (null closure), an attribution closure that forced the
+dimension-separated reading, and a conditional pass for grouped
+certificate layouts. v1's protocol and engine were frozen in files
+before its cohort ran, but were committed to git only on 2026-09-24,
+after the v2 protocol commit; v1's freeze is therefore file-attested
+only, and this ordering is disclosed here rather than smoothed over.
+The full v1 design, its numbers, and its deviations remain in
+Appendix~\ref{app:retire-v1}.
+\paragraph{Generation v2 (git-frozen 2026-09-24, commit before data).}
+v1 answered ``what does each policy lose'' but had four design
+weaknesses: a hand-picked arm list rather than a factorial, a single
+pooled byte threshold, capsule accounting evaluated only as an
+end-of-run total, and one cost regime. v2 repairs all four ex ante:
+(1)~a full factorial over retention $R$ (7 levels), scheduler $S$
+(2 levels), with factor contrasts replacing pairwise arm comparisons;
+(2)~three-evaluation separation---every run's accounting is split into
+construction (episodes 0--4), steady state (5--34), and a five-episode
+audit tail (35--39) in which an independent auditor compares the
+policy's capsule against stream ground truth (A1 stale retention, A2
+pending-set mismatch, A3 defective service); (3)~two frozen cost
+regimes---bandwidth-bound $B$ (bytes) and round-trip-bound $O$ (bytes
+$+4{,}096$\,B per retrieval operation, with sensitivity at 1{,}024 and
+16{,}384\,B); (4)~scale: four registry sizes ($n\in\{128,512,1{,}024,
+4{,}096\}$), three families, seven seeds, forty episodes
+($4\times3\times7=84$ cells $\times\,14$ policy runs $=1{,}176$ runs),
+plus a long-horizon sub-cohort ($n=1{,}024$, 160 episodes, 63 runs).
+Five closure rules were frozen before data generation; the v2 cohort
+and its tables were committed before any v2 manuscript text was
+written. One frozen-document miscount (``42 runs'' for a grid the
+protocol itself defines as 63) was corrected ex ante in the engine
+notes and is disclosed here.
 
-\paragraph{Temporal persistence.} The HACT generators draw invalidation
-sets i.i.d.\ per episode, but retirement is a temporal question: what
-matters is whether a component worked on today is likely to be worked
-on again soon. Each episode therefore either persists the working set
-with a small shift (probability 0.6) or redraws from the family
-generator (probability 0.4). Marginals stay family-matched; the
-temporal layer is new and was frozen before data generation
-(Amendment~v1.1).
-
-\paragraph{Payloads and footprints.} Each fact carries a payload
-(frozen lognormal, median 128\,B) so that history has something to
-re-send; each working phase carries a dependency footprint of twelve
-gates that persists through persistence steps (the review's exported
-interfaces crossing the frontier). Obligations open stochastically on
-invalidated gates and come due exactly six episodes later: a policy
-that has lost the obligation by then does not act, and the loss is
-scored against the policy, never against the stream.
-
-\paragraph{Acceptance contract.} A run is accepted iff no required read
-was answered from a stale binding, no obligation was lost before its
-due episode, and every due obligation was resolved. Any staleness or
-obligation loss rejects the run regardless of byte counts. This is the
-frozen quality gate; it is never traded against bytes silently.
-
-\paragraph{Arms.} Ten frozen arms:
-(i)~\texttt{full-replay}, the entire history with payloads every call;
-(ii)~\texttt{masking}, the observation-masking design: identity-only
-context, focused retrieval, no cross-call payload cache;
-(iii)~\texttt{summary-reset}, periodic summary and reset every four
-episodes, steel-manned as the review demanded: it observes everything
-within each period, and its failures are exactly (a) obligations
-surviving a reset boundary only through a lossy summary (seeded 50\%
-retention per boundary) and (b) window overflow reverting values to
-the summary belief, which is silently stale for gates changed after
-the last reset;
-(iv)~\texttt{bounded-hier}, the vendored Future Code bounded-context
-design: a fixed page budget of 64 observations with chronological
-retention;
-(v)~\texttt{verified-board}, a decentralized status board: one
-present-state row per gate;
-(vi)~\texttt{frontier}, the proposal: verified-frontier retirement
-with a typed capsule (160\,B base, 16\,B per interface binding,
-48\,B per pending obligation, 64\,B invariants) whose retained set is
-the current working set, its dependency footprint, and pending
-obligations;
-(vii)~\texttt{frontier+adapt}, frontier retirement plus adaptive
-batching (makespan dimension);
-(viii)~\texttt{adapt-only}, adaptive batching over masking retention
-(attribution ablation);
-(ix)~\texttt{frontier+flat}, frontier retirement with a flat evidence
-ledger steel-manned as the better of full export and delta export at
-64\,B per record;
-(x)~\texttt{frontier+hact}, the same with the learned-order
-certificate-tree evidence layout (order learned by spectral seriation
-on co-invalidation affinity from the first twenty episodes, evaluated
-on the held-out second half).
-
-\paragraph{Outcomes and closure rules.} Primary: cost per accepted
-project (submitted context bytes plus retrieval bytes over accepted
-runs), acceptance rate, staleness defects, obligation losses;
-co-primary: retrieval operations, because a live on-demand fetch is a
-tool-call round trip whose per-call overhead dominates its payload
-bytes. Three closure rules were frozen ex ante:
-\emph{Null closure}: if frontier retirement does not reduce
-cost-per-accepted by at least 20\% versus the best baseline, the
-retirement hypothesis is rejected as a byte-cost claim.
-\emph{Attribution closure}: if \texttt{adapt-only} matches
-\texttt{frontier+adapt} within 10\%, the contribution is attributed to
-scheduling---with the dimension-separated reading mandated ex ante,
-since the scheduler is byte-neutral by design.
-\emph{HACT closure}: if the tree does not beat the flat steel-man by at
-least 5\% on held-out evidence bytes at equal correctness, HACT is
-demoted to optional and the paper's center becomes the retirement
-policy.
+\subsection{The frozen arms and closure rules}\label{sec:retire-protocol}
+\paragraph{Retention levels.} (1)~\texttt{full-replay}: resubmit all
+history. (2)~\texttt{masking}: identity-only context, every non-current
+read fetched on demand---the strongest simple baseline.
+(3)~\texttt{summary-reset}: periodic summary/reset every 4 episodes
+with a window budget. (4)~\texttt{bounded-hier}: bounded pages.
+(5)~\texttt{verified-board}: a present-state row per known gate.
+(6)~\texttt{frontier}: verified-frontier retirement---retain only the
+working set, boundary neighbors, dependency footprint, and pending
+obligations, as a typed capsule (160\,B base, 16\,B per retained
+binding actually held, 48\,B per pending obligation, 64\,B aggregate
+invariants). (7)~\texttt{frontier-adaptive}: frontier plus a frozen
+demand-driven eviction rule (bindings unused for 8 episodes and opened
+$\ge$8 episodes ago are evicted outside the exempt base)---the
+\emph{adaptive-coordination} candidate.
+\paragraph{Closure rules (all frozen ex ante).}
+\emph{Null closure}: frontier is promotable only if it cuts regime-O
+cost per accepted run by $\ge$20\% versus masking pooled, with no
+family stratum regressing by more than 10\%.
+\emph{Attribution closure}: the scheduler factor is byte-neutral by
+design; a byte leak exceeding 1\% of the grand mean voids all
+scheduler results.
+\emph{HACT closure}: grouped layouts are promotable only as a
+conditional component---a $\ge$5\% win in the dense stratum plus a
+stated density decision rule with reported regret.
+\emph{Adaptive-coordination closure}: \texttt{frontier-adaptive} is
+promotable only at equal acceptance, zero audit failure, $\ge$10\%
+regime-O reduction versus frontier, and no family regression above 5\%.
+\emph{Audit closure}: any arm with A3 defects in its audit tail is
+reported as audit-failing and cannot be promoted.
 
 \subsection{Results}\label{sec:retire-results}
 
 \begin{table}[t]\centering\small
-\caption{Frozen cohort: 630 runs (63 cells $\times$ 10 arms). Bytes are
-per run (submitted context + retrieval); ops are total on-demand
-retrieval operations across the 63 cells of each arm; staleness and
-loss totals are absolute. Acceptance is the frozen contract: any
-staleness or obligation loss rejects the run.}\label{tab:retire-main}
-\begin{tabularx}{\linewidth}{@{}l r r r r r@{}}\toprule
-Arm & Accepted & Bytes/run & Ops & Stale & Lost\\\midrule
-\RetfullreplayRow
-\RetmaskingRow
-\RetsummaryresetRow
-\RetboundedhierRow
-\RetverifiedboardRow
-\RetfrontierRow
-\RetfrontieradaptRow
-\RetadaptonlyRow
-\RetfrontierflatRow
-\RetfrontierhactRow
+\caption{Frozen v2 cohort at $S=\mathrm{fixed}$: 84 cells $\times$ 7
+retention policies. Regime-B bytes and regime-O cost are per accepted
+run; ops are on-demand retrieval operations per accepted run; audit
+defects (A3), staleness defects, and obligation losses are totals over
+the 84 runs of each policy. Acceptance is the frozen contract: any
+staleness defect or obligation loss rejects the run.}\label{tab:retire2-main}
+\begin{tabularx}{\linewidth}{@{}l r r r r r r r@{}}\toprule
+Policy & Accepted & Regime-B B/run & Regime-O B/run & Ops/run & A3 & Stale & Lost\\\midrule
+\RetwofullreplayRow
+\RetwomaskingRow
+\RetwosummaryresetRow
+\RetwoboundedhierRow
+\RetwoverifiedboardRow
+\RetwofrontierRow
+\RetwofrontieradaptiveRow
 \bottomrule\end{tabularx}\end{table}
 
-\paragraph{Null closure triggered.} Frontier retirement costs
-1{,}906{,}765 bytes per accepted run against full replay's
-4{,}622{,}754 (a 58.8\% reduction) but against observation masking's
-1{,}994{,}185 it saves only 4.4\% pooled---dominated by the global
-family, where masking's context degenerates toward the full registry
-and the frontier capsule is comparatively cheap. On the non-global
-families the frontier costs \emph{more} bytes than masking
-($+3.3\%$ clustered, $+7.0\%$ independent; Table~\ref{tab:retire-fm}).
-The pre-registered 20\% gate failed; we therefore claim no byte-cost
-productivity win over strong baselines, exactly as the rule requires.
-The cheapest arm on submitted bytes, \texttt{summary-reset}, is also
-the arm that fails the acceptance contract two-thirds of the time.
+\paragraph{The conversion rule is necessary: lossy conversion fails,
+typed conversion does not.} Periodic summary/reset---the cheapest
+policy on submitted bytes---accepts only \RetwoSummaryResetAccepted{}
+runs: 109{,}761 stale reads and 385 lost obligations at the new scale,
+the same structural failure v1 measured (30{,}820/280 on its smaller
+grid). The mechanism is exact: a summary reverts values to a belief
+older than the working window, and obligations crossing a reset
+boundary survive only through a lossy summary. Every policy that
+converts before retiring---frontier, and at higher cost the verified
+board and full replay---accepts 84/84 with zero staleness and zero
+loss. Bounded pages accept 84/84 but pay $1{,}211$ ops/run in the
+steady phase; masking accepts 84/84 and pays $1{,}875$.
 
-\paragraph{What retirement actually buys: correctness and fewer
-retrieval round trips.} The falsification result is sharp. Periodic
-summary/reset---cheap on bytes---accepts only 21 of 63 runs, with
-30{,}820 stale reads and 280 lost obligations: within a reset window
-the policy cannot detect that a retained value silently changed, and
-obligations crossing a boundary survive only through a lossy summary.
-Frontier retirement, masking, the verified board, bounded pages, and
-full replay all accept 63/63. Against masking, frontier retirement
-cuts on-demand retrieval operations by 48.3\% pooled over non-global
-families (66.8\% clustered, 46.0\% independent) at equal correctness.
-This is not a byte win---masking's identity-only context is nearly
-optimal on bytes---but it is the pre-registered live-cost hypothesis:
-in a live cohort, each avoided fetch is an avoided tool-call round
-trip, and tool-call overhead (a model invocation) dominates payload
-bytes. The live cohort protocol in Section~\ref{sec:live-protocol}
-pre-registers this as its primary cost measure.
+\paragraph{The null closure passes in the round-trip regime, not the
+byte regime---exactly as pre-registered.} Frontier retirement reduces
+regime-O cost per accepted run by \RetwoNullReduction{} versus masking
+(gate $\ge$\RetwoNullThreshold{}), with \emph{no} family stratum
+regressing (worst stratum: \RetwoWorstFamily). In the bandwidth regime
+the same comparison is only \RetwoBytesDelta{}---we repeat v1's honest
+negative and claim no byte-cost win. The two regimes separate because
+frontier's advantage is \emph{operations}: \RetwoOpsReduction{} fewer
+retrieval round trips per accepted run pooled
+(66.5\% on clustered, 43.0\% on
+independent; global coupling leaves no gap because every read is a
+current fact for both policies). Sensitivity across the frozen
+round-trip constant: \RetwoSensK{} at 1{,}024\,B, \RetwoSensM{} at
+4{,}096\,B, \RetwoSensXxl{} at 16{,}384\,B---the advantage grows with
+the round-trip price and is positive across the entire pre-registered
+sensitivity range.
 
-\paragraph{Attribution closure triggered, with the dimension-separated
-reading.} \texttt{adapt-only} matches \texttt{frontier+adapt} on bytes
-within 10\%, as expected from a byte-neutral scheduler dimension. Read
-dimension-separated, as the protocol mandates: the scheduler affects
-makespan only (87.4\% fewer rounds with adaptive batching), and
-retirement affects bytes and operations only. Neither dimension
-borrows evidence from the other.
+\paragraph{The audit tail is clean for the promoted mechanism.} Across
+all 1{,}176 runs, the five-episode capsule audit records zero A3
+defective service for every arm (audit closure:
+\RetwoAuditClosure{}): retained bindings match stream generations,
+pending sets match the stream's true pending sets in both directions,
+and no required read was served from defective state. The audit also
+caught a reference bug during development---the ground-truth pending
+set originally deduplicated obligation openings by first rather than
+latest opening, misclassifying correctly-held re-opened obligations as
+phantoms---which is disclosed in the repository history and fixed
+before the frozen cohort was regenerated.
 
-\paragraph{HACT survives conditionally, not centrally.}
-Table~\ref{tab:retire-evidence} shows the held-out evidence ablation
-against the steel-manned flat ledger. Pooled, the learned tree reduces
-evidence bytes 59.8\%; per family it \emph{loses} on sparse deltas
-($+88.7\%$ clustered, $+49.2\%$ independent) because each packet
-carries 128\,B of framing that a delta ledger of a few 64\,B records
-undercuts, and it \emph{wins} decisively on dense global updates
-($-87.1\%$) because one packet replaces thousands of records. The
-tree's 5\% closure gate passes pooled but fails on two of three
-families. The honest conclusion is a conditional decision rule, not a
-centerpiece: use grouped certificate layouts when update sets are
-dense relative to the registry (the global coupling regime, or
-whole-epoch re-verification), use flat delta ledgers when updates are
-sparse, and select between them by the measured density of the
-workload---the same density signal the layout's own training half
-already observes. HACT therefore leaves the paper's title and center;
-Sections~\ref{sec:compiler}--\ref{sec:eval} retain the component
-result with its scope labels unchanged.
+\paragraph{Adaptive coordination was evaluated and rejected.} The
+demand-driven eviction variant (\texttt{frontier-adaptive}) matches
+frontier's acceptance (84/84) and audit cleanliness, but its regime-O
+reduction versus plain frontier is $\RetwoAdaptiveReduction{}$
+(promotion gate $\ge$10\%): the frozen use-clock rule evicts almost
+nothing the base frontier does not already evict, because the base
+exemptions (working set, obligations, footprint) already cover nearly
+everything the use clock would keep. Per the frozen closure it is
+\RetwoAdaptivePromotable{}, and the manuscript's mechanism carries no
+adaptive component. This is the paper's second honest negative after
+v1's byte-regime null result, and it was decided by a pre-registered
+gate, not by narrative preference.
+
+\paragraph{The scheduler factor is cleanly separated.} The full
+factorial confirms byte-neutrality by design: the scheduler main effect
+on regime-B bytes is \RetwoSEffectOnBytes{} of the grand mean (leak
+threshold 1\%; attribution closure \RetwoAttributionClosure{}), while
+the makespan interaction is large---adaptive batching cuts makespan
+rounds by \RetwoMakespanReduction{} (24{,}471 to 3{,}070 rounds/run
+pooled). Factor contrasts, not arm pairs, carry this claim: every
+$R\times S$ combination was run in every cell.
 
 \begin{table}[t]\centering\small
-\caption{Frontier retirement versus observation masking, per family
-(pooled over sizes and seeds). Bytes are per run; the ops column is the
-reduction in on-demand retrieval operations. Global coupling leaves no
-gap: every read is a current fact for both arms.}\label{tab:retire-fm}
+\caption{Family strata at $S=\mathrm{fixed}$: regime-B bytes and
+regime-O cost per accepted run, and retrieval operations per accepted
+run, masking versus frontier. Global coupling leaves no operations gap
+(every read is a current fact); the operations advantage concentrates
+where reads cross the frontier.}\label{tab:retire2-stratum}
 \begin{tabularx}{\linewidth}{@{}l r r r r r@{}}\toprule
-Family & Masking B/run & Frontier B/run & Ops reduction & Masking ops & Frontier ops\\\midrule
-\FmClusteredRow
-\FmIndependentRow
-\FmGlobalRow
+Family & Masking B/run & Frontier B/run & Regime-O cut & Masking ops & Frontier ops\\\midrule
+\RetwoStratumClusteredRow
+\RetwoStratumIndependentRow
+\RetwoStratumGlobalRow
 \bottomrule\end{tabularx}\end{table}
 
+\paragraph{The operations advantage persists at four times the
+horizon.} In the long-horizon sub-cohort ($n=1{,}024$, 160 episodes),
+frontier cuts retrieval operations by \RetwoLongOpsReduction{} and
+regime-O cost by \RetwoLongCostOReduction{} versus masking at equal
+acceptance (63/63), while regime-B bytes remain within a few percent.
+The advantage does not decay with horizon; if anything the clustered
+stratum widens (66.5\%$\to$61.9\% operations cut at the pooled gate,
+but 42.5\% regime-O reduction versus 39.8\% at the short horizon).
+
 \begin{table}[t]\centering\small
-\caption{Held-out evidence-layout ablation (second half of each
-stream; order learned on the first half). The flat steel-man is the
-better of full and delta export at identical 64\,B record cost.
-Positive is a penalty for the tree.}\label{tab:retire-evidence}
+\caption{Long-horizon sub-cohort ($n=1{,}024$, 160 episodes, seven
+seeds, $S=\mathrm{fixed}$). Ops and costs are per accepted run. The
+operations advantage persists at $4\times$ horizon; bytes stay
+comparable.}\label{tab:retire2-long}
+\begin{tabularx}{\linewidth}{@{}l l r r r r@{}}\toprule
+Family & Policy & Accepted & Ops/run & Regime-O B/run & Regime-B B/run\\\midrule
+\RetwoLongClusteredmaskingRow
+\RetwoLongClusteredfrontierRow
+\RetwoLongClusteredfrontieradaptiveRow
+\RetwoLongIndependentmaskingRow
+\RetwoLongIndependentfrontierRow
+\RetwoLongIndependentfrontieradaptiveRow
+\RetwoLongGlobalmaskingRow
+\RetwoLongGlobalfrontierRow
+\RetwoLongGlobalfrontieradaptiveRow
+\bottomrule\end{tabularx}\end{table}
+
+\paragraph{HACT remains a conditional component, now with a decision
+rule that costs nothing.} The evidence-layout ablation (held-out half,
+order learned on the training half, flat steel-man at identical record
+cost) reproduces v1's shape at the new scale: the learned tree wins
+the dense global stratum (169{,}408 vs 1{,}936{,}704 held-out B/cell,
+an 87.1\% cut) and loses the sparse strata. The frozen density
+rule---select the tree iff measured training-half update density
+$\ge$0.5---matches the per-cell oracle on every one of the 84 cells
+(\RetwoDensityRegret{} regret). HACT therefore stays what v1's closure
+made it: a conditional serialization component with an observable
+selection signal, not the paper's center. Sections~\ref{sec:compiler}
+--\ref{sec:eval} retain the component development with its scope
+labels unchanged.
+
+\begin{table}[t]\centering\small
+\caption{Evidence-layout ablation by family (pooled over sizes and
+seeds; held-out half). The density rule picks the tree exactly when it
+wins.}\label{tab:retire2-evidence}
 \begin{tabularx}{\linewidth}{@{}l r r r@{}}\toprule
-Family & Flat steel-man B/run & HACT tree B/run & Difference\\\midrule
-\EvClusteredRow
-\EvIndependentRow
-\EvGlobalRow
+Family & Flat B/cell & HACT B/cell & Tree delta\\\midrule
+\RetwoEvClusteredRow
+\RetwoEvIndependentRow
+\RetwoEvGlobalRow
 \bottomrule\end{tabularx}\end{table}
 
-\subsection{What this study cannot establish}\label{sec:retire-limits}
-The engine models information flow, not cognition. A real agent under
-observation masking may behave differently than a byte-optimal
-retriever; a real summary may retain obligations better or worse than
-the seeded 50\% boundary survival; real payloads are not lognormal.
-The staleness and obligation-loss results are structural consequences
-of each policy's retention mechanism, which is exactly why they were
-worth measuring at mechanism level: they are the failure modes the
-live cohort must confirm before any productivity claim. Byte numbers
-are lower bounds on nothing; they are the frozen accounting of a
-frozen model. No hosted model was called; no token or billing claim is
-made; the BPE and physical-WAN gaps of Section~\ref{sec:eval} remain
-open. The cohort's value is that its three closure rules fired on
-pre-registered thresholds, two against our own proposal, and the
-manuscript reports the survivors rather than the survivors we hoped
-for.
+\subsection{What the mechanism study does and does not
+establish}\label{sec:retire-limits}
+The conversion rule and the regime-conditional payoff are structural
+predictions about policies, not measurements of agents. The audit
+checks a policy's capsule against stream ground truth in a
+deterministic engine; a live agent's summaries, retrievals, and
+obligations are not instrumented by it. The $4{,}096$\,B
+round-trip constant is a frozen accounting choice, not a measured
+latency; the sensitivity range brackets it but does not replace a live
+measurement. Byte numbers are the frozen accounting of a frozen model
+of information flow; no hosted model was called, no token or billing
+claim is made, and the BPE and physical-WAN gaps of
+Section~\ref{sec:eval} remain open. The live cohort of
+Section~\ref{sec:live-protocol} pre-registers operations as its
+primary cost measure precisely because that is where the mechanism
+result predicts the payoff.
