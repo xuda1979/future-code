@@ -56,11 +56,16 @@ export function validateContract(c: Contract): void {
   positive(c.limits.tasks, 100_000, "task ceiling");
 }
 export function validateRecipe(c: Contract, p: Recipe): void {
-  exactKeys(p, ["parallelism", "attempts", "contextBytes", "timeoutMs"], ["priorityContextShare"]);
+  exactKeys(p, ["parallelism", "attempts", "contextBytes", "timeoutMs"], ["priorityContextShare", "scheduling", "maxInFlightContextBytes", "noProgressMs", "maxRepeatedFailures"]);
   for (const k of ["parallelism", "attempts", "contextBytes", "timeoutMs"] as const) positive(p[k], c.limits[k], k);
   if (p.priorityContextShare !== undefined) {
     invariant(typeof p.priorityContextShare === "number" && Number.isFinite(p.priorityContextShare) && p.priorityContextShare >= 0 && p.priorityContextShare <= 1, "invalid priorityContextShare");
   }
+  invariant(p.scheduling === undefined || ["priority", "critical-path"].includes(p.scheduling), "invalid scheduling");
+  if (p.maxInFlightContextBytes !== undefined) positive(p.maxInFlightContextBytes,
+    c.limits.parallelism * c.limits.contextBytes, "in-flight context ceiling");
+  if (p.noProgressMs !== undefined) positive(p.noProgressMs, p.timeoutMs, "no-progress deadline");
+  if (p.maxRepeatedFailures !== undefined) positive(p.maxRepeatedFailures, p.attempts, "repeated failure limit");
 }
 export function validateTasks(c: Contract, tasks: Task[]): void {
   invariant(Array.isArray(tasks), "tasks must be an array");
@@ -73,12 +78,24 @@ export function validateTasks(c: Contract, tasks: Task[]): void {
     invariant(Array.isArray(t.acceptance) && t.acceptance.length > 0 && t.acceptance.every(s => typeof s === "string" && !!s.trim()), "missing acceptance conditions");
     invariant(Array.isArray(t.dependencies) && new Set(t.dependencies).size === t.dependencies.length, "invalid dependencies");
     invariant(Array.isArray(t.writeScope), "invalid write scopes");
-    for (const p of t.writeScope) {
+    invariant(t.readScope === undefined || Array.isArray(t.readScope), "invalid read scopes");
+    for (const p of [...t.writeScope, ...(t.readScope ?? [])]) {
       invariant(typeof p === "string" && p.length > 0 && !p.includes("\\") && !p.startsWith("/") &&
         !p.includes("\0") && !p.includes(":") && p.split("/").every(x => !!x && x !== "." && x !== "..") &&
         ![".git", ".future-code"].includes(p.split("/")[0]), "unsafe write scope");
     }
     invariant(t.priority === undefined || Number.isFinite(t.priority), "invalid priority");
+    if (t.contextBudget !== undefined) positive(t.contextBudget, c.limits.contextBytes, "task context budget");
+    if (t.estimatedDurationMs !== undefined) positive(t.estimatedDurationMs, c.limits.timeoutMs, "duration estimate");
+    if (t.dependencyViews !== undefined) {
+      invariant(t.dependencyViews !== null && !Array.isArray(t.dependencyViews) && typeof t.dependencyViews === "object", "invalid dependency views");
+      for (const [id, pointers] of Object.entries(t.dependencyViews)) {
+        invariant(t.dependencies.includes(id), "view must name a direct dependency");
+        invariant(Array.isArray(pointers) && pointers.length > 0 && pointers.length <= 256 && new Set(pointers).size === pointers.length, "invalid dependency view pointers");
+        for (const pointer of pointers) invariant(typeof pointer === "string" && pointer.length <= 2048 &&
+          (pointer === "" || pointer.startsWith("/")) && !/~(?![01])/.test(pointer), "invalid JSON pointer");
+      }
+    }
   }
   // Kahn's algorithm avoids recursion limits on large DAGs.
   const degree = new Map<string, number>();
@@ -116,7 +133,7 @@ export function combineMeasurements(a: Measurement, b: Measurement): Measurement
     costUsd: a.costUsd === null || b.costUsd === null ? null : a.costUsd + b.costUsd,
   };
 }
-export function verdict(c: Contract, artifact: Json, v: Verification, metrics: Measurement & { durationMs: number }): Verdict {
+export function verdict(c: Contract, artifact: Json, v: Verification, metrics: Measurement & { durationMs: number; progressDensity?: number }): Verdict {
   if (v.artifactHash !== digest(artifact) || !Array.isArray(v.checks)) return "INVALID";
   const map = new Map<string, Verdict>();
   for (const check of v.checks) {
@@ -129,7 +146,7 @@ export function verdict(c: Contract, artifact: Json, v: Verification, metrics: M
   if (required.includes("UNKNOWN")) return "UNKNOWN";
   for (const s of c.slos) {
     const n = metrics[s.metric];
-    if (n === null || !Number.isFinite(n)) return "UNKNOWN";
+    if (n == null || !Number.isFinite(n)) return "UNKNOWN";
     if (n < 0) return "INVALID";
     if (s.maximum !== undefined && n > s.maximum) return "FAIL";
     if (s.minimum !== undefined && n < s.minimum) return "FAIL";
@@ -162,7 +179,7 @@ export function progressDensity(accepted: number, contextBytes: number): number 
  *  budget and low-priority tasks get a reduced budget, keeping the average
  *  at contextBytes. This ensures each agent gets enough — but not excessive —
  *  context for its decision problem. */
-export function allocateContext(tasks: Task[], recipe: Recipe): Map<string, number> {
+export function allocateContext(tasks: Task[], recipe: Recipe, ceiling = recipe.contextBytes * 2): Map<string, number> {
   const budget = new Map<string, number>();
   const share = recipe.priorityContextShare ?? 0;
   const base = recipe.contextBytes;
@@ -171,7 +188,7 @@ export function allocateContext(tasks: Task[], recipe: Recipe): Map<string, numb
   // Tasks with explicit contextBudget use it directly (capped to contract limit).
   for (const t of tasks) {
     if (t.contextBudget !== undefined) {
-      budget.set(t.id, Math.min(t.contextBudget, base * 2));
+      budget.set(t.id, Math.min(t.contextBudget, base * 2, ceiling));
     }
   }
   const remaining = tasks.filter(t => t.contextBudget === undefined);
@@ -179,17 +196,17 @@ export function allocateContext(tasks: Task[], recipe: Recipe): Map<string, numb
 
   if (share === 0 || remaining.every(t => (t.priority ?? 0) === (remaining[0].priority ?? 0))) {
     // Equal allocation: every task gets the base budget.
-    for (const t of remaining) budget.set(t.id, base);
+    for (const t of remaining) budget.set(t.id, Math.min(base, ceiling));
     return budget;
   }
 
   // Priority-weighted allocation: high-priority tasks get share*2 multiplier,
   // low-priority tasks get (1-share) multiplier, keeping average ≈ base.
   const sorted = [...remaining].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-  const topCount = Math.max(1, Math.floor(sorted.length * share));
+  const topCount = Math.min(sorted.length - 1, Math.max(1, Math.floor(sorted.length * share)));
   for (let i = 0; i < sorted.length; i++) {
     const multiplier = i < topCount ? 1 + share : 1 - share * (topCount / (sorted.length - topCount || 1));
-    budget.set(sorted[i].id, Math.max(1, Math.floor(base * multiplier)));
+    budget.set(sorted[i].id, Math.min(ceiling, Math.max(1, Math.floor(base * multiplier))));
   }
   return budget;
 }

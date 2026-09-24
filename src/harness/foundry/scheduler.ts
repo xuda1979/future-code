@@ -1,71 +1,103 @@
 import { randomUUID } from "node:crypto";
 import { Store } from "./store.ts";
-import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, allocateContext, progressDensity } from "./kernel.ts";
-import type { Capsule, Json, Lease, Measurement, RunSummary, Task } from "./types.ts";
+import { digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
+import { accessConflicts, compilePlan, projectDependency } from "./productivity.ts";
+import type { Capsule, FailureOptions, Json, Lease, Measurement, Recipe, RunSummary, Task } from "./types.ts";
 
 export class Scheduler {
   readonly store: Store;
+  // Only immutable task specifications are cached. Lease/status state is always
+  // re-read inside BEGIN IMMEDIATE, including when another process claims work.
+  private cachedPlan?: { runId: string; recipeHash: string; plan: ReturnType<typeof compilePlan> };
   constructor(store: Store) { this.store = store; }
+  private plan(runId: string, recipeHash: string, recipe: Recipe, rows?: Record<string, unknown>[]) {
+    if (this.cachedPlan?.runId === runId && this.cachedPlan.recipeHash === recipeHash) return this.cachedPlan.plan;
+    const tasks: Task[] = (rows ?? this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(runId)).map(t => {
+      invariant(typeof t.spec === "string", "missing persisted task specification");
+      return JSON.parse(t.spec) as Task;
+    });
+    const plan = compilePlan(tasks, recipe, this.store.contract().limits.contextBytes);
+    this.cachedPlan = { runId, recipeHash, plan }; return plan;
+  }
   start(tasks: Task[], recipeHash = this.store.active(), now = Date.now()): string {
-    const contract = this.store.contract(); validateTasks(contract, tasks); this.store.recipe(recipeHash);
+    const contract = this.store.contract(); validateTasks(contract, tasks);
+    // Reject an impossible reservation before creating a permanently idle run.
+    compilePlan(tasks, this.store.recipe(recipeHash), contract.limits.contextBytes);
     const id = randomUUID();
     this.store.transaction(() => {
       this.store.db.prepare("INSERT INTO runs(id,recipe,contract,started,status) VALUES(?,?,?,?, 'RUNNING')").run(id, recipeHash, digest(contract), now);
-      for (const task of tasks) this.store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')").run(id, task.id, JSON.stringify(task));
+      const insert = this.store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')");
+      for (const task of tasks) insert.run(id, task.id, JSON.stringify(task));
       this.store.event("run.started", { recipeHash, contractHash: digest(contract), taskCount: tasks.length, taskHash: digest(tasks) }, id);
     });
     return id;
   }
-  /** Claim, expiry, scope locks, and attempt accounting form one transaction. */
+  /** Backward-compatible single claim; all reservations share the batch path. */
   claim(runId: string, owner: string, now = Date.now()): Lease | null {
-    invariant(owner.length > 0, "missing owner");
+    return this.claimMany(runId, owner, 1, now)[0] ?? null;
+  }
+  /** One durable transaction per refill, not one DAG parse/commit per agent.
+   *  There are no wave barriers: a finishing agent immediately frees a slot. */
+  claimMany(runId: string, owner: string, limit: number, now = Date.now()): Lease[] {
+    invariant(typeof owner === "string" && owner.length > 0, "missing owner");
+    invariant(Number.isSafeInteger(limit) && limit > 0 && limit <= 256, "invalid claim batch size");
     return this.store.transaction(() => {
       const run = this.store.db.prepare("SELECT * FROM runs WHERE id=?").get(runId); invariant(run, "unknown run");
-      if (run.status !== "RUNNING") return null;
+      if (run.status !== "RUNNING") return [];
       invariant(run.contract === digest(this.store.contract()), "run contract drift");
       const recipe = this.store.recipe(run.recipe);
-      let rows = this.store.db.prepare("SELECT * FROM tasks WHERE run=?").all(runId);
+      const rows = this.store.db.prepare("SELECT * FROM tasks WHERE run=?").all(runId);
+      const plan = this.plan(runId, run.recipe, recipe, rows);
+      const byId = new Map(rows.map(t => [t.id as string, t]));
       for (const t of rows.filter(t => t.status === "RUNNING" && t.deadline <= now)) {
-        this.store.db.prepare("UPDATE attempts SET status='EXPIRED',ended=?,duration=? WHERE run=? AND task=? AND fence=? AND status='RUNNING'").run(now, Math.max(0, now - (t.deadline - recipe.timeoutMs)), runId, t.id, t.fence);
-        this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error='lease expired' WHERE run=? AND id=?").run(t.fence >= recipe.attempts ? "FAIL" : "READY", runId, t.id);
+        const attempt = this.store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(runId, t.id, t.fence)!;
+        this.store.db.prepare("UPDATE attempts SET status='EXPIRED',ended=?,duration=? WHERE run=? AND task=? AND fence=? AND status='RUNNING'").run(now, Math.max(0, now - attempt.started), runId, t.id, t.fence);
+        t.status = t.fence >= recipe.attempts ? "FAIL" : "READY";
+        this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error='lease expired' WHERE run=? AND id=?").run(t.status, runId, t.id);
         this.store.event("lease.expired", { fence: t.fence }, runId, t.id);
       }
-      // Propagate terminal dependency failure all the way through the DAG.
-      let changed = true;
-      while (changed) {
-        changed = false; rows = this.store.db.prepare("SELECT * FROM tasks WHERE run=?").all(runId);
-        const states = new Map(rows.map(t => [t.id, t.status]));
-        for (const t of rows.filter(t => t.status === "READY")) {
-          const spec: Task = JSON.parse(t.spec);
-          if (spec.dependencies.some(d => ["FAIL", "BLOCKED"].includes(states.get(d)!))) {
-            this.store.db.prepare("UPDATE tasks SET status='BLOCKED',error='dependency failed' WHERE run=? AND id=?").run(runId, t.id);
-            this.store.event("task.blocked", { reason: "dependency failed" }, runId, t.id); changed = true;
-          }
-        }
-      }
-      rows = this.store.db.prepare("SELECT * FROM tasks WHERE run=?").all(runId);
-      const running = rows.filter(t => t.status === "RUNNING");
-      if (running.length >= recipe.parallelism) return null;
-      const states = new Map(rows.map(t => [t.id, t.status]));
-      const scopes = running.map(t => (JSON.parse(t.spec) as Task).writeScope);
-      const ready = rows.filter(t => t.status === "READY").sort((a, b) =>
-        ((JSON.parse(b.spec) as Task).priority ?? 0) - ((JSON.parse(a.spec) as Task).priority ?? 0) || a.id.localeCompare(b.id));
-      for (const t of ready) {
-        const task: Task = JSON.parse(t.spec);
-        if (!task.dependencies.every(d => states.get(d) === "PASS") || scopes.some(s => conflicts(s, task.writeScope))) continue;
-        const fence = t.fence + 1; const deadline = now + recipe.timeoutMs;
-        this.store.db.prepare("UPDATE tasks SET status='RUNNING',fence=?,owner=?,deadline=?,error=NULL WHERE run=? AND id=?").run(fence, owner, deadline, runId, t.id);
-        this.store.db.prepare("INSERT INTO attempts(run,task,fence,started,status) VALUES(?,?,?,?,'RUNNING')").run(runId, t.id, fence, now);
-        this.store.event("task.claimed", { owner, fence, deadline }, runId, t.id);
-        return { runId, taskId: t.id, owner, fence, deadline, recipeHash: run.recipe, contractHash: run.contract };
+      // Linear failure propagation, rather than repeated full SQL rescans for
+      // each level of a deep failed dependency chain.
+      const failed = rows.filter(t => t.status === "FAIL" || t.status === "BLOCKED").map(t => t.id as string);
+      for (let i = 0; i < failed.length; i++) for (const id of plan.children.get(failed[i]) ?? []) {
+        const child = byId.get(id)!;
+        if (child.status !== "READY") continue;
+        child.status = "BLOCKED"; failed.push(id);
+        this.store.db.prepare("UPDATE tasks SET status='BLOCKED',error='dependency failed' WHERE run=? AND id=?").run(runId, id);
+        this.store.event("task.blocked", { reason: "dependency failed" }, runId, id);
       }
       if (rows.every(t => ["PASS", "FAIL", "BLOCKED"].includes(t.status))) {
         const status = rows.length > 0 && rows.every(t => t.status === "PASS") ? "PASS" : "FAIL";
         this.store.db.prepare("UPDATE runs SET status=?,ended=? WHERE id=?").run(status, now, runId);
-        this.store.event("run.finished", { status }, runId);
+        this.store.event("run.finished", { status }, runId); return [];
       }
-      return null;
+      const running = rows.filter(t => t.status === "RUNNING");
+      const capacity = Math.min(limit, recipe.parallelism - running.length);
+      if (capacity <= 0) return [];
+      const active = running.map(t => plan.byId.get(t.id)!);
+      let reserved = active.reduce((n, task) => n + plan.budgets.get(task.id)!, 0);
+      const leases: Lease[] = [];
+      for (const task of plan.order) {
+        const row = byId.get(task.id)!;
+        if (row.status !== "READY" || !task.dependencies.every(d => byId.get(d)!.status === "PASS") ||
+            active.some(other => accessConflicts(task, other))) continue;
+        const budget = plan.budgets.get(task.id)!;
+        if (recipe.maxInFlightContextBytes !== undefined && reserved + budget > recipe.maxInFlightContextBytes) continue;
+        const fence = row.fence + 1; const deadline = now + recipe.timeoutMs;
+        this.store.db.prepare("UPDATE tasks SET status='RUNNING',fence=?,owner=?,deadline=?,error=NULL WHERE run=? AND id=?").run(fence, owner, deadline, runId, task.id);
+        this.store.db.prepare("INSERT INTO attempts(run,task,fence,started,status) VALUES(?,?,?,?,'RUNNING')").run(runId, task.id, fence, now);
+        this.store.event("task.claimed", { owner, fence, deadline, reservedContextBytes: budget,
+          criticalPathEstimate: plan.ranks.get(task.id) ?? null }, runId, task.id);
+        leases.push({ runId, taskId: task.id, owner, fence, deadline, recipeHash: run.recipe, contractHash: run.contract });
+        active.push(task); reserved += budget; row.status = "RUNNING";
+        if (leases.length >= capacity) break;
+      }
+      return leases;
     });
+  }
+  status(runId: string): RunSummary["status"] {
+    const row = this.store.db.prepare("SELECT status FROM runs WHERE id=?").get(runId);
+    invariant(row, "unknown run"); return row.status;
   }
   private current(lease: Lease, now: number): boolean {
     const t = this.store.db.prepare("SELECT * FROM tasks WHERE run=? AND id=?").get(lease.runId, lease.taskId);
@@ -80,16 +112,36 @@ export class Scheduler {
     const dependencies = task.dependencies.map(id => {
       const dep = this.store.db.prepare("SELECT status,artifact FROM tasks WHERE run=? AND id=?").get(lease.runId, id);
       invariant(dep?.status === "PASS" && dep.artifact, "unverified dependency");
-      return { taskId: id, artifactHash: dep.artifact as string, artifact: this.store.readArtifact(dep.artifact) };
+      const source = this.store.readArtifact(dep.artifact);
+      const pointers = task.dependencyViews && Object.hasOwn(task.dependencyViews, id) ? task.dependencyViews[id] : undefined;
+      if (!pointers) return { taskId: id, artifactHash: dep.artifact as string, artifact: source };
+      const artifact = projectDependency(source, pointers);
+      return { taskId: id, artifactHash: dep.artifact as string, artifact, view: { pointers, hash: digest(artifact) } };
     });
     const capsule: Capsule = { schema: 1, runId: lease.runId, task, contractHash: lease.contractHash, recipeHash: lease.recipeHash, fence: lease.fence, dependencies };
     // Use per-task context budget when available, falling back to recipe default.
     const recipe = this.store.recipe(lease.recipeHash);
-    const allTasks: Task[] = this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(lease.runId).map(r => JSON.parse(r.spec));
-    const budgets = allocateContext(allTasks, recipe);
+    const budgets = this.plan(lease.runId, lease.recipeHash, recipe).budgets;
     const taskBudget = budgets.get(lease.taskId) ?? recipe.contextBytes;
-    encodeCapsule(capsule, taskBudget);
+    const text = encodeCapsule(capsule, Math.min(taskBudget, this.store.contract().limits.contextBytes));
+    this.store.transaction(() => {
+      invariant(this.current(lease, Date.now()), "stale lease");
+      this.store.db.prepare(`INSERT INTO attempt_telemetry(run,task,fence,context_bytes) VALUES(?,?,?,?)
+        ON CONFLICT(run,task,fence) DO UPDATE SET context_bytes=excluded.context_bytes`)
+        .run(lease.runId, lease.taskId, lease.fence, Buffer.byteLength(text, "utf8"));
+    });
     return capsule;
+  }
+  /** Progress changes liveness only; it can never release dependencies. */
+  progress(lease: Lease, fingerprint: string, now = Date.now()): boolean {
+    return this.store.transaction(() => {
+      if (!this.current(lease, now)) return false;
+      this.store.db.prepare(`INSERT INTO attempt_telemetry(run,task,fence,progress_count,last_progress_at) VALUES(?,?,?,1,?)
+        ON CONFLICT(run,task,fence) DO UPDATE SET progress_count=progress_count+1,last_progress_at=excluded.last_progress_at`)
+        .run(lease.runId, lease.taskId, lease.fence, now);
+      this.store.event("attempt.progress", { fence: lease.fence, fingerprint: digest(fingerprint) }, lease.runId, lease.taskId);
+      return true;
+    });
   }
   /** Only the trusted runtime calls finish after independent verification. */
   finish(lease: Lease, artifact: Json, evidence: Json, measurement: Measurement, now = Date.now()): boolean {
@@ -110,17 +162,27 @@ export class Scheduler {
       this.store.event("task.accepted", { fence: lease.fence, artifactHash, evidenceHash }, lease.runId, lease.taskId); return true;
     });
   }
-  fail(lease: Lease, reason: string, measurement: Measurement = { tokens: null, costUsd: null }, now = Date.now()): boolean {
+  fail(lease: Lease, reason: string, measurement: Measurement = { tokens: null, costUsd: null }, now = Date.now(), options: FailureOptions = {}): boolean {
     validMeasurement(measurement);
     return this.store.transaction(() => {
       // An expired lease is reclaimed by claim(); do not overwrite a new owner.
       if (!this.current(lease, now)) { this.store.event("failure.stale", { fence: lease.fence, reason }, lease.runId, lease.taskId); return false; }
       const recipe = this.store.recipe(lease.recipeHash);
       const a = this.store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(lease.runId, lease.taskId, lease.fence)!;
-      const status = lease.fence >= recipe.attempts ? "FAIL" : "READY";
+      const fingerprint = digest(options.fingerprint ?? reason.slice(0, 4096));
+      this.store.db.prepare(`INSERT INTO attempt_telemetry(run,task,fence,failure_fingerprint) VALUES(?,?,?,?)
+        ON CONFLICT(run,task,fence) DO UPDATE SET failure_fingerprint=excluded.failure_fingerprint`)
+        .run(lease.runId, lease.taskId, lease.fence, fingerprint);
+      let repeated = 0;
+      const previous = this.store.db.prepare(`SELECT m.failure_fingerprint FROM attempts a LEFT JOIN attempt_telemetry m
+        ON a.run=m.run AND a.task=m.task AND a.fence=m.fence WHERE a.run=? AND a.task=? ORDER BY a.fence DESC`)
+        .all(lease.runId, lease.taskId);
+      for (const prior of previous) { if (prior.failure_fingerprint !== fingerprint) break; repeated++; }
+      const exhausted = recipe.maxRepeatedFailures !== undefined && repeated >= recipe.maxRepeatedFailures;
+      const status = options.retryable === false || exhausted || lease.fence >= recipe.attempts ? "FAIL" : "READY";
       this.store.db.prepare("UPDATE attempts SET status='FAIL',ended=?,duration=?,tokens=?,cost=? WHERE run=? AND task=? AND fence=?").run(now, Math.max(0, now - a.started), measurement.tokens, measurement.costUsd, lease.runId, lease.taskId, lease.fence);
       this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error=? WHERE run=? AND id=?").run(status, reason.slice(0, 4096), lease.runId, lease.taskId);
-      this.store.event("task.failed", { fence: lease.fence, reason: reason.slice(0, 4096), retry: status === "READY" }, lease.runId, lease.taskId); return true;
+      this.store.event("task.failed", { fence: lease.fence, reason: reason.slice(0, 4096), retry: status === "READY", repeated, fingerprint }, lease.runId, lease.taskId); return true;
     });
   }
   summary(id: string, now = Date.now()): RunSummary {

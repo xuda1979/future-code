@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import { mkdtempSync, readFileSync, rmSync, realpathSync, existsSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { canonical, digest, invariant, sha256 } from "./kernel.ts";
-import type { Capsule, CommandSpec, Driver, PinnedCommand, Verification, WorkerResult } from "./types.ts";
+import type { AttemptControl, Capsule, CommandSpec, Driver, PinnedCommand, Verification, WorkerResult } from "./types.ts";
 
 export function pinCommand(spec: CommandSpec, base: string): PinnedCommand {
   invariant(Array.isArray(spec.argv) && spec.argv.length > 0 && spec.argv.every(s => typeof s === "string" && !s.includes("\0")), "invalid command argv");
@@ -35,7 +36,7 @@ export function checkPins(command: PinnedCommand): void {
 export function commandVerifierId(command: PinnedCommand): string { return digest(command); }
 
 /** Non-shell, bounded subprocess adapter. Private cwd is NOT an OS sandbox. */
-export async function invoke(command: PinnedCommand, input: unknown, maxBytes: number, signal: AbortSignal): Promise<unknown> {
+export async function invoke(command: PinnedCommand, input: unknown, maxBytes: number, signal: AbortSignal, control?: AttemptControl): Promise<unknown> {
   checkPins(command);
   invariant(!signal.aborted, "command cancelled");
   const payload = canonical(input);
@@ -50,6 +51,21 @@ export async function invoke(command: PinnedCommand, input: unknown, maxBytes: n
         cwd, env, shell: false, detached: process.platform !== "win32", windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
       });
       const stdout: Buffer[] = []; const stderr: Buffer[] = []; let bytes = 0; let failure: Error | null = null; let settled = false;
+      const decoder = new StringDecoder("utf8"); let progressBuffer = "";
+      const reportProgress = (chunk: Buffer, final = false) => {
+        if (!control) return;
+        progressBuffer += final ? decoder.end() : decoder.write(chunk);
+        const lines = progressBuffer.split("\n"); progressBuffer = lines.pop()!;
+        if (final && progressBuffer) { lines.push(progressBuffer); progressBuffer = ""; }
+        for (const line of lines) {
+          if (!line.startsWith("FUTURE_CODE_PROGRESS ")) continue;
+          invariant(Buffer.byteLength(line, "utf8") <= 1024, "progress record exceeds byte budget");
+          const record = JSON.parse(line.slice("FUTURE_CODE_PROGRESS ".length));
+          invariant(record && typeof record.fingerprint === "string" && record.fingerprint.length > 0 &&
+            Buffer.byteLength(record.fingerprint, "utf8") <= 256, "invalid progress record");
+          control.progress(record.fingerprint);
+        }
+      };
       const kill = () => {
         if (!child.pid) return;
         if (process.platform === "win32") {
@@ -64,6 +80,9 @@ export async function invoke(command: PinnedCommand, input: unknown, maxBytes: n
         bytes += chunk.length;
         if (bytes > maxBytes) { failure = new Error("command output exceeded byte budget"); kill(); return; }
         (out ? stdout : stderr).push(Buffer.from(chunk));
+        // Progress still counts against the SAME aggregate output budget.
+        if (!out) try { reportProgress(chunk); }
+        catch (e) { failure = e instanceof Error ? e : new Error(String(e)); kill(); }
       };
       child.stdout.on("data", c => collect(c, true)); child.stderr.on("data", c => collect(c, false));
       signal.addEventListener("abort", abort, { once: true }); if (signal.aborted) abort();
@@ -74,6 +93,8 @@ export async function invoke(command: PinnedCommand, input: unknown, maxBytes: n
       child.on("error", e => done(e));
       child.stdin.on("error", e => { if ((e as NodeJS.ErrnoException).code !== "EPIPE") { failure = e; kill(); } });
       child.on("close", code => {
+        if (!failure) try { reportProgress(Buffer.alloc(0), true); }
+        catch (e) { failure = e instanceof Error ? e : new Error(String(e)); }
         if (failure) return done(failure);
         if (code !== 0) return done(new Error(`command exit ${code}: ${Buffer.concat(stderr).toString("utf8").slice(-4096)}`));
         try { done(null, JSON.parse(Buffer.concat(stdout).toString("utf8"))); }
@@ -94,16 +115,16 @@ export class CommandDriver implements Driver {
     this.worker = worker; this.checker = checker; this.maxBytes = maxBytes;
     this.verifierId = commandVerifierId(checker); this.workerId = digest(worker);
   }
-  async execute(capsule: Capsule, signal: AbortSignal): Promise<WorkerResult> {
-    const value = await invoke(this.worker, { kind: "execute", capsule }, this.maxBytes, signal) as WorkerResult;
+  async execute(capsule: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult> {
+    const value = await invoke(this.worker, { kind: "execute", capsule }, this.maxBytes, signal, control) as WorkerResult;
     invariant(value && Object.hasOwn(value, "artifact"), "missing worker artifact");
     canonical(value.artifact);
     // Ignore usage reported by the child. A trusted provider adapter must meter
     // tokens and money separately; zero is not a substitute for missing data.
     return { artifact: value.artifact, measurement: { tokens: null, costUsd: null } };
   }
-  async verify(capsule: Capsule, result: WorkerResult, signal: AbortSignal): Promise<Verification> {
-    const value = await invoke(this.checker, { kind: "verify", capsule, artifact: result.artifact, artifactHash: digest(result.artifact) }, this.maxBytes, signal) as Verification;
+  async verify(capsule: Capsule, result: WorkerResult, signal: AbortSignal, control?: AttemptControl): Promise<Verification> {
+    const value = await invoke(this.checker, { kind: "verify", capsule, artifact: result.artifact, artifactHash: digest(result.artifact) }, this.maxBytes, signal, control) as Verification;
     invariant(value && Array.isArray(value.checks), "missing verifier evidence");
     return { artifactHash: value.artifactHash, checks: value.checks, measurement: { tokens: null, costUsd: null } };
   }

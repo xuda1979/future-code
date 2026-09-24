@@ -28,6 +28,14 @@ export interface Recipe {
    *  0 means equal allocation; 0.7 means top-priority tasks get 70% of
    *  the context budget. Defaults to 0 (equal allocation). */
   priorityContextShare?: number;
+  /** Explicit opt-in: old recipe hashes retain priority-first scheduling. */
+  scheduling?: "priority" | "critical-path";
+  /** Sum of reserved capsule budgets, not provider token usage or RAM. */
+  maxInFlightContextBytes?: number;
+  /** Idle deadline for adapters that report distinct progress fingerprints. */
+  noProgressMs?: number;
+  /** Stop consecutive identical failures; different artifacts remain eligible. */
+  maxRepeatedFailures?: number;
 }
 export interface Task {
   id: string;
@@ -41,6 +49,13 @@ export interface Task {
   /** Per-task context budget override (bytes). When omitted, the scheduler
    *  allocates from recipe.contextBytes based on relative priority. */
   contextBudget?: number;
+  /** Advisory estimate for critical-path ordering, never an execution deadline. */
+  estimatedDurationMs?: number;
+  /** Optional logical read locks. Concurrent readers are allowed. */
+  readScope?: string[];
+  /** Explicit RFC 6901 projections of direct, verified dependency artifacts.
+   *  Omitted dependencies retain their full output. No automatic truncation. */
+  dependencyViews?: Record<string, string[]>;
 }
 export interface Capsule {
   schema: 1;
@@ -50,7 +65,14 @@ export interface Capsule {
   recipeHash: string;
   fence: number;
   /** Content-addressed, verified outputs. No accumulated conversation history. */
-  dependencies: { taskId: string; artifactHash: string; artifact: Json }[];
+  dependencies: {
+    taskId: string;
+    /** Always the hash of the FULL source artifact, even for a view. */
+    artifactHash: string;
+    artifact: Json;
+    /** A projected artifact is a JSON-pointer-to-value map, not the full source. */
+    view?: { pointers: string[]; hash: string };
+  }[];
 }
 export interface Measurement {
   /** Only the trusted host adapter may fill these; never trust model JSON usage. */
@@ -67,12 +89,21 @@ export interface Verification {
   checks: Check[];
   measurement?: Measurement;
 }
+export interface AttemptControl {
+  /** Host/adapter observation, NOT correctness evidence. Repeats do not renew
+   *  the idle deadline. The hard lease deadline is never extended. */
+  progress(fingerprint: string): void;
+}
+export interface FailureOptions {
+  retryable?: boolean;
+  fingerprint?: string;
+}
 export interface Driver {
   verifierId: string;
   workerId: string;
   /** Honor cancellation. The command adapter kills the child's process group. */
-  execute(capsule: Capsule, signal: AbortSignal): Promise<WorkerResult>;
-  verify(capsule: Capsule, result: WorkerResult, signal: AbortSignal): Promise<Verification>;
+  execute(capsule: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult>;
+  verify(capsule: Capsule, result: WorkerResult, signal: AbortSignal, control?: AttemptControl): Promise<Verification>;
 }
 export interface Lease {
   runId: string;
