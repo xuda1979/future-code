@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "name": "scoped-coding-demo",
+  "project": ".",
+  "baseRef": "HEAD",
+  "defaultAgent": "coder",
+  "agents": {
+    "coder": {
+      "protocol": "chat-completions",
+      "url": "http://127.0.0.1:8000/v1/chat/completions",
+      "model": "YOUR_DEPLOYED_MODEL_ID",
+      "system": "Implement only the assigned task. Read relevant scoped files, make the smallest correct patch, run the configured named check, and finish with a concise summary. Acceptance belongs to the independent verifier. Do not invent file contents or read credentials.",
+      "tools": ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall"],
+      "checks": ["behavior"]
+    }
+  },
+  "checks": {
+    "behavior": {
+      "argv": ["$NODE", "./examples/swarm/verify-demo.mjs"],
+      "files": ["./examples/swarm/verify-demo.mjs"],
+      "replaySafe": true
+    }
+  },
+  "integrationChecks": ["behavior"],
+  "protectedPaths": ["package.json", "bun.lock", "examples/swarm/verify-demo.mjs", "examples/swarm/spec.json"],
+  "limits": { "parallelism": 16, "attempts": 3, "contextBytes": 65536, "outputBytes": 32768, "timeoutMs": 600000, "tasks": 1000 },
+  "recipe": { "parallelism": 4, "attempts": 2, "contextBytes": 32768, "timeoutMs": 300000, "scheduling": "critical-path", "maxInFlightContextBytes": 131072, "maxRepeatedFailures": 2 },
+  "budget": { "maxRequests": 64, "maxRequestBytes": 2097152, "maxTurns": 20, "maxToolCalls": 40, "modelConcurrency": 4,
+    "requestTimeoutMs": 120000, "toolTimeoutMs": 30000, "maxOutputTokens": 2048, "maxToolOutputBytes": 262144, "maxPatchBytes": 262144 }
+}

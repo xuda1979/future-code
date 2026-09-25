@@ -39,6 +39,8 @@ export interface Recipe {
 }
 export interface Task {
   id: string;
+  /** Optional pinned swarm roster member; ignored by generic command drivers. */
+  agent?: string;
   goal: string;
   acceptance: string[];
   dependencies: string[];

@@ -1,3 +1,4 @@
+import { FatalAttemptError } from "./errors.ts";
 import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { canonical, combineMeasurements, digest, invariant, validMeasurement, verdict } from "./kernel.ts";
@@ -74,7 +75,7 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
     const reason = e instanceof Error ? e.message : String(e);
     scheduler.fail(lease, reason, measured, Date.now(), {
       // Retrying the same oversized/invalid capsule cannot repair its contract.
-      retryable: stage !== "prepare" || !!outer?.aborted,
+      retryable: !(e instanceof FatalAttemptError) && (stage !== "prepare" || !!outer?.aborted),
       fingerprint: digest({ stage, reason, artifactHash, verificationHash }),
     });
   }

@@ -50,13 +50,16 @@ export class Store {
   event(kind: string, payload: unknown, run: string | null = null, task: string | null = null): void {
     this.db.prepare("INSERT INTO events(at,kind,run,task,payload) VALUES(?,?,?,?,?)").run(Date.now(), kind, run, task, canonical(payload));
   }
-  initialize(contract: Contract, recipe: Recipe, commands?: { worker: PinnedCommand; checker: PinnedCommand }): string {
+  initialize(contract: Contract, recipe: Recipe, commands?: { worker: PinnedCommand; checker: PinnedCommand }, extensions: Record<string, Json> = {}): string {
     validateContract(contract); validateRecipe(contract, recipe);
+    canonical(extensions);
+    invariant(Object.keys(extensions).every(k => k.startsWith("extension.")), "reserved metadata key");
     if (commands) invariant(digest(commands.worker) === contract.workerId && digest(commands.checker) === contract.verifierId, "adapter identity mismatch");
     return this.transaction(() => {
       invariant(!this.getMeta("contract"), "already initialized; contracts cannot be overwritten");
       const hash = digest(recipe);
       if (commands) this.setMeta("commands", commands);
+      for (const [key, value] of Object.entries(extensions)) this.setMeta(key, value);
       this.setMeta("contract", contract); this.setMeta("contractHash", digest(contract)); this.setMeta("active", hash);
       this.db.prepare("INSERT INTO recipes(hash,parent,json,admitted) VALUES(?,NULL,?,1)").run(hash, canonical(recipe));
       this.event("harness.created", { contractHash: digest(contract), recipeHash: hash }); return hash;
