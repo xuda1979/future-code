@@ -56,6 +56,13 @@ import terminalSetup from './commands/terminalSetup/index.js'
 import usage from './commands/usage/index.js'
 import theme from './commands/theme/index.js'
 import vim from './commands/vim/index.js'
+import goal from './commands/goal/index.js'
+import loop from './commands/loop/index.js'
+import retry from './commands/retry/index.js'
+import save from './commands/save/index.js'
+import load from './commands/load/index.js'
+import watch from './commands/watch/index.js'
+import learn from './commands/learn/index.js'
 import { feature } from 'bun:bundle'
 // Dead code elimination: conditional imports
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -338,6 +345,13 @@ const COMMANDS = memoize((): Command[] => [
   passes,
   ...(peersCmd ? [peersCmd] : []),
   tasks,
+  goal,
+  loop,
+  retry,
+  save,
+  load,
+  watch,
+  learn,
   ...(workflowsCmd ? [workflowsCmd] : []),
   ...(torch ? [torch] : []),
   ...(process.env.USER_TYPE === 'ant' && !process.env.IS_DEMO
