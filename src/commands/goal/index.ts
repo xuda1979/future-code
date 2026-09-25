@@ -8,11 +8,11 @@ const goal: Command = {
   progressMessage: 'Setting session goal',
   contentLength: 200,
   source: 'builtin',
-  getPromptForCommand(args: string) {
+  async getPromptForCommand(args: string) {
     if (!args || !args.trim()) {
-      return `Read the current goal from .future-code/goal.md if it exists. If it exists, summarize the current goal and the progress made so far. If it does not exist, tell the user that no goal has been set yet and suggest they use /goal <description> to set one.`
+      return [{ type: 'text' as const, text: `Read the current goal from .future-code/goal.md if it exists. If it exists, summarize the current goal and the progress made so far. If it does not exist, tell the user that no goal has been set yet and suggest they use /goal <description> to set one.` }]
     }
-    return `The user has set the following goal for this session:
+    return [{ type: 'text' as const, text: `The user has set the following goal for this session:
 
 GOAL: ${args.trim()}
 
@@ -26,7 +26,7 @@ GOAL: ${args.trim()}
 
 3. When the goal is achieved, update .future-code/goal.md to mark status as completed.
 
-4. IMPORTANT: Completing the goal does NOT end the session. After marking a goal as completed, remain fully available for any further instructions, questions, or new tasks the user may have. A completed goal is a milestone, not a termination. Always respond to subsequent user messages normally and helpfully, regardless of whether the current goal is completed, in progress, or no goal is set.`
+4. IMPORTANT: Completing the goal does NOT end the session. After marking a goal as completed, remain fully available for any further instructions, questions, or new tasks the user may have. A completed goal is a milestone, not a termination. Always respond to subsequent user messages normally and helpfully, regardless of whether the current goal is completed, in progress, or no goal is set.` }]
   },
 }
 

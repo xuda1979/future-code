@@ -8,15 +8,15 @@ const load: Command = {
   progressMessage: 'Loading session snapshot',
   contentLength: 300,
   source: 'builtin',
-  getPromptForCommand(args: string) {
+  async getPromptForCommand(args: string) {
     const name = args.trim()
     if (!name) {
-      return `The user invoked /load without a name.
+      return [{ type: 'text' as const, text: `The user invoked /load without a name.
 1. Check the .future-code/snapshots/ directory for existing snapshots.
 2. If snapshots exist, list them with their dates and a brief description.
-3. If no snapshots exist, tell the user that no saved snapshots were found and suggest using /save <name> to create one.`
+3. If no snapshots exist, tell the user that no saved snapshots were found and suggest using /save <name> to create one.` }]
     }
-    return `The user wants to load a previously saved session snapshot.
+    return [{ type: 'text' as const, text: `The user wants to load a previously saved session snapshot.
 
 SNAPSHOT NAME: ${name}
 
@@ -28,7 +28,7 @@ INSTRUCTIONS:
    - Summarize the restored context for the user
    - Resume work from where the snapshot left off
    - If there was an in-progress task, continue it
-   - If there was a blocked task, remind the user of the blocker`
+   - If there was a blocked task, remind the user of the blocker` }]
   },
 }
 

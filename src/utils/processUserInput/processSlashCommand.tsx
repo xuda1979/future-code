@@ -866,7 +866,15 @@ async function getMessagesForPromptSlashCommand(command: CommandBase & PromptCom
       command
     };
   }
-  const result = await command.getPromptForCommand(args, context);
+  const rawResult = await command.getPromptForCommand(args, context);
+  // The PromptCommand contract requires ContentBlockParam[]. Some skills
+  // (legacy / hand-written / plugin-provided) return a plain string instead.
+  // Normalize here rather than crashing with "result.filter is not a
+  // function" — a crash here yields a silent empty response in -p mode
+  // and an unhelpful <local-command-stderr> in the REPL.
+  const result: ContentBlockParam[] = typeof rawResult === 'string'
+    ? [{ type: 'text', text: rawResult }]
+    : rawResult;
 
   // Register skill hooks if defined. Under ["hooks"]-only (skills not locked),
   // user skills still load and reach this point — block hook REGISTRATION here

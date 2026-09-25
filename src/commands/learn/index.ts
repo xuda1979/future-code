@@ -8,10 +8,10 @@ const learn: Command = {
   progressMessage: 'Learning from codebase',
   contentLength: 500,
   source: 'builtin',
-  getPromptForCommand(args: string) {
+  async getPromptForCommand(args: string) {
     const topic = args.trim()
     if (!topic) {
-      return `The user invoked /learn without arguments.
+      return [{ type: 'text' as const, text: `The user invoked /learn without arguments.
 
 INSTRUCTIONS:
 1. Analyze the current project structure, key patterns, and conventions.
@@ -22,10 +22,10 @@ INSTRUCTIONS:
    - Build and deployment setup
    - Coding conventions (naming, error handling, etc.)
 3. Save a summary to .future-code/learned.md
-4. Present the key findings to the user.`
+4. Present the key findings to the user.` }]
     }
 
-    return `The user wants to learn about: ${topic}
+    return [{ type: 'text' as const, text: `The user wants to learn about: ${topic}
 
 INSTRUCTIONS:
 1. Search the codebase for information related to "${topic}".
@@ -38,7 +38,7 @@ INSTRUCTIONS:
    - Common patterns and conventions
    - Gotchas and edge cases
 3. Save the summary to .future-code/learned.md (append if the file exists).
-4. Present the summary to the user, highlighting the most important points.`
+4. Present the summary to the user, highlighting the most important points.` }]
   },
 }
 

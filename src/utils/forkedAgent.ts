@@ -10,6 +10,7 @@
 
 import type { UUID } from 'crypto'
 import { randomUUID } from 'crypto'
+import type { ContentBlockParam } from '@future/sdk/resources'
 import type { PromptCommand } from '../commands.js'
 import type { QuerySource } from '../constants/querySource.js'
 import type { CanUseToolFn } from '../hooks/useCanUseTool.js'
@@ -193,9 +194,14 @@ export async function prepareForkedCommandContext(
   args: string,
   context: ToolUseContext,
 ): Promise<PreparedForkedContext> {
-  // Get skill content with $ARGUMENTS replaced
+  // Get skill content with $ARGUMENTS replaced.
+  // The PromptCommand contract requires ContentBlockParam[], but legacy /
+  // mis-typed skills sometimes return a plain string — normalize before
+  // calling .map(), which would otherwise throw.
   const skillPrompt = await command.getPromptForCommand(args, context)
-  const skillContent = skillPrompt
+  const normalizedPrompt: ContentBlockParam[] =
+    typeof skillPrompt === 'string' ? [{ type: 'text', text: skillPrompt }] : skillPrompt
+  const skillContent = normalizedPrompt
     .map(block => (block.type === 'text' ? block.text : ''))
     .join('\n')
 

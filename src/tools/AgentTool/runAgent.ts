@@ -1,4 +1,5 @@
 import { feature } from 'bun:bundle'
+import type { ContentBlockParam } from '@future/sdk/resources'
 import type { UUID } from 'crypto'
 import { randomUUID } from 'crypto'
 import uniqBy from 'lodash-es/uniqBy.js'
@@ -619,11 +620,16 @@ export async function* runAgent({
       '../../utils/processUserInput/processSlashCommand.js'
     )
     const loaded = await Promise.all(
-      validSkills.map(async ({ skillName, skill }) => ({
-        skillName,
-        skill,
-        content: await skill.getPromptForCommand('', toolUseContext),
-      })),
+      validSkills.map(async ({ skillName, skill }) => {
+        // getPromptForCommand must return ContentBlockParam[], but legacy /
+        // mis-typed skills sometimes return a plain string. Spreading a
+        // string (`...content` below) would explode it into one block per
+        // character, so normalize first.
+        const raw = await skill.getPromptForCommand('', toolUseContext)
+        const content: ContentBlockParam[] =
+          typeof raw === 'string' ? [{ type: 'text', text: raw }] : raw
+        return { skillName, skill, content }
+      }),
     )
     for (const { skillName, skill, content } of loaded) {
       logForDebugging(

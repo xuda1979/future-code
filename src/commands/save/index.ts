@@ -8,9 +8,9 @@ const save: Command = {
   progressMessage: 'Saving session snapshot',
   contentLength: 300,
   source: 'builtin',
-  getPromptForCommand(args: string) {
+  async getPromptForCommand(args: string) {
     const name = args.trim() || `snapshot-${Date.now()}`
-    return `The user wants to save the current session context.
+    return [{ type: 'text' as const, text: `The user wants to save the current session context.
 
 SNAPSHOT NAME: ${name}
 
@@ -23,7 +23,7 @@ INSTRUCTIONS:
    - Key files that were modified or created
    - Current state: what's in progress, what's blocked
    - Important context the assistant should know when resuming
-3. Confirm to the user that the snapshot was saved and tell them they can resume with /load ${name}`
+3. Confirm to the user that the snapshot was saved and tell them they can resume with /load ${name}` }]
   },
 }
 
