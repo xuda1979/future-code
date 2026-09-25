@@ -54,6 +54,13 @@ test("goal command getPromptForCommand handles special characters in goal", () =
   assert.ok(prompt.includes("Fix bug #123 in src/index.ts (urgent!)"));
 });
 
+test("goal prompt includes anti-refusal safeguard for post-completion", () => {
+  const prompt = goal.getPromptForCommand("some goal");
+  assert.ok(prompt.includes("does NOT end the session"), "goal prompt must tell assistant not to end session on completion");
+  assert.ok(prompt.includes("remain fully available"), "goal prompt must instruct assistant to remain available after completion");
+  assert.ok(prompt.includes("completed"), "goal prompt must mention completion state");
+});
+
 // ─── /loop command ──────────────────────────────────────────────────────────
 
 test("loop command has correct metadata", () => {
@@ -104,6 +111,12 @@ test("loop prompt contains iteration protocol", () => {
   const prompt = loop.getPromptForCommand("do something stop: done");
   assert.ok(prompt.includes("iteration 1"));
   assert.ok(prompt.includes("iteration"));
+});
+
+test("loop prompt includes anti-refusal safeguard for post-completion", () => {
+  const prompt = loop.getPromptForCommand("do work stop: done");
+  assert.ok(prompt.includes("does NOT end the session"), "loop prompt must tell assistant not to end session on loop completion");
+  assert.ok(prompt.includes("remain fully available"), "loop prompt must instruct assistant to remain available after loop completes");
 });
 
 // ─── /retry command ─────────────────────────────────────────────────────────
@@ -342,4 +355,47 @@ test("watch handles glob-only with no action", () => {
 test("learn handles special regex chars in topic", () => {
   const prompt = learn.getPromptForCommand("how does ${VARIABLE} interpolation work?");
   assert.ok(prompt.includes("${VARIABLE}"));
+});
+
+// ─── Anti-refusal safeguard tests ────────────────────────────────────────────
+
+test("system prompt contains anti-refusal language for task completion", () => {
+  const source = readFileSync(join(process.cwd(), "src/constants/prompts.ts"), "utf-8");
+  assert.ok(
+    source.includes("never ends the session"),
+    "system prompt must state that completing a task never ends the session",
+  );
+  assert.ok(
+    source.includes("remain fully available"),
+    "system prompt must instruct assistant to remain available after task completion",
+  );
+  assert.ok(
+    source.includes("Do not refuse"),
+    "system prompt must explicitly tell assistant not to refuse further instructions",
+  );
+});
+
+test("goal prompt does NOT contain language suggesting session ends on completion", () => {
+  const prompt = goal.getPromptForCommand("some goal");
+  // The prompt should not contain language that could be interpreted as "stop responding"
+  const refusalPatterns = [
+    /session is over/i,
+    /no further action/i,
+    /task is complete.*stop/i,
+    /nothing more to do/i,
+  ];
+  for (const pattern of refusalPatterns) {
+    assert.ok(!pattern.test(prompt), `goal prompt must not contain refusal pattern: ${pattern}`);
+  }
+});
+
+test("loop prompt does NOT contain language suggesting session ends on completion", () => {
+  const prompt = loop.getPromptForCommand("do work stop: done");
+  for (const pattern of [
+    /session is over/i,
+    /no further action/i,
+    /nothing more to do/i,
+  ]) {
+    assert.ok(!pattern.test(prompt), `loop prompt must not contain refusal pattern: ${pattern}`);
+  }
 });

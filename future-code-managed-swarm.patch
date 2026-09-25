@@ -1,0 +1,2296 @@
+diff --git a/docs/agent-platform/SWARM.md b/docs/agent-platform/SWARM.md
+new file mode 100644
+index 0000000..f924689
+--- /dev/null
++++ b/docs/agent-platform/SWARM.md
+@@ -0,0 +1,281 @@
++# Foundry Swarm: durable, scoped coding agents
++
++Base reviewed: `xuda1979/future-code@77812838986c1ccefbb3b1646ef66cbf74fc2f84`.
++This is an opt-in coding execution path on the **existing Foundry kernel**. It is
++not another scheduler, an Anthropic Managed Agents API wrapper, or a replacement
++for the ordinary interactive QueryEngine. The new native commands are registered
++in `src/commands.ts`; the same host facade is callable from Node without the UI.
++
++## 1. The execution contract
++
++The current interactive agent plans work with `/swarm-plan`. A reviewed Task[]
++becomes the fixed DAG for a run. `runTasks` and `Scheduler` own dependencies,
++leases, attempts, logical read/write reservations, critical-path ordering and
++acceptance. `SwarmDriver` supplies the missing model/tool loop and an independent
++verifier. Agents do not get Store authority and cannot alter the DAG or spawn
++recursive workers. Different tasks may select different entries in a pinned
++model/tool/check roster using `task.agent`.
++
++```
++existing interactive agent (/swarm-plan): propose a bounded Task[]
++                  | operator reviews and authorizes /swarm run
++existing Foundry runTasks + Scheduler + immutable acceptance contract
++                  | leases ready tasks, not another LLM manager loop
++SwarmDriver ------+---- HttpBrain (standard model API; bounded requests)
++    |             +---- SessionJournal (durable state and replay receipts)
++    +-- HandsBackend ------ LocalGitHands (lazy, per-attempt worktree)
++    +-- independent verifier (fresh worktree + frozen named checks)
++                  |
++explicit integrate: combined tree checks -> new swarm/<run> branch
++```
++
++A task's PASS is not a project's PASS. Integration reconstructs all accepted
++patches once in dependency order, rejects conflicts, runs frozen integration
++checks, checks for verifier source mutation, and only then publishes a new local
++branch. It never checks out, merges into, resets or pushes the user's branch.
++
++## 2. Requirements and safety boundary
++
++The executed path was Node 22.16.0, Git 2.47.3, Linux, with built-in `node:sqlite`
++and TypeScript stripping. No new npm dependencies or lockfile edits are needed
++for the standalone path. The native metadata and handler have direct import
++and integration tests; **the entire UI/application build was not executed**.
++The existing Store selects Bun SQLite under Bun, but this release was not run
++on Bun. Windows local process execution is explicitly rejected.
++
++**A Git worktree is NOT an OS sandbox.** This backend is for trusted repositories
++and trusted check commands. Model edits are scope checked, symlinks rejected,
++child environment variables allowlisted, and POSIX process groups terminated
++on cancellation. These controls do not contain hostile native code, prevent
++all same-UID credential access, or guarantee termination of deliberately escaped
++processes. Use a hardened container/VM backend before running untrusted projects.
++`HandsBackend` is an identity-checked host injection point for both execution and
++verification; a remote/container backend is not shipped here.
++
++API keys are read by the harness from named environment variables and omitted
++from model request bodies, logs and default child environments. Check configs
++cannot allowlist a model-key variable. This is not a Vault service or a security
++claim that malicious same-user processes can never read credentials.
++
++`--allow-exec` is explicit authorization to run the configured trusted commands;
++run/resume may incur model charges. Native commands are not model-invocable and
++are not added to remote/bridge execution allowlists. No background daemon starts.
++
++## 3. Start with the included coding fixture
++
++Apply the patch, review it, and commit the source and fixture before using `HEAD`
++as the base. Worktrees begin from a commit; uncommitted project changes are not
++silently copied. The new harness code can run uncommitted, but the *target code*
++you want agents to see must exist in `baseRef`.
++
++Copy `examples/swarm/spec.json` to an operator-owned file and edit it. Set `project`
++to an absolute Git root, choose `baseRef`, replace `YOUR_DEPLOYED_MODEL_ID` with an
++actual compatible model, and set the endpoint. Relative project paths resolve
++from the invocation working directory. Relative pinned check paths resolve from
++the project root. The included localhost endpoint is only an example, not a
++bundled model server. Do not put API secrets into JSON or prompts.
++
++```sh
++node --experimental-strip-types src/harness/foundry/swarm/cli.ts init \
++  --root .future-code/swarm-demo --spec /absolute/path/swarm-spec.json --allow-exec
++node --experimental-strip-types src/harness/foundry/swarm/cli.ts run \
++  --root .future-code/swarm-demo --tasks examples/swarm/tasks.json --allow-exec
++node --experimental-strip-types src/harness/foundry/swarm/cli.ts status \
++  --root .future-code/swarm-demo --run RUN_ID
++node --experimental-strip-types src/harness/foundry/swarm/cli.ts integrate \
++  --root .future-code/swarm-demo --run RUN_ID --allow-exec
++```
++
++The fixture writes `examples/swarm/output/answer.txt` and checks that it contains
++42. It is an API/tool/Git lifecycle smoke, **not a realistic coding benchmark**.
++Replace its checks and tasks with a representative held-out project before
++judging productivity. The actual run ID is printed in the run result and is
++also listed by `status` without `--run`.
++
++The equivalent native UI workflow is:
++
++```
++/swarm help
++/swarm-plan Implement the requested feature, inspect interfaces and propose independent tasks
++/swarm init --root .future-code/swarm-project --spec /absolute/path/spec.json --allow-exec
++/swarm run --root .future-code/swarm-project --tasks /absolute/path/tasks.json --allow-exec
++/swarm status --root .future-code/swarm-project --run RUN_ID
++/swarm integrate --root .future-code/swarm-project --run RUN_ID --allow-exec
++```
++
++The planning command uses the existing interactive agent. It is not a separately
++benchmarked autonomous planner. Plan validation rejects structural/schema/scope
++errors but cannot prove that the task decomposition or the tests are sufficient.
++The operator still reviews the plan and chooses the trusted checks.
++
++## 4. Model and tool configuration
++
++Each roster entry pins `protocol`, full `url`, `model`, `system`, `tools` and
++`checks`; `keyEnv` and `promptCache` are optional. `anthropic` uses the standard
++Messages endpoint; `chat-completions` uses function-tool wire format. An existing
++self-hosted server can be selected if it actually implements that protocol.
++This does not prove compatibility with a particular vLLM, NPU or model deployment.
++
++For an Anthropic profile, keep the tools/checks from the example and change:
++
++```json
++{
++  "protocol": "anthropic",
++  "url": "https://api.anthropic.com/v1/messages",
++  "model": "OPERATOR_SELECTED_COMPATIBLE_MODEL",
++  "keyEnv": "ANTHROPIC_API_KEY",
++  "promptCache": true
++}
++```
++
++This is a fragment, not a complete spec. A chat subscription is not assumed to
++supply API credentials. HTTPS is required except loopback or explicit operator
++`allowHttp` for a trusted private service. URL credentials/query strings and HTTP
++redirects are rejected to avoid leaking authorization. No real provider account
++was called during patch verification.
++
++Only standard text and client function tools are supported in this adapter.
++Streaming, images, signed thinking/redacted-thinking blocks, server-side tools,
++provider-specific compaction and advisor protocols are **not implemented**.
++Unsupported returned block types fail closed instead of silently removing data
++required for a later API turn. Choose a compatible profile for the initial canary.
++
++Tools are `list_files`, bounded `read_file`, `write_file`, exact-once-match
++`edit_file`, `delete_file`, `run_check` and `recall`. There is no arbitrary shell
++command supplied by the model. `run_check` accepts only a configured check name.
++Trusted checks may themselves execute arbitrary code; configure them accordingly.
++
++`$NODE` in a check's executable position resolves and pins the installed Node
++binary at initialization. This matters when the native Future Code executable
++is a compiled binary rather than Node. `$RUNTIME` retains the existing Foundry
++meaning and should not be used as a substitute for Node in that case. Executable
++and declared implementation files are hashed. Declare transitive check files in
++`files`, protect test oracles, and manage external environment dependencies.
++Pinning is not a hermetic environment proof.
++
++All verification/integration checks must declare `replaySafe: true`. This is an
++operator assertion, not an automatic proof of idempotence. Checks must not send
++mail, deploy code, mutate external databases, or perform other unreconciled
++external side effects. Code changes may include feature tests; frozen external
++oracles still decide acceptance and must not be weakened to get a PASS.
++
++## 5. State, recovery and context
++
++The existing Foundry SQLite database and content-addressed artifact store are
++reused. New tables retain thread checkpoints, append-only event records,
++thread-local receipt grants, repair feedback, model request reservations, replay
++records and provider cooldowns. State and event commits are fenced by the live
++task lease and a compare-and-swap sequence number.
++
++A retry restores the latest patch into a new worktree, continues outstanding
++tool calls, and reuses a model response that was **durably committed** for the
++same logical step and exact request body. A failed independent check supplies
++bounded diagnostic receipts to a subsequent repair attempt rather than
++replaying an unchanged final answer indefinitely. Turn and tool-call ceilings
++span retries; run-level inference reservations also survive process restart.
++
++This is not an exactly-once guarantee for remote effects. A provider response
++lost before durable commit can require another charged request. Unknown requests
++remain charged against reservations and have unknown token usage. A late old
++worker may contribute usage evidence but cannot publish a replay response under
++a replacement fence. Non-replay-safe interrupted effects require reconciliation;
++the shipped schema forbids those effects in verification checks.
++
++Ctrl-C terminates cooperative model requests and local child process groups.
++The run remains inspectable. Resume the same fixed graph and pinned configuration:
++
++```sh
++node --experimental-strip-types src/harness/foundry/swarm/cli.ts resume \
++  --root .future-code/swarm-project --run RUN_ID --allow-exec
++```
++
++When a process dies completely, the existing lease deadline must expire before a
++replacement can reclaim it. This release does not shorten deadlines by guessing
++that another process is dead. Exhausted tasks are terminal; new scopes/acceptance
++or a different decomposition need a new reviewed run, not a hidden contract edit.
++
++The model sees the immutable task capsule and recent **complete** tool exchanges.
++Older material is retained, not erased. `recall` retrieves bounded thread-local
++receipt slices and history pages. Large outputs have explicit truncation markers
++and receipt hashes. This is reversible context trimming, not a lossy LLM summary.
++Mandatory instructions, acceptance and dependency inputs never silently truncate.
++The full encoded provider request (including system and tool schemas) must fit
++the admitted context allocation.
++
++Prefix structure is stable; Anthropic system-prefix cache hints are opt-in.
++Cache hits depend on the provider, model and minimum prefix length. This code
++neither owns nor shares physical KV cache and does not claim zero-prefill forks.
++
++Inspect without calling a model:
++
++```sh
++node --experimental-strip-types src/harness/foundry/swarm/cli.ts events \
++  --root .future-code/swarm-project --run RUN_ID --task TASK_ID --after 0
++node --experimental-strip-types src/harness/foundry/swarm/cli.ts receipt \
++  --root .future-code/swarm-project --hash RECEIPT_HASH --offset 0 --length 4096
++```
++
++Status returns at most 200 tasks plus `nextTaskAfter`. Request another page with
++`--task-after TASK_ID`. Event pages use sequence cursors. Keep the state directory
++private, backed up as a consistent SQLite/artifact pair, and out of source control.
++Logs and source content are not automatically secret-redacted.
++
++## 6. Concurrency, budgets and measurements
++
++Foundry's existing task concurrency and logical read/write reservations remain
++in force. Separate worktrees do not justify ignoring declared interface conflicts.
++Use dependency paths for shared schemas. Independent work should usually use
++narrow read scopes too: declaring the whole `src` tree read-only will deliberately
++serialize it against every writer under `src`.
++
++`modelConcurrency` bounds in-flight RPCs per model endpoint/model group **within
++one run and Store**. Multiple processes sharing that Store honor the same limit.
++It is not an account-wide or cross-run rate limiter. HTTP 429/503/529 cooldowns
++are shared within that ledger; request attempts still consume durable budgets.
++The number of calls and aggregate serialized request bytes have run-level caps.
++Per-thread turn/tool caps and per-RPC/tool deadlines give additional limits.
++
++These byte limits are not token limits or dollar caps. `providerUsage` records
++provider metadata tokens, `knownTokens`, `unknownRequests`, and reservations.
++Missing usage is null rather than zero. Anthropic cache read/creation tokens are
++included in total input accounting. Model JSON that claims its own cost is ignored.
++There is no trusted currency price meter, so costUsd is unknown. The older Foundry
++`progressDensity` retains its budget-based meaning and is not relabeled as billed
++token efficiency. Planning calls made in the interactive UI are not included in
++the worker-run ledger; include them in a real end-to-end evaluation.
++
++The implementation accepts bounded plans up to the existing contract ceilings,
++not an empirically validated 30,000-agent cluster. SQLite is a local single-host
++control plane. There is no distributed consensus, autoscaling fleet, remote
++worker service, universal MCP proxy, Vault, cross-session learning/Dreaming,
++recursive delegation or self-modifying orchestrator in this patch. A second
++process can cooperate through the existing Store/host API; the CLI does not
++create or manage a daemon fleet.
++
++## 7. Tests and evaluation
++
++```sh
++node scripts/test-swarm.mjs
++node --experimental-strip-types scripts/bench-swarm.mjs
++```
++
++The test launcher runs the unchanged productivity tests plus new lifecycle,
++provider protocol, real localhost HTTP, native command facade, real Git,
++independent verification, fault injection and cancellation tests. The benchmark
++compares one vs four workers in the **same patched runtime**: 12 independent tiny
++file edits, a fixed 80 ms simulated model delay, three alternating-order pairs,
++real worktrees, real external checks and real integration branch publication.
++Setup/initialization, the interactive planner and live inference are excluded.
++It is neither a before/after upstream comparison nor a live Claude productivity
++claim. Raw data must report acceptance and request counts alongside time.
++
++A production canary should use a fixed base commit, reviewed tasks, frozen
++external checks, the same model and decoding settings, alternating run order,
++more than one project, failure/retry accounting and the final merged-tree pass
++rate. Report accepted integrated changes per wall time and per measured cost;
++include planner time, model queue time, tests, failed attempts and integration.
++Do not promote merely because more agents were busy or the mock fixture sped up.
++
++For source rollback, use a dedicated feature branch and revert its patch commit.
++Do not discard unrelated local changes. Preserve or retire the new state root
++explicitly; never overwrite an old contract as part of rollback.
+diff --git a/docs/agent-platform/SWARM_RESEARCH.md b/docs/agent-platform/SWARM_RESEARCH.md
+new file mode 100644
+index 0000000..6fcf617
+--- /dev/null
++++ b/docs/agent-platform/SWARM_RESEARCH.md
+@@ -0,0 +1,105 @@
++# Research-to-implementation record
++
++Reviewed on 2026-09-25 against official public sources and repository snapshot
++`77812838986c1ccefbb3b1646ef66cbf74fc2f84`. This document separates reported facts,
++engineering choices, executable evidence and unimplemented ambitions. It does
++not assert that the individual mechanisms are unprecedented inventions.
++
++## Source verification
++
++| Primary source | Supported finding | Consequence for this patch |
++| --- | --- | --- |
++| [Managed Agents engineering, 2026-04-08](https://www.anthropic.com/engineering/managed-agents) | Session, harness and execution environment are replaceable interfaces; persistent events are distinct from the active context. The reported latency improvement is TTFT, not a whole coding project's completion rate. | Reuse Foundry's kernel, add durable thread state and a separate HandsBackend, provision worktrees lazily. Do not transplant the vendor's reported speedup. |
++| [Multiagent orchestration documentation](https://platform.claude.com/docs/en/managed-agents/multiagent-orchestration) | Isolated thread contexts can share execution resources; configured rosters have one-level delegation. The documented concurrent-thread ceiling is 25, with advisor consultations exempt. | Separate task contexts; use private coding worktrees rather than rely on a shared mutable tree. Restrict authority to a reviewed roster and fixed DAG. |
++| [Internal development measurements](https://www.anthropic.com/institute/measuring-pace-of-ai-development) | About 30,000 simultaneous research/engineering agents was reported for the most-used internal platform as of August 2026. | This is not a public per-session quota or evidence that this patch can operate that fleet. No numerical scale equivalence is claimed. |
++| [Messages API compaction](https://platform.claude.com/docs/en/build-with-claude/compaction) | Server-side compaction is already available in the Messages API. | The claim that ordinary API users categorically lack compaction is incorrect. This adapter implements local reversible trimming, not that provider API. |
++| [Prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) | Cache reuse requires a matching eligible prefix; provider metadata distinguishes cache reads, writes and uncached input. | Stable tool/system prefix and explicit opt-in cache hints; meter metadata, not hypothetical saved tokens. |
++| [When to use multi-agent systems](https://claude.com/blog/building-multi-agent-systems-when-and-how-to-use-them) | Context protection and genuinely independent work can justify parallel agents; coordination can outweigh benefits. | Partition by verifiable feature outcomes. Keep tightly coupled changes together and avoid a manager conversation on every scheduler poll. |
++| [Patterns and problems in multiagent systems](https://www.anthropic.com/research/multiagent-systems) | Reported experiments expose coordination difficulties and sensitivity to task/model conditions; more agents or role labels are not universally sufficient. | Bound work and communication, preserve external verification, and measure merged-tree success, not agent count. |
++
++Public sources do not establish that the public inference stack is deliberately
++"crippled", that all internal checkpoints have weaker safeguards, that public
++and internal weights are identical, or that Managed Agents is a byte-for-byte
++productization of one particular 30,000-agent system. These are not assumptions
++in the implementation. The current docs label Managed Agents and its multiagent
++surface Beta; individual ancillary features can have different preview status.
++
++## Hypotheses and falsification
++
++**H1: replay reduces wasted work after interruption.** A committed model reply
++must be reused at the same logical step; completed tool results must not be
++reissued after a recovered checkpoint. Tests inject a lost checkpoint after
++reply commit, pending tool calls, stale fences and verifier failures. A durable
++reply replay test must observe no extra provider call. Uncommitted remote replies
++remain ambiguous and may be charged again: no general exactly-once claim.
++
++**H2: narrower context reduces repeated transmission without corrupting tool
++protocol.** Trimming must keep the task and complete recent exchanges. Older
++content must remain retrievable under thread-local receipt grants. Tests check
++budget overflow, paired tool IDs, explicit truncation, unauthorized receipt
++access and artifact corruption. This is a correctness/availability test, not a
++measurement of live coding quality or real tokenizer savings.
++
++**H3: parallel workers reduce completion time only for compatible work.** The
++controlled benchmark fixes tiny independent tasks, model delay and checker logic,
++then varies only task concurrency (one/four). Its endpoint is verified integrated
++completion time. It is a useful lifecycle concurrency check, but its synthetic
++inference delay and task construction prevent generalization to live large-SWE
++projects. Critical-path and scope controls are inherited from the upstream
++productivity patch, not reintroduced here as new research contributions.
++
++**H4: independent integration prevents false project-level completion.** Workers
++can each pass on their own view while their patches conflict. A regression test
++constructs exactly that case and requires no branch publication. Separate tests
++reject a verifier that modifies tracked source and a pre-existing publication
++branch that points elsewhere. Test coverage itself remains an operator contract:
++independent processes cannot compensate for inadequate behavioral checks.
++
++**H5: bounded inference prevents restart from resetting cost controls.** Separate
++SQLite handles must respect the same request/byte reservations and per-provider
++in-flight cap. Cancellation, rate-limit retries and late responses are included.
++Unknown token usage cannot become zero. Limits are local/run-scoped, not global
++provider-account governance or a trusted dollar budget.
++
++## Why these mechanisms rather than more orchestration prose
++
++The prior code already supplied a durable DAG, conflict checks, critical-path
++ordering, bounded dependency views, progress watchdogs and batched admission.
++The missing practical path was from the existing interactive agent to actual
++model/tool execution, persistent per-worker progress and a verifiable Git
++artifact. This patch fills that path while preserving the kernel's authority.
++
++The model decides how to implement its scoped task. Code decides whether it may
++call a tool, whether a request fits budgets, whether a lease is current, and
++whether checks permit admission. Durable receipts let a worker recover without
++asking a manager to reconstruct its conversation. Private worktrees reduce
++accidental interference; independent reconstruction and final integration test
++what is actually delivered. These are combined engineering mechanisms, not a
++claim that an OS analogy itself accelerates inference.
++
++## Explicitly deferred, not implemented
++
++Multi-host ownership/consensus, global tenant/model quotas, elastic distributed
++worker placement, hardened remote sandboxes, an MCP credential proxy, universal
++Vault semantics, cross-session memory learning, automatic graph mutation,
++recursive manager hierarchies, inference-engine KV block sharing, speculative
++model decoding and accelerator-specific kernels are not delivered. Interfaces
++are not counted as implementations. These require separate failure/security
++models, workloads and benchmarks before promotion.
++
++Nor does the native slash command replace all original interaction paths. It
++is registered and tested as an opt-in route; end-to-end native packaging and
++live-provider canaries are still required in the target deployment.
++
++## Next evaluation contract
++
++For the next real canary, freeze source revisions and representative tasks,
++choose a single compatible deployed model, use the same external oracles, and
++compare single-agent and bounded-parallel runs in alternating order. Include
++planner work, queueing, tool calls, retries, failed tasks, integration and
++operator repair time. Record provider usage or explicitly mark it missing.
++Primary result: accepted **integrated** changes per wall time at a fixed quality
++bar. Guardrails: regression rate, total cost, unmeasured calls, scope violations
++and recovery behavior. Report several projects and uncertainty rather than a
++single selected fast run. A "world-leading" conclusion would need comparable
++public baselines and this evidence; it is not justified by the shipped fixture.
+diff --git a/examples/swarm/spec.json b/examples/swarm/spec.json
+new file mode 100644
+index 0000000..48e19e0
+--- /dev/null
++++ b/examples/swarm/spec.json
+@@ -0,0 +1,30 @@
++{
++  "schema": 1,
++  "name": "scoped-coding-demo",
++  "project": ".",
++  "baseRef": "HEAD",
++  "defaultAgent": "coder",
++  "agents": {
++    "coder": {
++      "protocol": "chat-completions",
++      "url": "http://127.0.0.1:8000/v1/chat/completions",
++      "model": "YOUR_DEPLOYED_MODEL_ID",
++      "system": "Implement only the assigned task. Read relevant scoped files, make the smallest correct patch, run the configured named check, and finish with a concise summary. Acceptance belongs to the independent verifier. Do not invent file contents or read credentials.",
++      "tools": ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall"],
++      "checks": ["behavior"]
++    }
++  },
++  "checks": {
++    "behavior": {
++      "argv": ["$NODE", "./examples/swarm/verify-demo.mjs"],
++      "files": ["./examples/swarm/verify-demo.mjs"],
++      "replaySafe": true
++    }
++  },
++  "integrationChecks": ["behavior"],
++  "protectedPaths": ["package.json", "bun.lock", "examples/swarm/verify-demo.mjs", "examples/swarm/spec.json"],
++  "limits": { "parallelism": 16, "attempts": 3, "contextBytes": 65536, "outputBytes": 32768, "timeoutMs": 600000, "tasks": 1000 },
++  "recipe": { "parallelism": 4, "attempts": 2, "contextBytes": 32768, "timeoutMs": 300000, "scheduling": "critical-path", "maxInFlightContextBytes": 131072, "maxRepeatedFailures": 2 },
++  "budget": { "maxRequests": 64, "maxRequestBytes": 2097152, "maxTurns": 20, "maxToolCalls": 40, "modelConcurrency": 4,
++    "requestTimeoutMs": 120000, "toolTimeoutMs": 30000, "maxOutputTokens": 2048, "maxToolOutputBytes": 262144, "maxPatchBytes": 262144 }
++}
+diff --git a/examples/swarm/tasks.json b/examples/swarm/tasks.json
+new file mode 100644
+index 0000000..863db22
+--- /dev/null
++++ b/examples/swarm/tasks.json
+@@ -0,0 +1,13 @@
++[
++  {
++    "id": "demo-answer",
++    "agent": "coder",
++    "goal": "Create examples/swarm/output/answer.txt containing the number 42 and a newline.",
++    "acceptance": ["The frozen behavior check exits successfully."],
++    "dependencies": [],
++    "writeScope": ["examples/swarm/output/answer.txt"],
++    "readScope": ["examples/swarm/verify-demo.mjs", "examples/swarm/output/answer.txt"],
++    "input": { "value": 42 },
++    "estimatedDurationMs": 5000
++  }
++]
+diff --git a/examples/swarm/verify-demo.mjs b/examples/swarm/verify-demo.mjs
+new file mode 100644
+index 0000000..227c23e
+--- /dev/null
++++ b/examples/swarm/verify-demo.mjs
+@@ -0,0 +1,6 @@
++// Frozen, deterministic acceptance code; this is an OFFLINE-CAPABLE fixture,
++// not proof that an arbitrary feature or repository has been correctly built.
++import { readFileSync } from "node:fs";
++import assert from "node:assert/strict";
++assert.equal(readFileSync("examples/swarm/output/answer.txt", "utf8").trim(), "42");
++console.log("demo behavior verified");
+diff --git a/scripts/bench-swarm.mjs b/scripts/bench-swarm.mjs
+new file mode 100644
+index 0000000..cef66ee
+--- /dev/null
++++ b/scripts/bench-swarm.mjs
+@@ -0,0 +1,51 @@
++/** Real local Git/check processes + synthetic model latency. NOT a live coding benchmark. */
++import assert from "node:assert/strict";
++import { setTimeout as delay } from "node:timers/promises";
++import { performance } from "node:perf_hooks";
++import { fixture, signal, reply, task } from "../tests/foundry/swarm-fixtures.ts";
++import { runSwarm, integrateSwarm } from "../src/harness/foundry/swarm/host.ts";
++const count = Number(process.argv[2] ?? 12); const repetitions = Number(process.argv[3] ?? 3);
++assert.ok(Number.isSafeInteger(count) && count >= 4 && count <= 32);
++assert.ok(Number.isSafeInteger(repetitions) && repetitions >= 1 && repetitions <= 10);
++const results = []; const modelDelayMs = 80;
++for (let repetition = 0; repetition < repetitions; repetition++) {
++  for (const parallelism of repetition % 2 ? [4, 1] : [1, 4]) {
++    await fixture(async (store, cfg) => {
++      let active = 0; let peak = 0; let calls = 0;
++      const fetcher = async (_url, init) => {
++        calls++; active++; peak = Math.max(peak, active);
++        try {
++          await delay(modelDelayMs, undefined, { signal: init.signal });
++          const body = JSON.parse(init.body); const t = JSON.parse(body.messages[1].content).task;
++          return body.messages.some(m => m.role === "tool") ? reply("done", [], null)
++            : reply("", [{ name: "write_file", arguments: { path: t.writeScope[0], content: `${t.input.value}\n` } }], null);
++        } finally { active--; }
++      };
++      const tasks = Array.from({ length: count }, (_, i) => ({ ...task(`t${i}`), agent: `worker${i}`,
++        readScope: [`src/t${i}.txt`], input: { value: i + 1 }, estimatedDurationMs: 200 }));
++      const started = performance.now();
++      const run = await runSwarm(store, tasks, signal(), undefined, fetcher);
++      assert.equal(run.status, "PASS"); assert.equal(run.accepted, count); assert.equal(run.attempts, count);
++      const taskMs = performance.now() - started;
++      const integration = await integrateSwarm(store, run.id, signal()); assert.ok(integration.commit);
++      results.push({ repetition, parallelism, count, taskMs, totalMs: performance.now() - started,
++        calls, peakMockModelRequests: peak, accepted: run.accepted, providerTokens: run.providerUsage.tokens });
++    }, s => {
++      const profile = { ...s.agents.coder }; s.agents = {}; s.checks = {}; s.integrationChecks = []; s.defaultAgent = "worker0";
++      for (let i = 0; i < count; i++) {
++        const name = `check${i}`;
++        s.checks[name] = { argv: [process.execPath, "-e", `const fs=require('node:fs');if(fs.readFileSync('src/t${i}.txt','utf8').trim()!=='${i + 1}')process.exit(1)`], replaySafe: true };
++        s.agents[`worker${i}`] = { ...profile, checks: [name] }; s.integrationChecks.push(name);
++      }
++      s.recipe.parallelism = parallelism; s.budget.modelConcurrency = parallelism;
++      s.recipe.maxInFlightContextBytes = s.recipe.contextBytes * parallelism;
++      s.budget.maxRequests = 2 * count; s.budget.maxRequestBytes = 100_000_000;
++    });
++  }
++}
++const median = xs => { const ys = [...xs].sort((a, b) => a - b); const i = Math.floor(ys.length / 2); return ys.length % 2 ? ys[i] : (ys[i - 1] + ys[i]) / 2; };
++const baseline = median(results.filter(r => r.parallelism === 1).map(r => r.totalMs));
++const parallel = median(results.filter(r => r.parallelism === 4).map(r => r.totalMs));
++console.log(JSON.stringify({ kind: "synthetic-model-latency-with-real-git-and-independent-checks", modelDelayMs, count, repetitions,
++  includes: "local scheduling, durable journals, worktrees, checks, branch publication; excludes live model behavior and init cost",
++  medianTotalMs: { oneWorker: baseline, fourWorkers: parallel }, ratio: baseline / parallel, results }, null, 2));
+diff --git a/scripts/test-swarm.mjs b/scripts/test-swarm.mjs
+new file mode 100644
+index 0000000..a2b2c36
+--- /dev/null
++++ b/scripts/test-swarm.mjs
+@@ -0,0 +1,7 @@
++import { spawnSync } from "node:child_process";
++import { fileURLToPath } from "node:url";
++const cwd = fileURLToPath(new URL("../", import.meta.url));
++const result = spawnSync(process.execPath, ["--experimental-strip-types", "--test",
++  "tests/foundry/productivity.test.ts", "tests/foundry/swarm.test.ts", "tests/foundry/swarm-http.test.ts"], { cwd, stdio: "inherit" });
++if (result.error) throw result.error;
++process.exitCode = result.status ?? 1;
+diff --git a/src/commands.ts b/src/commands.ts
+index c5d93ee..70bb92d 100644
+--- a/src/commands.ts
++++ b/src/commands.ts
+@@ -16,6 +16,7 @@ import compact from './commands/compact/index.js'
+ import config from './commands/config/index.js'
+ import { context, contextNonInteractive } from './commands/context/index.js'
+ import cost from './commands/cost/index.js'
++import swarm, { swarmPlan } from './commands/swarm/index.js'
+ import diff from './commands/diff/index.js'
+ import ctx_viz from './commands/ctx_viz/index.js'
+ import doctor from './commands/doctor/index.js'
+@@ -271,6 +272,8 @@ const COMMANDS = memoize((): Command[] => [
+   context,
+   contextNonInteractive,
+   cost,
++  swarm,
++  swarmPlan,
+   diff,
+   doctor,
+   effort,
+diff --git a/src/commands/swarm/index.ts b/src/commands/swarm/index.ts
+new file mode 100644
+index 0000000..6636863
+--- /dev/null
++++ b/src/commands/swarm/index.ts
+@@ -0,0 +1,42 @@
++import type { Command } from '../../types/command.js'
++
++const planning = `You are coordinating a Foundry Swarm coding task in this existing Future Code session.
++Inspect the repository and the operator's swarm spec; do not invent unavailable files or tests.
++Produce a bounded Task[] JSON plan, with id, agent (from the pinned roster), goal, acceptance,
++dependencies, writeScope, readScope, input, and optional estimatedDurationMs/priority.
++Partition by independently verifiable outputs, not arbitrary line counts. Keep interfaces and
++shared-schema changes on an explicit dependency path. Avoid overlapping independent writers.
++Each worker sees only its capsule and verified dependencies, not this conversation: include the
++necessary interfaces, invariants and file paths, but not full histories or logs. Workers can
++read scoped files and run only their configured named checks. There is no recursive delegation.
++Check that existing frozen verifier checks test the intended behavior; report missing coverage
++rather than modifying or weakening trusted checks to get a PASS. Do not put credentials in plans.
++Save the proposed plan in a user-approved JSON file. Do not silently initialize, call paid models,
++run code, or integrate a branch: these require the user's explicit /swarm ... --allow-exec action.
++Use /swarm status/events for evidence. Task PASS is not integration PASS. Never merge into main
++or claim a live-model speedup without a matched measurement. Read docs/agent-platform/SWARM.md
++for the contract, commands, limits and recovery behavior.`
++
++export const swarmPlan = {
++  type: 'prompt',
++  name: 'swarm-plan',
++  description: 'Plan scoped parallel coding tasks using the current agent as coordinator',
++  argumentHint: '<goal>',
++  source: 'builtin',
++  disableModelInvocation: true,
++  contentLength: planning.length,
++  progressMessage: 'planning independently verifiable coding tasks',
++  async getPromptForCommand(args, _context) {
++    return [{ type: 'text', text: `${planning}\n\nUser goal:\n${args}` }]
++  },
++} satisfies Command
++
++export default {
++  type: 'local',
++  name: 'swarm',
++  description: 'Run durable, scoped coding agents with the existing Foundry kernel',
++  argumentHint: 'help | init | run | resume | status | events | integrate',
++  supportsNonInteractive: true,
++  disableModelInvocation: true,
++  load: () => import('./swarm.ts'),
++} satisfies Command
+diff --git a/src/commands/swarm/swarm.ts b/src/commands/swarm/swarm.ts
+new file mode 100644
+index 0000000..60445df
+--- /dev/null
++++ b/src/commands/swarm/swarm.ts
+@@ -0,0 +1,16 @@
++import type { LocalCommandCall } from '../../types/command.js'
++import { handleSwarm, tokenize } from '../../harness/foundry/swarm/cli.ts'
++
++/** User-invoked command. It does not bypass approval by turning a model tool
++ * call into a process launch; mutating commands require explicit --allow-exec. */
++export const call: LocalCommandCall = async (args, context) => {
++  try {
++    const result = await handleSwarm(tokenize(args), context.abortController.signal)
++    return { type: 'text', value: JSON.stringify(result, null, 2) }
++  } catch (error) {
++    return { type: 'text', value: JSON.stringify({
++      status: context.abortController.signal.aborted ? 'PAUSED' : 'ERROR',
++      error: error instanceof Error ? error.message : String(error),
++    }, null, 2) }
++  }
++}
+diff --git a/src/harness/foundry/errors.ts b/src/harness/foundry/errors.ts
+new file mode 100644
+index 0000000..41e6f86
+--- /dev/null
++++ b/src/harness/foundry/errors.ts
+@@ -0,0 +1,4 @@
++/** Trusted adapters use this for errors an unchanged retry cannot repair. */
++export class FatalAttemptError extends Error {
++  constructor(message: string) { super(message); this.name = "FatalAttemptError"; }
++}
+diff --git a/src/harness/foundry/kernel.ts b/src/harness/foundry/kernel.ts
+index 96c025e..627699d 100644
+--- a/src/harness/foundry/kernel.ts
++++ b/src/harness/foundry/kernel.ts
+@@ -72,7 +72,7 @@ export function validateTasks(c: Contract, tasks: Task[]): void {
+   positive(tasks.length, c.limits.tasks, "task count");
+   const byId = new Map<string, Task>();
+   for (const t of tasks) {
+-    canonical(t); identifier(t.id); invariant(Object.hasOwn(t, "input"), "missing task input");
++    canonical(t); identifier(t.id); if (t.agent !== undefined) identifier(t.agent); invariant(Object.hasOwn(t, "input"), "missing task input");
+     invariant(!byId.has(t.id), "duplicate task id"); byId.set(t.id, t);
+     invariant(typeof t.goal === "string" && t.goal.trim().length > 0, "empty goal");
+     invariant(Array.isArray(t.acceptance) && t.acceptance.length > 0 && t.acceptance.every(s => typeof s === "string" && !!s.trim()), "missing acceptance conditions");
+diff --git a/src/harness/foundry/runtime.ts b/src/harness/foundry/runtime.ts
+index a63ee4a..e302c6c 100644
+--- a/src/harness/foundry/runtime.ts
++++ b/src/harness/foundry/runtime.ts
+@@ -1,3 +1,4 @@
++import { FatalAttemptError } from "./errors.ts";
+ import { randomUUID } from "node:crypto";
+ import { performance } from "node:perf_hooks";
+ import { canonical, combineMeasurements, digest, invariant, validMeasurement, verdict } from "./kernel.ts";
+@@ -74,7 +75,7 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
+     const reason = e instanceof Error ? e.message : String(e);
+     scheduler.fail(lease, reason, measured, Date.now(), {
+       // Retrying the same oversized/invalid capsule cannot repair its contract.
+-      retryable: stage !== "prepare" || !!outer?.aborted,
++      retryable: !(e instanceof FatalAttemptError) && (stage !== "prepare" || !!outer?.aborted),
+       fingerprint: digest({ stage, reason, artifactHash, verificationHash }),
+     });
+   }
+diff --git a/src/harness/foundry/store.ts b/src/harness/foundry/store.ts
+index 6816750..9d4474b 100644
+--- a/src/harness/foundry/store.ts
++++ b/src/harness/foundry/store.ts
+@@ -50,13 +50,16 @@ export class Store {
+   event(kind: string, payload: unknown, run: string | null = null, task: string | null = null): void {
+     this.db.prepare("INSERT INTO events(at,kind,run,task,payload) VALUES(?,?,?,?,?)").run(Date.now(), kind, run, task, canonical(payload));
+   }
+-  initialize(contract: Contract, recipe: Recipe, commands?: { worker: PinnedCommand; checker: PinnedCommand }): string {
++  initialize(contract: Contract, recipe: Recipe, commands?: { worker: PinnedCommand; checker: PinnedCommand }, extensions: Record<string, Json> = {}): string {
+     validateContract(contract); validateRecipe(contract, recipe);
++    canonical(extensions);
++    invariant(Object.keys(extensions).every(k => k.startsWith("extension.")), "reserved metadata key");
+     if (commands) invariant(digest(commands.worker) === contract.workerId && digest(commands.checker) === contract.verifierId, "adapter identity mismatch");
+     return this.transaction(() => {
+       invariant(!this.getMeta("contract"), "already initialized; contracts cannot be overwritten");
+       const hash = digest(recipe);
+       if (commands) this.setMeta("commands", commands);
++      for (const [key, value] of Object.entries(extensions)) this.setMeta(key, value);
+       this.setMeta("contract", contract); this.setMeta("contractHash", digest(contract)); this.setMeta("active", hash);
+       this.db.prepare("INSERT INTO recipes(hash,parent,json,admitted) VALUES(?,NULL,?,1)").run(hash, canonical(recipe));
+       this.event("harness.created", { contractHash: digest(contract), recipeHash: hash }); return hash;
+diff --git a/src/harness/foundry/swarm/cli.ts b/src/harness/foundry/swarm/cli.ts
+new file mode 100644
+index 0000000..5a8e4aa
+--- /dev/null
++++ b/src/harness/foundry/swarm/cli.ts
+@@ -0,0 +1,71 @@
++import { readFileSync, statSync } from "node:fs";
++import { resolve } from "node:path";
++import { fileURLToPath } from "node:url";
++import { invariant, canonical } from "../kernel.ts";
++import { Store } from "../store.ts";
++import type { Json, Task } from "../types.ts";
++import { initializeSwarm, integrateSwarm, runSwarm, swarmStatus } from "./host.ts";
++import { SessionJournal } from "./session.ts";
++export const help = `Foundry Swarm: durable coding agents on the existing Foundry kernel
++  init --spec FILE --allow-exec
++  run --tasks FILE --allow-exec
++  resume --run ID --allow-exec
++  status [--run ID] [--task-after TASK_ID]
++  receipt --hash HASH [--offset N] [--length N]
++  events --run ID --task ID [--after N]
++  integrate --run ID --allow-exec
++All accept --root DIR (default .future-code/swarm).
++Local worktrees isolate edits, NOT hostile processes. Use only trusted code/checks.
++Run/resume call configured model endpoints and may incur charges. No background daemon is started.
++Integrate tests the merged tree and creates refs/heads/swarm/ID; it never edits main or pushes.`;
++export function tokenize(text: string): string[] {
++  const out: string[] = []; let word = ""; let quote = ""; let started = false;
++  for (let i = 0; i < text.length; i++) {
++    const c = text[i];
++    if (quote) { if (c === quote) quote = ""; else word += c; started = true; }
++    else if (c === '"' || c === "'") { quote = c; started = true; }
++    else if (/\s/.test(c)) { if (started) out.push(word); word = ""; started = false; }
++    else { word += c; started = true; }
++  }
++  invariant(!quote, "unterminated quote"); if (started) out.push(word); return out;
++}
++function file(path: string): any { invariant(statSync(path).size <= 32 * 1024 * 1024, "JSON input exceeds 32 MiB"); return JSON.parse(readFileSync(path, "utf8")); }
++export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal): Promise<Json> {
++  const cmd = argv[0] ?? "help"; if (cmd === "help") return { help };
++  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--allow-exec"]);
++  for (let i = 1; i < argv.length; i++) {
++    const k = argv[i]; invariant(allowed.has(k) && !opts.has(k), `unknown/duplicate option ${k}`);
++    if (k === "--allow-exec") opts.set(k, "true");
++    else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
++  }
++  const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
++  invariant(["init", "run", "resume", "status", "receipt", "events", "integrate"].includes(cmd), "unknown swarm command");
++  if (["init", "run", "resume", "integrate"].includes(cmd)) need("--allow-exec");
++  const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
++  try {
++    switch (cmd) {
++      case "init": { const cfg = await initializeSwarm(store, file(need("--spec")), signal); return { initialized: true, root: store.root, baseCommit: cfg.baseCommit }; }
++      case "run": return await runSwarm(store, file(need("--tasks")) as Task[], signal);
++      case "resume": return await runSwarm(store, [], signal, need("--run"));
++      case "status": return swarmStatus(store, opts.get("--run"), opts.get("--task-after"));
++      case "receipt": {
++        const offset = Number(opts.get("--offset") ?? 0); const length = Number(opts.get("--length") ?? 4096);
++        invariant(Number.isSafeInteger(offset) && offset >= 0 && Number.isSafeInteger(length) && length > 0 && length <= 16384, "invalid receipt slice");
++        const text = Buffer.from(canonical(store.readArtifact(need("--hash"))));
++        return { hash: need("--hash"), totalBytes: text.length, offset, content: text.subarray(offset, offset + length).toString("utf8"), nextOffset: offset + length < text.length ? offset + length : null };
++      }
++      case "events": { const items = new SessionJournal(store).page(need("--run"), need("--task"), Number(opts.get("--after") ?? 0)); return { items }; }
++      case "integrate": return JSON.parse(JSON.stringify(await integrateSwarm(store, need("--run"), signal)));
++      default: throw new Error("unreachable");
++    }
++  } finally { store.close(); }
++}
++if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
++  const c = new AbortController(); const stop = () => c.abort(); process.on("SIGINT", stop); process.on("SIGTERM", stop);
++  handleSwarm(process.argv.slice(2), c.signal).then(value => {
++    console.log(JSON.stringify(value, null, 2));
++    if (c.signal.aborted) process.exitCode = 130;
++    else if (value && typeof value === "object" && !Array.isArray(value) && "status" in value && value.status !== "PASS") process.exitCode = 2;
++  }, e => { console.error(JSON.stringify({ error: e instanceof Error ? e.message : String(e) })); process.exitCode = c.signal.aborted ? 130 : 1; })
++    .finally(() => { process.off("SIGINT", stop); process.off("SIGTERM", stop); });
++}
+diff --git a/src/harness/foundry/swarm/config.ts b/src/harness/foundry/swarm/config.ts
+new file mode 100644
+index 0000000..7acdd98
+--- /dev/null
++++ b/src/harness/foundry/swarm/config.ts
+@@ -0,0 +1,131 @@
++import { existsSync, realpathSync, statSync } from "node:fs";
++import { delimiter, isAbsolute, join, resolve } from "node:path";
++import { identifier, invariant, positive, validateContract, validateRecipe } from "../kernel.ts";
++import type { CommandSpec, Contract, PinnedCommand, Recipe, Task } from "../types.ts";
++
++export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall"] as const;
++export type ToolName = typeof TOOLS[number];
++export type Protocol = "anthropic" | "chat-completions";
++export interface AgentProfile {
++  protocol: Protocol;
++  url: string;
++  model: string;
++  keyEnv?: string;
++  system: string;
++  tools: ToolName[];
++  checks: string[];
++  promptCache?: boolean;
++  allowHttp?: boolean;
++}
++export interface CheckSpec extends CommandSpec { replaySafe: boolean }
++export interface SwarmBudget {
++  maxRequests: number;
++  maxRequestBytes: number;
++  maxTurns: number;
++  maxToolCalls: number;
++  modelConcurrency: number;
++  requestTimeoutMs: number;
++  toolTimeoutMs: number;
++  maxOutputTokens: number;
++  maxToolOutputBytes: number;
++  maxPatchBytes: number;
++}
++export interface SwarmSpec {
++  schema: 1;
++  name: string;
++  project: string;
++  baseRef: string;
++  defaultAgent: string;
++  agents: Record<string, AgentProfile>;
++  checks: Record<string, CheckSpec>;
++  integrationChecks: string[];
++  protectedPaths: string[];
++  limits: Contract["limits"];
++  recipe: Recipe;
++  budget: SwarmBudget;
++}
++export interface PinnedSwarm {
++  version: 1;
++  handsId: string;
++  spec: SwarmSpec;
++  baseCommit: string;
++  git: PinnedCommand;
++  checks: Record<string, PinnedCommand>;
++}
++export function keys(value: object, required: string[], optional: string[] = []): void {
++  invariant(value && typeof value === "object" && !Array.isArray(value), "expected object");
++  for (const key of required) invariant(Object.hasOwn(value, key), `missing ${key}`);
++  for (const key of Object.keys(value)) invariant(required.includes(key) || optional.includes(key), `unexpected ${key}`);
++}
++export function safePath(path: string): void {
++  invariant(typeof path === "string" && path.length > 0 && !path.startsWith("/") && !/[\\:\x00-\x1f]/.test(path) &&
++    path.split("/").every(p => !!p && ![".", "..", ".git", ".future-code"].includes(p)), "unsafe path");
++}
++export function inScope(path: string, scopes: string[]): boolean {
++  return scopes.some(scope => path === scope || path.startsWith(`${scope}/`));
++}
++function names(names: string[], known: string[], label: string): void {
++  invariant(Array.isArray(names) && names.length > 0 && new Set(names).size === names.length && names.every(n => known.includes(n)), `invalid ${label}`);
++}
++export function validateSwarmSpec(s: SwarmSpec): void {
++  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"]);
++  invariant(s.schema === 1 && typeof s.name === "string" && !!s.name.trim(), "invalid swarm identity");
++  invariant(typeof s.project === "string" && s.project.length > 0, "missing project");
++  invariant(typeof s.baseRef === "string" && s.baseRef.length > 0 && !s.baseRef.startsWith("-") && !s.baseRef.includes("\0"), "invalid baseRef");
++  const c: Contract = { schema: 1, name: s.name, workerId: "swarm", verifierId: "swarm-checker", environmentId: "pinned-project",
++    requiredChecks: ["scope", "behavior"], slos: [], limits: s.limits };
++  validateContract(c); validateRecipe(c, s.recipe);
++  invariant(s.agents && typeof s.agents === "object" && !Array.isArray(s.agents), "invalid agents");
++  positive(Object.keys(s.agents).length, 32, "roster size");
++  invariant(Object.hasOwn(s.agents, s.defaultAgent), "unknown defaultAgent");
++  invariant(s.checks && typeof s.checks === "object" && !Array.isArray(s.checks), "invalid checks");
++  const checks = Object.keys(s.checks); positive(checks.length, 128, "check count");
++  for (const [id, check] of Object.entries(s.checks)) {
++    identifier(id); keys(check, ["argv", "replaySafe"], ["files", "envAllow"]);
++    invariant(typeof check.replaySafe === "boolean", "explicit replaySafe required");
++    invariant(Array.isArray(check.argv) && check.argv.length > 0 && check.argv.every(x => typeof x === "string" && !x.includes("\0")), "invalid check argv");
++    // Shell capabilities are a user-authored, pinned configuration, never task input.
++  }
++  names(s.integrationChecks, checks, "integration checks");
++  invariant(s.integrationChecks.every(n => s.checks[n].replaySafe), "integration checks must be replay-safe");
++  for (const [id, a] of Object.entries(s.agents)) {
++    identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"], ["keyEnv", "promptCache", "allowHttp"]);
++    invariant(["anthropic", "chat-completions"].includes(a.protocol), "unsupported provider protocol");
++    const url = new URL(a.url);
++    const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
++    invariant(url.protocol === "https:" || (url.protocol === "http:" && (loopback || a.allowHttp === true)), "HTTPS required; private HTTP must be explicit");
++    invariant(!url.username && !url.password && !url.search && !url.hash, "credentials/query must not be in provider URL");
++    invariant(typeof a.model === "string" && !!a.model.trim() && typeof a.system === "string" && !!a.system.trim(), "missing model/system");
++    if (a.keyEnv !== undefined) invariant(/^[A-Z_][A-Z0-9_]*$/.test(a.keyEnv), "invalid keyEnv");
++    for (const x of [a.promptCache, a.allowHttp]) invariant(x === undefined || typeof x === "boolean", "invalid provider flag");
++    names(a.tools, [...TOOLS], "tools"); names(a.checks, checks, "agent checks");
++    invariant(a.checks.every(n => s.checks[n].replaySafe), "independent verification checks must be replay-safe");
++  }
++  const credentialNames = new Set(Object.values(s.agents).map(a => a.keyEnv).filter(Boolean));
++  for (const check of Object.values(s.checks)) {
++    invariant(!(check.envAllow ?? []).some(name => credentialNames.has(name)), "model credentials may not be forwarded to checks");
++  }
++  invariant(Array.isArray(s.protectedPaths), "invalid protectedPaths"); s.protectedPaths.forEach(safePath);
++  const bounds: SwarmBudget = { maxRequests: 1_000_000, maxRequestBytes: 1_000_000_000_000, maxTurns: 1000,
++    maxToolCalls: 10000, modelConcurrency: 256, requestTimeoutMs: 3_600_000, toolTimeoutMs: 3_600_000,
++    maxOutputTokens: 128000, maxToolOutputBytes: 16 * 1024 * 1024, maxPatchBytes: 16 * 1024 * 1024 };
++  keys(s.budget, Object.keys(bounds));
++  for (const k of Object.keys(bounds) as (keyof SwarmBudget)[]) positive(s.budget[k], bounds[k], k);
++  invariant(s.budget.requestTimeoutMs <= s.recipe.timeoutMs && s.budget.toolTimeoutMs <= s.recipe.timeoutMs, "stage timeout exceeds attempt deadline");
++}
++export function validateSwarmTasks(s: SwarmSpec, tasks: Task[]): void {
++  for (const task of tasks) {
++    const agent = task.agent ?? s.defaultAgent;
++    invariant(Object.hasOwn(s.agents, agent), `unknown agent: ${agent}`);
++    for (const path of [...task.writeScope, ...(task.readScope ?? [])]) safePath(path);
++    for (const path of task.writeScope) invariant(!s.protectedPaths.some(p => inScope(path, [p]) || inScope(p, [path])), "write scope overlaps protected paths");
++  }
++}
++export function executable(name: string): string {
++  if (isAbsolute(name)) return realpathSync(name);
++  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
++    const path = resolve(dir, name);
++    if (existsSync(path) && statSync(path).isFile()) return realpathSync(path);
++  }
++  throw new Error(`executable not found: ${name}`);
++}
+diff --git a/src/harness/foundry/swarm/context.ts b/src/harness/foundry/swarm/context.ts
+new file mode 100644
+index 0000000..9c52165
+--- /dev/null
++++ b/src/harness/foundry/swarm/context.ts
+@@ -0,0 +1,30 @@
++import { canonical, invariant } from "../kernel.ts";
++import type { Json } from "../types.ts";
++export interface Call { id: string; name: string; arguments: Record<string, Json> }
++export interface Message { role: "user" | "assistant" | "tool"; content: string; calls?: Call[]; callId?: string }
++export const bytes = (value: unknown): number => Buffer.byteLength(canonical(value), "utf8");
++
++/** Keep task/acceptance and whole recent tool exchanges. The immutable journal
++ * retains everything; this is a projection, NOT a destructive session rewrite. */
++export function compactHistory(history: Message[], budget: number): Message[] {
++  invariant(history.length > 0 && history[0].role === "user", "missing mandatory task message");
++  invariant(bytes([history[0]]) <= budget, "CONTEXT_OVERFLOW: mandatory task exceeds budget");
++  if (bytes(history) <= budget) return history;
++  const groups: Message[][] = [];
++  for (const message of history.slice(1)) {
++    if (message.role !== "tool") groups.push([message]);
++    else { invariant(groups.length > 0 && groups.at(-1)![0].role === "assistant", "orphan tool result"); groups.at(-1)!.push(message); }
++  }
++  const notice: Message = { role: "user", content: "Older complete exchanges are in the durable journal. Use recall with historyAfter=0 and a page limit to retrieve them; do not invent their contents." };
++  for (let start = 1; start < groups.length; start++) {
++    const candidate = [history[0], notice, ...groups.slice(start).flat()];
++    if (bytes(candidate) <= budget) return candidate;
++  }
++  throw new Error("CONTEXT_OVERFLOW: latest complete exchange cannot fit; split the task or admit more context");
++}
++export function inlineReceipt(receipt: string, value: Json, limit = 2048): string {
++  const text = canonical(value);
++  if (Buffer.byteLength(text, "utf8") <= limit) return text;
++  return canonical({ receipt, truncated: true, preview: Buffer.from(text).subarray(0, Math.max(0, limit - 256)).toString("utf8"),
++    note: "Full output retained. Use recall(receipt, offset, length); preview is not the full evidence." });
++}
+diff --git a/src/harness/foundry/swarm/driver.ts b/src/harness/foundry/swarm/driver.ts
+new file mode 100644
+index 0000000..22f973f
+--- /dev/null
++++ b/src/harness/foundry/swarm/driver.ts
+@@ -0,0 +1,132 @@
++import { canonical, digest, invariant, allocateContext } from "../kernel.ts";
++import { FatalAttemptError } from "../errors.ts";
++import type { Store } from "../store.ts";
++import type { AttemptControl, Capsule, Driver, Json, Task, Verification, WorkerResult } from "../types.ts";
++import { keys, type PinnedSwarm } from "./config.ts";
++import { inlineReceipt, type Call } from "./context.ts";
++import { HttpBrain } from "./model.ts";
++import { SessionJournal, type Thread } from "./session.ts";
++import { localGitBackend, type HandsBackend } from "./workspace.ts";
++
++export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
++export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
++const toJson = (v: unknown): Json => JSON.parse(canonical(v));
++function outstanding(t: Thread): Call[] {
++  for (let i = t.state.history.length - 1; i >= 0; i--) {
++    const message = t.state.history[i];
++    if (message.role === "assistant") {
++      const done = new Set(t.state.history.slice(i + 1).filter(m => m.role === "tool").map(m => m.callId));
++      return (message.calls ?? []).filter(c => !done.has(c.id));
++    }
++  }
++  return [];
++}
++/** The model chooses tools, not leases or acceptance. Foundry remains the scheduler. */
++export class SwarmDriver implements Driver {
++  readonly workerId: string; readonly verifierId: string;
++  readonly journal: SessionJournal; readonly brain: HttpBrain;
++  readonly store: Store; readonly cfg: PinnedSwarm; readonly backend: HandsBackend;
++  private contextPlan?: { run: string; recipe: string; budgets: Map<string, number> };
++  constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend) {
++    invariant(backend.id === cfg.handsId, "execution backend identity mismatch");
++    this.store = store; this.cfg = cfg; this.backend = backend;
++    this.workerId = workerIdentity(cfg); this.verifierId = verifierIdentity(cfg);
++    this.journal = new SessionJournal(store); this.brain = new HttpBrain(this.journal, fetcher);
++  }
++  async execute(c: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult> {
++    const profile = this.cfg.spec.agents[c.task.agent ?? this.cfg.spec.defaultAgent]; invariant(profile, "unknown agent profile");
++    const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
++      task: c.task, dependencies: c.dependencies,
++      contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. Do not delegate or edit infrastructure." }) }],
++      turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null });
++    const feedbackHash = this.journal.feedback(c);
++    if (t.state.output && feedbackHash && feedbackHash !== t.state.feedbackHash) {
++      const feedback = this.store.readArtifact(feedbackHash);
++      const receipt = this.journal.receipt(c, feedback);
++      const details: Json[] = [];
++      for (const check of (feedback as any).checks ?? []) {
++        if (typeof check.detail === "string" && /^[a-f0-9]{64}$/.test(check.detail)) {
++          const data = this.store.readArtifact(check.detail); const id = this.journal.receipt(c, data);
++          details.push({ check: check.id, receipt: id, excerpt: inlineReceipt(id, data, 2048) });
++        }
++      }
++      t.state.history.push({ role: "user", content: canonical({ repairRequired: true, feedback: inlineReceipt(receipt, feedback), details }) });
++      t.state.feedbackHash = feedbackHash; t.state.output = null;
++      this.journal.checkpoint(t, "verification.feedback", { receipt });
++    }
++    const hands = this.backend.open(this.store, this.cfg, c, profile, signal, t.state.patchHash);
++    const budget = this.cfg.spec.budget;
++    if (this.contextPlan?.run !== c.runId || this.contextPlan.recipe !== c.recipeHash) {
++      const allTasks: Task[] = this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(c.runId).map(r => JSON.parse(r.spec));
++      this.contextPlan = { run: c.runId, recipe: c.recipeHash,
++        budgets: allocateContext(allTasks, this.store.recipe(c.recipeHash), this.store.contract().limits.contextBytes) };
++    }
++    const limit = this.contextPlan.budgets.get(c.task.id)!;
++    try {
++      if (t.state.pending?.name === "run_check") {
++        const name = t.state.pending.arguments.name as string;
++        if (!this.cfg.spec.checks[name]?.replaySafe) throw new FatalAttemptError("IN_DOUBT_EFFECT: non-replay-safe check needs operator reconciliation");
++      }
++      for (;;) {
++        signal.throwIfAborted(); this.journal.assertLease(c);
++        if (t.state.output) return { artifact: toJson(t.state.output), measurement: { tokens: this.journal.usage(c.runId, c.task.id, c.fence).tokens, costUsd: null } };
++        const calls = outstanding(t);
++        if (calls.length) {
++          for (const call of calls) {
++            const resuming = t.state.pending?.id === call.id;
++            if (!resuming) {
++              if (t.state.toolCalls >= budget.maxToolCalls) throw new FatalAttemptError("THREAD_TOOL_BUDGET_EXHAUSTED");
++              t.state.toolCalls++;
++            }
++            t.state.pending = call; this.journal.checkpoint(t, "tool.intent", call);
++            let result: Json;
++            try {
++              invariant(profile.tools.includes(call.name as any), "tool not allowed");
++              if (call.name === "recall") {
++                const a = call.arguments; keys(a, [], ["receipt", "offset", "length", "historyAfter", "limit"]);
++                if (a.receipt !== undefined) {
++                  invariant(typeof a.receipt === "string" && a.historyAfter === undefined && a.limit === undefined, "ambiguous recall");
++                  result = this.journal.recall(c, a.receipt, a.offset as number | undefined, a.length as number | undefined);
++                } else {
++                  invariant(a.offset === undefined && a.length === undefined && (a.limit === undefined || (Number.isInteger(a.limit) && (a.limit as number) <= 10)), "invalid history recall");
++                  result = this.journal.historyPage(c, a.historyAfter as number | undefined, a.limit as number | undefined);
++                }
++              } else result = await hands.tool(call);
++            } catch (e) {
++              signal.throwIfAborted(); this.journal.assertLease(c);
++              if (e instanceof FatalAttemptError) throw e;
++              result = { error: e instanceof Error ? e.message.slice(0, 2048) : "tool error" };
++            }
++            // Snapshot even a failed tool: a trusted command may have partially edited files.
++            if (["write_file", "edit_file", "delete_file", "run_check"].includes(call.name)) t.state.patchHash = await hands.snapshot();
++            const receipt = this.journal.receipt(c, result);
++            t.state.history.push({ role: "tool", callId: call.id, content: inlineReceipt(receipt, result) });
++            t.state.pending = null; this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
++            control?.progress(`tool:${receipt}`);
++          }
++          continue;
++        }
++        // A persisted model reply without tools represents a final answer.
++        const last = t.state.history.at(-1)!;
++        if (last.role === "assistant" && !last.calls?.length) {
++          const patchHash = t.state.patchHash ?? this.store.artifact("");
++          t.state.output = { schema: 1, patchHash, summary: last.content.slice(0, 4096) };
++          this.journal.checkpoint(t, "worker.output", t.state.output); continue;
++        }
++        if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
++        this.journal.checkpoint(t, "model.intent", { step: t.state.turns });
++        const next = await this.brain.next(c, profile, t.state.history, budget, limit, signal, t.state.turns);
++        t.state.history = [...next.history, next.turn.message]; t.state.turns++;
++        this.journal.checkpoint(t, "model.reply", next.turn.message);
++        control?.progress(`model:${t.state.turns}:${digest(next.turn.message)}`);
++      }
++    } finally { await hands.dispose(); }
++  }
++  async verify(c: Capsule, result: WorkerResult, signal: AbortSignal, control?: AttemptControl): Promise<Verification> {
++    this.journal.assertLease(c);
++    const verification = await this.backend.verify(this.store, this.cfg, c, result.artifact, signal);
++    signal.throwIfAborted(); this.journal.assertLease(c);
++    if (verification.checks.some(check => check.verdict !== "PASS")) this.journal.feedback(c, verification);
++    control?.progress(`verify:${digest(verification)}`); return verification;
++  }
++}
+diff --git a/src/harness/foundry/swarm/host.ts b/src/harness/foundry/swarm/host.ts
+new file mode 100644
+index 0000000..52347e1
+--- /dev/null
++++ b/src/harness/foundry/swarm/host.ts
+@@ -0,0 +1,111 @@
++import { realpathSync } from "node:fs";
++import { isAbsolute, relative, resolve } from "node:path";
++import { checkPins, pinCommand } from "../commands.ts";
++import { canonical, digest, invariant, validateTasks } from "../kernel.ts";
++import { runTasks } from "../runtime.ts";
++import { Scheduler } from "../scheduler.ts";
++import { Store } from "../store.ts";
++import type { Capsule, Contract, Json, Task } from "../types.ts";
++import { executable, validateSwarmSpec, validateSwarmTasks, type PinnedSwarm, type SwarmSpec } from "./config.ts";
++import { SwarmDriver, verifierIdentity, workerIdentity } from "./driver.ts";
++import { SessionJournal } from "./session.ts";
++import { git, LocalGitHands, orderedTasks } from "./workspace.ts";
++const json = (value: unknown): Json => JSON.parse(canonical(value));
++const KEY = "extension.swarm";
++export async function initializeSwarm(store: Store, input: SwarmSpec, signal: AbortSignal): Promise<PinnedSwarm> {
++  validateSwarmSpec(input);
++  const spec: SwarmSpec = JSON.parse(canonical(input)); spec.project = realpathSync(resolve(spec.project));
++  const cfg: PinnedSwarm = { version: 1, handsId: "local-git-posix-v1", spec, baseCommit: "", git: pinCommand({ argv: [executable("git")] }, spec.project), checks: {} };
++  const root = (await git(cfg, spec.project, ["rev-parse", "--show-toplevel"], signal)).trim();
++  invariant(realpathSync(root) === spec.project, "project must be the Git repository root");
++  cfg.baseCommit = (await git(cfg, spec.project, ["rev-parse", "--verify", `${spec.baseRef}^{commit}`], signal)).trim();
++  invariant(/^[a-f0-9]{40,64}$/.test(cfg.baseCommit), "invalid base commit");
++  // Pin declared implementations. Interpreter-loaded transitive dependencies must
++  // be declared by the operator; this is not hermetic environment attestation.
++  for (const [name, command] of Object.entries(spec.checks)) {
++    cfg.checks[name] = pinCommand({ ...command, argv: [command.argv[0] === "$NODE" ? executable("node") : command.argv[0], ...command.argv.slice(1)] }, spec.project);
++    for (const p of cfg.checks[name].pins) {
++      const path = relative(spec.project, p.path).replaceAll("\\", "/");
++      if (path && !path.startsWith("../") && !isAbsolute(path)) spec.protectedPaths.push(path);
++    }
++  }
++  spec.protectedPaths = [...new Set([...spec.protectedPaths, ".gitignore", ".gitattributes", ".gitmodules"])].sort();
++  const contract: Contract = { schema: 1, name: spec.name, workerId: workerIdentity(cfg), verifierId: verifierIdentity(cfg),
++    environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior"],
++    slos: [], limits: spec.limits };
++  store.initialize(contract, spec.recipe, undefined, { [KEY]: json(cfg) });
++  new SessionJournal(store); return cfg;
++}
++export function loadSwarm(store: Store): PinnedSwarm {
++  const cfg = store.getMeta<PinnedSwarm>(KEY); invariant(cfg?.version === 1, "swarm is not initialized");
++  invariant(cfg.handsId === "local-git-posix-v1", "unsupported execution backend");
++  validateSwarmSpec(cfg.spec); checkPins(cfg.git); Object.values(cfg.checks).forEach(checkPins);
++  const c = store.contract();
++  invariant(c.workerId === workerIdentity(cfg) && c.verifierId === verifierIdentity(cfg) &&
++    c.environmentId === digest({ project: cfg.spec.project, base: cfg.baseCommit, checks: cfg.checks }), "swarm configuration drift");
++  return cfg;
++}
++export async function runSwarm(store: Store, tasks: Task[], signal: AbortSignal, resumeRun?: string, fetcher?: typeof fetch): Promise<Json> {
++  const cfg = loadSwarm(store);
++  const actual: Task[] = resumeRun ? store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(resumeRun).map(r => JSON.parse(r.spec)) : tasks;
++  validateTasks(store.contract(), actual); validateSwarmTasks(cfg.spec, actual);
++  const driver = new SwarmDriver(store, cfg, fetcher);
++  const summary = await runTasks(store, tasks, driver, { signal, resumeRun });
++  return json({ ...summary, providerUsage: driver.journal.usage(summary.id), baseCommit: cfg.baseCommit,
++    note: "Acceptance is per-task. Run integrate for cross-task checks. Monetary cost is unknown without a trusted price meter." });
++}
++export function swarmStatus(store: Store, run?: string, after = ""): Json {
++  const cfg = loadSwarm(store);
++  if (!run) return json({ active: store.active(), recipe: store.recipe(), baseCommit: cfg.baseCommit, agents: Object.keys(cfg.spec.agents),
++    recentRuns: store.db.prepare("SELECT id,status,started,ended FROM runs ORDER BY started DESC LIMIT 20").all() });
++  const tasks = store.db.prepare("SELECT id,status,fence,error FROM tasks WHERE run=? AND id>? ORDER BY id LIMIT 201").all(run, after);
++  const page = tasks.slice(0, 200);
++  return json({ ...new Scheduler(store).summary(run), providerUsage: new SessionJournal(store).usage(run),
++    tasks: page, nextTaskAfter: tasks.length > 200 ? page.at(-1)!.id : null,
++    taskPageLimit: 200, integrationReceipt: store.getMeta(`extension.swarm.integration.${run}`) ?? null });
++}
++interface IntegrationReceipt { run: string; base: string; tree: string; commit: string; branch: string; checksHash: string; binding: string }
++/** Explicit host action: test the combined tree and publish a NEW branch only.
++ * No checkout, merge into main, reset, push, or force update occurs here. */
++export async function integrateSwarm(store: Store, run: string, signal: AbortSignal): Promise<IntegrationReceipt> {
++  const cfg = loadSwarm(store); const summary = new Scheduler(store).summary(run);
++  invariant(summary.status === "PASS", "all tasks must pass before integration");
++  const ordered = orderedTasks(store, run);
++  const binding = digest({ run, cfg, recipe: summary.recipeHash,
++    artifacts: store.db.prepare("SELECT id,artifact,evidence FROM tasks WHERE run=? ORDER BY id").all(run) });
++  const key = `extension.swarm.integration.${run}`;
++  let receipt = store.getMeta<IntegrationReceipt>(key);
++  const publish = async (value: IntegrationReceipt) => {
++    invariant(value.binding === binding, "integration input drift");
++    // Revalidate stored evidence and commit object before publishing after a crash.
++    store.readArtifact(value.checksHash);
++    invariant((await git(cfg, cfg.spec.project, ["rev-parse", `${value.commit}^{tree}`], signal)).trim() === value.tree, "integration commit drift");
++    const refs = (await git(cfg, cfg.spec.project, ["for-each-ref", "--format=%(objectname)", value.branch], signal)).trim();
++    if (!refs) await git(cfg, cfg.spec.project, ["update-ref", value.branch, value.commit, "0".repeat(value.commit.length)], signal);
++    else invariant(refs === value.commit, "integration branch already points elsewhere; never overwrite it");
++    store.transaction(() => store.event("swarm.integrated", value, run)); return value;
++  };
++  if (receipt) return publish(receipt);
++  const c: Capsule = { schema: 1, runId: run, task: { id: "integration", goal: "Integrate accepted patches", acceptance: ["all integration checks"],
++    dependencies: [], writeScope: [], input: null }, fence: 0, recipeHash: summary.recipeHash, contractHash: summary.contractHash, dependencies: [] };
++  const hands = new LocalGitHands(store, cfg, c, cfg.spec.agents[cfg.spec.defaultAgent], signal, null, ordered.map(t => t.id));
++  try {
++    const path = await hands.ready(); const tree = await hands.tree(); const reports: Json[] = [];
++    for (const name of cfg.spec.integrationChecks) {
++      invariant(cfg.spec.checks[name].replaySafe, "integration checks must be explicitly replay-safe");
++      const report = await hands.check(name); reports.push(json({ name, ...report }));
++      invariant(report.code === 0, `integration check failed: ${name}; receipt=${store.artifact(json(reports))}`);
++    }
++    invariant(await hands.tree() === tree, "integration verifier mutated tracked source");
++    const checksHash = store.artifact(json(reports));
++    const commit = (await git(cfg, path, ["-c", "user.name=Future Code Swarm", "-c", "user.email=swarm@localhost",
++      "commit-tree", tree, "-p", cfg.baseCommit, "-m", `Verified swarm ${run}`], signal)).trim();
++    const proposed: IntegrationReceipt = { run, base: cfg.baseCommit, tree, commit, branch: `refs/heads/swarm/${run}`, checksHash, binding };
++    receipt = store.transaction(() => {
++      const previous = store.getMeta<IntegrationReceipt>(key);
++      if (previous) { invariant(previous.binding === binding && previous.tree === tree, "concurrent integration mismatch"); return previous; }
++      store.setMeta(key, proposed); store.event("swarm.integration.prepared", proposed, run); return proposed;
++    });
++    return await publish(receipt);
++  } finally { await hands.dispose(); }
++}
+diff --git a/src/harness/foundry/swarm/model.ts b/src/harness/foundry/swarm/model.ts
+new file mode 100644
+index 0000000..174bec8
+--- /dev/null
++++ b/src/harness/foundry/swarm/model.ts
+@@ -0,0 +1,162 @@
++import { canonical, digest, invariant } from "../kernel.ts";
++import { FatalAttemptError } from "../errors.ts";
++import type { Capsule, Json } from "../types.ts";
++import type { AgentProfile, Protocol, SwarmBudget, ToolName } from "./config.ts";
++import { bytes, compactHistory, type Call, type Message } from "./context.ts";
++import { SessionJournal } from "./session.ts";
++
++export interface Turn { message: Message; tokens: number | null; truncated: boolean }
++export interface ToolDefinition { name: ToolName; description: string; schema: Record<string, Json> }
++const string = { type: "string" }; const integer = { type: "integer", minimum: 0 };
++const def = (name: ToolName, description: string, properties: Record<string, Json>, required: string[]): ToolDefinition =>
++  ({ name, description, schema: { type: "object", properties, required, additionalProperties: false } });
++export const definitions: ToolDefinition[] = [
++  def("list_files", "List tracked and new files in the task's readable scopes. Paginated; paths only.", { offset: integer, limit: { type: "integer", minimum: 1, maximum: 200 } }, []),
++  def("read_file", "Read a bounded line range of a non-symlink UTF-8 file in readable scopes.", { path: string, start: { type: "integer", minimum: 1 }, lines: { type: "integer", minimum: 1, maximum: 300 } }, ["path"]),
++  def("write_file", "Write a UTF-8 file within the task's exclusive write scopes; use edit_file for small changes.", { path: string, content: string }, ["path", "content"]),
++  def("edit_file", "Replace exactly one literal occurrence. A missing or ambiguous match is an error.", { path: string, oldText: string, newText: string }, ["path", "oldText", "newText"]),
++  def("delete_file", "Delete one non-symlink file within the task's write scopes.", { path: string }, ["path"]),
++  def("run_check", "Run a configured named check; arbitrary shell commands are not accepted.", { name: string }, ["name"]),
++  def("recall", "Read this thread's durable receipts, or page prior events. No other thread's history is accessible.",
++    { receipt: string, offset: integer, length: { type: "integer", minimum: 1, maximum: 8192 }, historyAfter: integer, limit: { type: "integer", minimum: 1, maximum: 10 } }, []),
++];
++const asJson = (x: unknown): Json => JSON.parse(canonical(x));
++function measured(raw: any, protocol: Protocol): number | null {
++  const u = raw?.usage;
++  if (!u || typeof u !== "object") return null;
++  const ns = protocol === "anthropic"
++    ? [u.input_tokens, u.output_tokens, u.cache_creation_input_tokens ?? 0, u.cache_read_input_tokens ?? 0]
++    : [u.prompt_tokens, u.completion_tokens];
++  if (ns.some(x => x === undefined || x === null)) return null;
++  invariant(ns.every(x => Number.isSafeInteger(x) && x >= 0), "invalid provider usage");
++  const total = ns.reduce((a, b) => a + b, 0);
++  invariant(Number.isSafeInteger(total), "provider usage overflow"); return total;
++}
++export function decodeTurn(protocol: Protocol, raw: any): Turn {
++  let content = ""; const calls: Call[] = []; let stop: string;
++  if (protocol === "anthropic") {
++    invariant(Array.isArray(raw?.content) && typeof raw.stop_reason === "string", "invalid Anthropic response");
++    for (const block of raw.content) {
++      if (block.type === "text") { invariant(typeof block.text === "string", "invalid text"); content += block.text; }
++      else if (block.type === "tool_use") calls.push({ id: block.id, name: block.name, arguments: block.input });
++      else throw new FatalAttemptError("Unsupported response block; this adapter does not enable extended thinking or server tools");
++    }
++    stop = raw.stop_reason;
++    invariant(["end_turn", "tool_use", "max_tokens", "stop_sequence"].includes(stop), "unsupported stop reason");
++  } else {
++    invariant(Array.isArray(raw?.choices) && raw.choices.length === 1, "expected one completion");
++    const choice = raw.choices[0]; const m = choice.message;
++    invariant(m && (m.content === null || m.content === undefined || typeof m.content === "string"), "invalid completion content");
++    content = m.content ?? ""; stop = choice.finish_reason;
++    invariant(["stop", "tool_calls", "length"].includes(stop), "unsupported completion finish reason");
++    if (m.tool_calls !== undefined) {
++      invariant(Array.isArray(m.tool_calls), "invalid tool_calls");
++      for (const c of m.tool_calls) {
++        invariant(c.type === "function" && typeof c.function?.arguments === "string", "invalid function call");
++        calls.push({ id: c.id, name: c.function.name, arguments: JSON.parse(c.function.arguments) });
++      }
++    }
++  }
++  invariant(calls.length <= 32, "too many tool calls in one response");
++  const seen = new Set<string>();
++  for (const c of calls) {
++    invariant(typeof c.id === "string" && c.id.length > 0 && c.id.length <= 256 && !seen.has(c.id), "invalid/duplicate tool id"); seen.add(c.id);
++    invariant(typeof c.name === "string" && c.arguments && typeof c.arguments === "object" && !Array.isArray(c.arguments), "invalid tool arguments");
++    canonical(c.arguments);
++  }
++  invariant(!["tool_calls", "tool_use"].includes(stop) || calls.length > 0, "tool stop without calls");
++  return { message: { role: "assistant", content, ...(calls.length ? { calls } : {}) }, tokens: measured(raw, protocol),
++    truncated: stop === "length" || stop === "max_tokens" };
++}
++export function requestBody(profile: AgentProfile, history: Message[], budget: SwarmBudget): Json {
++  const tools = definitions.filter(x => profile.tools.includes(x.name)).sort((a, b) => a.name.localeCompare(b.name));
++  if (profile.protocol === "chat-completions") return asJson({
++    model: profile.model, max_tokens: budget.maxOutputTokens, stream: false,
++    messages: [{ role: "system", content: profile.system }, ...history.map(m => m.role === "tool"
++      ? { role: "tool", tool_call_id: m.callId, content: m.content }
++      : { role: m.role, content: m.content, ...(m.calls?.length ? { tool_calls: m.calls.map(c =>
++          ({ id: c.id, type: "function", function: { name: c.name, arguments: canonical(c.arguments) } })) } : {}) })],
++    tools: tools.map(t => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.schema } })),
++  });
++  const messages: any[] = [];
++  for (const m of history) {
++    if (m.role === "tool") {
++      const block = { type: "tool_result", tool_use_id: m.callId, content: m.content };
++      if (messages.at(-1)?.role === "user" && Array.isArray(messages.at(-1).content)) messages.at(-1).content.push(block);
++      else messages.push({ role: "user", content: [block] });
++    } else if (m.role === "assistant") {
++      const blocks: any[] = m.content ? [{ type: "text", text: m.content }] : [];
++      for (const c of m.calls ?? []) blocks.push({ type: "tool_use", id: c.id, name: c.name, input: c.arguments });
++      invariant(blocks.length > 0, "empty assistant exchange"); messages.push({ role: "assistant", content: blocks });
++    } else messages.push({ role: "user", content: [{ type: "text", text: m.content }] });
++  }
++  return asJson({ model: profile.model, max_tokens: budget.maxOutputTokens, stream: false,
++    system: [{ type: "text", text: profile.system, ...(profile.promptCache ? { cache_control: { type: "ephemeral" } } : {}) }],
++    messages, tools: tools.map(t => ({ name: t.name, description: t.description, input_schema: t.schema })) });
++}
++export async function boundedJson(response: Response, maxBytes: number): Promise<Json> {
++  invariant(response.body, "missing response body"); const reader = response.body.getReader();
++  const chunks: Uint8Array[] = []; let n = 0;
++  try {
++    for (;;) {
++      const item = await reader.read(); if (item.done) break;
++      n += item.value.byteLength; invariant(n <= maxBytes, "provider response exceeds output budget"); chunks.push(item.value);
++    }
++  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
++  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
++}
++export class HttpBrain {
++  readonly journal: SessionJournal; readonly fetcher: typeof fetch;
++  constructor(journal: SessionJournal, fetcher: typeof fetch = fetch) { this.journal = journal; this.fetcher = fetcher; }
++  async next(c: Capsule, profile: AgentProfile, history: Message[], budget: SwarmBudget, contextBytes: number, signal: AbortSignal, step = 0): Promise<{ turn: Turn; history: Message[] }> {
++    let projection = history;
++    let body = requestBody(profile, projection, budget);
++    // Enforce the actual provider input, including system and tool definitions.
++    if (bytes(body) > contextBytes) {
++      const overhead = bytes(requestBody(profile, [], budget));
++      projection = compactHistory(history, Math.max(0, contextBytes - overhead - 512));
++      body = requestBody(profile, projection, budget);
++    }
++    if (bytes(body) > contextBytes) throw new FatalAttemptError("CONTEXT_OVERFLOW: encoded provider request exceeds admitted context");
++    const cached = this.journal.cached(c, step, body);
++    if (cached) {
++      const turn = decodeTurn(profile.protocol, cached);
++      if (turn.truncated) throw new FatalAttemptError("Model output truncated");
++      return { turn, history: projection };
++    }
++    const headers: Record<string, string> = { "content-type": "application/json" };
++    if (profile.protocol === "anthropic") headers["anthropic-version"] = "2023-06-01";
++    if (profile.keyEnv) {
++      const key = process.env[profile.keyEnv]; if (!key) throw new FatalAttemptError(`Missing credential environment: ${profile.keyEnv}`);
++      headers[profile.protocol === "anthropic" ? "x-api-key" : "authorization"] = profile.protocol === "anthropic" ? key : `Bearer ${key}`;
++    }
++    const provider = digest({ url: profile.url });
++    for (let retry = 0; retry < 2; retry++) {
++      const id = await this.journal.reserve(c, provider, body, budget, signal);
++      let completed = false;
++      try {
++        const timeout = AbortSignal.timeout(budget.requestTimeoutMs);
++        const response = await this.fetcher(profile.url, { method: "POST", headers, body: canonical(body), redirect: "error", signal: AbortSignal.any([signal, timeout]) });
++        if (!response.ok) {
++          await response.body?.cancel();
++          // Error bodies may contain credentials or upstream internals. Do not log them.
++          this.journal.complete(id, null, { httpStatus: response.status }); completed = true;
++          if ([429, 503, 529].includes(response.status) && retry === 0) {
++            const h = response.headers.get("retry-after"); const parsed = h ? Number(h) : NaN;
++            const date = h ? Date.parse(h) - Date.now() : NaN;
++            const ms = Number.isFinite(parsed) ? parsed * 1000 : Number.isFinite(date) ? date : 1000;
++            this.journal.cooldown(provider, Math.min(60000, Math.max(100, ms))); continue;
++          }
++          throw new Error(`Model HTTP ${response.status}`);
++        }
++        const raw = await boundedJson(response, budget.maxToolOutputBytes);
++        const turn = decodeTurn(profile.protocol, raw);
++        this.journal.complete(id, turn.tokens, raw, step); completed = true;
++        signal.throwIfAborted(); this.journal.assertLease(c);
++        if (turn.truncated) throw new FatalAttemptError("Model output truncated; admit more output or split task");
++        return { turn, history: projection };
++      } finally { if (!completed) this.journal.complete(id, null, null); }
++    }
++    throw new Error("model retry budget exhausted");
++  }
++}
+diff --git a/src/harness/foundry/swarm/process.ts b/src/harness/foundry/swarm/process.ts
+new file mode 100644
+index 0000000..865e359
+--- /dev/null
++++ b/src/harness/foundry/swarm/process.ts
+@@ -0,0 +1,42 @@
++import { spawn } from "node:child_process";
++import { mkdtempSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { checkPins } from "../commands.ts";
++import { invariant } from "../kernel.ts";
++import type { PinnedCommand } from "../types.ts";
++export interface ProcessResult { code: number; stdout: string; stderr: string }
++/** A bounded process group, NOT a security sandbox. Executables are trusted. */
++export async function runProcess(command: PinnedCommand, cwd: string, args: string[], signal: AbortSignal,
++  timeoutMs: number, maxBytes: number, input?: string): Promise<ProcessResult> {
++  checkPins(command); signal.throwIfAborted();
++  if (process.platform === "win32") throw new Error("Local worktree backend currently requires POSIX process groups");
++  const home = mkdtempSync(join(tmpdir(), "future-swarm-home-"));
++  const env: Record<string, string> = { PATH: process.env.PATH ?? "", HOME: home, TMPDIR: home, TMP: home, TEMP: home,
++    GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" };
++  for (const name of command.envAllow ?? []) if (process.env[name] !== undefined) env[name] = process.env[name]!;
++  try { return await new Promise<ProcessResult>((resolve, reject) => {
++    const child = spawn(command.argv[0], [...command.argv.slice(1), ...args], { cwd, env, shell: false, detached: true, stdio: ["pipe", "pipe", "pipe"] });
++    let error: Error | null = null; let size = 0; const out: Buffer[] = []; const err: Buffer[] = [];
++    const kill = () => { if (child.pid) try { process.kill(-child.pid, "SIGKILL"); } catch { child.kill("SIGKILL"); } };
++    const abort = () => { error = new Error("process cancelled"); kill(); };
++    const timer = setTimeout(() => { error = new Error("process deadline exceeded"); kill(); }, timeoutMs);
++    const collect = (buf: Buffer, list: Buffer[]) => {
++      size += buf.length;
++      if (size > maxBytes) { error = new Error("process output exceeded budget"); kill(); }
++      else list.push(Buffer.from(buf));
++    };
++    child.stdout.on("data", b => collect(b, out)); child.stderr.on("data", b => collect(b, err));
++    signal.addEventListener("abort", abort, { once: true }); if (signal.aborted) abort();
++    child.on("error", e => { error = e; });
++    child.stdin.on("error", e => { if ((e as NodeJS.ErrnoException).code !== "EPIPE") { error = e; kill(); } });
++    child.on("close", code => {
++      clearTimeout(timer); signal.removeEventListener("abort", abort);
++      if (error) return reject(error);
++      try { invariant(Number.isInteger(code), "process exited without status");
++        resolve({ code: code!, stdout: Buffer.concat(out).toString("utf8"), stderr: Buffer.concat(err).toString("utf8") });
++      } catch (e) { reject(e); }
++    });
++    child.stdin.end(input);
++  }); } finally { rmSync(home, { recursive: true, force: true }); }
++}
+diff --git a/src/harness/foundry/swarm/session.ts b/src/harness/foundry/swarm/session.ts
+new file mode 100644
+index 0000000..f85b49b
+--- /dev/null
++++ b/src/harness/foundry/swarm/session.ts
+@@ -0,0 +1,184 @@
++import { randomUUID } from "node:crypto";
++import { setTimeout as delay } from "node:timers/promises";
++import { canonical, digest, invariant } from "../kernel.ts";
++import { FatalAttemptError } from "../errors.ts";
++import { Store } from "../store.ts";
++import type { Capsule, Json, Verification } from "../types.ts";
++import type { Call, Message } from "./context.ts";
++import type { SwarmBudget } from "./config.ts";
++
++export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
++export interface ThreadState {
++  history: Message[];
++  turns: number;
++  toolCalls: number;
++  patchHash: string | null;
++  pending: Call | null;
++  output: PatchArtifact | null;
++  feedbackHash: string | null;
++}
++export interface Thread { capsule: Capsule; seq: number; state: ThreadState }
++const json = (value: unknown): Json => JSON.parse(canonical(value));
++
++/** Same Foundry database and artifact store, not a second scheduler. */
++export class SessionJournal {
++  readonly store: Store;
++  constructor(store: Store) {
++    this.store = store;
++    store.db.exec(`
++      CREATE TABLE IF NOT EXISTS agent_threads(run TEXT NOT NULL, task TEXT NOT NULL, binding TEXT NOT NULL,
++        fence INTEGER NOT NULL, seq INTEGER NOT NULL, state TEXT NOT NULL, PRIMARY KEY(run,task));
++      CREATE TABLE IF NOT EXISTS agent_events(run TEXT NOT NULL, task TEXT NOT NULL, seq INTEGER NOT NULL,
++        at REAL NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(run,task,seq));
++      CREATE TRIGGER IF NOT EXISTS agent_events_immutable_update BEFORE UPDATE ON agent_events BEGIN SELECT RAISE(ABORT,'append-only agent events'); END;
++      CREATE TRIGGER IF NOT EXISTS agent_events_immutable_delete BEFORE DELETE ON agent_events BEGIN SELECT RAISE(ABORT,'append-only agent events'); END;
++      CREATE TABLE IF NOT EXISTS agent_receipts(run TEXT NOT NULL, task TEXT NOT NULL, hash TEXT NOT NULL, PRIMARY KEY(run,task,hash));
++      CREATE TABLE IF NOT EXISTS agent_feedback(run TEXT NOT NULL, task TEXT NOT NULL, hash TEXT NOT NULL, PRIMARY KEY(run,task));
++      CREATE TABLE IF NOT EXISTS agent_requests(id TEXT PRIMARY KEY, run TEXT NOT NULL, task TEXT NOT NULL,
++        fence INTEGER NOT NULL, provider TEXT NOT NULL, bytes INTEGER NOT NULL, request TEXT NOT NULL,
++        started REAL NOT NULL, deadline REAL NOT NULL, status TEXT NOT NULL, tokens INTEGER, response TEXT);
++      CREATE INDEX IF NOT EXISTS agent_requests_run ON agent_requests(run,task,fence);
++      CREATE INDEX IF NOT EXISTS agent_requests_live ON agent_requests(provider,status,deadline);
++      CREATE TABLE IF NOT EXISTS agent_replies(run TEXT NOT NULL, task TEXT NOT NULL, step INTEGER NOT NULL, body TEXT NOT NULL, response TEXT NOT NULL, PRIMARY KEY(run,task,step));
++      CREATE TABLE IF NOT EXISTS agent_cooldowns(provider TEXT PRIMARY KEY, until_ms REAL NOT NULL);
++    `);
++  }
++  assertLease(c: Capsule, now = Date.now()): void {
++    const task = this.store.db.prepare("SELECT status,fence,deadline FROM tasks WHERE run=? AND id=?").get(c.runId, c.task.id);
++    const run = this.store.db.prepare("SELECT recipe,contract FROM runs WHERE id=?").get(c.runId);
++    invariant(task?.status === "RUNNING" && task.fence === c.fence && task.deadline > now &&
++      run?.recipe === c.recipeHash && run?.contract === c.contractHash, "stale agent lease");
++  }
++  open(c: Capsule, initial: ThreadState): Thread {
++    const binding = digest({ task: c.task, dependencies: c.dependencies, contract: c.contractHash, recipe: c.recipeHash });
++    const hash = this.store.artifact(json(initial));
++    return this.store.transaction(() => {
++      this.assertLease(c);
++      const row = this.store.db.prepare("SELECT * FROM agent_threads WHERE run=? AND task=?").get(c.runId, c.task.id);
++      if (row) {
++        invariant(row.binding === binding, "thread input binding changed");
++        invariant(row.fence <= c.fence, "thread fence regression");
++        this.store.db.prepare("UPDATE agent_threads SET fence=? WHERE run=? AND task=?").run(c.fence, c.runId, c.task.id);
++        return { capsule: c, seq: row.seq, state: this.store.readArtifact(row.state) as unknown as ThreadState };
++      }
++      this.store.db.prepare("INSERT INTO agent_threads VALUES(?,?,?,?,0,?)").run(c.runId, c.task.id, binding, c.fence, hash);
++      return { capsule: c, seq: 0, state: initial };
++    });
++  }
++  checkpoint(t: Thread, kind: string, payload: unknown): void {
++    this.assertLease(t.capsule);
++    const state = this.store.artifact(json(t.state)); const data = this.store.artifact(json(payload));
++    this.store.transaction(() => {
++      const c = t.capsule; this.assertLease(c);
++      const row = this.store.db.prepare("SELECT seq,fence FROM agent_threads WHERE run=? AND task=?").get(c.runId, c.task.id);
++      invariant(row?.seq === t.seq && row?.fence === c.fence, "stale thread checkpoint");
++      this.store.db.prepare("INSERT INTO agent_events VALUES(?,?,?,?,?,?)").run(c.runId, c.task.id, t.seq + 1, Date.now(), kind, data);
++      this.store.db.prepare("UPDATE agent_threads SET seq=?,state=? WHERE run=? AND task=?").run(t.seq + 1, state, c.runId, c.task.id);
++    });
++    t.seq++;
++  }
++  receipt(c: Capsule, value: Json): string {
++    this.assertLease(c); const hash = this.store.artifact(value);
++    this.store.transaction(() => {
++      this.assertLease(c);
++      this.store.db.prepare("INSERT OR IGNORE INTO agent_receipts VALUES(?,?,?)").run(c.runId, c.task.id, hash);
++    });
++    return hash;
++  }
++  recall(c: Capsule, hash: string, offset = 0, length = 4096): Json {
++    invariant(Number.isSafeInteger(offset) && offset >= 0 && Number.isSafeInteger(length) && length > 0 && length <= 8192, "invalid recall range");
++    invariant(this.store.db.prepare("SELECT 1 FROM agent_receipts WHERE run=? AND task=? AND hash=?").get(c.runId, c.task.id, hash), "receipt not owned by this thread");
++    const text = canonical(this.store.readArtifact(hash)); const bytes = Buffer.from(text);
++    return { receipt: hash, offset, bytes: bytes.length, content: bytes.subarray(offset, offset + length).toString("utf8"),
++      nextOffset: offset + length < bytes.length ? offset + length : null };
++  }
++  page(run: string, task: string, after = 0, limit = 10): Json[] {
++    invariant(Number.isSafeInteger(after) && after >= 0 && Number.isSafeInteger(limit) && limit > 0 && limit <= 100, "invalid event page");
++    return this.store.db.prepare("SELECT seq,at,kind,payload FROM agent_events WHERE run=? AND task=? AND seq>? ORDER BY seq LIMIT ?")
++      .all(run, task, after, limit).map(row => ({ seq: row.seq, at: row.at, kind: row.kind, payloadHash: row.payload }));
++  }
++  historyPage(c: Capsule, after = 0, limit = 3): Json {
++    const events = this.page(c.runId, c.task.id, after, limit) as { seq: number; payloadHash: string; kind: string }[];
++    const results = events.map(e => {
++      // A history page grants access only to this thread's event payloads.
++      const value = this.store.readArtifact(e.payloadHash);
++      const hash = this.receipt(c, value);
++      return { ...e, receipt: hash, preview: canonical(value).slice(0, 800) };
++    });
++    return { events: results, nextAfter: events.at(-1)?.seq ?? after };
++  }
++  feedback(c: Capsule, verification?: Verification): string | null {
++    if (verification) {
++      this.assertLease(c);
++      const hash = this.store.artifact(json(verification));
++      this.store.transaction(() => {
++        this.assertLease(c);
++        this.store.db.prepare("INSERT INTO agent_feedback VALUES(?,?,?) ON CONFLICT(run,task) DO UPDATE SET hash=excluded.hash")
++          .run(c.runId, c.task.id, hash);
++      });
++      return hash;
++    }
++    return this.store.db.prepare("SELECT hash FROM agent_feedback WHERE run=? AND task=?").get(c.runId, c.task.id)?.hash ?? null;
++  }
++  async reserve(c: Capsule, provider: string, body: Json, budget: SwarmBudget, signal: AbortSignal): Promise<string> {
++    const count = Buffer.byteLength(canonical(body)); const request = this.store.artifact(body);
++    for (;;) {
++      signal.throwIfAborted();
++      const id = this.store.transaction(() => {
++        this.assertLease(c); const now = Date.now();
++        // A lost RPC is unknown spend, never a refund or a known-zero request.
++        this.store.db.prepare("UPDATE agent_requests SET status='UNKNOWN' WHERE status='ACTIVE' AND deadline<=?").run(now);
++        const used = this.store.db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM agent_requests WHERE run=?").get(c.runId)!;
++        if (used.n >= budget.maxRequests || used.bytes + count > budget.maxRequestBytes) throw new FatalAttemptError("RUN_REQUEST_BUDGET_EXHAUSTED");
++        const cooldown = this.store.db.prepare("SELECT until_ms FROM agent_cooldowns WHERE provider=?").get(provider)?.until_ms ?? 0;
++        const live = this.store.db.prepare("SELECT COUNT(*) AS n FROM agent_requests WHERE provider=? AND status='ACTIVE'").get(provider)!.n;
++        if (cooldown > now || live >= budget.modelConcurrency) return null;
++        const id = randomUUID();
++        this.store.db.prepare("INSERT INTO agent_requests VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',NULL,NULL)")
++          .run(id, c.runId, c.task.id, c.fence, provider, count, request, now, now + budget.requestTimeoutMs);
++        return id;
++      });
++      if (id) return id;
++      await delay(50, undefined, { signal });
++    }
++  }
++  cached(c: Capsule, step: number, body: Json): Json | null {
++    this.assertLease(c);
++    const row = this.store.db.prepare("SELECT body,response FROM agent_replies WHERE run=? AND task=? AND step=?").get(c.runId, c.task.id, step);
++    if (!row) return null;
++    invariant(row.body === digest(body), "model replay input drift");
++    return this.store.readArtifact(row.response);
++  }
++  complete(id: string, tokens: number | null, response: Json | null, step?: number): void {
++    invariant(tokens === null || (Number.isSafeInteger(tokens) && tokens >= 0), "invalid provider usage");
++    const hash = response === null ? null : this.store.artifact(response);
++    this.store.transaction(() => {
++      const row = this.store.db.prepare("SELECT * FROM agent_requests WHERE id=?").get(id);
++      invariant(row && row.status !== "DONE", "unknown/already completed request");
++      this.store.db.prepare("UPDATE agent_requests SET status=?,tokens=?,response=? WHERE id=?")
++        .run(response === null ? "UNKNOWN" : "DONE", tokens, hash, id);
++      const task = this.store.db.prepare("SELECT status,fence,deadline FROM tasks WHERE run=? AND id=?").get(row.run, row.task);
++      // Record late spend, but a superseded RPC must never publish a replayable reply.
++      const current = task?.status === "RUNNING" && task.fence === row.fence && task.deadline > Date.now();
++      if (step !== undefined && hash && current) {
++        invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");
++        const old = this.store.db.prepare("SELECT body,response FROM agent_replies WHERE run=? AND task=? AND step=?").get(row.run, row.task, step);
++        invariant(!old || (old.body === row.request && old.response === hash), "model reply already committed");
++        this.store.db.prepare("INSERT OR IGNORE INTO agent_replies VALUES(?,?,?,?,?)").run(row.run, row.task, step, row.request, hash);
++      }
++    });
++  }
++  cooldown(provider: string, ms: number): void {
++    invariant(Number.isFinite(ms) && ms >= 0 && ms <= 60000, "invalid provider cooldown");
++    this.store.db.prepare("INSERT INTO agent_cooldowns VALUES(?,?) ON CONFLICT(provider) DO UPDATE SET until_ms=MAX(until_ms,excluded.until_ms)")
++      .run(provider, Date.now() + ms);
++  }
++  usage(run: string, task?: string, fence?: number): { requests: number; requestBytes: number; knownTokens: number; unknownRequests: number; tokens: number | null } {
++    const where = task === undefined ? "run=?" : fence === undefined ? "run=? AND task=?" : "run=? AND task=? AND fence=?";
++    const args = task === undefined ? [run] : fence === undefined ? [run, task] : [run, task, fence];
++    const row = this.store.db.prepare(`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes,COALESCE(SUM(tokens),0) AS tokens,
++      COALESCE(SUM(CASE WHEN tokens IS NULL THEN 1 ELSE 0 END),0) AS unknown_count FROM agent_requests WHERE ${where}`).get(...args)!;
++    return { requests: row.n, requestBytes: row.bytes, knownTokens: row.tokens, unknownRequests: row.unknown_count,
++      tokens: row.unknown_count ? null : row.tokens };
++  }
++}
+diff --git a/src/harness/foundry/swarm/workspace.ts b/src/harness/foundry/swarm/workspace.ts
+new file mode 100644
+index 0000000..7744856
+--- /dev/null
++++ b/src/harness/foundry/swarm/workspace.ts
+@@ -0,0 +1,210 @@
++import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
++import { dirname, join, relative } from "node:path";
++import { tmpdir } from "node:os";
++import { canonical, digest, invariant } from "../kernel.ts";
++import { FatalAttemptError } from "../errors.ts";
++import type { Capsule, Json, Task, Verification } from "../types.ts";
++import type { Store } from "../store.ts";
++import { inScope, keys, safePath, type AgentProfile, type PinnedSwarm } from "./config.ts";
++import type { Call } from "./context.ts";
++import type { PatchArtifact } from "./session.ts";
++import { runProcess, type ProcessResult } from "./process.ts";
++
++/** Scope checks are a correctness boundary, not containment for hostile code.
++ * Use a VM/container backend before granting tools to untrusted projects. */
++export interface Hands {
++  tool(call: Call): Promise<Json>;
++  snapshot(): Promise<string>;
++  dispose(): Promise<void>;
++}
++export async function git(cfg: PinnedSwarm, cwd: string, args: string[], signal: AbortSignal, input?: string): Promise<string> {
++  const result = await runProcess(cfg.git, cwd, ["--no-pager", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
++    "-c", "core.autocrlf=false", ...args], signal, cfg.spec.budget.toolTimeoutMs, Math.max(cfg.spec.budget.maxPatchBytes * 2, cfg.spec.budget.maxToolOutputBytes), input);
++  invariant(result.code === 0, `git ${args[0]} failed: ${result.stderr.slice(-1000)}`);
++  return result.stdout;
++}
++export function orderedTasks(store: Store, run: string, roots?: string[]): Task[] {
++  if (roots?.length === 0) return [];
++  // Independent workers must not scan a 100k-node graph to discover zero parents.
++  // Ancestor queries scale with the needed closure, not the whole run.
++  const rows = roots === undefined ? store.db.prepare("SELECT id,spec,status,artifact FROM tasks WHERE run=?").all(run) : [];
++  const one = store.db.prepare("SELECT id,spec,status,artifact FROM tasks WHERE run=? AND id=?");
++  const all = new Map(rows.map(r => [r.id, r])); const needed = new Set<string>(); const todo = roots ? [...roots] : rows.map(r => r.id);
++  for (let i = 0; i < todo.length; i++) {
++    const id = todo[i]; if (needed.has(id)) continue;
++    const row = all.get(id) ?? one.get(run, id); invariant(row?.status === "PASS" && row.artifact, `unverified patch dependency ${id}`);
++    all.set(id, row); needed.add(id); todo.push(...(JSON.parse(row.spec) as Task).dependencies);
++  }
++  const degrees = new Map<string, number>(); const children = new Map<string, string[]>();
++  for (const id of needed) {
++    const task: Task = JSON.parse(all.get(id)!.spec); degrees.set(id, task.dependencies.length);
++    for (const dep of task.dependencies) { const list = children.get(dep) ?? []; list.push(id); children.set(dep, list); }
++  }
++  const ready = [...needed].filter(id => degrees.get(id) === 0).sort(); const result: Task[] = [];
++  for (let i = 0; i < ready.length; i++) {
++    const id = ready[i]; result.push(JSON.parse(all.get(id)!.spec));
++    for (const child of children.get(id) ?? []) { const n = degrees.get(child)! - 1; degrees.set(child, n); if (!n) ready.push(child); }
++  }
++  invariant(result.length === needed.size, "invalid patch dependency graph"); return result;
++}
++export function patchText(store: Store, hash: string, limit: number): string {
++  const patch = store.readArtifact(hash); invariant(typeof patch === "string" && Buffer.byteLength(patch) <= limit, "invalid/oversized patch receipt"); return patch;
++}
++export function readPatchArtifact(store: Store, run: string, id: string): PatchArtifact {
++  const row = store.db.prepare("SELECT status,artifact FROM tasks WHERE run=? AND id=?").get(run, id);
++  invariant(row?.status === "PASS", "dependency not accepted");
++  const artifact = store.readArtifact(row.artifact) as unknown as PatchArtifact;
++  invariant(artifact?.schema === 1 && typeof artifact.patchHash === "string", "dependency is not a swarm patch"); return artifact;
++}
++export class LocalGitHands implements Hands {
++  private temp: string | null = null;
++  private path: string | null = null;
++  private baseTree: string | null = null;
++  readonly store: Store; readonly cfg: PinnedSwarm; readonly c: Capsule; readonly profile: AgentProfile;
++  readonly signal: AbortSignal; readonly restore: string | null; readonly roots: string[];
++  constructor(store: Store, cfg: PinnedSwarm, c: Capsule, profile: AgentProfile,
++    signal: AbortSignal, restore: string | null = null, roots: string[] = c.task.dependencies) {
++    this.store = store; this.cfg = cfg; this.c = c; this.profile = profile; this.signal = signal; this.restore = restore; this.roots = roots;
++  }
++  async ready(): Promise<string> {
++    this.signal.throwIfAborted(); if (this.path) return this.path;
++    const temp = mkdtempSync(join(tmpdir(), "future-swarm-worktree-")); this.temp = temp;
++    const path = join(temp, "tree");
++    await git(this.cfg, this.cfg.spec.project, ["worktree", "add", "--detach", path, this.cfg.baseCommit], this.signal);
++    this.path = path;
++    for (const task of orderedTasks(this.store, this.c.runId, this.roots)) {
++      const artifact = readPatchArtifact(this.store, this.c.runId, task.id);
++      const patch = patchText(this.store, artifact.patchHash, this.cfg.spec.budget.maxPatchBytes);
++      if (patch) await git(this.cfg, path, ["apply", "--index", "--whitespace=nowarn", "-"], this.signal, patch);
++    }
++    this.baseTree = (await git(this.cfg, path, ["write-tree"], this.signal)).trim();
++    if (this.restore) {
++      const patch = patchText(this.store, this.restore, this.cfg.spec.budget.maxPatchBytes);
++      if (patch) await git(this.cfg, path, ["apply", "--index", "--whitespace=nowarn", "-"], this.signal, patch);
++    }
++    return path;
++  }
++  private async pathFor(path: string, write: boolean): Promise<string> {
++    safePath(path);
++    const scopes = write ? this.c.task.writeScope : [...this.c.task.writeScope, ...(this.c.task.readScope ?? [])];
++    invariant(inScope(path, scopes), "path outside task scope");
++    if (write) invariant(!inScope(path, this.cfg.spec.protectedPaths), "protected path");
++    const root = await this.ready(); const parts = path.split("/"); let current = root;
++    for (const part of parts) {
++      current = join(current, part);
++      try { invariant(!lstatSync(current).isSymbolicLink(), "symlink access forbidden"); }
++      catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
++    }
++    return join(root, path);
++  }
++  private read(path: string): string {
++    const stat = lstatSync(path); invariant(stat.isFile() && stat.size <= this.cfg.spec.budget.maxToolOutputBytes, "file too large or not regular");
++    const buffer = readFileSync(path); invariant(!buffer.includes(0), "binary file not supported by text tools");
++    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
++  }
++  async tool(call: Call): Promise<Json> {
++    this.signal.throwIfAborted(); invariant(this.profile.tools.includes(call.name as any), "tool not permitted for this agent");
++    const a = call.arguments;
++    switch (call.name) {
++      case "list_files": {
++        keys(a, [], ["offset", "limit"]); const offset = a.offset ?? 0; const limit = a.limit ?? 100;
++        invariant(Number.isSafeInteger(offset) && (offset as number) >= 0 && Number.isSafeInteger(limit) && (limit as number) > 0 && (limit as number) <= 200, "invalid listing range");
++        const path = await this.ready();
++        const names = (await git(this.cfg, path, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], this.signal)).split("\0").filter(Boolean);
++        const files = [...new Set(names)].filter(p => inScope(p, [...this.c.task.writeScope, ...(this.c.task.readScope ?? [])])).sort();
++        return { files: files.slice(offset as number, (offset as number) + (limit as number)), total: files.length };
++      }
++      case "read_file": {
++        keys(a, ["path"], ["start", "lines"]); const start = a.start ?? 1; const count = a.lines ?? 100;
++        invariant(Number.isSafeInteger(start) && (start as number) > 0 && Number.isSafeInteger(count) && (count as number) > 0 && (count as number) <= 300, "invalid line range");
++        const text = this.read(await this.pathFor(a.path as string, false)); const lines = text.split("\n");
++        return { path: a.path, start, totalLines: lines.length, content: lines.slice((start as number) - 1, (start as number) - 1 + (count as number)).join("\n") };
++      }
++      case "write_file": case "edit_file": {
++        keys(a, call.name === "write_file" ? ["path", "content"] : ["path", "oldText", "newText"]);
++        const path = await this.pathFor(a.path as string, true); let content: string;
++        if (call.name === "write_file") { invariant(typeof a.content === "string", "content must be text"); content = a.content; }
++        else {
++          invariant(typeof a.oldText === "string" && a.oldText.length > 0 && typeof a.newText === "string", "invalid literal edit");
++          content = this.read(path); const at = content.indexOf(a.oldText);
++          invariant(at >= 0 && content.indexOf(a.oldText, at + 1) === -1, "edit requires exactly one match");
++          content = content.slice(0, at) + a.newText + content.slice(at + a.oldText.length);
++        }
++        invariant(!content.includes("\0") && Buffer.byteLength(content) <= this.cfg.spec.budget.maxToolOutputBytes, "file exceeds text budget");
++        mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, content, "utf8");
++        // Explicitly include permitted files even if .gitignore would hide them.
++        await git(this.cfg, await this.ready(), ["add", "-f", "--", a.path as string], this.signal);
++        return { path: a.path, bytes: Buffer.byteLength(content), changed: true };
++      }
++      case "delete_file": {
++        keys(a, ["path"]); const path = await this.pathFor(a.path as string, true); invariant(lstatSync(path).isFile(), "not a regular file"); unlinkSync(path); return { path: a.path, deleted: true };
++      }
++      case "run_check": {
++        keys(a, ["name"]); invariant(typeof a.name === "string" && this.profile.checks.includes(a.name), "check not permitted");
++        return JSON.parse(canonical(await this.check(a.name)));
++      }
++      default: throw new Error("unknown filesystem tool");
++    }
++  }
++  async check(name: string): Promise<ProcessResult> {
++    const command = this.cfg.checks[name]; invariant(command, "unknown check");
++    return runProcess(command, await this.ready(), [], this.signal, this.cfg.spec.budget.toolTimeoutMs, this.cfg.spec.budget.maxToolOutputBytes);
++  }
++  async tree(): Promise<string> {
++    const path = await this.ready(); await git(this.cfg, path, ["add", "-A", "--", "."], this.signal);
++    return (await git(this.cfg, path, ["write-tree"], this.signal)).trim();
++  }
++  async snapshot(): Promise<string> {
++    const path = await this.ready(); await this.tree();
++    const names = (await git(this.cfg, path, ["diff", "--cached", "--no-renames", "--name-only", "-z", this.baseTree!], this.signal)).split("\0").filter(Boolean);
++    for (const name of names) {
++      safePath(name); invariant(inScope(name, this.c.task.writeScope) && !inScope(name, this.cfg.spec.protectedPaths), `patch scope violation: ${name}`);
++      // A trusted check could have created a symlink; never accept it silently.
++      try { invariant(!lstatSync(join(path, name)).isSymbolicLink(), "symlink patch forbidden"); }
++      catch (e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
++    }
++    const patch = await git(this.cfg, path, ["diff", "--cached", "--no-ext-diff", "--no-renames", "--binary", this.baseTree!], this.signal);
++    invariant(Buffer.byteLength(patch) <= this.cfg.spec.budget.maxPatchBytes, "patch exceeds budget"); return this.store.artifact(patch);
++  }
++  async dispose(): Promise<void> {
++    if (!this.temp) return;
++    const temp = this.temp; const path = this.path; this.temp = null; this.path = null;
++    if (path) try { await git(this.cfg, this.cfg.spec.project, ["worktree", "remove", "--force", path], AbortSignal.timeout(10000)); }
++    catch { /* Preserve an orphan for inspection; never clean the user's checkout. */ return; }
++    rmSync(temp, { recursive: true, force: true });
++  }
++}
++export async function verifyPatch(store: Store, cfg: PinnedSwarm, c: Capsule, artifact: Json, signal: AbortSignal): Promise<Verification> {
++  const result = artifact as unknown as PatchArtifact;
++  invariant(result?.schema === 1 && typeof result.patchHash === "string", "invalid patch artifact");
++  const profile = cfg.spec.agents[c.task.agent ?? cfg.spec.defaultAgent];
++  const hands = new LocalGitHands(store, cfg, c, profile, signal, result.patchHash);
++  const checks: Verification["checks"] = []; const details: unknown[] = [];
++  try {
++    // Reconstruct independently, then compare the exact delta and its scope.
++    invariant(await hands.snapshot() === result.patchHash, "candidate patch is not a canonical scoped delta");
++    checks.push({ id: "scope", verdict: "PASS" }); const before = await hands.tree(); let good = true;
++    for (const name of profile.checks) {
++      const log = await hands.check(name); details.push({ name, ...log }); if (log.code !== 0) good = false;
++    }
++    if (await hands.tree() !== before) { good = false; details.push({ error: "verifier mutated tracked source" }); }
++    const receipt = store.artifact(JSON.parse(canonical(details)));
++    checks.push({ id: "behavior", verdict: good ? "PASS" : "FAIL", detail: receipt });
++  } catch (e) {
++    signal.throwIfAborted(); checks.push({ id: checks.length ? "behavior" : "scope", verdict: "FAIL", detail: e instanceof Error ? e.message.slice(0, 2000) : "verification error" });
++  } finally { await hands.dispose(); }
++  return { artifactHash: digest(artifact), checks, measurement: { tokens: 0, costUsd: 0 } };
++}
++
++/** Trusted host injection point. Remote/container backends must implement BOTH
++ * execution and independent verification, with their identity pinned in cfg. */
++export interface HandsBackend {
++  id: string;
++  open(store: Store, cfg: PinnedSwarm, c: Capsule, profile: AgentProfile, signal: AbortSignal, restore: string | null): Hands;
++  verify(store: Store, cfg: PinnedSwarm, c: Capsule, artifact: Json, signal: AbortSignal): Promise<Verification>;
++}
++export const localGitBackend: HandsBackend = {
++  id: "local-git-posix-v1",
++  open: (store, cfg, c, profile, signal, restore) => new LocalGitHands(store, cfg, c, profile, signal, restore),
++  verify: verifyPatch,
++};
+diff --git a/src/harness/foundry/types.ts b/src/harness/foundry/types.ts
+index dc57cb8..d358fcc 100644
+--- a/src/harness/foundry/types.ts
++++ b/src/harness/foundry/types.ts
+@@ -39,6 +39,8 @@ export interface Recipe {
+ }
+ export interface Task {
+   id: string;
++  /** Optional pinned swarm roster member; ignored by generic command drivers. */
++  agent?: string;
+   goal: string;
+   acceptance: string[];
+   dependencies: string[];
+diff --git a/tests/foundry/swarm-fixtures.ts b/tests/foundry/swarm-fixtures.ts
+new file mode 100644
+index 0000000..34db65d
+--- /dev/null
++++ b/tests/foundry/swarm-fixtures.ts
+@@ -0,0 +1,44 @@
++import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { execFileSync } from "node:child_process";
++import { Store } from "../../src/harness/foundry/store.ts";
++import { initializeSwarm } from "../../src/harness/foundry/swarm/host.ts";
++import type { SwarmSpec, PinnedSwarm } from "../../src/harness/foundry/swarm/config.ts";
++import type { Task } from "../../src/harness/foundry/types.ts";
++export const signal = () => new AbortController().signal;
++export function spec(project: string): SwarmSpec {
++  return { schema: 1, name: "test-swarm", project, baseRef: "HEAD", defaultAgent: "coder",
++    agents: { coder: { protocol: "chat-completions", url: "http://127.0.0.1:1/v1/chat/completions", model: "fixture-model",
++      system: "Implement scoped tasks with tools. Do not claim acceptance.", tools: ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall"], checks: ["behavior"] } },
++    checks: { behavior: { argv: [process.execPath, "-e", "const fs=require('node:fs');const v=fs.readFileSync('src/a.txt','utf8').trim();if(v!=='42')process.exit(1)"], replaySafe: true } },
++    integrationChecks: ["behavior"], protectedPaths: ["checks"],
++    limits: { parallelism: 8, attempts: 4, contextBytes: 65536, outputBytes: 32768, timeoutMs: 60000, tasks: 10000 },
++    recipe: { parallelism: 4, attempts: 3, contextBytes: 32768, timeoutMs: 20000, scheduling: "critical-path" },
++    budget: { maxRequests: 100, maxRequestBytes: 10_000_000, maxTurns: 20, maxToolCalls: 40, modelConcurrency: 4,
++      requestTimeoutMs: 5000, toolTimeoutMs: 5000, maxOutputTokens: 1024, maxToolOutputBytes: 65536, maxPatchBytes: 65536 } };
++}
++export const task = (id = "a", dependencies: string[] = []): Task => ({ id, goal: `Implement ${id}`, acceptance: ["external behavior check"],
++  dependencies, writeScope: [`src/${id}.txt`], readScope: ["src"], input: { value: 42 } });
++export async function fixture(fn: (store: Store, cfg: PinnedSwarm, path: string) => Promise<void>, change?: (s: SwarmSpec) => void): Promise<void> {
++  const temp = mkdtempSync(join(tmpdir(), "swarm-test-")); const project = join(temp, "repo"); mkdirSync(join(project, "src"), { recursive: true });
++  writeFileSync(join(project, "src/a.txt"), "0\n"); writeFileSync(join(project, "src/b.txt"), "0\n");
++  execFileSync("git", ["init", "-q", project]);
++  execFileSync("git", ["-C", project, "add", "."]);
++  execFileSync("git", ["-C", project, "-c", "user.name=Fixture", "-c", "user.email=fixture@localhost", "commit", "-qm", "base"]);
++  const store = await Store.open(join(temp, "state"));
++  try { const s = spec(project); change?.(s); const cfg = await initializeSwarm(store, s, signal()); await fn(store, cfg, project); }
++  finally { store.close(); rmSync(temp, { recursive: true, force: true }); }
++}
++export function reply(content = "done", tools: { id?: string; name: string; arguments: unknown }[] = [], usage: unknown = { prompt_tokens: 10, completion_tokens: 5 }): Response {
++  return Response.json({ choices: [{ finish_reason: tools.length ? "tool_calls" : "stop", message: { role: "assistant", content,
++    ...(tools.length ? { tool_calls: tools.map((t, i) => ({ id: t.id ?? `call-${i}`, type: "function", function: { name: t.name, arguments: JSON.stringify(t.arguments) } })) } : {}) } }], ...(usage === undefined ? {} : { usage }) });
++}
++export function scripted(steps: ((body: any) => Response | Promise<Response>)[]): { fetcher: typeof fetch; bodies: any[] } {
++  const bodies: any[] = [];
++  const fetcher = (async (_url: any, init: any) => {
++    const body = JSON.parse(init.body); bodies.push(body);
++    const step = steps[bodies.length - 1]; if (!step) throw new Error("unexpected extra model call"); return await step(body);
++  }) as typeof fetch;
++  return { fetcher, bodies };
++}
+diff --git a/tests/foundry/swarm-http.test.ts b/tests/foundry/swarm-http.test.ts
+new file mode 100644
+index 0000000..ccaa3bb
+--- /dev/null
++++ b/tests/foundry/swarm-http.test.ts
+@@ -0,0 +1,94 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
++import { once } from "node:events";
++import { setTimeout as delay } from "node:timers/promises";
++import { execFile } from "node:child_process";
++import { promisify } from "node:util";
++import { readFileSync, writeFileSync, existsSync } from "node:fs";
++import { join } from "node:path";
++import { fileURLToPath } from "node:url";
++import { fixture, task, signal, reply } from "./swarm-fixtures.ts";
++import { Scheduler } from "../../src/harness/foundry/scheduler.ts";
++import { Store } from "../../src/harness/foundry/store.ts";
++import { pinCommand } from "../../src/harness/foundry/commands.ts";
++import { SessionJournal } from "../../src/harness/foundry/swarm/session.ts";
++import { HttpBrain } from "../../src/harness/foundry/swarm/model.ts";
++import { runProcess } from "../../src/harness/foundry/swarm/process.ts";
++async function endpoint(handler: (req: IncomingMessage, res: ServerResponse, body: any) => Promise<void>, fn: (url: string) => Promise<void>): Promise<void> {
++  const server = createServer(async (req, res) => {
++    try { let body = ""; for await (const b of req) body += b; await handler(req, res, JSON.parse(body)); }
++    catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: String(e) })); }
++  });
++  server.listen(0, "127.0.0.1"); await once(server, "listening");
++  const address = server.address(); assert.ok(address && typeof address !== "string");
++  try { await fn(`http://127.0.0.1:${address.port}/v1/chat/completions`); }
++  finally { server.closeAllConnections(); await new Promise<void>((r, j) => server.close(e => e ? j(e) : r())); }
++}
++
++test("actual HTTP plus standalone CLI executes a scoped code task and returns persisted usage", async () => {
++  let count = 0;
++  await endpoint(async (req, res, body) => {
++    count++; assert.equal(req.method, "POST"); assert.equal(body.model, "fixture-model"); assert.ok(body.tools.length > 0);
++    const response = body.messages.some((m: any) => m.role === "tool") ? reply("implemented")
++      : reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]);
++    res.setHeader("content-type", "application/json"); res.end(await response.text());
++  }, url => fixture(async (s, _cfg, project) => {
++    const path = join(s.root, "tasks.json"); writeFileSync(path, JSON.stringify([task()]));
++    const cli = fileURLToPath(new URL("../../src/harness/foundry/swarm/cli.ts", import.meta.url));
++    const out = await promisify(execFile)(process.execPath, ["--experimental-strip-types", cli, "run", "--root", s.root, "--tasks", path, "--allow-exec"], { timeout: 20000, maxBuffer: 1024 * 1024 });
++    const result = JSON.parse(out.stdout); assert.equal(result.status, "PASS"); assert.equal(result.providerUsage.requests, 2);
++    assert.equal(readFileSync(join(project, "src/a.txt"), "utf8"), "0\n");
++  }, s => { s.agents.coder.url = url; }));
++  assert.equal(count, 2);
++});
++test("actual Anthropic wire format includes native tool results and API headers", async () => {
++  await endpoint(async (req, res, body) => {
++    assert.equal(req.headers["anthropic-version"], "2023-06-01"); assert.equal(req.headers["x-api-key"], "fixture-key");
++    assert.equal(body.messages[2].content[0].type, "tool_result"); assert.equal(body.messages[2].content[0].tool_use_id, "call");
++    res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ content: [{ type: "text", text: "done" }], stop_reason: "end_turn", usage: { input_tokens: 10, output_tokens: 2 } }));
++  }, url => fixture(async (s, cfg) => {
++    const q = new Scheduler(s); const run = q.start([task()]); const c = q.capsule(q.claim(run, "worker")!);
++    process.env.SWARM_HTTP_TEST_KEY = "fixture-key";
++    try {
++      const result = await new HttpBrain(new SessionJournal(s)).next(c, { ...cfg.spec.agents.coder, protocol: "anthropic", keyEnv: "SWARM_HTTP_TEST_KEY" },
++        [{ role: "user", content: "task" }, { role: "assistant", content: "", calls: [{ id: "call", name: "list_files", arguments: {} }] }, { role: "tool", callId: "call", content: "[]" }],
++        cfg.spec.budget, 32768, signal());
++      assert.equal(result.turn.tokens, 12);
++    } finally { delete process.env.SWARM_HTTP_TEST_KEY; }
++  }, s => { s.agents.coder.url = url; }));
++});
++test("multiple host handles share a real HTTP concurrency admission cap", async () => {
++  let active = 0; let peak = 0;
++  await endpoint(async (_req, res) => {
++    active++; peak = Math.max(peak, active); await delay(50); active--;
++    res.setHeader("content-type", "application/json"); res.end(await reply().text());
++  }, url => fixture(async (s, cfg) => {
++    const q = new Scheduler(s); const run = q.start([{ ...task("a"), readScope: [] }, { ...task("b"), readScope: [] }]);
++    const a = q.capsule(q.claim(run, "a")!); const b = q.capsule(q.claim(run, "b")!);
++    const second = await Store.open(s.root); const budget = { ...cfg.spec.budget, modelConcurrency: 1 };
++    try {
++      await Promise.all([new HttpBrain(new SessionJournal(s)).next(a, cfg.spec.agents.coder, [{ role: "user", content: "a" }], budget, 32768, signal()),
++        new HttpBrain(new SessionJournal(second)).next(b, cfg.spec.agents.coder, [{ role: "user", content: "b" }], budget, 32768, signal())]);
++    } finally { second.close(); }
++  }, s => { s.agents.coder.url = url; }));
++  assert.equal(peak, 1);
++});
++test("stalled HTTP response bodies time out and remain unknown spend", async () => {
++  await endpoint(async (_req, res) => { res.writeHead(200, { "content-type": "application/json" }); res.write('{"choices":'); },
++    url => fixture(async (s, cfg) => {
++      const q = new Scheduler(s); const run = q.start([task()]); const c = q.capsule(q.claim(run, "a")!); const j = new SessionJournal(s);
++      await assert.rejects(new HttpBrain(j).next(c, cfg.spec.agents.coder, [{ role: "user", content: "a" }], { ...cfg.spec.budget, requestTimeoutMs: 50 }, 32768, signal()));
++      assert.equal(j.usage(run).unknownRequests, 1);
++    }, s => { s.agents.coder.url = url; }));
++});
++test("cancelling a real process group prevents a spawned child from writing later", async () => fixture(async (s, _cfg, project) => {
++  const ready = join(s.root, "child-ready"); const effect = join(s.root, "late-effect");
++  const childCode = `require('node:fs').writeFileSync(${JSON.stringify(ready)},'ready');setTimeout(()=>require('node:fs').writeFileSync(${JSON.stringify(effect)},'bad'),300)`;
++  const parentCode = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(childCode)}],{stdio:'inherit'});setInterval(()=>{},1000)`;
++  const cmd = pinCommand({ argv: [process.execPath, "-e", parentCode] }, project); const controller = new AbortController();
++  const pending = runProcess(cmd, project, [], controller.signal, 3000, 10000).then(() => null, e => e);
++  for (let n = 0; n < 100 && !existsSync(ready); n++) await delay(5);
++  assert.ok(existsSync(ready), "child actually started"); controller.abort(); assert.match(String(await pending), /cancelled/);
++  await delay(350); assert.equal(existsSync(effect), false);
++}));
+diff --git a/tests/foundry/swarm.test.ts b/tests/foundry/swarm.test.ts
+new file mode 100644
+index 0000000..bbacdc2
+--- /dev/null
++++ b/tests/foundry/swarm.test.ts
+@@ -0,0 +1,311 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { readFileSync, writeFileSync, symlinkSync, existsSync } from "node:fs";
++import { join } from "node:path";
++import { execFileSync } from "node:child_process";
++import { Store } from "../../src/harness/foundry/store.ts";
++import { Scheduler } from "../../src/harness/foundry/scheduler.ts";
++import { digest, canonical } from "../../src/harness/foundry/kernel.ts";
++import { FatalAttemptError } from "../../src/harness/foundry/errors.ts";
++import { validateSwarmSpec, validateSwarmTasks, safePath } from "../../src/harness/foundry/swarm/config.ts";
++import { compactHistory, inlineReceipt, type Message } from "../../src/harness/foundry/swarm/context.ts";
++import { decodeTurn, requestBody, HttpBrain } from "../../src/harness/foundry/swarm/model.ts";
++import { SessionJournal, type ThreadState } from "../../src/harness/foundry/swarm/session.ts";
++import { LocalGitHands, verifyPatch } from "../../src/harness/foundry/swarm/workspace.ts";
++import { runSwarm, loadSwarm, integrateSwarm } from "../../src/harness/foundry/swarm/host.ts";
++import { handleSwarm, tokenize } from "../../src/harness/foundry/swarm/cli.ts";
++import { SwarmDriver } from "../../src/harness/foundry/swarm/driver.ts";
++import { fixture, spec, task, signal, scripted, reply } from "./swarm-fixtures.ts";
++const initial = (): ThreadState => ({ history: [{ role: "user", content: "task" }], turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null });
++function lease(store: Store, id = "a") { const q = new Scheduler(store); const run = q.start([task(id)]); const l = q.claim(run, "test")!; return { q, run, l, c: q.capsule(l) }; }
++
++test("schema accepts a bounded pinned plan and rejects unknown authorities", () => {
++  const s = spec("/tmp/repo"); validateSwarmSpec(s);
++  assert.throws(() => validateSwarmSpec({ ...s, skipChecks: true } as any), /unexpected/);
++  assert.throws(() => validateSwarmSpec({ ...s, agents: {} }), /roster/);
++  assert.throws(() => validateSwarmSpec({ ...s, budget: { ...s.budget, maxRequests: 0 } }), /maxRequests/);
++  assert.throws(() => validateSwarmSpec({ ...s, checks: { behavior: { ...s.checks.behavior, replaySafe: false } } }), /replay-safe/);
++});
++test("HTTP credentials in URL and accidental plaintext internet endpoints are rejected", () => {
++  for (const url of ["http://example.com/v1", "https://u:p@example.com/v1", "https://example.com/v1?key=secret"]) {
++    const s = spec("x"); s.agents.coder.url = url; assert.throws(() => validateSwarmSpec(s));
++  }
++});
++test("scope traversal and undeclared roles are rejected", () => {
++  for (const p of ["../src", "/etc", "src/../x", "src/.git/x", "src\\x", "x\0y"]) assert.throws(() => safePath(p));
++  const s = spec("x"); assert.throws(() => validateSwarmTasks(s, [{ ...task(), agent: "administrator" }]));
++  assert.throws(() => validateSwarmTasks(s, [{ ...task(), writeScope: ["checks/x"] }]));
++});
++test("mandatory context is never silently truncated", () => {
++  assert.throws(() => compactHistory([{ role: "user", content: "x".repeat(1000) }], 100), /CONTEXT/);
++});
++test("compaction retains complete assistant/tool exchanges, not orphan results", () => {
++  const h: Message[] = [{ role: "user", content: "immutable acceptance" },
++    { role: "assistant", content: "old".repeat(1000), calls: [{ id: "one", name: "read_file", arguments: { path: "x" } }] },
++    { role: "tool", callId: "one", content: "old".repeat(1000) },
++    { role: "assistant", content: "recent", calls: [{ id: "two", name: "read_file", arguments: { path: "y" } }] },
++    { role: "tool", callId: "two", content: "recent output" }];
++  const p = compactHistory(h, 1000); assert.equal(p[0], h[0]); assert.ok(p.some(x => x.callId === "two")); assert.ok(!p.some(x => x.callId === "one"));
++});
++test("receipt preview labels truncation and keeps retrieval hash", () => {
++  const v = JSON.parse(inlineReceipt("abc", { long: "x".repeat(5000) }, 512)); assert.equal(v.receipt, "abc"); assert.equal(v.truncated, true);
++});
++test("usage comes from provider metadata, never generated JSON", () => {
++  assert.equal(decodeTurn("chat-completions", { choices: [{ finish_reason: "stop", message: { content: '{"tokens":0}' } }] }).tokens, null);
++  assert.throws(() => decodeTurn("chat-completions", { choices: [{ finish_reason: "stop", message: { content: "done" } }], usage: { prompt_tokens: -1, completion_tokens: 2 } }), /usage/);
++  assert.equal(decodeTurn("anthropic", { content: [{ type: "text", text: "done" }], stop_reason: "end_turn",
++    usage: { input_tokens: 4, output_tokens: 3, cache_read_input_tokens: 8, cache_creation_input_tokens: 2 } }).tokens, 17);
++});
++test("malformed and duplicate tool calls cannot enter the loop", () => {
++  assert.throws(() => decodeTurn("anthropic", { stop_reason: "tool_use", content: [{ type: "tool_use", id: "x", name: "a", input: {} }, { type: "tool_use", id: "x", name: "a", input: {} }] }), /duplicate/);
++  assert.throws(() => decodeTurn("chat-completions", { choices: [{ finish_reason: "content_filter", message: { content: "" } }] }), /finish/);
++});
++test("both provider wire formats preserve tool IDs and paired results", () => {
++  const s = spec("x"); const h: Message[] = [{ role: "user", content: "task" }, { role: "assistant", content: "", calls: [{ id: "a", name: "list_files", arguments: {} }] }, { role: "tool", callId: "a", content: "[]" }];
++  const chat: any = requestBody(s.agents.coder, h, s.budget); assert.equal(chat.messages[3].tool_call_id, "a");
++  const ant: any = requestBody({ ...s.agents.coder, protocol: "anthropic", promptCache: true }, h, s.budget);
++  assert.equal(ant.messages[2].content[0].tool_use_id, "a"); assert.equal(ant.system[0].cache_control.type, "ephemeral");
++});
++test("CLI flags and quoted paths are parsed without shell evaluation", async () => {
++  assert.deepEqual(tokenize('run --tasks "a b.json" --root "$HOME/x"'), ["run", "--tasks", "a b.json", "--root", "$HOME/x"]);
++  assert.throws(() => tokenize("run 'open"), /quote/);
++  await assert.rejects(handleSwarm(["run", "--tasks", "x"]), /allow-exec/);
++  await assert.rejects(handleSwarm(["status", "--mystery"]), /unknown/);
++});
++
++test("thread checkpoints persist across handles; events cannot be rewritten", async () => fixture(async (s) => {
++  const { c } = lease(s); const j = new SessionJournal(s); const t = j.open(c, initial());
++  t.state.turns = 1; j.checkpoint(t, "test", { progress: 1 });
++  const other = await Store.open(s.root);
++  try { const restored = new SessionJournal(other).open(c, initial()); assert.equal(restored.seq, 1); assert.equal(restored.state.turns, 1); }
++  finally { other.close(); }
++  assert.throws(() => s.db.exec("UPDATE agent_events SET kind='fake'"), /append-only/);
++  assert.throws(() => s.db.exec("DELETE FROM agent_events"), /append-only/);
++}));
++test("stale fences cannot append a checkpoint or access a new model request", async () => fixture(async s => {
++  const { c, q, l, run } = lease(s); const j = new SessionJournal(s); const t = j.open(c, initial());
++  q.fail(l, "retry"); q.claim(run, "replacement");
++  assert.throws(() => j.checkpoint(t, "late", {}), /stale/);
++}));
++test("receipts are scoped to their thread and detect artifact tampering", async () => fixture(async s => {
++  const one = lease(s, "a"); const two = lease(s, "b"); const j = new SessionJournal(s);
++  const hash = j.receipt(one.c, { secret: "a only" });
++  assert.throws(() => j.recall(two.c, hash), /not owned/);
++  assert.match(canonical(j.recall(one.c, hash)), /a only/);
++  writeFileSync(join(s.root, "artifacts", `${hash}.json`), '{"corrupted":true}');
++  assert.throws(() => j.recall(one.c, hash), /integrity/);
++}));
++test("run request budgets are transactional across SQLite handles and survive resume", async () => fixture(async (s, cfg) => {
++  const { c } = lease(s); const j = new SessionJournal(s); const b = { ...cfg.spec.budget, maxRequests: 1 };
++  const id = await j.reserve(c, "provider", { task: 1 }, b, signal()); j.complete(id, null, null);
++  const other = await Store.open(s.root);
++  try { const j2 = new SessionJournal(other); await assert.rejects(j2.reserve(c, "provider", { task: 2 }, b, signal()), /BUDGET/);
++    assert.equal(j2.usage(c.runId).unknownRequests, 1); assert.equal(j2.usage(c.runId).tokens, null); }
++  finally { other.close(); }
++}));
++test("model permits are shared, abortable and released after completion", async () => fixture(async (s, cfg) => {
++  const { c } = lease(s); const j = new SessionJournal(s); const b = { ...cfg.spec.budget, modelConcurrency: 1 };
++  const id = await j.reserve(c, "p", {}, b, signal()); const ctl = new AbortController();
++  const wait = j.reserve(c, "p", {}, b, ctl.signal); setTimeout(() => ctl.abort(), 10);
++  await assert.rejects(wait); assert.equal(j.usage(c.runId).requests, 1);
++  j.complete(id, 3, {}); await j.reserve(c, "p", {}, b, signal()); assert.equal(j.usage(c.runId).requests, 2);
++}));
++test("a completed model reply is replayed after a crash without another inference call", async () => fixture(async (s, cfg) => {
++  const { c } = lease(s); const j = new SessionJournal(s); let calls = 0;
++  const brain = new HttpBrain(j, (async () => { calls++; return reply(); }) as typeof fetch);
++  const h: Message[] = [{ role: "user", content: "task" }];
++  await brain.next(c, cfg.spec.agents.coder, h, cfg.spec.budget, 32768, signal(), 0);
++  const restored = new HttpBrain(new SessionJournal(s), (async () => { throw new Error("must not call model"); }) as typeof fetch);
++  await restored.next(c, cfg.spec.agents.coder, h, cfg.spec.budget, 32768, signal(), 0);
++  assert.equal(calls, 1); assert.equal(j.usage(c.runId).requests, 1);
++  await assert.rejects(restored.next(c, cfg.spec.agents.coder, [{ role: "user", content: "changed" }], cfg.spec.budget, 32768, signal(), 0), /drift/);
++}));
++test("HTTP adapter keeps credentials out of persisted requests and honors redirect rejection", async () => fixture(async (s, cfg) => {
++  const { c } = lease(s); const j = new SessionJournal(s); process.env.SWARM_FIXTURE_KEY = "test-only-never-real";
++  let seen: any;
++  try {
++    const brain = new HttpBrain(j, (async (_url: any, init: any) => { seen = init; return reply(); }) as typeof fetch);
++    await brain.next(c, { ...cfg.spec.agents.coder, keyEnv: "SWARM_FIXTURE_KEY" }, [{ role: "user", content: "task" }], cfg.spec.budget, 32768, signal());
++    assert.equal(seen.headers.authorization, "Bearer test-only-never-real"); assert.equal(seen.redirect, "error");
++    const row = s.db.prepare("SELECT request FROM agent_requests").get()!;
++    assert.ok(!canonical(s.readArtifact(row.request)).includes("test-only-never-real"));
++  } finally { delete process.env.SWARM_FIXTURE_KEY; }
++}));
++test("rate-limit retries are metered and a shared cooldown is stored", async () => fixture(async (s, cfg) => {
++  const { c } = lease(s); const j = new SessionJournal(s); let n = 0;
++  const brain = new HttpBrain(j, (async () => ++n === 1 ? new Response(null, { status: 429, headers: { "retry-after": "0" } }) : reply()) as typeof fetch);
++  await brain.next(c, cfg.spec.agents.coder, [{ role: "user", content: "task" }], cfg.spec.budget, 32768, signal());
++  assert.equal(n, 2); assert.equal(j.usage(c.runId).unknownRequests, 1); assert.equal(j.usage(c.runId).knownTokens, 15);
++  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM agent_cooldowns").get()!.n, 1);
++}));
++test("encoded request including tools must fit the context contract before any RPC", async () => fixture(async (s, cfg) => {
++  const { c } = lease(s); const j = new SessionJournal(s);
++  const brain = new HttpBrain(j, (async () => { throw new Error("must not call"); }) as typeof fetch);
++  await assert.rejects(brain.next(c, cfg.spec.agents.coder, [{ role: "user", content: "task" }], cfg.spec.budget, 20, signal()), /CONTEXT/);
++  assert.equal(j.usage(c.runId).requests, 0);
++}));
++
++test("worktrees are lazy and filesystem tools enforce scope and unique literal edits", async () => fixture(async (s, cfg, path) => {
++  const { c } = lease(s); const h = new LocalGitHands(s, cfg, c, cfg.spec.agents.coder, signal());
++  const before = execFileSync("git", ["-C", path, "worktree", "list", "--porcelain"], { encoding: "utf8" });
++  assert.equal((before.match(/^worktree /gm) ?? []).length, 1);
++  try {
++    await assert.rejects(h.tool({ id: "x", name: "write_file", arguments: { path: "src/b.txt", content: "bad" } }), /scope/);
++    await h.tool({ id: "x", name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } });
++    await assert.rejects(h.tool({ id: "e", name: "edit_file", arguments: { path: "src/a.txt", oldText: "missing", newText: "0" } }), /one match/);
++    const hash = await h.snapshot(); assert.match(s.readArtifact(hash) as string, /\+42/);
++    assert.equal(readFileSync(join(path, "src/a.txt"), "utf8"), "0\n");
++  } finally { await h.dispose(); }
++}));
++test("symlink tools are rejected before writing outside a worktree", async () => fixture(async (s, cfg, path) => {
++  const { c } = lease(s); const h = new LocalGitHands(s, cfg, c, cfg.spec.agents.coder, signal());
++  try {
++    const root = await h.ready(); symlinkSync(join(path, "src/a.txt"), join(root, "src/link"));
++    await assert.rejects(h.tool({ id: "r", name: "read_file", arguments: { path: "src/link" } }), /symlink/);
++    assert.equal(readFileSync(join(path, "src/a.txt"), "utf8"), "0\n");
++  } finally { await h.dispose(); }
++}));
++test("independent verification rejects an unchanged or incorrect candidate", async () => fixture(async (s, cfg) => {
++  const { c } = lease(s); const artifact = { schema: 1, patchHash: s.artifact(""), summary: "all tests pass" };
++  const v = await verifyPatch(s, cfg, c, artifact, signal()); assert.ok(v.checks.some(x => x.verdict === "FAIL"));
++}));
++test("real code lifecycle: native tool edits, separate check, branch integration, and no checkout mutation", async () => fixture(async (s, cfg, path) => {
++  const mock = scripted([() => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]), () => reply("implemented")]);
++  const result: any = await runSwarm(s, [task()], signal(), undefined, mock.fetcher);
++  assert.equal(result.status, "PASS"); assert.equal(result.accepted, 1); assert.equal(result.providerUsage.requests, 2); assert.equal(result.providerUsage.tokens, 30);
++  assert.equal(readFileSync(join(path, "src/a.txt"), "utf8"), "0\n");
++  const integrated = await integrateSwarm(s, result.id, signal());
++  assert.equal(execFileSync("git", ["-C", path, "show", `${integrated.commit}:src/a.txt`], { encoding: "utf8" }), "42\n");
++  assert.equal((await integrateSwarm(s, result.id, signal())).commit, integrated.commit);
++  assert.equal(execFileSync("git", ["-C", path, "rev-parse", "HEAD"], { encoding: "utf8" }).trim(), cfg.baseCommit);
++}));
++test("failed verification sends bounded evidence back for repair rather than replaying the same answer", async () => fixture(async (s) => {
++  const mock = scripted([() => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "1\n" } }]), () => reply("first attempt"),
++    body => { assert.match(JSON.stringify(body.messages), /repairRequired/); return reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]); }, () => reply("repaired")]);
++  const result: any = await runSwarm(s, [task()], signal(), undefined, mock.fetcher);
++  assert.equal(result.status, "PASS"); assert.equal(result.attempts, 2); assert.equal(mock.bodies.length, 4);
++}));
++test("restart after saved worker output skips inference and only re-verifies", async () => fixture(async (s, cfg) => {
++  const { c, q, l, run } = lease(s);
++  const mock = scripted([() => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]), () => reply("done")]);
++  const d = new SwarmDriver(s, cfg, mock.fetcher); const first = await d.execute(c, signal()); assert.ok(first.artifact);
++  q.fail(l, "harness restarted before acceptance");
++  const result: any = await runSwarm(s, [], signal(), run, (async () => { throw new Error("duplicate inference"); }) as typeof fetch);
++  assert.equal(result.status, "PASS"); assert.equal(result.providerUsage.requests, 2);
++}));
++test("a prepared integration receipt cannot overwrite someone else's branch", async () => fixture(async (s, cfg, path) => {
++  const mock = scripted([() => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]), () => reply("done")]);
++  const r: any = await runSwarm(s, [task()], signal(), undefined, mock.fetcher); const integrated = await integrateSwarm(s, r.id, signal());
++  execFileSync("git", ["-C", path, "update-ref", integrated.branch, cfg.baseCommit]);
++  await assert.rejects(integrateSwarm(s, r.id, signal()), /never overwrite/);
++}));
++test("config mutations cannot replace the immutable verifier", async () => fixture(async s => {
++  const cfg: any = s.getMeta("extension.swarm"); cfg.spec.agents.coder.checks = ["not-real"];
++  s.setMeta("extension.swarm", cfg); assert.throws(() => loadSwarm(s));
++}));
++
++test("native slash commands are registered and delegate to the same host facade", async () => {
++  const { default: command, swarmPlan } = await import("../../src/commands/swarm/index.ts");
++  assert.equal(command.disableModelInvocation, true); assert.equal(command.name, "swarm");
++  const impl = await command.load();
++  const result = await impl.call("help", { abortController: new AbortController() } as any);
++  assert.equal(result.type, "text"); assert.match((result as any).value, /Foundry Swarm/);
++  const prompt = await swarmPlan.getPromptForCommand("change API safely", {} as any);
++  assert.match((prompt[0] as any).text, /change API safely/); assert.match((prompt[0] as any).text, /no recursive delegation/i);
++  const registry = readFileSync(new URL("../../src/commands.ts", import.meta.url), "utf8");
++  assert.match(registry, /import swarm, \{ swarmPlan \}/);
++  assert.match(registry, /const COMMANDS[\s\S]*?\n  swarm,\n  swarmPlan,/);
++});
++
++test("late model spend is recorded but cannot publish a reply under a replacement fence", async () => fixture(async (s, cfg) => {
++  const { c, q, l, run } = lease(s); const j = new SessionJournal(s); const body = { input: "old" };
++  const id = await j.reserve(c, "p", body, cfg.spec.budget, signal());
++  q.fail(l, "restart"); const next = q.claim(run, "next")!; const current = q.capsule(next);
++  j.complete(id, 7, { answer: "late" }, 0);
++  assert.equal(j.usage(run).knownTokens, 7); assert.equal(j.cached(current, 0, body), null);
++}));
++test("configured model credentials cannot be passed to code execution", () => {
++  const s = spec("x"); s.agents.coder.keyEnv = "PRIVATE_MODEL_KEY"; s.checks.behavior.envAllow = ["PRIVATE_MODEL_KEY"];
++  assert.throws(() => validateSwarmSpec(s), /credentials/);
++});
++test("an oversized response is aborted and recorded as unknown rather than zero spend", async () => fixture(async (s, cfg) => {
++  const { c } = lease(s); const j = new SessionJournal(s);
++  const brain = new HttpBrain(j, (async () => new Response('"' + 'x'.repeat(3000) + '"')) as typeof fetch);
++  await assert.rejects(brain.next(c, cfg.spec.agents.coder, [{ role: "user", content: "task" }], { ...cfg.spec.budget, maxToolOutputBytes: 1000 }, 32768, signal()), /output budget/);
++  assert.equal(j.usage(c.runId).unknownRequests, 1);
++}));
++test("truncated completions are terminal, not successful empty code artifacts", async () => fixture(async (s, cfg) => {
++  const { c } = lease(s); const j = new SessionJournal(s);
++  const brain = new HttpBrain(j, (async () => Response.json({ choices: [{ finish_reason: "length", message: { content: "partial" } }], usage: { prompt_tokens: 1, completion_tokens: 1 } })) as typeof fetch);
++  await assert.rejects(brain.next(c, cfg.spec.agents.coder, [{ role: "user", content: "task" }], cfg.spec.budget, 32768, signal()), FatalAttemptError);
++  assert.equal(j.usage(c.runId).knownTokens, 2);
++}));
++test("mandatory request budget exhaustion stops unchanged retries in the existing runtime", async () => fixture(async s => {
++  let calls = 0;
++  const fetcher = (async () => { calls++; return reply("", [{ name: "list_files", arguments: {} }]); }) as typeof fetch;
++  const result: any = await runSwarm(s, [task()], signal(), undefined, fetcher);
++  assert.equal(result.status, "FAIL"); assert.equal(result.attempts, 1); assert.equal(calls, 1);
++}, s => { s.budget.maxRequests = 1; }));
++test("provider reply recovery retains all outstanding parallel tool calls", async () => fixture(async (s, cfg) => {
++  const { c, q, l, run } = lease(s); const j = new SessionJournal(s); const t = j.open(c, initial());
++  // Simulate a crash after the model reply and before either tool effect.
++  t.state.history.push({ role: "assistant", content: "", calls: [
++    { id: "write", name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } },
++    { id: "read", name: "read_file", arguments: { path: "src/a.txt" } },
++  ] }); t.state.turns = 1; j.checkpoint(t, "model.reply", t.state.history.at(-1));
++  q.fail(l, "crash");
++  const mock = scripted([body => { const results = body.messages.filter((m: any) => m.role === "tool"); assert.equal(results.length, 2); assert.match(results[1].content, /42/); return reply("done"); }]);
++  const r: any = await runSwarm(s, [], signal(), run, mock.fetcher); assert.equal(r.status, "PASS"); assert.equal(mock.bodies.length, 1);
++}));
++test("working-tree side effects outside declared scope are rejected at snapshot", async () => fixture(async (s, cfg) => {
++  const { c } = lease(s); const h = new LocalGitHands(s, cfg, c, cfg.spec.agents.coder, signal());
++  try { const path = await h.ready(); writeFileSync(join(path, "src/b.txt"), "unclaimed edit"); await assert.rejects(h.snapshot(), /scope/); }
++  finally { await h.dispose(); }
++}));
++test("independent checker source mutation cannot produce a PASS", async () => fixture(async (s, cfg) => {
++  const { c } = lease(s); const h = new LocalGitHands(s, cfg, c, cfg.spec.agents.coder, signal()); let hash: string;
++  try { await h.tool({ id: "x", name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }); hash = await h.snapshot(); }
++  finally { await h.dispose(); }
++  const v = await verifyPatch(s, cfg, c, { schema: 1, patchHash: hash!, summary: "done" }, signal());
++  assert.equal(v.checks.find(x => x.id === "behavior")!.verdict, "FAIL");
++}, s => { s.checks.behavior.argv = [process.execPath, "-e", "require('node:fs').writeFileSync('src/a.txt','mutated by verifier')"]; }));
++test("per-task passing patches may still conflict; integration fails without publishing", async () => fixture(async (s, cfg, project) => {
++  const mock = (async (_url: any, init: any) => {
++    const body = JSON.parse(init.body); const taskSpec = JSON.parse(body.messages[1].content).task;
++    const done = body.messages.some((m: any) => m.role === "tool");
++    return done ? reply("done") : reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: `${taskSpec.input.value}\n` } }]);
++  }) as typeof fetch;
++  const a = { ...task("one"), writeScope: ["src/a.txt"], input: { value: 1 } };
++  const b = { ...task("two"), writeScope: ["src/a.txt"], input: { value: 2 } };
++  const r: any = await runSwarm(s, [a, b], signal(), undefined, mock); assert.equal(r.status, "PASS");
++  await assert.rejects(integrateSwarm(s, r.id, signal()), /git apply failed/);
++  assert.equal(execFileSync("git", ["-C", project, "for-each-ref", "refs/heads/swarm"], { encoding: "utf8" }), "");
++}, s => { s.checks.behavior.argv = [process.execPath, "-e", "if(!['1','2'].includes(require('node:fs').readFileSync('src/a.txt','utf8').trim()))process.exit(1)"]; }));
++
++test("example spec is valid but does not silently choose an operator's model", () => {
++  const sample = JSON.parse(readFileSync(new URL("../../examples/swarm/spec.json", import.meta.url), "utf8"));
++  validateSwarmSpec(sample);
++  assert.equal(sample.agents.coder.model, "YOUR_DEPLOYED_MODEL_ID");
++  assert.equal(sample.checks.behavior.argv[0], "$NODE");
++});
++test("execution backends must match the pinned identity", async () => fixture(async (s, cfg) => {
++  const backend = { id: "unapproved", open() { throw new Error("must not execute"); }, async verify() { throw new Error("must not verify"); } };
++  assert.throws(() => new SwarmDriver(s, cfg, undefined, backend), /backend identity mismatch/);
++}));
++test("NODE token resolves an actual Node executable for native command checks", async () => fixture(async (_s, cfg) => {
++  assert.notEqual(cfg.checks.behavior.argv[0], "$NODE");
++  assert.match(execFileSync(cfg.checks.behavior.argv[0], ["--version"], { encoding: "utf8" }), /^v\d+/);
++}, s => { s.checks.behavior.argv[0] = "$NODE"; }));
++test("status pages large task graphs without executing agents", async () => fixture(async s => {
++  const run = new Scheduler(s).start(Array.from({ length: 201 }, (_, i) => task(`task-${String(i).padStart(3, "0")}`)));
++  const first: any = await handleSwarm(["status", "--root", s.root, "--run", run]);
++  assert.equal(first.tasks.length, 200); assert.equal(first.nextTaskAfter, "task-199");
++  const second: any = await handleSwarm(["status", "--root", s.root, "--run", run, "--task-after", first.nextTaskAfter]);
++  assert.equal(second.tasks.length, 1); assert.equal(second.nextTaskAfter, null); assert.equal(second.attempts, 0);
++}));
++test("host receipt inspection has bounded slices and no model calls", async () => fixture(async s => {
++  const hash = s.artifact({ long: "x".repeat(5000) });
++  const page: any = await handleSwarm(["receipt", "--root", s.root, "--hash", hash, "--length", "100"]);
++  assert.equal(Buffer.byteLength(page.content), 100); assert.equal(page.nextOffset, 100);
++  await assert.rejects(handleSwarm(["receipt", "--root", s.root, "--hash", hash, "--length", "99999"]), /slice/);
++}));

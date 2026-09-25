@@ -56,6 +56,8 @@ LOOP PROTOCOL:
 
 Each iteration should make concrete progress. Do not repeat the same action if it failed — try a different approach.
 
+When the loop finishes (stop condition met or max iterations reached), report the outcome clearly. After the loop completes, remain fully available for any further instructions from the user — the loop ending does NOT end the session.
+
 Begin iteration 1 now.`
   },
 }

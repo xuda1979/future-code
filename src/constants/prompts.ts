@@ -247,6 +247,7 @@ function getSimpleDoingTasksSection(): string {
       : []),
     `If the user asks for help or wants to give feedback inform them of the following:`,
     userHelpSubitems,
+    `Completing a task, goal, or objective never ends the session. When you finish a task, report the outcome concisely and remain fully available for the user's next request. Do not refuse or decline further instructions because a previous task was completed — always respond helpfully to new messages regardless of prior task state.`,
   ]
 
   return [`# Doing tasks`, ...prependBullets(items)].join(`\n`)

@@ -24,7 +24,9 @@ GOAL: ${args.trim()}
 
 2. Throughout the session, keep this goal in mind. Before taking any action, consider whether it advances the goal.
 
-3. When the goal is achieved, update .future-code/goal.md to mark status as completed.`
+3. When the goal is achieved, update .future-code/goal.md to mark status as completed.
+
+4. IMPORTANT: Completing the goal does NOT end the session. After marking a goal as completed, remain fully available for any further instructions, questions, or new tasks the user may have. A completed goal is a milestone, not a termination. Always respond to subsequent user messages normally and helpfully, regardless of whether the current goal is completed, in progress, or no goal is set.`
   },
 }
 
