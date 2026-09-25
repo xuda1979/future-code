@@ -1,0 +1,1600 @@
+diff --git a/docs/agent-platform/PRODUCTIVITY.md b/docs/agent-platform/PRODUCTIVITY.md
+new file mode 100644
+index 0000000..9f3bdc3
+--- /dev/null
++++ b/docs/agent-platform/PRODUCTIVITY.md
+@@ -0,0 +1,273 @@
++# Productivity controls for Harness Foundry
++
++This extends `src/harness/foundry/`, the existing single-host durable agent
++runtime. It does not replace `QueryEngine.ts`, switch the interactive assistant
++to Foundry, or make an external Claude session use this scheduler automatically.
++Your coding-agent worker and independent verifier must already be wired through
++Foundry's `Driver` or pinned `CommandDriver` interface. The supplied upstream
++demo is an offline fixture, not a coding model.
++
++## Execution model
++
++A planner supplies a dependency graph of bounded tasks. The host executes this
++loop without another model call for scheduling or status:
++
++```text
++validated task DAG + immutable contract
++  -> compile dependency ranks and bounded per-task context reservations
++  -> atomically claim an independent batch of ready tasks
++  -> independent agents: execute -> independent verifier
++  -> PASS publishes an authenticated artifact and releases dependants
++  -> refill slots after individual completion, not a whole batch barrier
++```
++
++Use model intelligence to decompose and solve tasks, not to repeatedly narrate
++which agent should run next. Task quality and final integration tests remain
++more important than the number of concurrent agents.
++
++## Implemented changes
++
++| Control | Actual behavior | Default and limits |
++|---|---|---|
++| Batched claims | `Scheduler.claimMany` checks all reservations in one SQLite transaction. Immutable specifications, ranks and allocations are cached per scheduler/run. Mutable states are always reread. | Used by `runTasks`; legacy `claim` remains supported. |
++| Critical-path scheduling | Rank is own estimated duration plus the longest downstream duration. Explicit task priority wins first, then rank, then task ID. | Opt in with `scheduling: "critical-path"`. Omitted estimates count as one unit, producing depth-based ordering. |
++| Read/write-aware reservations | A writer excludes overlapping readers and writers. Readers may share scopes. | `readScope` is optional; existing `writeScope` semantics remain. |
++| Aggregate context reservations | Admission caps the sum of running tasks' allocated capsule budgets. A budget that cannot ever fit is rejected before creating a run. | Optional `maxInFlightContextBytes`. This is not RAM, billed tokens or a complete provider-context limit. |
++| Explicit dependency views | Selected RFC 6901 pointers carry exact values from a verified dependency artifact. The full artifact stays in the content-addressed store. | Optional `Task.dependencyViews`; omitted dependencies remain fully inline. |
++| Progress-aware deadline | Distinct adapter fingerprints renew an idle timer. Repeats, including alternating repeats, do not renew it. Worker and verifier stages are both covered. | Optional `noProgressMs`; never extends the hard attempt deadline. |
++| Repeated-failure stop | Persisted identical consecutive failure fingerprints stop retries early. Runtime fingerprints include stage, error, candidate artifact and verification checks. | Optional `maxRepeatedFailures`; different candidates remain eligible, subject to total attempts. |
++| Bounded coordination | Same-process completions refill immediately. Spare local slots check for remote completion within 250 ms. Empty local queues back off from 25 to 250 ms. | Single-host SQLite, not a distributed cluster service. |
++
++The context ceiling bug is also fixed: explicit and priority-weighted allocations
++cannot exceed the immutable contract's context ceiling. Invalid task budgets are
++rejected. An irreparable capsule overflow or missing projected field fails at
++preparation rather than launching/retrying the same model input repeatedly.
++A `priorityContextShare` of 1 no longer allocates every task twice the base budget.
++
++The scheduler still scans task states on refill; this is not a claim of constant
++time scheduling or unlimited scalability. Ranking is a heuristic, not an optimal
++scheduler. Incorrect estimates and priority overrides can reduce its benefit.
++
++## Enable through the existing admission workflow
++
++Existing recipe hashes and omitted-field policies remain usable. New settings
++belong to a proposed recipe, not a rewrite of the immutable contract or gates.
++Do not hot-swap old and new runtime binaries while a run is active. Pause, retain
++the run ID and state directory, upgrade all processes sharing the store, then
++resume. The telemetry table is additive; existing data is not deleted.
++
++From the repository root, with an already initialized Foundry store:
++
++```bash
++node --experimental-strip-types src/harness/foundry/cli.ts propose \
++  --root .future-code/foundry \
++  --changes examples/foundry/productivity-candidate.json
++```
++
++The example changes are compatible with `examples/foundry/spec.json`: four
++workers and a 32 KiB aggregate reservation for four 8 KiB capsules. They are not
++universal settings; admission rejects values above your own frozen limits.
++The proposal prints a candidate hash but does not activate it.
++
++```bash
++node --experimental-strip-types src/harness/foundry/cli.ts evaluate \
++  --root .future-code/foundry --candidate CANDIDATE_HASH \
++  --protocol YOUR_FROZEN_PROTOCOL.json --allow-exec
++
++# Only after inspecting an ADMIT result:
++node --experimental-strip-types src/harness/foundry/cli.ts promote \
++  --root .future-code/foundry --evaluation EVALUATION_ID --confirm
++
++node --experimental-strip-types src/harness/foundry/cli.ts run \
++  --root .future-code/foundry --tasks YOUR_TASKS.json --allow-exec
++```
++
++Use a protocol containing representative real coding tasks, independent
++acceptance tests and pinned worker/verifier implementations. Use the same task
++graph, model, input revision and acceptance gates in both arms. Do not promote
++based on the synthetic microbenchmark. Changes to dependency views are task
++contract changes, so freeze them consistently before comparing recipe arms.
++A checker should include final integrated tests, not just per-file unit tests.
++
++## Task contracts for large software projects
++
++Prefer one testable deliverable per task: an interface, one independent module,
++a migration, a failing regression reproduction, or final integration. Specify
++read and write scopes before concurrent execution. An interface-first graph
++allows API, storage and UI implementation to proceed after the shared interface
++has passed verification; integration depends on all three accepted artifacts.
++
++Do not give every agent the whole repository transcript. Put the goal,
++acceptance predicates, relevant source excerpts or pinned source references,
++interface requirements, and exact deliverable format in its capsule. The
++runtime will not invent missing project knowledge or subdivide the graph for
++you. Make tasks smaller when their mandatory information exceeds the budget.
++Keep slow tasks that genuinely require extended computation; a duration outlier
++alone is not evidence that the work is wrong.
++
++Example task, assuming a direct predecessor `api-contract` produces an artifact
++with `api` and `invariants` fields:
++
++```json
++{
++  "id": "implement-storage",
++  "goal": "Implement storage against the verified interface; preserve existing behavior.",
++  "acceptance": ["storage contract tests pass", "relevant regression tests pass"],
++  "dependencies": ["api-contract"],
++  "readScope": ["src/contracts"],
++  "writeScope": ["src/storage", "tests/storage"],
++  "estimatedDurationMs": 60000,
++  "contextBudget": 8192,
++  "dependencyViews": { "api-contract": ["/api", "/invariants"] },
++  "input": { "testCommand": ["npm", "test", "--", "storage"] }
++}
++```
++
++This is a task-schema example for your coding adapter, not input for the offline
++add-function demo. The host does not execute `input.testCommand` automatically.
++Its estimate must be within the contract timeout ceiling. Avoid mixing a few
++millisecond estimates with omitted estimates (which default to one unit).
++
++A projected dependency arrives as:
++
++```json
++{
++  "taskId": "api-contract",
++  "artifactHash": "SHA256_OF_THE_FULL_VERIFIED_ARTIFACT",
++  "artifact": { "/api": "exact selected value", "/invariants": [] },
++  "view": { "pointers": ["/api", "/invariants"], "hash": "SHA256_OF_PROJECTED_ARTIFACT" }
++}
++```
++
++`artifactHash` authenticates the original artifact, not the projected map.
++`view.hash` authenticates that map. Missing paths and corrupted source artifacts
++fail closed; no goal, acceptance predicate, or selected value is truncated.
++The driver and verifier must understand this opt-in representation. File hashes
++without file content are not a substitute for a working retrieval mechanism.
++
++## Progress reporting and early bug containment
++
++Enable a watchdog only after the worker AND verifier can report useful progress,
++or choose an idle allowance above their longest legitimate silent operation.
++For example, a recipe with `attempts: 3` and `timeoutMs: 180000` could propose
++`noProgressMs: 30000` and `maxRepeatedFailures: 2`, provided its contract admits
++those values. Thirty seconds is an example, not a measured recommendation.
++
++An in-process adapter receives an optional third argument:
++
++```typescript
++async function execute(capsule, signal, control) {
++  // Perform bounded tool calls in your existing adapter.
++  const result = await runFocusedTests({ signal });
++  control?.progress(`test:${result.suite}:${result.revisionHash}`);
++  // Return the usual artifact; this event is NOT a PASS certificate.
++  return buildWorkerResult(result);
++}
++```
++
++Pinned subprocess adapters can write bounded progress records to stderr. Keep
++stdout as the original single JSON result:
++
++```javascript
++process.stderr.write(
++  'FUTURE_CODE_PROGRESS ' + JSON.stringify({ fingerprint: 'test:storage:revision-hash' }) + '\n'
++);
++```
++
++A reserved record is at most 1024 bytes, its fingerprint at most 256 UTF-8 bytes.
++Malformed reserved records fail the invocation when progress parsing is enabled.
++All stdout, stderr and progress bytes share the original output budget. The
++novelty set retains at most 1024 distinct fingerprints per attempt. This prevents
++unbounded heartbeat state; it does not authenticate model claims of progress.
++Do not use timestamps or random IDs as fingerprints: those can mask a stall.
++
++Progress never satisfies a correctness gate, publishes an artifact, extends the
++absolute deadline, or unblocks a dependant. Use independent tests and verified
++artifact hashes for those transitions. Identical verification failures stop
++early; different candidate artifacts still receive their allowed verification.
++Only adapter-observed tokens/cost count as measurements, never model JSON usage.
++
++## Verification and measurement
++
++Run the added test suite plus the selected existing regression suites:
++
++```bash
++node --experimental-strip-types --test \
++  tests/foundry/productivity.test.ts tests/foundry/kernel.test.ts \
++  tests/foundry/commands.test.ts tests/foundry/lifecycle.test.ts
++node --experimental-strip-types scripts/bench-foundry-productivity.mjs
++```
++
++The benchmark runs the actual scheduler, runtime, SQLite store and artifact
++verification boundary. It reports three different quantities separately:
++
++* Virtual-clock scheduling of an intentionally skewed 72-task DAG at eight
++  workers, with identical tasks and durations under both policies.
++* Actual serialized capsule bytes for full versus explicitly selected dependency
++  fields, checking retained API equality and the full source hash.
++* Real-clock execution of 1000 synthetic arithmetic workers, three repetitions,
++  16 workers, independent arithmetic checks, including artifact and SQLite I/O.
++
++Compare the third quantity with an unmodified source checkout using:
++
++```bash
++node --experimental-strip-types scripts/bench-foundry-productivity.mjs \
++  --runtime-root /path/to/unmodified/future-code --overhead-only \
++  --tasks 1000 --repetitions 3
++```
++
++These tests make **zero model calls**. They cannot establish a Claude latency,
++software-quality or end-to-end coding-productivity improvement. Short synthetic
++workers magnify host overhead; long model calls may show much smaller gains.
++Report every repetition and reject a speedup that reduces accepted quality.
++Run baseline/candidate real-project trials in alternating order with unchanged
++model settings and guardrails before deployment.
++
++`attempt_telemetry.context_bytes` records the prepared capsule bytes per attempt,
++not the number of tokens billed or the total bytes a driver later retrieves.
++`progress_count`, `last_progress_at` and `failure_fingerprint` are diagnostic.
++Existing `RunSummary.progressDensity` scoring is intentionally unchanged; it uses
++the old allocated-budget proxy, not this new measured-input telemetry.
++
++## Boundaries
++
++Read/write scopes are logical scheduler reservations within ONE run. They are
++not an OS sandbox, repository-wide lock across independent runs, symlink defense,
++or a guarantee against a worker that ignores its scope. Use one run per shared
++workspace and isolated worktrees/containers for real coding workers. Merging,
++path enforcement and sandbox construction are NOT implemented by this patch.
++
++Lease fencing rejects stale returned results; it cannot undo a timed-out
++worker's external side effects. Arbitrary in-process drivers must cooperate with
++AbortSignal. The command adapter kills subprocess groups, but the runtime's
++abort race is not a proof that every descendant has already stopped before a
++replacement is admitted. Do not rely on logical locks alone for physical write
++isolation. Synchronous code that blocks the JS event loop also blocks timers.
++
++No automatic semantic task splitting, model routing, speculative duplicate
++coding agents, result cache, online model training or distributed work stealing
++is claimed here. Blind speculation was deliberately avoided because it spends
++additional model tokens and complicates write isolation. The patch leaves the
++independent-verification requirement and promotion contract intact.
++
++## Research basis
++
++The implementation combines established ideas rather than claiming each
++mechanism is a new invention. Relevant primary engineering reports include:
++
++- Anthropic, *How we built our multi-agent research system*, 2025-06-13:
++  https://www.anthropic.com/engineering/multi-agent-research-system
++  Narrow delegation, independent parallel work, artifact handoffs and the cost
++  of coordinating agents; coding has fewer independent branches than research.
++- Anthropic, *Building a C compiler with a team of parallel Claudes*, 2026-02-05:
++  https://www.anthropic.com/engineering/building-c-compiler
++  Task isolation and strong verifiers matter; many workers pursuing one shared
++  bottleneck can duplicate work rather than accelerate it.
++- Anthropic, *Effective context engineering for AI agents*, 2025-09-29:
++  https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents
++  Retain high-signal task context and use progressive disclosure instead of
++  accumulating an ever-growing transcript.
++
++The repository-specific contribution is integrating those principles into
++Foundry's durable lease, context, evidence and admission boundaries, with
++executable regression tests and explicitly separated measurements.
+diff --git a/examples/foundry/productivity-candidate.json b/examples/foundry/productivity-candidate.json
+new file mode 100644
+index 0000000..2415ce7
+--- /dev/null
++++ b/examples/foundry/productivity-candidate.json
+@@ -0,0 +1,5 @@
++{
++  "parallelism": 4,
++  "scheduling": "critical-path",
++  "maxInFlightContextBytes": 32768
++}
+diff --git a/scripts/bench-foundry-productivity.mjs b/scripts/bench-foundry-productivity.mjs
+new file mode 100644
+index 0000000..aaa405b
+--- /dev/null
++++ b/scripts/bench-foundry-productivity.mjs
+@@ -0,0 +1,131 @@
++#!/usr/bin/env node
++/** Synthetic harness measurements, NOT a live-model coding benchmark.
++ * Node >=22.16: node --experimental-strip-types scripts/bench-foundry-productivity.mjs
++ * Compare an old source snapshot using --runtime-root PATH --overhead-only.
++ */
++import assert from "node:assert/strict";
++import { createHash } from "node:crypto";
++import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { dirname, join, resolve } from "node:path";
++import { fileURLToPath, pathToFileURL } from "node:url";
++import { performance } from "node:perf_hooks";
++
++const argv = process.argv.slice(2);
++const options = new Map();
++for (let i = 0; i < argv.length; i++) {
++  const key = argv[i];
++  assert.ok(["--runtime-root", "--tasks", "--repetitions", "--overhead-only"].includes(key), `unknown option ${key}`);
++  assert.ok(!options.has(key), `duplicate option ${key}`);
++  if (key === "--overhead-only") options.set(key, true);
++  else {
++    const value = argv[++i]; assert.ok(value && !value.startsWith("--"), `missing value for ${key}`);
++    options.set(key, value);
++  }
++}
++const root = resolve(options.get("--runtime-root") ?? join(dirname(fileURLToPath(import.meta.url)), ".."));
++const count = Number(options.get("--tasks") ?? 1000);
++const repetitions = Number(options.get("--repetitions") ?? 3);
++assert.ok(Number.isSafeInteger(count) && count >= 1 && count <= 10000, "--tasks must be 1..10000");
++assert.ok(Number.isSafeInteger(repetitions) && repetitions >= 1 && repetitions <= 10, "--repetitions must be 1..10");
++const load = name => import(pathToFileURL(join(root, "src/harness/foundry", name)).href);
++const { Store } = await load("store.ts");
++const { Scheduler } = await load("scheduler.ts");
++const { runTasks } = await load("runtime.ts");
++const { canonical, digest } = await load("kernel.ts");
++const contract = { schema: 1, name: "synthetic-productivity", workerId: "synthetic-worker-v1", verifierId: "arithmetic-check-v1",
++  environmentId: `node-${process.version}-${process.platform}-${process.arch}`, requiredChecks: ["correct"], slos: [],
++  limits: { parallelism: 32, attempts: 1, contextBytes: 65536, outputBytes: 1048576, timeoutMs: 60000, tasks: 10000 } };
++const recipe = { parallelism: 8, attempts: 1, contextBytes: 65536, timeoutMs: 60000 };
++const zero = { tokens: 0, costUsd: 0 }; // No model calls: genuine zero for this synthetic adapter.
++const task = (id, more = {}) => ({ id, goal: `Compute ${id}`, acceptance: ["independent arithmetic check"],
++  input: null, dependencies: [], writeScope: [`src/${id}`], ...more });
++async function withStore(p, fn) {
++  const path = mkdtempSync(join(tmpdir(), "foundry-productivity-bench-")); const s = await Store.open(path);
++  try { s.initialize(contract, p); return await fn(s); }
++  finally { s.close(); rmSync(path, { recursive: true, force: true }); }
++}
++function accept(q, lease, task, artifact, now) {
++  assert.equal(q.finish(lease, artifact, {
++    contractHash: lease.contractHash, recipeHash: lease.recipeHash, verifierId: contract.verifierId,
++    taskHash: digest(task), artifactHash: digest(artifact), metrics: { ...zero, durationMs: 1 },
++    verification: { artifactHash: digest(artifact), checks: [{ id: "correct", verdict: "PASS" }] },
++  }, zero, now), true);
++}
++async function schedule(scheduling) {
++  const tasks = [...Array.from({ length: 64 }, (_, i) => task(`a${String(i).padStart(3, "0")}`, { estimatedDurationMs: 20 })),
++    ...Array.from({ length: 8 }, (_, i) => task(`z${i}`, { estimatedDurationMs: 20, dependencies: i ? [`z${i - 1}`] : [] }))];
++  return withStore({ ...recipe, scheduling }, s => {
++    const q = new Scheduler(s); const start = Date.now(); let clock = start; let peak = 0;
++    const run = q.start(tasks, s.active(), start); const byId = new Map(tasks.map(t => [t.id, t])); const active = [];
++    while (true) {
++      for (const lease of q.claimMany(run, "virtual-clock", 8, clock)) active.push({ lease, end: clock + byId.get(lease.taskId).estimatedDurationMs });
++      peak = Math.max(peak, active.length);
++      if (!active.length) break;
++      clock = Math.min(...active.map(a => a.end));
++      for (let i = active.length - 1; i >= 0; i--) if (active[i].end === clock) {
++        const { lease } = active.splice(i, 1)[0]; const spec = byId.get(lease.taskId);
++        accept(q, lease, spec, { answer: spec.estimatedDurationMs }, clock);
++      }
++    }
++    const summary = q.summary(run, clock); assert.equal(summary.status, "PASS"); assert.equal(summary.accepted, 72);
++    return { scheduling, taskHash: digest(tasks), taskCount: 72, workers: 8, peak,
++      makespanVirtualMs: clock - start, lowerBoundVirtualMs: Math.max(72 * 20 / 8, 8 * 20), accepted: summary.accepted };
++  });
++}
++async function contextViews() {
++  return withStore(recipe, s => {
++    const q = new Scheduler(s); const source = { api: { name: "add", parameters: ["a", "b"], returns: "number" },
++      compilerLog: "irrelevant diagnostics\n".repeat(2200) };
++    const a = task("interface"); const b = task("inline", { dependencies: [a.id] });
++    const c = task("view", { dependencies: [a.id], dependencyViews: { interface: ["/api"] } });
++    const run = q.start([a, b, c]); accept(q, q.claim(run, "source"), a, source, Date.now());
++    const capsules = q.claimMany(run, "consumers", 2).map(l => q.capsule(l));
++    const full = capsules.find(c => c.task.id === "inline"); const view = capsules.find(c => c.task.id === "view");
++    assert.deepEqual(full.dependencies[0].artifact.api, view.dependencies[0].artifact["/api"]);
++    assert.equal(full.dependencies[0].artifactHash, view.dependencies[0].artifactHash);
++    const inlineBytes = Buffer.byteLength(canonical(full)); const projectedBytes = Buffer.byteLength(canonical(view));
++    return { kind: "serialized worker input; not billed tokens", inlineBytes, projectedBytes,
++      reduction: 1 - projectedBytes / inlineBytes, requiredApiEqual: true, sourceHash: digest(source) };
++  });
++}
++async function overhead() {
++  const tasks = Array.from({ length: count }, (_, i) => task(`t${String(i).padStart(5, "0")}`, { input: i % 31 }));
++  const samples = [];
++  for (let repetition = 0; repetition < repetitions; repetition++) {
++    samples.push(await withStore({ ...recipe, parallelism: 16, contextBytes: 4096 }, async s => {
++      let running = 0; let peak = 0;
++      const d = { workerId: contract.workerId, verifierId: contract.verifierId,
++        async execute(capsule) {
++          running++; peak = Math.max(peak, running);
++          await new Promise(resolve => setTimeout(resolve, 1)); running--;
++          return { artifact: { square: capsule.task.input * capsule.task.input }, measurement: zero };
++        },
++        async verify(capsule, result) {
++          // Recompute without the producer's multiplication expression.
++          let expected = 0; for (let i = 1; i <= capsule.task.input; i++) expected += 2 * i - 1;
++          return { artifactHash: digest(result.artifact), checks: [{ id: "correct", verdict: result.artifact.square === expected ? "PASS" : "FAIL" }], measurement: zero };
++        } };
++      const started = performance.now(); const result = await runTasks(s, tasks, d); const elapsedMs = performance.now() - started;
++      assert.equal(result.status, "PASS"); assert.equal(result.accepted, count); assert.equal(result.attempts, count);
++      return { repetition, elapsedMs, verifiedTasksPerSecond: count * 1000 / elapsedMs, peak, accepted: result.accepted };
++    }));
++  }
++  const sorted = samples.map(s => s.elapsedMs).sort((a, b) => a - b);
++  const midpoint = Math.floor(sorted.length / 2);
++  const medianMs = sorted.length % 2 ? sorted[midpoint] : (sorted[midpoint - 1] + sorted[midpoint]) / 2;
++  return { kind: "real-clock synthetic arithmetic workers; includes SQLite and artifact I/O", count,
++    taskHash: digest(tasks), repetitions, samples, medianMs, medianVerifiedTasksPerSecond: count * 1000 / medianMs };
++}
++const files = ["types.ts", "kernel.ts", "store.ts", "scheduler.ts", "runtime.ts", "commands.ts"];
++if (existsSync(join(root, "src/harness/foundry/productivity.ts"))) files.push("productivity.ts");
++const sourceHashes = Object.fromEntries(files.map(f => [f, createHash("sha256").update(readFileSync(join(root, "src/harness/foundry", f))).digest("hex")]));
++const report = { schema: 1, generatedAt: new Date().toISOString(), modelCalls: 0,
++  runtime: { node: process.version, platform: process.platform, arch: process.arch }, sourceHashes };
++if (!options.has("--overhead-only")) {
++  report.scheduling = { priority: await schedule("priority"), criticalPath: await schedule("critical-path") };
++  assert.equal(report.scheduling.priority.taskHash, report.scheduling.criticalPath.taskHash);
++  report.contextViews = await contextViews();
++}
++report.overhead = await overhead();
++console.log(JSON.stringify(report, null, 2));
+diff --git a/src/harness/foundry/commands.ts b/src/harness/foundry/commands.ts
+index dd5696a..eda6544 100644
+--- a/src/harness/foundry/commands.ts
++++ b/src/harness/foundry/commands.ts
+@@ -1,9 +1,10 @@
+ import { spawn } from "node:child_process";
++import { StringDecoder } from "node:string_decoder";
+ import { mkdtempSync, readFileSync, rmSync, realpathSync, existsSync, statSync } from "node:fs";
+ import { tmpdir } from "node:os";
+ import { isAbsolute, join, resolve } from "node:path";
+ import { canonical, digest, invariant, sha256 } from "./kernel.ts";
+-import type { Capsule, CommandSpec, Driver, PinnedCommand, Verification, WorkerResult } from "./types.ts";
++import type { AttemptControl, Capsule, CommandSpec, Driver, PinnedCommand, Verification, WorkerResult } from "./types.ts";
+ 
+ export function pinCommand(spec: CommandSpec, base: string): PinnedCommand {
+   invariant(Array.isArray(spec.argv) && spec.argv.length > 0 && spec.argv.every(s => typeof s === "string" && !s.includes("\0")), "invalid command argv");
+@@ -35,7 +36,7 @@ export function checkPins(command: PinnedCommand): void {
+ export function commandVerifierId(command: PinnedCommand): string { return digest(command); }
+ 
+ /** Non-shell, bounded subprocess adapter. Private cwd is NOT an OS sandbox. */
+-export async function invoke(command: PinnedCommand, input: unknown, maxBytes: number, signal: AbortSignal): Promise<unknown> {
++export async function invoke(command: PinnedCommand, input: unknown, maxBytes: number, signal: AbortSignal, control?: AttemptControl): Promise<unknown> {
+   checkPins(command);
+   invariant(!signal.aborted, "command cancelled");
+   const payload = canonical(input);
+@@ -50,6 +51,21 @@ export async function invoke(command: PinnedCommand, input: unknown, maxBytes: n
+         cwd, env, shell: false, detached: process.platform !== "win32", windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
+       });
+       const stdout: Buffer[] = []; const stderr: Buffer[] = []; let bytes = 0; let failure: Error | null = null; let settled = false;
++      const decoder = new StringDecoder("utf8"); let progressBuffer = "";
++      const reportProgress = (chunk: Buffer, final = false) => {
++        if (!control) return;
++        progressBuffer += final ? decoder.end() : decoder.write(chunk);
++        const lines = progressBuffer.split("\n"); progressBuffer = lines.pop()!;
++        if (final && progressBuffer) { lines.push(progressBuffer); progressBuffer = ""; }
++        for (const line of lines) {
++          if (!line.startsWith("FUTURE_CODE_PROGRESS ")) continue;
++          invariant(Buffer.byteLength(line, "utf8") <= 1024, "progress record exceeds byte budget");
++          const record = JSON.parse(line.slice("FUTURE_CODE_PROGRESS ".length));
++          invariant(record && typeof record.fingerprint === "string" && record.fingerprint.length > 0 &&
++            Buffer.byteLength(record.fingerprint, "utf8") <= 256, "invalid progress record");
++          control.progress(record.fingerprint);
++        }
++      };
+       const kill = () => {
+         if (!child.pid) return;
+         if (process.platform === "win32") {
+@@ -64,6 +80,9 @@ export async function invoke(command: PinnedCommand, input: unknown, maxBytes: n
+         bytes += chunk.length;
+         if (bytes > maxBytes) { failure = new Error("command output exceeded byte budget"); kill(); return; }
+         (out ? stdout : stderr).push(Buffer.from(chunk));
++        // Progress still counts against the SAME aggregate output budget.
++        if (!out) try { reportProgress(chunk); }
++        catch (e) { failure = e instanceof Error ? e : new Error(String(e)); kill(); }
+       };
+       child.stdout.on("data", c => collect(c, true)); child.stderr.on("data", c => collect(c, false));
+       signal.addEventListener("abort", abort, { once: true }); if (signal.aborted) abort();
+@@ -74,6 +93,8 @@ export async function invoke(command: PinnedCommand, input: unknown, maxBytes: n
+       child.on("error", e => done(e));
+       child.stdin.on("error", e => { if ((e as NodeJS.ErrnoException).code !== "EPIPE") { failure = e; kill(); } });
+       child.on("close", code => {
++        if (!failure) try { reportProgress(Buffer.alloc(0), true); }
++        catch (e) { failure = e instanceof Error ? e : new Error(String(e)); }
+         if (failure) return done(failure);
+         if (code !== 0) return done(new Error(`command exit ${code}: ${Buffer.concat(stderr).toString("utf8").slice(-4096)}`));
+         try { done(null, JSON.parse(Buffer.concat(stdout).toString("utf8"))); }
+@@ -94,16 +115,16 @@ export class CommandDriver implements Driver {
+     this.worker = worker; this.checker = checker; this.maxBytes = maxBytes;
+     this.verifierId = commandVerifierId(checker); this.workerId = digest(worker);
+   }
+-  async execute(capsule: Capsule, signal: AbortSignal): Promise<WorkerResult> {
+-    const value = await invoke(this.worker, { kind: "execute", capsule }, this.maxBytes, signal) as WorkerResult;
++  async execute(capsule: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult> {
++    const value = await invoke(this.worker, { kind: "execute", capsule }, this.maxBytes, signal, control) as WorkerResult;
+     invariant(value && Object.hasOwn(value, "artifact"), "missing worker artifact");
+     canonical(value.artifact);
+     // Ignore usage reported by the child. A trusted provider adapter must meter
+     // tokens and money separately; zero is not a substitute for missing data.
+     return { artifact: value.artifact, measurement: { tokens: null, costUsd: null } };
+   }
+-  async verify(capsule: Capsule, result: WorkerResult, signal: AbortSignal): Promise<Verification> {
+-    const value = await invoke(this.checker, { kind: "verify", capsule, artifact: result.artifact, artifactHash: digest(result.artifact) }, this.maxBytes, signal) as Verification;
++  async verify(capsule: Capsule, result: WorkerResult, signal: AbortSignal, control?: AttemptControl): Promise<Verification> {
++    const value = await invoke(this.checker, { kind: "verify", capsule, artifact: result.artifact, artifactHash: digest(result.artifact) }, this.maxBytes, signal, control) as Verification;
+     invariant(value && Array.isArray(value.checks), "missing verifier evidence");
+     return { artifactHash: value.artifactHash, checks: value.checks, measurement: { tokens: null, costUsd: null } };
+   }
+diff --git a/src/harness/foundry/kernel.ts b/src/harness/foundry/kernel.ts
+index 14af104..96c025e 100644
+--- a/src/harness/foundry/kernel.ts
++++ b/src/harness/foundry/kernel.ts
+@@ -56,11 +56,16 @@ export function validateContract(c: Contract): void {
+   positive(c.limits.tasks, 100_000, "task ceiling");
+ }
+ export function validateRecipe(c: Contract, p: Recipe): void {
+-  exactKeys(p, ["parallelism", "attempts", "contextBytes", "timeoutMs"], ["priorityContextShare"]);
++  exactKeys(p, ["parallelism", "attempts", "contextBytes", "timeoutMs"], ["priorityContextShare", "scheduling", "maxInFlightContextBytes", "noProgressMs", "maxRepeatedFailures"]);
+   for (const k of ["parallelism", "attempts", "contextBytes", "timeoutMs"] as const) positive(p[k], c.limits[k], k);
+   if (p.priorityContextShare !== undefined) {
+     invariant(typeof p.priorityContextShare === "number" && Number.isFinite(p.priorityContextShare) && p.priorityContextShare >= 0 && p.priorityContextShare <= 1, "invalid priorityContextShare");
+   }
++  invariant(p.scheduling === undefined || ["priority", "critical-path"].includes(p.scheduling), "invalid scheduling");
++  if (p.maxInFlightContextBytes !== undefined) positive(p.maxInFlightContextBytes,
++    c.limits.parallelism * c.limits.contextBytes, "in-flight context ceiling");
++  if (p.noProgressMs !== undefined) positive(p.noProgressMs, p.timeoutMs, "no-progress deadline");
++  if (p.maxRepeatedFailures !== undefined) positive(p.maxRepeatedFailures, p.attempts, "repeated failure limit");
+ }
+ export function validateTasks(c: Contract, tasks: Task[]): void {
+   invariant(Array.isArray(tasks), "tasks must be an array");
+@@ -73,12 +78,24 @@ export function validateTasks(c: Contract, tasks: Task[]): void {
+     invariant(Array.isArray(t.acceptance) && t.acceptance.length > 0 && t.acceptance.every(s => typeof s === "string" && !!s.trim()), "missing acceptance conditions");
+     invariant(Array.isArray(t.dependencies) && new Set(t.dependencies).size === t.dependencies.length, "invalid dependencies");
+     invariant(Array.isArray(t.writeScope), "invalid write scopes");
+-    for (const p of t.writeScope) {
++    invariant(t.readScope === undefined || Array.isArray(t.readScope), "invalid read scopes");
++    for (const p of [...t.writeScope, ...(t.readScope ?? [])]) {
+       invariant(typeof p === "string" && p.length > 0 && !p.includes("\\") && !p.startsWith("/") &&
+         !p.includes("\0") && !p.includes(":") && p.split("/").every(x => !!x && x !== "." && x !== "..") &&
+         ![".git", ".future-code"].includes(p.split("/")[0]), "unsafe write scope");
+     }
+     invariant(t.priority === undefined || Number.isFinite(t.priority), "invalid priority");
++    if (t.contextBudget !== undefined) positive(t.contextBudget, c.limits.contextBytes, "task context budget");
++    if (t.estimatedDurationMs !== undefined) positive(t.estimatedDurationMs, c.limits.timeoutMs, "duration estimate");
++    if (t.dependencyViews !== undefined) {
++      invariant(t.dependencyViews !== null && !Array.isArray(t.dependencyViews) && typeof t.dependencyViews === "object", "invalid dependency views");
++      for (const [id, pointers] of Object.entries(t.dependencyViews)) {
++        invariant(t.dependencies.includes(id), "view must name a direct dependency");
++        invariant(Array.isArray(pointers) && pointers.length > 0 && pointers.length <= 256 && new Set(pointers).size === pointers.length, "invalid dependency view pointers");
++        for (const pointer of pointers) invariant(typeof pointer === "string" && pointer.length <= 2048 &&
++          (pointer === "" || pointer.startsWith("/")) && !/~(?![01])/.test(pointer), "invalid JSON pointer");
++      }
++    }
+   }
+   // Kahn's algorithm avoids recursion limits on large DAGs.
+   const degree = new Map<string, number>();
+@@ -116,7 +133,7 @@ export function combineMeasurements(a: Measurement, b: Measurement): Measurement
+     costUsd: a.costUsd === null || b.costUsd === null ? null : a.costUsd + b.costUsd,
+   };
+ }
+-export function verdict(c: Contract, artifact: Json, v: Verification, metrics: Measurement & { durationMs: number }): Verdict {
++export function verdict(c: Contract, artifact: Json, v: Verification, metrics: Measurement & { durationMs: number; progressDensity?: number }): Verdict {
+   if (v.artifactHash !== digest(artifact) || !Array.isArray(v.checks)) return "INVALID";
+   const map = new Map<string, Verdict>();
+   for (const check of v.checks) {
+@@ -129,7 +146,7 @@ export function verdict(c: Contract, artifact: Json, v: Verification, metrics: M
+   if (required.includes("UNKNOWN")) return "UNKNOWN";
+   for (const s of c.slos) {
+     const n = metrics[s.metric];
+-    if (n === null || !Number.isFinite(n)) return "UNKNOWN";
++    if (n == null || !Number.isFinite(n)) return "UNKNOWN";
+     if (n < 0) return "INVALID";
+     if (s.maximum !== undefined && n > s.maximum) return "FAIL";
+     if (s.minimum !== undefined && n < s.minimum) return "FAIL";
+@@ -162,7 +179,7 @@ export function progressDensity(accepted: number, contextBytes: number): number
+  *  budget and low-priority tasks get a reduced budget, keeping the average
+  *  at contextBytes. This ensures each agent gets enough — but not excessive —
+  *  context for its decision problem. */
+-export function allocateContext(tasks: Task[], recipe: Recipe): Map<string, number> {
++export function allocateContext(tasks: Task[], recipe: Recipe, ceiling = recipe.contextBytes * 2): Map<string, number> {
+   const budget = new Map<string, number>();
+   const share = recipe.priorityContextShare ?? 0;
+   const base = recipe.contextBytes;
+@@ -171,7 +188,7 @@ export function allocateContext(tasks: Task[], recipe: Recipe): Map<string, numb
+   // Tasks with explicit contextBudget use it directly (capped to contract limit).
+   for (const t of tasks) {
+     if (t.contextBudget !== undefined) {
+-      budget.set(t.id, Math.min(t.contextBudget, base * 2));
++      budget.set(t.id, Math.min(t.contextBudget, base * 2, ceiling));
+     }
+   }
+   const remaining = tasks.filter(t => t.contextBudget === undefined);
+@@ -179,17 +196,17 @@ export function allocateContext(tasks: Task[], recipe: Recipe): Map<string, numb
+ 
+   if (share === 0 || remaining.every(t => (t.priority ?? 0) === (remaining[0].priority ?? 0))) {
+     // Equal allocation: every task gets the base budget.
+-    for (const t of remaining) budget.set(t.id, base);
++    for (const t of remaining) budget.set(t.id, Math.min(base, ceiling));
+     return budget;
+   }
+ 
+   // Priority-weighted allocation: high-priority tasks get share*2 multiplier,
+   // low-priority tasks get (1-share) multiplier, keeping average ≈ base.
+   const sorted = [...remaining].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+-  const topCount = Math.max(1, Math.floor(sorted.length * share));
++  const topCount = Math.min(sorted.length - 1, Math.max(1, Math.floor(sorted.length * share)));
+   for (let i = 0; i < sorted.length; i++) {
+     const multiplier = i < topCount ? 1 + share : 1 - share * (topCount / (sorted.length - topCount || 1));
+-    budget.set(sorted[i].id, Math.max(1, Math.floor(base * multiplier)));
++    budget.set(sorted[i].id, Math.min(ceiling, Math.max(1, Math.floor(base * multiplier))));
+   }
+   return budget;
+ }
+diff --git a/src/harness/foundry/productivity.ts b/src/harness/foundry/productivity.ts
+new file mode 100644
+index 0000000..bccebc1
+--- /dev/null
++++ b/src/harness/foundry/productivity.ts
+@@ -0,0 +1,82 @@
++import { allocateContext, conflicts, invariant } from "./kernel.ts";
++import type { Json, Recipe, Task } from "./types.ts";
++
++/** Iterative longest downstream path, including this task. O(V + E).
++ *  Missing estimates mean one unit per task, i.e. dependency depth. */
++export function criticalPathRanks(tasks: readonly Task[]): Map<string, number> {
++  const byId = new Map(tasks.map(t => [t.id, t]));
++  invariant(byId.size === tasks.length, "duplicate task id");
++  const degree = new Map(tasks.map(t => [t.id, t.dependencies.length]));
++  const children = new Map<string, string[]>();
++  for (const t of tasks) for (const d of t.dependencies) {
++    invariant(byId.has(d), "unknown dependency");
++    const list = children.get(d) ?? []; list.push(t.id); children.set(d, list);
++  }
++  const order = tasks.filter(t => !t.dependencies.length).map(t => t.id);
++  for (let i = 0; i < order.length; i++) for (const id of children.get(order[i]) ?? []) {
++    const n = degree.get(id)! - 1; degree.set(id, n); if (n === 0) order.push(id);
++  }
++  invariant(order.length === tasks.length, "dependency cycle");
++  const ranks = new Map<string, number>();
++  for (let i = order.length - 1; i >= 0; i--) {
++    const id = order[i]; let tail = 0;
++    for (const child of children.get(id) ?? []) tail = Math.max(tail, ranks.get(child)!);
++    ranks.set(id, (byId.get(id)!.estimatedDurationMs ?? 1) + tail);
++  }
++  return ranks;
++}
++
++/** Readers share access; a writer excludes overlapping readers AND writers. */
++export function accessConflicts(a: Task, b: Task): boolean {
++  return conflicts(a.writeScope, b.writeScope) || conflicts(a.writeScope, b.readScope ?? []) ||
++    conflicts(a.readScope ?? [], b.writeScope);
++}
++
++export function compilePlan(tasks: Task[], recipe: Recipe, ceiling: number) {
++  const byId = new Map(tasks.map(t => [t.id, t]));
++  const children = new Map<string, string[]>();
++  for (const task of tasks) for (const d of task.dependencies) {
++    const list = children.get(d) ?? []; list.push(task.id); children.set(d, list);
++  }
++  const ranks = recipe.scheduling === "critical-path" ? criticalPathRanks(tasks) : new Map<string, number>();
++  const budgets = allocateContext(tasks, recipe, ceiling);
++  for (const budget of budgets.values()) invariant(recipe.maxInFlightContextBytes === undefined ||
++    budget <= recipe.maxInFlightContextBytes, "in-flight context ceiling cannot admit a task; reduce its budget or split it");
++  const order = [...tasks].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0) ||
++    (ranks.get(b.id) ?? 0) - (ranks.get(a.id) ?? 0) || a.id.localeCompare(b.id));
++  return { byId, children, ranks, budgets, order };
++}
++
++/** Explicit projection only. Return pointer -> value, preserving exact values.
++ *  Full artifacts remain in the store, authenticated by their original hash. */
++export function projectDependency(source: Json, pointers: readonly string[]): Json {
++  const selected: Record<string, Json> = Object.create(null);
++  for (const pointer of pointers) {
++    invariant(typeof pointer === "string" && (pointer === "" || pointer.startsWith("/")) &&
++      !/~(?![01])/.test(pointer), "DEPENDENCY_VIEW_INVALID: invalid JSON pointer");
++    let value = source;
++    for (const part of pointer === "" ? [] : pointer.slice(1).split("/")) {
++      const key = part.replace(/~1/g, "/").replace(/~0/g, "~");
++      invariant(value !== null && typeof value === "object" && Object.hasOwn(value, key) &&
++        (!Array.isArray(value) || /^(0|[1-9][0-9]*)$/.test(key)), `DEPENDENCY_VIEW_MISSING: ${pointer}`);
++      value = (value as Record<string, Json>)[key];
++    }
++    selected[pointer] = value;
++  }
++  return selected;
++}
++
++/** Bounded novelty detector. A heartbeat or alternating repeated messages do
++ *  not constitute progress. This is a liveness heuristic, not verification. */
++export class ProgressWindow {
++  private readonly seen = new Set<string>();
++  private last: number;
++  constructor(now: number) { this.last = now; }
++  observe(fingerprint: string, now: number): boolean {
++    invariant(typeof fingerprint === "string" && fingerprint.length > 0 &&
++      Buffer.byteLength(fingerprint, "utf8") <= 256, "invalid progress fingerprint");
++    if (this.seen.has(fingerprint) || this.seen.size >= 1024) return false;
++    this.seen.add(fingerprint); this.last = Math.max(this.last, now); return true;
++  }
++  idleMs(now: number): number { return Math.max(0, now - this.last); }
++}
+diff --git a/src/harness/foundry/runtime.ts b/src/harness/foundry/runtime.ts
+index 2c7c17c..a63ee4a 100644
+--- a/src/harness/foundry/runtime.ts
++++ b/src/harness/foundry/runtime.ts
+@@ -1,9 +1,10 @@
+ import { randomUUID } from "node:crypto";
+ import { performance } from "node:perf_hooks";
+ import { canonical, combineMeasurements, digest, invariant, validMeasurement, verdict } from "./kernel.ts";
++import { ProgressWindow } from "./productivity.ts";
+ import { Scheduler } from "./scheduler.ts";
+ import { Store } from "./store.ts";
+-import type { Driver, Json, Lease, Measurement, RunSummary, Task } from "./types.ts";
++import type { AttemptControl, Driver, Json, Lease, Measurement, RunSummary, Task } from "./types.ts";
+ 
+ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver, outer?: AbortSignal): Promise<void> {
+   const store = scheduler.store; const controller = new AbortController(); const t0 = performance.now();
+@@ -11,18 +12,44 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
+   outer?.addEventListener("abort", cancel, { once: true }); if (outer?.aborted) cancel();
+   const unknown: Measurement = { tokens: null, costUsd: null }; let measured = unknown;
+   let timer: ReturnType<typeof setTimeout> | undefined;
++  let idleTimer: ReturnType<typeof setTimeout> | undefined;
++  const recipe = store.recipe(lease.recipeHash);
++  const progress = new ProgressWindow(t0);
++  let stage: "prepare" | "execute" | "verify" = "prepare";
++  let artifactHash: string | null = null; let verificationHash: string | null = null;
++  let closed = false;
++  const armIdle = () => {
++    if (idleTimer) clearTimeout(idleTimer);
++    if (recipe.noProgressMs && !controller.signal.aborted) idleTimer = setTimeout(() => {
++      controller.abort(new Error(`NO_PROGRESS: ${stage}; split the task or repair the adapter`));
++    }, recipe.noProgressMs);
++  };
++  const control: AttemptControl = { progress(fingerprint) {
++    if (closed || controller.signal.aborted || recipe.noProgressMs === undefined) return;
++    invariant(typeof fingerprint === "string" && fingerprint.length > 0 &&
++      Buffer.byteLength(fingerprint, "utf8") <= 256, "invalid progress fingerprint");
++    const key = digest({ stage, fingerprint });
++    if (!progress.observe(key, performance.now())) return;
++    if (!scheduler.progress(lease, key)) { controller.abort(new Error("stale lease")); return; }
++    armIdle();
++  } };
+   const work = async () => {
+     if (controller.signal.aborted) throw controller.signal.reason;
+     const capsule = scheduler.capsule(lease);
+     const contract = store.contract();
+     invariant(driver.verifierId === contract.verifierId && driver.workerId === contract.workerId, "driver identity mismatch");
+-    const result = await driver.execute(capsule, controller.signal);
++    stage = "execute"; armIdle();
++    const result = await driver.execute(capsule, controller.signal, recipe.noProgressMs === undefined ? undefined : control);
+     if (controller.signal.aborted) throw controller.signal.reason;
+     invariant(Buffer.byteLength(canonical(result.artifact), "utf8") <= contract.limits.outputBytes, "worker artifact exceeds output budget");
+-    // A producer's success string is not an acceptance result.
+-    const check = await driver.verify(capsule, result, controller.signal);
++    artifactHash = digest(result.artifact);
++    // A producer's success string is not an acceptance result. Verification is
++    // also bounded: a hung test process cannot occupy a slot indefinitely.
++    stage = "verify"; armIdle();
++    const check = await driver.verify(capsule, result, controller.signal, recipe.noProgressMs === undefined ? undefined : control);
+     if (controller.signal.aborted) throw controller.signal.reason;
+     invariant(Buffer.byteLength(canonical(check), "utf8") <= contract.limits.outputBytes, "verifier output exceeds output budget");
++    verificationHash = digest({ artifactHash: check.artifactHash, checks: check.checks });
+     measured = combineMeasurements(validMeasurement(result.measurement), validMeasurement(check.measurement));
+     const metrics = { ...measured, durationMs: performance.now() - t0 };
+     const decision = verdict(contract, result.artifact, check, metrics);
+@@ -42,8 +69,18 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
+     timer = setTimeout(() => controller.abort(new Error("attempt deadline exceeded")), Math.max(1, lease.deadline - Date.now()));
+   });
+   try { await Promise.race([work(), stopped]); }
+-  catch (e) { controller.abort(e); scheduler.fail(lease, e instanceof Error ? e.message : String(e), measured); }
++  catch (e) {
++    controller.abort(e);
++    const reason = e instanceof Error ? e.message : String(e);
++    scheduler.fail(lease, reason, measured, Date.now(), {
++      // Retrying the same oversized/invalid capsule cannot repair its contract.
++      retryable: stage !== "prepare" || !!outer?.aborted,
++      fingerprint: digest({ stage, reason, artifactHash, verificationHash }),
++    });
++  }
+   finally {
++    closed = true;
++    if (idleTimer) clearTimeout(idleTimer);
+     if (timer) clearTimeout(timer); if (abortHandler) controller.signal.removeEventListener("abort", abortHandler);
+     outer?.removeEventListener("abort", cancel);
+   }
+@@ -64,22 +101,57 @@ export async function runTasks(store: Store, tasks: Task[], driver: Driver,
+   }
+   const recipe = store.recipe(pinned);
+   const owner = randomUUID(); const active = new Set<Promise<void>>();
+-  while (!options.signal?.aborted) {
+-    while (active.size < recipe.parallelism && !options.signal?.aborted) {
+-      const lease = scheduler.claim(runId, owner); if (!lease) break;
+-      const promise = executeAttempt(scheduler, lease, driver, options.signal);
+-      active.add(promise); void promise.then(() => active.delete(promise), () => active.delete(promise));
+-    }
+-    const summary = scheduler.summary(runId);
+-    if (summary.status !== "RUNNING") { await Promise.all(active); return scheduler.summary(runId); }
+-    if (active.size) await Promise.race(active);
+-    else {
+-      // Another process holds leases, or a just-expired lease needs recovery.
+-      // Poll the durable scheduler, not an LLM, and never rerun verification to observe.
+-      await new Promise(resolve => setTimeout(resolve, 25));
++  const controllers = new Set<AbortController>();
++  // One listener on the caller's signal, even for hundreds of local workers.
++  const cancelAll = () => { for (const c of controllers) c.abort(options.signal?.reason ?? new Error("run cancelled")); };
++  options.signal?.addEventListener("abort", cancelAll, { once: true });
++  let idleMs = 25;
++  try {
++    while (!options.signal?.aborted) {
++      if (active.size < recipe.parallelism) {
++        const leases = scheduler.claimMany(runId, owner, recipe.parallelism - active.size);
++        for (const lease of leases) {
++          const controller = new AbortController(); controllers.add(controller);
++          if (options.signal?.aborted) controller.abort(options.signal.reason);
++          const promise = executeAttempt(scheduler, lease, driver, controller.signal);
++          active.add(promise);
++          const release = () => { active.delete(promise); controllers.delete(controller); };
++          void promise.then(release, release);
++        }
++      }
++      // Do not rescan every attempt/metric just to ask whether the run ended.
++      if (scheduler.status(runId) !== "RUNNING") { await Promise.all(active); return scheduler.summary(runId); }
++      if (active.size) {
++        idleMs = 25;
++        if (active.size < recipe.parallelism) {
++          // A remote worker can unlock a child while a local worker is still
++          // running. Refill spare slots without waiting for that local straggler.
++          const wake = new AbortController();
++          try { await Promise.race([...active, idleWait(250, wake.signal)]); }
++          finally { wake.abort(); }
++        } else await Promise.race(active);
++      }
++      else {
++        // Same-process completions are event-driven. Cross-process claims use
++        // bounded backoff (at most 250 ms), rather than constant busy polling.
++        await idleWait(idleMs, options.signal); idleMs = Math.min(250, idleMs * 2);
++      }
+     }
++    await Promise.all(active);
++    store.transaction(() => store.event("run.paused", { reason: "caller cancelled; resume by run id" }, runId));
++    return scheduler.summary(runId);
++  } finally {
++    options.signal?.removeEventListener("abort", cancelAll);
++    cancelAll(); await Promise.allSettled(active);
+   }
+-  await Promise.all(active);
+-  store.transaction(() => store.event("run.paused", { reason: "caller cancelled; resume by run id" }, runId));
+-  return scheduler.summary(runId);
++}
++
++function idleWait(ms: number, signal?: AbortSignal): Promise<void> {
++  if (signal?.aborted) return Promise.resolve();
++  return new Promise(resolve => {
++    const done = () => { clearTimeout(timer); signal?.removeEventListener("abort", done); resolve(); };
++    const timer = setTimeout(done, ms);
++    signal?.addEventListener("abort", done, { once: true });
++    if (signal?.aborted) done();
++  });
+ }
+diff --git a/src/harness/foundry/scheduler.ts b/src/harness/foundry/scheduler.ts
+index 57fa97a..aef9ef9 100644
+--- a/src/harness/foundry/scheduler.ts
++++ b/src/harness/foundry/scheduler.ts
+@@ -1,72 +1,104 @@
+ import { randomUUID } from "node:crypto";
+ import { Store } from "./store.ts";
+-import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, allocateContext, progressDensity } from "./kernel.ts";
+-import type { Capsule, Json, Lease, Measurement, RunSummary, Task } from "./types.ts";
++import { digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
++import { accessConflicts, compilePlan, projectDependency } from "./productivity.ts";
++import type { Capsule, FailureOptions, Json, Lease, Measurement, Recipe, RunSummary, Task } from "./types.ts";
+ 
+ export class Scheduler {
+   readonly store: Store;
++  // Only immutable task specifications are cached. Lease/status state is always
++  // re-read inside BEGIN IMMEDIATE, including when another process claims work.
++  private cachedPlan?: { runId: string; recipeHash: string; plan: ReturnType<typeof compilePlan> };
+   constructor(store: Store) { this.store = store; }
++  private plan(runId: string, recipeHash: string, recipe: Recipe, rows?: Record<string, unknown>[]) {
++    if (this.cachedPlan?.runId === runId && this.cachedPlan.recipeHash === recipeHash) return this.cachedPlan.plan;
++    const tasks: Task[] = (rows ?? this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(runId)).map(t => {
++      invariant(typeof t.spec === "string", "missing persisted task specification");
++      return JSON.parse(t.spec) as Task;
++    });
++    const plan = compilePlan(tasks, recipe, this.store.contract().limits.contextBytes);
++    this.cachedPlan = { runId, recipeHash, plan }; return plan;
++  }
+   start(tasks: Task[], recipeHash = this.store.active(), now = Date.now()): string {
+-    const contract = this.store.contract(); validateTasks(contract, tasks); this.store.recipe(recipeHash);
++    const contract = this.store.contract(); validateTasks(contract, tasks);
++    // Reject an impossible reservation before creating a permanently idle run.
++    compilePlan(tasks, this.store.recipe(recipeHash), contract.limits.contextBytes);
+     const id = randomUUID();
+     this.store.transaction(() => {
+       this.store.db.prepare("INSERT INTO runs(id,recipe,contract,started,status) VALUES(?,?,?,?, 'RUNNING')").run(id, recipeHash, digest(contract), now);
+-      for (const task of tasks) this.store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')").run(id, task.id, JSON.stringify(task));
++      const insert = this.store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')");
++      for (const task of tasks) insert.run(id, task.id, JSON.stringify(task));
+       this.store.event("run.started", { recipeHash, contractHash: digest(contract), taskCount: tasks.length, taskHash: digest(tasks) }, id);
+     });
+     return id;
+   }
+-  /** Claim, expiry, scope locks, and attempt accounting form one transaction. */
++  /** Backward-compatible single claim; all reservations share the batch path. */
+   claim(runId: string, owner: string, now = Date.now()): Lease | null {
+-    invariant(owner.length > 0, "missing owner");
++    return this.claimMany(runId, owner, 1, now)[0] ?? null;
++  }
++  /** One durable transaction per refill, not one DAG parse/commit per agent.
++   *  There are no wave barriers: a finishing agent immediately frees a slot. */
++  claimMany(runId: string, owner: string, limit: number, now = Date.now()): Lease[] {
++    invariant(typeof owner === "string" && owner.length > 0, "missing owner");
++    invariant(Number.isSafeInteger(limit) && limit > 0 && limit <= 256, "invalid claim batch size");
+     return this.store.transaction(() => {
+       const run = this.store.db.prepare("SELECT * FROM runs WHERE id=?").get(runId); invariant(run, "unknown run");
+-      if (run.status !== "RUNNING") return null;
++      if (run.status !== "RUNNING") return [];
+       invariant(run.contract === digest(this.store.contract()), "run contract drift");
+       const recipe = this.store.recipe(run.recipe);
+-      let rows = this.store.db.prepare("SELECT * FROM tasks WHERE run=?").all(runId);
++      const rows = this.store.db.prepare("SELECT * FROM tasks WHERE run=?").all(runId);
++      const plan = this.plan(runId, run.recipe, recipe, rows);
++      const byId = new Map(rows.map(t => [t.id as string, t]));
+       for (const t of rows.filter(t => t.status === "RUNNING" && t.deadline <= now)) {
+-        this.store.db.prepare("UPDATE attempts SET status='EXPIRED',ended=?,duration=? WHERE run=? AND task=? AND fence=? AND status='RUNNING'").run(now, Math.max(0, now - (t.deadline - recipe.timeoutMs)), runId, t.id, t.fence);
+-        this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error='lease expired' WHERE run=? AND id=?").run(t.fence >= recipe.attempts ? "FAIL" : "READY", runId, t.id);
++        const attempt = this.store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(runId, t.id, t.fence)!;
++        this.store.db.prepare("UPDATE attempts SET status='EXPIRED',ended=?,duration=? WHERE run=? AND task=? AND fence=? AND status='RUNNING'").run(now, Math.max(0, now - attempt.started), runId, t.id, t.fence);
++        t.status = t.fence >= recipe.attempts ? "FAIL" : "READY";
++        this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error='lease expired' WHERE run=? AND id=?").run(t.status, runId, t.id);
+         this.store.event("lease.expired", { fence: t.fence }, runId, t.id);
+       }
+-      // Propagate terminal dependency failure all the way through the DAG.
+-      let changed = true;
+-      while (changed) {
+-        changed = false; rows = this.store.db.prepare("SELECT * FROM tasks WHERE run=?").all(runId);
+-        const states = new Map(rows.map(t => [t.id, t.status]));
+-        for (const t of rows.filter(t => t.status === "READY")) {
+-          const spec: Task = JSON.parse(t.spec);
+-          if (spec.dependencies.some(d => ["FAIL", "BLOCKED"].includes(states.get(d)!))) {
+-            this.store.db.prepare("UPDATE tasks SET status='BLOCKED',error='dependency failed' WHERE run=? AND id=?").run(runId, t.id);
+-            this.store.event("task.blocked", { reason: "dependency failed" }, runId, t.id); changed = true;
+-          }
+-        }
+-      }
+-      rows = this.store.db.prepare("SELECT * FROM tasks WHERE run=?").all(runId);
+-      const running = rows.filter(t => t.status === "RUNNING");
+-      if (running.length >= recipe.parallelism) return null;
+-      const states = new Map(rows.map(t => [t.id, t.status]));
+-      const scopes = running.map(t => (JSON.parse(t.spec) as Task).writeScope);
+-      const ready = rows.filter(t => t.status === "READY").sort((a, b) =>
+-        ((JSON.parse(b.spec) as Task).priority ?? 0) - ((JSON.parse(a.spec) as Task).priority ?? 0) || a.id.localeCompare(b.id));
+-      for (const t of ready) {
+-        const task: Task = JSON.parse(t.spec);
+-        if (!task.dependencies.every(d => states.get(d) === "PASS") || scopes.some(s => conflicts(s, task.writeScope))) continue;
+-        const fence = t.fence + 1; const deadline = now + recipe.timeoutMs;
+-        this.store.db.prepare("UPDATE tasks SET status='RUNNING',fence=?,owner=?,deadline=?,error=NULL WHERE run=? AND id=?").run(fence, owner, deadline, runId, t.id);
+-        this.store.db.prepare("INSERT INTO attempts(run,task,fence,started,status) VALUES(?,?,?,?,'RUNNING')").run(runId, t.id, fence, now);
+-        this.store.event("task.claimed", { owner, fence, deadline }, runId, t.id);
+-        return { runId, taskId: t.id, owner, fence, deadline, recipeHash: run.recipe, contractHash: run.contract };
++      // Linear failure propagation, rather than repeated full SQL rescans for
++      // each level of a deep failed dependency chain.
++      const failed = rows.filter(t => t.status === "FAIL" || t.status === "BLOCKED").map(t => t.id as string);
++      for (let i = 0; i < failed.length; i++) for (const id of plan.children.get(failed[i]) ?? []) {
++        const child = byId.get(id)!;
++        if (child.status !== "READY") continue;
++        child.status = "BLOCKED"; failed.push(id);
++        this.store.db.prepare("UPDATE tasks SET status='BLOCKED',error='dependency failed' WHERE run=? AND id=?").run(runId, id);
++        this.store.event("task.blocked", { reason: "dependency failed" }, runId, id);
+       }
+       if (rows.every(t => ["PASS", "FAIL", "BLOCKED"].includes(t.status))) {
+         const status = rows.length > 0 && rows.every(t => t.status === "PASS") ? "PASS" : "FAIL";
+         this.store.db.prepare("UPDATE runs SET status=?,ended=? WHERE id=?").run(status, now, runId);
+-        this.store.event("run.finished", { status }, runId);
++        this.store.event("run.finished", { status }, runId); return [];
++      }
++      const running = rows.filter(t => t.status === "RUNNING");
++      const capacity = Math.min(limit, recipe.parallelism - running.length);
++      if (capacity <= 0) return [];
++      const active = running.map(t => plan.byId.get(t.id)!);
++      let reserved = active.reduce((n, task) => n + plan.budgets.get(task.id)!, 0);
++      const leases: Lease[] = [];
++      for (const task of plan.order) {
++        const row = byId.get(task.id)!;
++        if (row.status !== "READY" || !task.dependencies.every(d => byId.get(d)!.status === "PASS") ||
++            active.some(other => accessConflicts(task, other))) continue;
++        const budget = plan.budgets.get(task.id)!;
++        if (recipe.maxInFlightContextBytes !== undefined && reserved + budget > recipe.maxInFlightContextBytes) continue;
++        const fence = row.fence + 1; const deadline = now + recipe.timeoutMs;
++        this.store.db.prepare("UPDATE tasks SET status='RUNNING',fence=?,owner=?,deadline=?,error=NULL WHERE run=? AND id=?").run(fence, owner, deadline, runId, task.id);
++        this.store.db.prepare("INSERT INTO attempts(run,task,fence,started,status) VALUES(?,?,?,?,'RUNNING')").run(runId, task.id, fence, now);
++        this.store.event("task.claimed", { owner, fence, deadline, reservedContextBytes: budget,
++          criticalPathEstimate: plan.ranks.get(task.id) ?? null }, runId, task.id);
++        leases.push({ runId, taskId: task.id, owner, fence, deadline, recipeHash: run.recipe, contractHash: run.contract });
++        active.push(task); reserved += budget; row.status = "RUNNING";
++        if (leases.length >= capacity) break;
+       }
+-      return null;
++      return leases;
+     });
+   }
++  status(runId: string): RunSummary["status"] {
++    const row = this.store.db.prepare("SELECT status FROM runs WHERE id=?").get(runId);
++    invariant(row, "unknown run"); return row.status;
++  }
+   private current(lease: Lease, now: number): boolean {
+     const t = this.store.db.prepare("SELECT * FROM tasks WHERE run=? AND id=?").get(lease.runId, lease.taskId);
+     const run = this.store.db.prepare("SELECT * FROM runs WHERE id=?").get(lease.runId);
+@@ -80,17 +112,37 @@ export class Scheduler {
+     const dependencies = task.dependencies.map(id => {
+       const dep = this.store.db.prepare("SELECT status,artifact FROM tasks WHERE run=? AND id=?").get(lease.runId, id);
+       invariant(dep?.status === "PASS" && dep.artifact, "unverified dependency");
+-      return { taskId: id, artifactHash: dep.artifact as string, artifact: this.store.readArtifact(dep.artifact) };
++      const source = this.store.readArtifact(dep.artifact);
++      const pointers = task.dependencyViews && Object.hasOwn(task.dependencyViews, id) ? task.dependencyViews[id] : undefined;
++      if (!pointers) return { taskId: id, artifactHash: dep.artifact as string, artifact: source };
++      const artifact = projectDependency(source, pointers);
++      return { taskId: id, artifactHash: dep.artifact as string, artifact, view: { pointers, hash: digest(artifact) } };
+     });
+     const capsule: Capsule = { schema: 1, runId: lease.runId, task, contractHash: lease.contractHash, recipeHash: lease.recipeHash, fence: lease.fence, dependencies };
+     // Use per-task context budget when available, falling back to recipe default.
+     const recipe = this.store.recipe(lease.recipeHash);
+-    const allTasks: Task[] = this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(lease.runId).map(r => JSON.parse(r.spec));
+-    const budgets = allocateContext(allTasks, recipe);
++    const budgets = this.plan(lease.runId, lease.recipeHash, recipe).budgets;
+     const taskBudget = budgets.get(lease.taskId) ?? recipe.contextBytes;
+-    encodeCapsule(capsule, taskBudget);
++    const text = encodeCapsule(capsule, Math.min(taskBudget, this.store.contract().limits.contextBytes));
++    this.store.transaction(() => {
++      invariant(this.current(lease, Date.now()), "stale lease");
++      this.store.db.prepare(`INSERT INTO attempt_telemetry(run,task,fence,context_bytes) VALUES(?,?,?,?)
++        ON CONFLICT(run,task,fence) DO UPDATE SET context_bytes=excluded.context_bytes`)
++        .run(lease.runId, lease.taskId, lease.fence, Buffer.byteLength(text, "utf8"));
++    });
+     return capsule;
+   }
++  /** Progress changes liveness only; it can never release dependencies. */
++  progress(lease: Lease, fingerprint: string, now = Date.now()): boolean {
++    return this.store.transaction(() => {
++      if (!this.current(lease, now)) return false;
++      this.store.db.prepare(`INSERT INTO attempt_telemetry(run,task,fence,progress_count,last_progress_at) VALUES(?,?,?,1,?)
++        ON CONFLICT(run,task,fence) DO UPDATE SET progress_count=progress_count+1,last_progress_at=excluded.last_progress_at`)
++        .run(lease.runId, lease.taskId, lease.fence, now);
++      this.store.event("attempt.progress", { fence: lease.fence, fingerprint: digest(fingerprint) }, lease.runId, lease.taskId);
++      return true;
++    });
++  }
+   /** Only the trusted runtime calls finish after independent verification. */
+   finish(lease: Lease, artifact: Json, evidence: Json, measurement: Measurement, now = Date.now()): boolean {
+     validMeasurement(measurement);
+@@ -110,17 +162,27 @@ export class Scheduler {
+       this.store.event("task.accepted", { fence: lease.fence, artifactHash, evidenceHash }, lease.runId, lease.taskId); return true;
+     });
+   }
+-  fail(lease: Lease, reason: string, measurement: Measurement = { tokens: null, costUsd: null }, now = Date.now()): boolean {
++  fail(lease: Lease, reason: string, measurement: Measurement = { tokens: null, costUsd: null }, now = Date.now(), options: FailureOptions = {}): boolean {
+     validMeasurement(measurement);
+     return this.store.transaction(() => {
+       // An expired lease is reclaimed by claim(); do not overwrite a new owner.
+       if (!this.current(lease, now)) { this.store.event("failure.stale", { fence: lease.fence, reason }, lease.runId, lease.taskId); return false; }
+       const recipe = this.store.recipe(lease.recipeHash);
+       const a = this.store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(lease.runId, lease.taskId, lease.fence)!;
+-      const status = lease.fence >= recipe.attempts ? "FAIL" : "READY";
++      const fingerprint = digest(options.fingerprint ?? reason.slice(0, 4096));
++      this.store.db.prepare(`INSERT INTO attempt_telemetry(run,task,fence,failure_fingerprint) VALUES(?,?,?,?)
++        ON CONFLICT(run,task,fence) DO UPDATE SET failure_fingerprint=excluded.failure_fingerprint`)
++        .run(lease.runId, lease.taskId, lease.fence, fingerprint);
++      let repeated = 0;
++      const previous = this.store.db.prepare(`SELECT m.failure_fingerprint FROM attempts a LEFT JOIN attempt_telemetry m
++        ON a.run=m.run AND a.task=m.task AND a.fence=m.fence WHERE a.run=? AND a.task=? ORDER BY a.fence DESC`)
++        .all(lease.runId, lease.taskId);
++      for (const prior of previous) { if (prior.failure_fingerprint !== fingerprint) break; repeated++; }
++      const exhausted = recipe.maxRepeatedFailures !== undefined && repeated >= recipe.maxRepeatedFailures;
++      const status = options.retryable === false || exhausted || lease.fence >= recipe.attempts ? "FAIL" : "READY";
+       this.store.db.prepare("UPDATE attempts SET status='FAIL',ended=?,duration=?,tokens=?,cost=? WHERE run=? AND task=? AND fence=?").run(now, Math.max(0, now - a.started), measurement.tokens, measurement.costUsd, lease.runId, lease.taskId, lease.fence);
+       this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error=? WHERE run=? AND id=?").run(status, reason.slice(0, 4096), lease.runId, lease.taskId);
+-      this.store.event("task.failed", { fence: lease.fence, reason: reason.slice(0, 4096), retry: status === "READY" }, lease.runId, lease.taskId); return true;
++      this.store.event("task.failed", { fence: lease.fence, reason: reason.slice(0, 4096), retry: status === "READY", repeated, fingerprint }, lease.runId, lease.taskId); return true;
+     });
+   }
+   summary(id: string, now = Date.now()): RunSummary {
+diff --git a/src/harness/foundry/store.ts b/src/harness/foundry/store.ts
+index a8bac1a..6816750 100644
+--- a/src/harness/foundry/store.ts
++++ b/src/harness/foundry/store.ts
+@@ -27,6 +27,9 @@ export class Store {
+       CREATE INDEX IF NOT EXISTS tasks_status ON tasks(run,status);
+       CREATE TABLE IF NOT EXISTS attempts(run TEXT NOT NULL, task TEXT NOT NULL, fence INTEGER NOT NULL, started REAL NOT NULL, ended REAL, status TEXT NOT NULL, tokens REAL, cost REAL, duration REAL, PRIMARY KEY(run,task,fence));
+       CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL, kind TEXT NOT NULL, run TEXT, task TEXT, payload TEXT NOT NULL);
++      CREATE TABLE IF NOT EXISTS attempt_telemetry(run TEXT NOT NULL, task TEXT NOT NULL, fence INTEGER NOT NULL,
++        context_bytes INTEGER, progress_count INTEGER NOT NULL DEFAULT 0, last_progress_at REAL, failure_fingerprint TEXT,
++        PRIMARY KEY(run,task,fence));
+       CREATE TABLE IF NOT EXISTS evaluations(id TEXT PRIMARY KEY, json TEXT NOT NULL, hash TEXT NOT NULL, promoted INTEGER NOT NULL DEFAULT 0);`);
+     return new Store(root, db);
+   }
+diff --git a/src/harness/foundry/types.ts b/src/harness/foundry/types.ts
+index 1129906..dc57cb8 100644
+--- a/src/harness/foundry/types.ts
++++ b/src/harness/foundry/types.ts
+@@ -28,6 +28,14 @@ export interface Recipe {
+    *  0 means equal allocation; 0.7 means top-priority tasks get 70% of
+    *  the context budget. Defaults to 0 (equal allocation). */
+   priorityContextShare?: number;
++  /** Explicit opt-in: old recipe hashes retain priority-first scheduling. */
++  scheduling?: "priority" | "critical-path";
++  /** Sum of reserved capsule budgets, not provider token usage or RAM. */
++  maxInFlightContextBytes?: number;
++  /** Idle deadline for adapters that report distinct progress fingerprints. */
++  noProgressMs?: number;
++  /** Stop consecutive identical failures; different artifacts remain eligible. */
++  maxRepeatedFailures?: number;
+ }
+ export interface Task {
+   id: string;
+@@ -41,6 +49,13 @@ export interface Task {
+   /** Per-task context budget override (bytes). When omitted, the scheduler
+    *  allocates from recipe.contextBytes based on relative priority. */
+   contextBudget?: number;
++  /** Advisory estimate for critical-path ordering, never an execution deadline. */
++  estimatedDurationMs?: number;
++  /** Optional logical read locks. Concurrent readers are allowed. */
++  readScope?: string[];
++  /** Explicit RFC 6901 projections of direct, verified dependency artifacts.
++   *  Omitted dependencies retain their full output. No automatic truncation. */
++  dependencyViews?: Record<string, string[]>;
+ }
+ export interface Capsule {
+   schema: 1;
+@@ -50,7 +65,14 @@ export interface Capsule {
+   recipeHash: string;
+   fence: number;
+   /** Content-addressed, verified outputs. No accumulated conversation history. */
+-  dependencies: { taskId: string; artifactHash: string; artifact: Json }[];
++  dependencies: {
++    taskId: string;
++    /** Always the hash of the FULL source artifact, even for a view. */
++    artifactHash: string;
++    artifact: Json;
++    /** A projected artifact is a JSON-pointer-to-value map, not the full source. */
++    view?: { pointers: string[]; hash: string };
++  }[];
+ }
+ export interface Measurement {
+   /** Only the trusted host adapter may fill these; never trust model JSON usage. */
+@@ -67,12 +89,21 @@ export interface Verification {
+   checks: Check[];
+   measurement?: Measurement;
+ }
++export interface AttemptControl {
++  /** Host/adapter observation, NOT correctness evidence. Repeats do not renew
++   *  the idle deadline. The hard lease deadline is never extended. */
++  progress(fingerprint: string): void;
++}
++export interface FailureOptions {
++  retryable?: boolean;
++  fingerprint?: string;
++}
+ export interface Driver {
+   verifierId: string;
+   workerId: string;
+   /** Honor cancellation. The command adapter kills the child's process group. */
+-  execute(capsule: Capsule, signal: AbortSignal): Promise<WorkerResult>;
+-  verify(capsule: Capsule, result: WorkerResult, signal: AbortSignal): Promise<Verification>;
++  execute(capsule: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult>;
++  verify(capsule: Capsule, result: WorkerResult, signal: AbortSignal, control?: AttemptControl): Promise<Verification>;
+ }
+ export interface Lease {
+   runId: string;
+diff --git a/tests/foundry/productivity.test.ts b/tests/foundry/productivity.test.ts
+new file mode 100644
+index 0000000..419715c
+--- /dev/null
++++ b/tests/foundry/productivity.test.ts
+@@ -0,0 +1,420 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { mkdtempSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { Store } from "../../src/harness/foundry/store.ts";
++import { Scheduler } from "../../src/harness/foundry/scheduler.ts";
++import { validateTasks, validateRecipe } from "../../src/harness/foundry/kernel.ts";
++import type { Contract, Recipe, Task } from "../../src/harness/foundry/types.ts";
++
++import { writeFileSync } from "node:fs";
++import { getEventListeners } from "node:events";
++import { setTimeout as delay } from "node:timers/promises";
++import { criticalPathRanks, accessConflicts, compilePlan, projectDependency, ProgressWindow } from "../../src/harness/foundry/productivity.ts";
++import { allocateContext, canonical, digest } from "../../src/harness/foundry/kernel.ts";
++import { runTasks } from "../../src/harness/foundry/runtime.ts";
++import { invoke, pinCommand, CommandDriver } from "../../src/harness/foundry/commands.ts";
++import type { AttemptControl, Driver, Json, Lease, PinnedCommand } from "../../src/harness/foundry/types.ts";
++
++
++const contract: Contract = {
++  schema: 1, name: "productivity-tests", workerId: "worker-v1", verifierId: "check-v1", environmentId: "fixture-v1",
++  requiredChecks: ["correct"], slos: [],
++  limits: { parallelism: 32, attempts: 5, contextBytes: 16384, outputBytes: 1048576, timeoutMs: 10000, tasks: 20000 },
++};
++const recipe: Recipe = { parallelism: 4, attempts: 2, contextBytes: 4096, timeoutMs: 5000 };
++const task = (id: string, extra: Partial<Task> = {}): Task => ({
++  id, goal: `Implement ${id}`, acceptance: ["independent test passes"], dependencies: [], writeScope: [`src/${id}`], input: null, ...extra,
++});
++async function fixture(fn: (s: Store) => void | Promise<void>, p: Recipe = recipe, c: Contract = contract) {
++  const root = mkdtempSync(join(tmpdir(), "foundry-productivity-test-"));
++  const s = await Store.open(root);
++  try { s.initialize(c, p); await fn(s); } finally { s.close(); rmSync(root, { recursive: true, force: true }); }
++}
++
++test("reject non-integral task context budgets before starting a worker", () => {
++  for (const contextBudget of [0, -1, 0.5, contract.limits.contextBytes + 1]) {
++    assert.throws(() => validateTasks(contract, [task("a", { contextBudget })]), /context/i);
++  }
++});
++
++test("priority weighting cannot exceed the immutable contract ceiling", async () => {
++  const c = { ...contract, limits: { ...contract.limits, contextBytes: 1024 } };
++  const p = { ...recipe, contextBytes: 1024, priorityContextShare: 0.5 };
++  await fixture(s => {
++    const scheduler = new Scheduler(s);
++    const run = scheduler.start([task("a", { priority: 10, goal: "x".repeat(750) }), task("b")]);
++    const lease = scheduler.claim(run, "test")!;
++    assert.equal(lease.taskId, "a");
++    assert.throws(() => scheduler.capsule(lease), /CONTEXT_OVERFLOW/);
++  }, p, c);
++});
++
++test("validate read scopes, duration estimates and explicit dependency views", () => {
++  for (const extra of [
++    { readScope: ["../secret"] }, { estimatedDurationMs: 0 },
++    { dependencyViews: { missing: ["/api"] } },
++  ]) assert.throws(() => validateTasks(contract, [task("a", extra)]));
++});
++
++test("new recipe controls reject unsafe settings", () => {
++  for (const extra of [
++    { scheduling: "random" }, { maxInFlightContextBytes: 0 },
++    { noProgressMs: recipe.timeoutMs + 1 }, { maxRepeatedFailures: 0 },
++  ]) assert.throws(() => validateRecipe(contract, { ...recipe, ...extra } as Recipe));
++});
++
++
++const zero = { tokens: 0, costUsd: 0 };
++function accept(q: Scheduler, lease: Lease, artifact: Json = { answer: 4 }, now = Date.now()) {
++  const spec: Task = JSON.parse(q.store.db.prepare("SELECT spec FROM tasks WHERE run=? AND id=?").get(lease.runId, lease.taskId)!.spec);
++  return q.finish(lease, artifact, {
++    contractHash: lease.contractHash, recipeHash: lease.recipeHash, verifierId: q.store.contract().verifierId,
++    taskHash: digest(spec), artifactHash: digest(artifact), metrics: { ...zero, durationMs: 1 },
++    verification: { artifactHash: digest(artifact), checks: [{ id: "correct", verdict: "PASS" }] },
++  }, zero, now);
++}
++function driver(): Driver {
++  return { workerId: contract.workerId, verifierId: contract.verifierId,
++    async execute() { return { artifact: { answer: 4 }, measurement: zero }; },
++    async verify(_capsule, result) {
++      const correct = (result.artifact as { answer?: number })?.answer === 2 + 2;
++      return { artifactHash: digest(result.artifact), checks: [{ id: "correct", verdict: correct ? "PASS" : "FAIL" }], measurement: zero };
++    },
++  };
++}
++const names = (leases: Lease[]) => leases.map(l => l.taskId);
++
++test("critical-path rank includes downstream duration, not only a task's own duration", () => {
++  const tasks = [task("a", { estimatedDurationMs: 7 }), task("z", { estimatedDurationMs: 2 }),
++    task("z1", { dependencies: ["z"], estimatedDurationMs: 10 }), task("join", { dependencies: ["a", "z1"], estimatedDurationMs: 3 })];
++  const ranks = criticalPathRanks(tasks);
++  assert.deepEqual(Object.fromEntries(ranks), { join: 3, z1: 13, z: 15, a: 10 });
++  assert.deepEqual(compilePlan(tasks, { ...recipe, scheduling: "critical-path" }, 16384).order.map(t => t.id), ["z", "z1", "a", "join"]);
++});
++test("critical-path fallback handles 10000-node chains without recursion", () => {
++  const tasks = Array.from({ length: 10000 }, (_, i) => task(`t${i}`, { dependencies: i ? [`t${i - 1}`] : [] }));
++  const ranks = criticalPathRanks(tasks);
++  assert.equal(ranks.get("t0"), 10000); assert.equal(ranks.get("t9999"), 1);
++  assert.throws(() => criticalPathRanks([task("a", { dependencies: ["b"] }), task("b", { dependencies: ["a"] })]), /cycle/);
++  assert.throws(() => criticalPathRanks([task("a", { dependencies: ["missing"] })]), /unknown/);
++  assert.throws(() => criticalPathRanks([task("a"), task("a")]), /duplicate/);
++});
++test("batch claims prioritize the critical path and still respect explicit priorities", async () => {
++  await fixture(s => {
++    const q = new Scheduler(s);
++    const tasks = [task("a"), task("z"), task("z1", { dependencies: ["z"] }), task("urgent", { priority: 100 })];
++    const run = q.start(tasks);
++    assert.deepEqual(names(q.claimMany(run, "owner", 2)), ["urgent", "z"]);
++    assert.deepEqual(names(q.claimMany(run, "other", 32)), ["a"]);
++  }, { ...recipe, scheduling: "critical-path" });
++});
++test("legacy ordering is unchanged when critical-path scheduling is omitted", async () => {
++  await fixture(s => {
++    const q = new Scheduler(s); const run = q.start([task("a"), task("z"), task("z1", { dependencies: ["z"] })]);
++    assert.deepEqual(names(q.claimMany(run, "worker", 4)), ["a", "z"]);
++    assert.throws(() => q.claimMany(run, "worker", 0), /batch/);
++    assert.throws(() => q.claimMany(run, "worker", 257), /batch/);
++  });
++});
++test("read/write exclusion is symmetric; read/read and sibling paths are independent", () => {
++  const reader = task("r", { readScope: ["src/shared"], writeScope: [] });
++  const writer = task("w", { writeScope: ["src/shared/file.ts"] });
++  assert.equal(accessConflicts(reader, writer), true); assert.equal(accessConflicts(writer, reader), true);
++  assert.equal(accessConflicts(reader, reader), false);
++  assert.equal(accessConflicts(reader, task("other", { writeScope: ["src/shared2"] })), false);
++});
++test("separate connections respect the aggregate context ceiling and intra-batch scopes", async () => {
++  await fixture(async s => {
++    const other = await Store.open(s.root);
++    try {
++      const q = new Scheduler(s); const r = new Scheduler(other);
++      const run = q.start([task("a", { readScope: ["src/shared"], writeScope: [] }),
++        task("b", { readScope: ["src/shared/one"], writeScope: [] }),
++        task("c", { writeScope: ["src/shared"] }), task("d")]);
++      const first = q.claimMany(run, "one", 32);
++      assert.deepEqual(names(first), ["a", "b"]);
++      assert.deepEqual(r.claimMany(run, "two", 32), []);
++      assert.equal(accept(q, first[0]), true);
++      assert.deepEqual(names(r.claimMany(run, "two", 32)), ["d"]);
++      assert.equal(accept(q, first[1]), true);
++      assert.deepEqual(names(q.claimMany(run, "one", 32)), ["c"]);
++    } finally { other.close(); }
++  }, { ...recipe, maxInFlightContextBytes: 8192 });
++});
++test("an impossible context reservation fails before persisting a run", async () => {
++  await fixture(s => {
++    assert.throws(() => new Scheduler(s).start([task("a")]), /cannot admit/);
++    assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM runs").get()!.n, 0);
++  }, { ...recipe, maxInFlightContextBytes: 1024 });
++});
++test("explicit and weighted budgets always fit the contract ceiling", () => {
++  for (const priorityContextShare of [0, 0.1, 0.5, 0.99, 1]) {
++    const tasks = [task("a", { priority: 5 }), task("b"), task("c", { contextBudget: 16000 })];
++    const budgets = allocateContext(tasks, { ...recipe, priorityContextShare }, 4096);
++    for (const n of budgets.values()) assert.ok(n > 0 && n <= 4096 && Number.isInteger(n));
++  }
++});
++test("explicit dependency views preserve escaped keys, arrays, null and root values", () => {
++  const source = { "a/b": { "~x": [null, { value: 7 }] }, toString: "own" };
++  const projected = projectDependency(source, ["/a~1b/~0x/0", "/a~1b/~0x/1/value", "/toString", ""]);
++  assert.equal((projected as Record<string, Json>)["/a~1b/~0x/0"], null);
++  assert.equal((projected as Record<string, Json>)["/a~1b/~0x/1/value"], 7);
++  assert.deepEqual((projected as Record<string, Json>)[""], source);
++  for (const pointer of ["/missing", "/a~1b/~0x/01", "/a~1b/~0x/length", "/constructor", "/a~2b"]) {
++    assert.throws(() => projectDependency(source, [pointer]), /DEPENDENCY_VIEW/);
++  }
++});
++test("projected capsules retain full source hashes, exact values and measured input bytes", async () => {
++  await fixture(s => {
++    const q = new Scheduler(s);
++    const run = q.start([task("a"), task("b", { dependencies: ["a"], dependencyViews: { a: ["/api"] } })]);
++    const source = { api: { signature: "sum(a: number, b: number): number" }, logs: "verbose ".repeat(2000) };
++    assert.equal(accept(q, q.claim(run, "one")!, source), true);
++    const lease = q.claim(run, "two")!; const capsule = q.capsule(lease); const dep = capsule.dependencies[0];
++    assert.equal(dep.artifactHash, digest(source)); assert.equal(dep.view!.hash, digest(dep.artifact));
++    assert.deepEqual((dep.artifact as Record<string, Json>)["/api"], source.api);
++    const bytes = Buffer.byteLength(canonical(capsule));
++    assert.ok(bytes < Buffer.byteLength(canonical(source)) / 5);
++    assert.equal(s.db.prepare("SELECT context_bytes FROM attempt_telemetry WHERE run=? AND task=? AND fence=?").get(run, "b", 1)!.context_bytes, bytes);
++    assert.deepEqual(s.readArtifact(dep.artifactHash), source);
++    writeFileSync(join(s.root, "artifacts", `${dep.artifactHash}.json`), '{"api":"tampered"}');
++    assert.throws(() => q.capsule(lease), /integrity/);
++  });
++});
++test("unselected dependency output is still inline by default", async () => {
++  await fixture(s => {
++    const q = new Scheduler(s); const run = q.start([task("a"), task("b", { dependencies: ["a"] })]);
++    accept(q, q.claim(run, "one")!, { api: 3, notes: "keep" });
++    const dep = q.capsule(q.claim(run, "two")!).dependencies[0];
++    assert.deepEqual(dep.artifact, { api: 3, notes: "keep" }); assert.equal(dep.view, undefined);
++  });
++});
++test("missing projected fields fail closed without wasting repeated worker calls", async () => {
++  await fixture(async s => {
++    const d = driver(); let calls = 0;
++    d.execute = async () => { calls++; return { artifact: { answer: 4 } }; };
++    const result = await runTasks(s, [task("a"), task("b", { dependencies: ["a"], dependencyViews: { a: ["/missing"] } }),
++      task("c", { dependencies: ["b"] })], d);
++    assert.equal(calls, 1); assert.equal(result.status, "FAIL");
++    assert.equal(result.accepted, 1); assert.equal(result.blocked, 1); assert.equal(result.attempts, 2);
++  }, { ...recipe, attempts: 5 });
++});
++test("batch expiry fences stale progress and output before replacement starts", async () => {
++  await fixture(s => {
++    const q = new Scheduler(s); const run = q.start([task("a"), task("b")]); const now = Date.now();
++    const old = q.claimMany(run, "old", 4, now);
++    const fresh = q.claimMany(run, "new", 4, now + recipe.timeoutMs + 1);
++    assert.equal(fresh.length, 2); assert.equal(fresh[0].fence, 2);
++    assert.equal(q.progress(old[0], "late", now + recipe.timeoutMs + 2), false);
++    assert.equal(q.finish(old[0], {}, {}, zero, now + recipe.timeoutMs + 2), false);
++    assert.equal(accept(q, fresh[0], { answer: 4 }, now + recipe.timeoutMs + 2), true);
++  });
++});
++test("progress cannot bypass verification or unblock downstream work", async () => {
++  await fixture(s => {
++    const q = new Scheduler(s); const run = q.start([task("a"), task("b", { dependencies: ["a"] })]);
++    const lease = q.claim(run, "one")!;
++    assert.equal(q.progress(lease, "tests-started"), true);
++    assert.equal(q.claim(run, "two"), null); assert.equal(q.summary(run).accepted, 0);
++    assert.throws(() => q.finish(lease, {}, {}, zero), /evidence/);
++    accept(q, lease); assert.equal(q.claim(run, "two")!.taskId, "b");
++  });
++});
++test("repeated failure accounting survives a new connection and stops wasted retries", async () => {
++  await fixture(async s => {
++    const q = new Scheduler(s); const run = q.start([task("a"), task("b", { dependencies: ["a"] })]);
++    q.fail(q.claim(run, "one")!, "same error");
++    const other = await Store.open(s.root);
++    try {
++      const r = new Scheduler(other); r.fail(r.claim(run, "two")!, "same error");
++      assert.equal(r.claim(run, "three"), null);
++      assert.equal(r.summary(run).attempts, 2); assert.equal(r.summary(run).blocked, 1);
++    } finally { other.close(); }
++  }, { ...recipe, attempts: 5, maxRepeatedFailures: 2 });
++});
++test("changing rejected candidates are not mistaken for an unchanged failure", async () => {
++  await fixture(async s => {
++    const d = driver(); let calls = 0;
++    d.execute = async () => ({ artifact: { answer: ++calls } });
++    const result = await runTasks(s, [task("a")], d);
++    assert.equal(result.status, "PASS"); assert.equal(result.attempts, 4);
++  }, { ...recipe, attempts: 5, maxRepeatedFailures: 2 });
++});
++test("identical rejected candidate and check evidence stop at the configured limit", async () => {
++  await fixture(async s => {
++    const d = driver(); d.execute = async () => ({ artifact: { answer: -1 } });
++    const result = await runTasks(s, [task("a")], d);
++    assert.equal(result.status, "FAIL"); assert.equal(result.attempts, 2);
++  }, { ...recipe, attempts: 5, maxRepeatedFailures: 2 });
++});
++test("terminal failures propagate through a deep DAG without recursive scans", async () => {
++  await fixture(s => {
++    const tasks = Array.from({ length: 1000 }, (_, i) => task(`t${i}`, { dependencies: i ? [`t${i - 1}`] : [] }));
++    const q = new Scheduler(s); const run = q.start(tasks); const lease = q.claim(run, "one")!;
++    q.fail(lease, "fatal", zero, Date.now(), { retryable: false });
++    assert.deepEqual(q.claimMany(run, "two", 4), []);
++    assert.equal(q.summary(run).blocked, 999); assert.equal(q.status(run), "FAIL");
++  });
++});
++test("novelty detector rejects alternating repeats and caps retained fingerprints", () => {
++  const window = new ProgressWindow(0);
++  assert.equal(window.observe("a", 10), true); assert.equal(window.observe("b", 20), true);
++  assert.equal(window.observe("a", 30), false); assert.equal(window.observe("b", 40), false);
++  assert.equal(window.idleMs(50), 30);
++  assert.throws(() => window.observe("", 51)); assert.throws(() => window.observe("x".repeat(257), 51));
++  for (let i = 0; i < 1022; i++) assert.equal(window.observe(`new-${i}`, 60), true);
++  assert.equal(window.observe("overflow", 80), false); assert.equal(window.idleMs(100), 40);
++});
++test("no-progress deadline cancels an unresponsive worker before the hard deadline", async () => {
++  await fixture(async s => {
++    const d = driver(); let cancelled = false; let verifications = 0;
++    d.execute = async (_c, signal) => new Promise((_, reject) => signal.addEventListener("abort", () => {
++      cancelled = true; reject(signal.reason);
++    }, { once: true }));
++    d.verify = async () => { verifications++; throw new Error("should not reach verifier"); };
++    const result = await runTasks(s, [task("a")], d);
++    assert.equal(result.status, "FAIL"); assert.equal(cancelled, true); assert.equal(verifications, 0);
++    assert.match(s.db.prepare("SELECT error FROM tasks WHERE run=?").get(result.id)!.error, /NO_PROGRESS: execute/);
++  }, { ...recipe, attempts: 1, noProgressMs: 60, timeoutMs: 2000 });
++});
++test("no-progress control also bounds a hung verifier", async () => {
++  await fixture(async s => {
++    const d = driver(); d.verify = async () => new Promise(() => {});
++    const result = await runTasks(s, [task("a")], d);
++    assert.equal(result.status, "FAIL");
++    assert.match(s.db.prepare("SELECT error FROM tasks WHERE run=?").get(result.id)!.error, /NO_PROGRESS: verify/);
++  }, { ...recipe, attempts: 1, noProgressMs: 60 });
++});
++test("distinct progress keeps a real attempt alive; post-completion callbacks are ignored", async () => {
++  await fixture(async s => {
++    const d = driver(); let lastControl: AttemptControl | undefined;
++    d.execute = async (_c, signal, control) => {
++      lastControl = control;
++      for (let i = 0; i < 4; i++) { await delay(35, undefined, { signal }); control!.progress(`artifact-${i}`); }
++      return { artifact: { answer: 4 } };
++    };
++    const result = await runTasks(s, [task("a")], d);
++    assert.equal(result.status, "PASS");
++    assert.equal(s.db.prepare("SELECT progress_count FROM attempt_telemetry WHERE run=?").get(result.id)!.progress_count, 4);
++    lastControl!.progress("late");
++    assert.equal(s.db.prepare("SELECT progress_count FROM attempt_telemetry WHERE run=?").get(result.id)!.progress_count, 4);
++  }, { ...recipe, attempts: 1, noProgressMs: 100 });
++});
++test("repeating the same heartbeat does not keep a stalled attempt alive", async () => {
++  await fixture(async s => {
++    const d = driver();
++    d.execute = async (_c, signal, control) => {
++      while (!signal.aborted) { control!.progress("same"); await delay(10, undefined, { signal }); }
++      return { artifact: { answer: 4 } };
++    };
++    const result = await runTasks(s, [task("a")], d);
++    assert.equal(result.status, "FAIL");
++    assert.equal(s.db.prepare("SELECT progress_count FROM attempt_telemetry WHERE run=?").get(result.id)!.progress_count, 1);
++  }, { ...recipe, attempts: 1, noProgressMs: 70 });
++});
++test("novel progress never extends the absolute attempt deadline", async () => {
++  await fixture(async s => {
++    const d = driver(); let count = 0;
++    d.execute = async (_c, signal, control) => {
++      while (!signal.aborted) { control!.progress(`new-${count++}`); await delay(15, undefined, { signal }); }
++      return { artifact: { answer: 4 } };
++    };
++    const result = await runTasks(s, [task("a")], d);
++    assert.equal(result.status, "FAIL"); assert.equal(result.attempts, 1); assert.ok(count > 1);
++  }, { ...recipe, attempts: 1, noProgressMs: 80, timeoutMs: 200 });
++});
++test("many workers use one caller cancellation listener and release it", async () => {
++  await fixture(async s => {
++    const controller = new AbortController(); const d = driver(); let started = 0; let maxListeners = 0;
++    d.execute = async (_c, signal) => {
++      maxListeners = Math.max(maxListeners, getEventListeners(controller.signal, "abort").length);
++      if (++started === 24) queueMicrotask(() => controller.abort());
++      await delay(2000, undefined, { signal }); return { artifact: { answer: 4 } };
++    };
++    const result = await runTasks(s, Array.from({ length: 24 }, (_, i) => task(`t${i}`)), d, { signal: controller.signal });
++    assert.equal(started, 24); assert.equal(result.accepted, 0); assert.equal(result.status, "RUNNING");
++    assert.equal(maxListeners, 1); assert.equal(getEventListeners(controller.signal, "abort").length, 0);
++  }, { ...recipe, parallelism: 24 });
++});
++test("a fast verified dependency releases its child before unrelated slow work completes", async () => {
++  await fixture(async s => {
++    const d = driver(); let releaseSlow!: () => void; const slow = new Promise<void>(resolve => { releaseSlow = resolve; });
++    let childRan = false;
++    d.execute = async (c, signal) => {
++      if (c.task.id === "slow") await Promise.race([slow, delay(2000, undefined, { signal })]);
++      if (c.task.id === "child") { childRan = true; releaseSlow(); }
++      return { artifact: { answer: 4 } };
++    };
++    const result = await runTasks(s, [task("fast"), task("slow"), task("child", { dependencies: ["fast"] })], d);
++    assert.equal(result.status, "PASS"); assert.equal(childRan, true);
++  }, { ...recipe, parallelism: 2 });
++});
++
++async function commandFixture(code: string, fn: (p: PinnedCommand) => Promise<void>) {
++  const root = mkdtempSync(join(tmpdir(), "foundry-progress-command-")); const file = join(root, "worker.mjs");
++  writeFileSync(file, code);
++  try { await fn(pinCommand({ argv: [process.execPath, file] }, root)); }
++  finally { rmSync(root, { recursive: true, force: true }); }
++}
++test("subprocess progress protocol tolerates split UTF-8 and final line without newline", async () => {
++  await commandFixture(`
++    const line = Buffer.from('FUTURE_CODE_PROGRESS {"fingerprint":"check-\\u03bb"}');
++    const split = line.indexOf(Buffer.from('\\u03bb')) + 1;
++    process.stderr.write(line.subarray(0, split));
++    setTimeout(() => { process.stderr.write(line.subarray(split)); console.log('{}'); }, 20);
++  `, async p => {
++    const seen: string[] = []; const result = await invoke(p, {}, 4096, AbortSignal.timeout(2000), { progress: s => { seen.push(s); } });
++    assert.deepEqual(result, {}); assert.deepEqual(seen, ["check-\u03bb"]);
++  });
++});
++test("malformed progress is rejected rather than silently refreshing the timer", async () => {
++  await commandFixture(`process.stderr.write('FUTURE_CODE_PROGRESS {bad}\\n'); console.log('{}');`, async p => {
++    await assert.rejects(invoke(p, {}, 4096, AbortSignal.timeout(2000), { progress() { throw new Error("must not call"); } }));
++  });
++});
++test("ordinary stderr logs are not progress and progress records still consume output budget", async () => {
++  await commandFixture(`process.stderr.write('compiling...\\n'); console.log('{}');`, async p => {
++    let count = 0; await invoke(p, {}, 4096, AbortSignal.timeout(2000), { progress() { count++; } }); assert.equal(count, 0);
++  });
++  await commandFixture(`process.stderr.write(('FUTURE_CODE_PROGRESS {"fingerprint":"x"}\\n').repeat(100)); console.log('{}');`, async p => {
++    await assert.rejects(invoke(p, {}, 100, AbortSignal.timeout(2000), { progress() {} }), /byte budget/);
++  });
++});
++test("command driver forwards progress but continues to distrust child usage claims", async () => {
++  await commandFixture(`process.stderr.write('FUTURE_CODE_PROGRESS {"fingerprint":"test-pass"}\\n');
++    console.log(JSON.stringify({artifact:{answer:4},measurement:{tokens:0,costUsd:0}}));`, async p => {
++    const d = new CommandDriver(p, p, 4096); const seen: string[] = [];
++    const result = await d.execute({ schema: 1, runId: "r", task: task("a"), fence: 1, recipeHash: "p", contractHash: "c", dependencies: [] },
++      AbortSignal.timeout(2000), { progress: s => { seen.push(s); } });
++    assert.deepEqual(seen, ["test-pass"]); assert.deepEqual(result.measurement, { tokens: null, costUsd: null });
++  });
++});
++
++
++test("remote completion wakes spare local slots before a local straggler ends", async () => {
++  await fixture(async s => {
++    const q = new Scheduler(s);
++    const tasks = [task("remote", { priority: 100 }), task("slow", { priority: 50 }), task("child", { dependencies: ["remote"] })];
++    const run = q.start(tasks); const remote = q.claim(run, "other-process")!;
++    let releaseSlow!: () => void; const wait = new Promise<void>(resolve => { releaseSlow = resolve; });
++    const d = driver(); let childRan = false;
++    d.execute = async (c, signal) => {
++      if (c.task.id === "slow") {
++        await new Promise<void>((resolve, reject) => {
++          const abort = () => reject(signal.reason);
++          signal.addEventListener("abort", abort, { once: true });
++          void wait.then(() => { signal.removeEventListener("abort", abort); resolve(); });
++        });
++      }
++      if (c.task.id === "child") { childRan = true; releaseSlow(); }
++      return { artifact: { answer: 4 } };
++    };
++    const outcome = runTasks(s, [], d, { resumeRun: run });
++    await delay(20); assert.equal(accept(q, remote), true);
++    const result = await outcome;
++    assert.equal(result.status, "PASS"); assert.equal(childRan, true);
++    assert.equal(result.accepted, 3); assert.equal(result.attempts, 3);
++  }, { ...recipe, parallelism: 2, attempts: 1, timeoutMs: 2000 });
++});

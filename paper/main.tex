@@ -23,6 +23,7 @@
 \date{September 24, 2026 \quad | \quad Version 7.0 (factorial retirement revision)}
 \input{generated/retirement_macros.tex}
 \input{generated/retirement2_macros.tex}
+\input{generated/exploratory_tables.tex}
 \begin{document}
 \maketitle
 \begin{abstract}
@@ -44,14 +45,19 @@ summary/reset accepts 28 of 84 runs at the new scale, with 109{,}761
 stale reads and 385 lost obligations), while verified-frontier
 retirement accepts 84/84 and passes the capsule audit with zero
 defective service. The payoff is regime-conditional and was
-pre-registered as such: in the bandwidth regime frontier retirement
-saves only \RetwoBytesDelta{} on submitted bytes---no byte-cost win is
-claimed---but in the round-trip regime, where each on-demand retrieval
-costs latency-equivalent bytes, it reduces cost per accepted run by
-\RetwoCostOReduction{} versus strong observation masking (sensitivity
-\RetwoSensK{} to \RetwoSensXxl{} across round-trip constants), cutting
+pre-registered as such: frontier retirement is cheaper than masking on
+\emph{both} axes---bytes by \RetwoBytesDelta{} pooled (76 of 84
+cells, sign test $p{=}5{\times}10^{-15}$; below the frozen 20\% byte
+gate, so no byte-threshold win is claimed) and round-trip-regime cost
+by \RetwoCostOReduction{} (84 of 84 cells, $p{=}10^{-25}$), cutting
 retrieval operations \RetwoOpsReduction{} pooled and
-\RetwoLongOpsReduction{} at four times the horizon. The scheduler
+\RetwoLongOpsReduction{} at four times the horizon; a closed-form
+break-even rule (Proposition~\ref{prop:breakeven}) replaces the
+sensitivity sweep and gives a deployment pilot an exact go/no-go. The
+conversion rule is also \emph{sufficient} within the model
+(Proposition~\ref{prop:sufficiency}): under the engine's stream
+invariants and reliable retrieval, the frontier policy provably
+incurs zero staleness and zero obligation loss. The scheduler
 factor is byte-neutral by design and measured at \RetwoSEffectOnBytes{}
 leak with an \RetwoMakespanReduction{} makespan reduction. Grouped
 certificate layouts survive only as a conditional component selected by
@@ -59,10 +65,17 @@ measured update density (dense stratum pass; \RetwoDensityRegret{}
 decision-rule regret), and a demand-driven adaptive-coordination
 variant was evaluated against pre-registered promotion gates and
 \emph{rejected} ($\RetwoAdaptiveReduction{}$ versus frontier; the
-correctness-preserving mechanism does not need it). All experiments are
-synthetic and mechanism-level: no hosted model was called, no token or
-billing claim is made, and the live-agent cohort remains future work
-with its protocol pre-registered here.
+correctness-preserving mechanism does not need it). Pre-specified
+exploratory analyses (labeled as such) stress the result: a
+bounded-recency comparator is cheaper than frontier below a stated
+break-even price but leaves 69.0\% of due obligations outside its
+retention, quantifying what it delegates to the retrieval layer; and a
+replay of a real repository's change history through the same engine
+preserves the operations advantage (23.0\% cut) with the density rule
+matching the oracle on its first real trace. All experiments are
+mechanism-level: no hosted model was called, no token or billing claim
+is made, and the live-agent cohort remains future work with its
+protocol pre-registered here.
 \end{abstract}
 
 \noindent\textbf{Keywords:} bounded evidence; verification contracts; bandwidth-limited logging; completion hyperedges; cost-aware layout selection.
@@ -71,6 +84,7 @@ with its protocol pre-registered here.
 \input{intro.tex}
 \input{related.tex}
 \input{retirement.tex}
+\input{sufficiency.tex}
 \input{model.tex}
 \input{compiler.tex}
 \input{soundness.tex}

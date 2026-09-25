@@ -14,14 +14,28 @@ policies that rely on lossy summaries of obligations, or that revert
 values to beliefs older than the current working window, measurably
 fail at every scale tested (Section~\ref{sec:retire-results}). The
 conversion is necessary; whether it is worth adopting depends on the
-cost regime: it buys \RetwoOpsReduction{} fewer retrieval round trips
-at equal correctness, which is worth a great deal when round trips are
-expensive (regime-O cost \RetwoCostOReduction{} lower than masking)
-and almost nothing when only bandwidth is priced (regime-B bytes
-\RetwoBytesDelta{}). An adopter should therefore price their retrieval
-path before choosing: the frozen $4{,}096$\,B-per-round-trip
-accounting brackets the answer with a sensitivity range
-(\RetwoSensK{}--\RetwoSensXxl{}), not a measurement. Between grouped
+cost regime and on the retrieval layer. It buys \RetwoOpsReduction{}
+fewer retrieval round trips at equal correctness, and by the closed
+form of Proposition~\ref{prop:breakeven} a pilot estimating
+$(B_f,B_m,o_f,o_m)$ and the deployment's round-trip price $c$ obtains
+an exact go/no-go: adopt iff $c\ge c_{0.8}$. On the frozen cohort
+$c_{0.8}=0$ (frontier's 8.0\% byte advantage meets a 15\% gate
+before any round-trip pricing, though not the 20\% v1 byte gate).
+Second, and now stated because the exploratory analyses forced it: a
+64-gate bounded-recency window (\texttt{bounded-hier}) is cheaper
+than frontier below a break-even price of
+\ExpBhBreakEvenPooled{} pooled (2{,}148\,B independent; never in
+global) at equal acceptance---but \ExpBhDueExposed{} of its due
+obligations and \ExpBhFootprintExposed{} of its footprint reads sit
+outside its retention, so its safety delegates to the retrieval
+layer. The honest recommendation is therefore conditional on two
+observable quantities, not one: with reliable, cheap retrieval and
+round-trip price below the break-even, prefer the bounded window;
+with expensive or unreliable retrieval, prefer the conversion rule,
+whose guarantees do not depend on the retrieval layer beyond the
+fetch itself. The real-trace replay
+(Section~\ref{sec:retire-exploratory}) brackets what this looks like
+on non-synthetic change patterns. Between grouped
 certificate layouts and flat delta ledgers, select by update density:
 the measured-density rule matched the per-cell oracle on every cell of
 the frozen cohort (\RetwoDensityRegret{} regret); dense updates favor

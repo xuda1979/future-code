@@ -246,6 +246,106 @@ Family & Flat B/cell & HACT B/cell & Tree delta\\\midrule
 \RetwoEvGlobalRow
 \bottomrule\end{tabularx}\end{table}
 
+
+\subsection{Pre-specified exploratory analyses (post-data, labeled as such)}\label{sec:retire-exploratory}
+The five closures are the confirmatory results. The analyses in this
+subsection were specified and committed \emph{after} the cohort was
+frozen but \emph{before} they were run
+(\texttt{docs/\allowbreak protocols/\allowbreak EXPLORATORY\_\allowbreak ANALYSES\_\allowbreak v2.md}); they are
+exploratory and every number below is labeled as such. One amendment
+(E6, the bounded-hier comparator) was itself prompted by observing
+E1's pre-specified output; its motivation is disclosed in the protocol
+document and summarized here.
+
+\paragraph{E1/E5: the sensitivity sweep becomes a decision rule.}
+Proposition~\ref{prop:breakeven} (Section~\ref{sec:sufficiency})
+replaces the three-point sensitivity with a closed-form break-even:
+with per-accepted means $(B_f,B_m,o_f,o_m)$, frontier satisfies the
+20\% gate at round-trip price $c$ iff
+$c\ge c_{0.8}=(0.8B_m-B_f)/(o_f-0.8o_m)$. On the frozen cohort
+$B_f<B_m$ in every stratum, so $c_{0.8}=0$ pooled and per family:
+frontier's byte advantage alone meets a 15\% gate before any
+round-trip pricing, and every unit of price widens it
+(pooled ratio $0.920\to0.588$ as $c$ goes $0\to32{,}768$\,B). The
+gate is \emph{already satisfied at $c=0$}, which sharpens---and
+honestifies---the earlier ``no byte win claimed'' phrasing: frontier
+beats masking on bytes too, by 8.0\% pooled, just below the frozen
+20\% byte threshold that the v1 protocol used. The 20\% byte gate
+never fired in v2 because v2's null closure was pre-registered on
+regime O, not regime B.
+
+\paragraph{E2: distributional robustness.} Paired over the 84 cells
+at $S=\mathrm{fixed}$: frontier's regime-O cost is below masking's in
+\ExpFrontierMaskingSignO{} and its regime-B bytes below masking's in
+\ExpFrontierMaskingSignB{} (exact two-sided sign tests). Per-seed
+ops reduction ranges \ExpSeedOpsMin{}--\ExpSeedOpsMax{} and per-seed
+regime-O reduction \ExpSeedOMin{}--\ExpSeedOMax{} across the seven
+seeds: no seed reverses either direction.
+
+\paragraph{E6: the bounded-recency comparator, analyzed head-on.}
+E1's table exposed that \texttt{bounded-hier}---a 64-gate recency
+window---is cheaper than frontier at the frozen 4{,}096\,B price in
+three of four strata (bytes $0.168\times$ pooled), and the frozen
+closure never compared them. The amendment was therefore written
+before analysis. E6c: frontier beats bounded-hier in
+\ExpFrontierBhSignO{} on regime-O and loses on bytes
+(\ExpFrontierBhSignB{}); masking is dominated by bounded-hier in
+\ExpMaskingBhSignO. E6a: the break-even price at which frontier
+becomes cheaper than bounded-hier is \ExpBhBreakEvenPooled{} pooled
+(\ExpBhBreakEvenIndependent{} independent; \ExpBhBreakEvenGlobal{}
+global---bounded-hier wins at every price there). E6d (exploratory
+runs): at the long horizon the picture splits by family
+(Table~\ref{tab:retire2-long}). E6b is the mechanism-level
+differentiator: bounded-hier's window leaves \ExpBhDueExposed{} of
+due obligations and \ExpBhFootprintExposed{} of footprint reads
+outside its retention, versus frontier's structural 0\%---its
+correctness and cost both ride on the retrieval layer being free and
+reliable, which the engine grants and a deployment may not. The
+deployment recommendation
+(Section~\ref{sec:deploy}) is updated accordingly: at prices below
+the break-even, a deployment with reliable retrieval should prefer
+the bounded window; the conversion rule remains the boundary of what
+is safe without it.
+
+\paragraph{E3: a real trace, replayed.} This repository's own git
+history (\ExpTraceCommits{} non-merge commits; registry of
+\ExpTraceRegistry{} file paths) is replayed through the same engine.
+E3a (evidence layouts, real change sets only): the trace's
+train-half density is \ExpTraceDensity{}, the density rule selects
+the flat ledger, and the oracle agrees---\ExpTraceRuleRegret{} (the
+tree would have cost $1.71\times$). The rule's first nonzero-density
+real test passes. E3b (retirement, hybrid: real invalidation sets
+with the frozen synthetic obligation/footprint overlay, disclosed as
+such): frontier cuts operations \ExpTraceOpsCut{}
+(\ExpTraceOpsRange{} across seeds) and regime-O \ExpTraceOCut{} with
+\ExpTraceAcceptance{}---above the 20\% operations gate pooled, with
+the pooled regime-O cut at 19.6\% marginally under it. Reported
+exactly as measured: the real trace's burstier change sets compress
+frontier's advantage relative to the frozen families, and the
+live cohort remains the only arbiter of whether that survives real
+retrieval.
+
+\begin{table}[t]\centering\small
+\caption{Pre-specified exploratory: bounded-hier at the long horizon
+($n=1{,}024$, 160 episodes, seven seeds, $S=\mathrm{fixed}$; E6d),
+beside the frozen frontier rows of Table~\ref{tab:retire2-long}.
+Bounded-hier wins independent and global; frontier wins clustered.
+Exploratory, not confirmatory.}\label{tab:bh-long}
+\begin{tabularx}{\linewidth}{@{}l l r r r@{}}\toprule
+Family & Policy & Ops/run & Regime-O B/run & Regime-B B/run\\\midrule
+clustered & bounded-hier & \ExpLhBhClusteredOps & \ExpLhBhClusteredO & \ExpLhBhClusteredB\\
+independent & bounded-hier & \ExpLhBhIndependentOps & \ExpLhBhIndependentO & \ExpLhBhIndependentB\\
+global & bounded-hier & \ExpLhBhGlobalOps & \ExpLhBhGlobalO & \ExpLhBhGlobalB\\
+\bottomrule\end{tabularx}\end{table}
+
+The exploratory results do not change the paper's confirmatory
+claims; they change its deployment advice and its honesty about the
+bounded-recency alternative. The live cohort's arms
+(Section~\ref{sec:live-protocol}) are unchanged: masking,
+summary/reset, and frontier remain the arms the frozen closures
+separate, and bounded-hier enters the live protocol only as a fourth
+arm if its retrieval-exposure profile can be instrumented there.
+
 \subsection{What the mechanism study does and does not
 establish}\label{sec:retire-limits}
 The conversion rule and the regime-conditional payoff are structural

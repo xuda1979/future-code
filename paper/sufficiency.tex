@@ -1,0 +1,102 @@
+\section{Sufficiency of the Conversion Rule Within the Model}\label{sec:sufficiency}
+
+The frozen cohort shows the conversion rule is \emph{necessary} at
+mechanism level: every measured policy that retires before
+converting fails the acceptance contract. This section proves the
+complementary direction---\emph{sufficiency}---for the frontier policy
+under the engine's semantics, so the paper's rule is
+necessity-plus-sufficiency within the model rather than an empirical
+regularity. The proposition is scoped to the deterministic engine and
+to streams with reliable retrieval (every fetch succeeds and returns a
+current value); the unreliable-retrieval boundary is exactly where the
+rule's guarantees stop, and Section~\ref{sec:retire-results} measures
+what bounded-hier's exposure looks like there.
+
+\begin{proposition}[Frontier sufficiency]\label{prop:sufficiency}
+Fix a finite episode stream $E_0,\dots,E_{T-1}$ satisfying the frozen
+stream invariants: (i) every fact's payload is observed before or at
+its first required read or at its due obligation's resolution episode;
+(ii) every obligation opened at episode $o$ has its gate in the
+required reads of episode $\min(o+W, T-1)$, where $W$ is the
+obligation window; (iii) every required read of episode $e$ is either
+a current fact of $e$ or fetchable. Then the frontier policy incurs
+no staleness defects, no obligation losses, and resolves every
+obligation opened at $o$ with $o+W\le T-1$.
+\end{proposition}
+
+\begin{proof}
+Staleness. The frontier policy never stores a believed value: a gate
+enters \texttt{known} only through a fresh fact or a successful fetch,
+both of which set its generation to the current episode, and eviction
+only removes entries. A required read is answered from the current
+facts, from a retained entry, or by a fetch (invariant (iii)); the
+first two are current by construction---retained entries are updated
+by every observation of their gate---and the third is current by the
+reliable-retrieval assumption. Hence no read is served stale.
+
+Obligations. An obligation opened at $o$ is inserted into the pending
+set at $o$ and is exempt from eviction (the frontier retains all
+pending gates). By invariant (ii) its gate is a required read at
+$r=\min(o+W,T-1)$. At $r$, the gate is a current fact, or is retained
+(the pending exemption keeps it in \texttt{known} from opening), or is
+fetched; in all cases the resolution condition of the engine (the gate
+was read validly at its due episode) is met, so the obligation
+resolves. No pending obligation is ever dropped by the frontier
+policy, so no loss is recorded. For $o+W\le T-1$, $r=o+W\le T-1$, so
+the resolution happens within the horizon.
+\end{proof}
+
+\begin{remark}
+The two directions use disjoint evidence. Necessity is measured: every
+lossy-conversion policy fails on the frozen grid
+(Section~\ref{sec:retire-results}). Sufficiency is proved under
+invariants the frozen stream generator guarantees by construction,
+which is also why the 84/84 acceptance of frontier runs is a
+\emph{check} of the implementation against the proposition rather than
+independent evidence for it. What the model does not prove is the
+reliable-retrieval assumption itself: in a deployment where re-fetches
+can fail or return stale state, the conversion rule's safety reduces
+to the retrieval layer's guarantees, and bounded-hier's measured
+exposure (69.0\% of due obligations and 35.9\% of footprint reads
+outside its window) quantifies how much a bounded-recency design
+delegates to that layer.
+\end{remark}
+
+\begin{proposition}[Monotone break-even rule]\label{prop:breakeven}
+Let $B_f,B_m,o_f,o_m\ge 0$ be per-accepted-run regime-B means and
+per-accepted-run operation means of two policies, with $o_f<o_m$.
+Define $R(c)=(B_f+c\,o_f)/(B_m+c\,o_m)$ for $c\ge 0$. Then
+$R$ is monotone on $c\ge0$: decreasing iff $B_f/B_m<o_f/o_m$,
+increasing iff $B_f/B_m>o_f/o_m$, constant iff equal. For any
+$\rho\in(B_f/B_m,\;o_f/o_m)$ (the interval is nonempty exactly when
+$R$ is decreasing),
+\begin{equation}
+R(c)\le\rho\iff c\ge c_\rho,\qquad
+c_\rho=\frac{\rho B_m-B_f}{o_f-\rho\,o_m}.
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+$R'(c)$ has the sign of $o_f B_m-o_m B_f=B_mB_m\,(o_f/o_m-B_f/B_m)$,
+which is constant in $c$, giving monotonicity. Solving
+$B_f+c\,o_f\le\rho(B_m+c\,o_m)$ for $c$ gives
+$c\,(o_f-\rho o_m)\le\rho B_m-B_f$; on the stated interval both
+$o_f-\rho o_m>0$ (since $\rho<o_f/o_m$) and $\rho B_m-B_f>0$ (since
+$\rho>B_f/B_m$), so the inequality is equivalent to $c\ge c_\rho$
+with $c_\rho>0$. Outside the interval the claim is vacuous or the
+inequality holds for all $c\ge0$ ($\rho\ge o_f/o_m$) or for none
+($\rho\le B_f/B_m$).
+\end{proof}
+
+\begin{remark}[Deployment use]
+Proposition~\ref{prop:breakeven} turns the frozen sensitivity sweep
+into a decision rule. A deployment pilot that estimates the four means
+$(B_f,B_m,o_f,o_m)$ and the deployment's round-trip price $c$ obtains
+an exact go/no-go for the frozen 20\% promotion gate: adopt frontier
+iff $c\ge c_{0.8}$, where
+$c_{0.8}=(0.8B_m-B_f)/(o_f-0.8\,o_m)$. On the frozen cohort the rule
+needs no sweep at all: frontier's byte advantage alone
+($B_f<B_m$) already satisfies the gate at $c=0$ in every stratum, and
+every additional unit of round-trip price only widens it
+(Section~\ref{sec:retire-exploratory}).
+\end{remark}

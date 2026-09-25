@@ -37,20 +37,35 @@ convert lossily---periodic summary/reset---fail the frozen acceptance
 contract at every scale measured (28/84 runs at the v2 scale; 21/63 at
 the v1 scale), silently reverting values to beliefs older than the
 working window and dropping obligations that cross reset boundaries.
-\emph{Payoff}: the payoff is operations, not bytes. Frontier
-retirement saves only \RetwoBytesDelta{} on submitted bytes---the
-byte-level result of the first generation, repeated---but cuts
-on-demand retrieval operations by \RetwoOpsReduction{} versus
-observation masking and reduces round-trip-regime cost per accepted
-run by \RetwoCostOReduction{} (gate $\ge$20\%, sensitivity
-\RetwoSensK{}--\RetwoSensXxl{} across the frozen round-trip
-constants), with the advantage persisting at four times the horizon
-(\RetwoLongOpsReduction{} operations). The live-agent hypothesis this
-pre-registers is precise: savings, if any, come from avoided tool-call
-round trips, not from smaller prompts. \emph{Audit}: the promoted
+\emph{Payoff}: the payoff is operations, not bytes---but the byte
+direction is also positive. Frontier retirement is cheaper than
+masking on bytes by \RetwoBytesDelta{} pooled (76 of 84 cells,
+$p{=}5{\times}10^{-15}$; below the frozen 20\% byte gate) and on
+round-trip-regime cost by \RetwoCostOReduction{} (84 of 84 cells,
+$p{=}10^{-25}$), cutting operations \RetwoOpsReduction{} versus
+masking with the advantage persisting at four times the horizon
+(\RetwoLongOpsReduction{}). A closed-form break-even rule
+(Proposition~\ref{prop:breakeven}) converts the frozen sensitivity
+sweep into a deployment decision: adopt iff the measured round-trip
+price exceeds $c_{0.8}$, which is zero on the frozen cohort. The
+live-agent hypothesis this pre-registers is precise: savings, if any,
+come from avoided tool-call round trips; the byte direction is a
+bonus too small to carry the claim. \emph{Audit}: the promoted
 mechanism passes a capsule audit against stream ground truth with zero
 defective service, and the audit's development history includes a
 disclosed, test-caught reference fix (Section~\ref{sec:retire-results}).
+\emph{Sufficiency}: the conversion rule is provably sufficient within
+the model (Proposition~\ref{prop:sufficiency}), so necessity and
+sufficiency are both established---the first measured, the second
+proved under the stream invariants and reliable retrieval.
+\emph{Stress}: pre-specified exploratory analyses
+(Section~\ref{sec:retire-exploratory}) put the result under load: a
+bounded-recency window beats frontier below a break-even price of
+\ExpBhBreakEvenPooled{} but leaves \ExpBhDueExposed{} of due
+obligations outside its retention; a real repository trace replayed
+through the engine preserves the operations cut (\ExpTraceOpsCut{})
+with the density rule matching the oracle; and the per-seed range of
+the operations cut never crosses zero.
 \emph{Rejected extensions}: a demand-driven adaptive-coordination
 variant was evaluated against a pre-registered promotion gate and
 rejected ($\RetwoAdaptiveReduction{}$ regime-O versus plain frontier;
