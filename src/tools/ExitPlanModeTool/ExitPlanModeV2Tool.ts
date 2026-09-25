@@ -453,7 +453,7 @@ Request ID: ${requestId}`,
       return {
         type: 'tool_result',
         content:
-          'User has approved the plan. There is nothing else needed from you now. Please respond with "ok"',
+          'User has approved the plan. You can now start coding. Start with updating your todo list if applicable. After completing the plan, remain available for any further instructions.',
         tool_use_id: toolUseID,
       }
     }

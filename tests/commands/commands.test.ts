@@ -399,3 +399,80 @@ test("loop prompt does NOT contain language suggesting session ends on completio
     assert.ok(!pattern.test(prompt), `loop prompt must not contain refusal pattern: ${pattern}`);
   }
 });
+
+// ─── Deep anti-refusal: system prompt intro and FUTURE_CODE_SIMPLE ─────────
+
+test("intro section (always included) contains anti-refusal language", () => {
+  const source = readFileSync(join(process.cwd(), "src/constants/prompts.ts"), "utf-8");
+  // The intro section is getSimpleIntroSection — it must contain the anti-refusal
+  // language because it's ALWAYS included, unlike getSimpleDoingTasksSection
+  // which can be skipped when keepCodingInstructions is false.
+  const introMatch = source.match(/getSimpleIntroSection[\s\S]*?return `[\s\S]*?`/);
+  assert.ok(introMatch, "must find getSimpleIntroSection function");
+  const intro = introMatch![0];
+  assert.ok(
+    intro.includes("never ends the session"),
+    "intro section must state that completing a task never ends the session",
+  );
+  assert.ok(
+    intro.includes("Never refuse"),
+    "intro section must explicitly say 'Never refuse' further instructions",
+  );
+  assert.ok(
+    intro.includes("remain available"),
+    "intro section must instruct assistant to remain available",
+  );
+});
+
+test("FUTURE_CODE_SIMPLE prompt contains anti-refusal language", () => {
+  const source = readFileSync(join(process.cwd(), "src/constants/prompts.ts"), "utf-8");
+  // The simple prompt path must also contain anti-refusal language
+  const simpleMatch = source.match(/FUTURE_CODE_SIMPLE[\s\S]*?return \[[\s\S]*?\]/);
+  assert.ok(simpleMatch, "must find FUTURE_CODE_SIMPLE block");
+  const simple = simpleMatch![0];
+  assert.ok(
+    simple.includes("never ends the session"),
+    "FUTURE_CODE_SIMPLE prompt must state task completion never ends session",
+  );
+  assert.ok(
+    simple.includes("Never refuse"),
+    "FUTURE_CODE_SIMPLE prompt must say 'Never refuse' further instructions",
+  );
+});
+
+test("ExitPlanMode agent tool result does NOT say 'nothing else needed'", () => {
+  const source = readFileSync(join(process.cwd(), "src/tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts"), "utf-8");
+  assert.ok(
+    !source.includes("nothing else needed from you now"),
+    "ExitPlanMode must NOT tell the agent 'nothing else needed' — this causes the model to refuse further instructions",
+  );
+  assert.ok(
+    !source.includes('Please respond with "ok"'),
+    "ExitPlanMode must NOT ask agent to respond with just 'ok' — this signals conversation is over",
+  );
+  assert.ok(
+    source.includes("remain available"),
+    "ExitPlanMode agent tool result should tell the agent to remain available for further instructions",
+  );
+});
+
+test("ExitPlanMode agent tool result tells agent to continue coding", () => {
+  const source = readFileSync(join(process.cwd(), "src/tools/ExitPlanModeTool/ExitPlanModeV2Tool.ts"), "utf-8");
+  assert.ok(
+    source.includes("You can now start coding"),
+    "ExitPlanMode agent tool result should tell the agent to start coding",
+  );
+});
+
+test("anti-refusal language is in getSimpleIntroSection, not only in getSimpleDoingTasksSection", () => {
+  // This is critical: getSimpleDoingTasksSection can be SKIPPED when
+  // outputStyleConfig.keepCodingInstructions === false. The anti-refusal
+  // language must also be in getSimpleIntroSection which is ALWAYS included.
+  const source = readFileSync(join(process.cwd(), "src/constants/prompts.ts"), "utf-8");
+  const introMatch = source.match(/function getSimpleIntroSection[\s\S]*?^}/m);
+  assert.ok(introMatch, "must find getSimpleIntroSection");
+  assert.ok(
+    introMatch![0].includes("never ends the session"),
+    "getSimpleIntroSection MUST contain anti-refusal language (it's always included)",
+  );
+});
