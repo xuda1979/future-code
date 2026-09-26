@@ -198,6 +198,43 @@ deterministic selector incurs at least $c$. This proves a separation between
 stale-set information and schedule-induced completion information; it does not
 prohibit a selector that observes both.
 
+\section{Exact Conditional Tree Synthesis: Reference Dynamic Program}\label{app:exactdp}
+The practical default of Section~\ref{sec:compiler} never calls this dynamic
+program; it is retained as the exact reference the catalogue construction is
+compared against, and it is invoked only by the historical research compilers.
+
+Let $D(i,j)$ be the optimal subtree cost and $F_k(i,j)$ the optimal cost of an
+ordered forest with $k$ nonempty children. With infeasible states equal to
+$+\infty$,
+\begin{align}
+D(i,i)&=0,\label{eq:Dbase}\\
+F_1(i,j)&=D(i,j),\label{eq:F1}\\
+F_k(i,j)&=\min_{i+k-2\le u<j}\bigl\{F_{k-1}(i,u)+D(u+1,j)\bigr\},\label{eq:Forest}\\
+D(i,j)&=\min_{2\le k\le\min(b,\,j-i+1)}\bigl\{r_\pi(i,j)c(k)+F_k(i,j)\bigr\}.\label{eq:D}
+\end{align}
+
+\begin{theorem}[Exactness conditional on order]\label{thm:exact}
+For a fixed $\pi$, nonnegative interval weights, and the packet model in
+Equation~\eqref{eq:price}, Equation~\eqref{eq:D} returns a minimizing feasible
+tree in $O(bn^3)$ time and $O(bn^2)$ space.
+\end{theorem}
+\begin{proof}
+Every feasible root has an arity $k$ in the stated range, so the outer
+minimization ranges over exactly the feasible root arities. Each candidate tree
+splits into a root and an ordered forest of $k$ subtrees whose positional
+intervals partition $[i,j]$; conversely every such split yields a feasible tree.
+The recurrence over $F_k$ explores exactly these splits, and the induction on
+interval length proves exactness.
+There are $O(bn^2)$ states, each scanning at most $n$ splits. The apparent
+$F_1=D$ dependency is used only on shorter intervals when constructing a forest
+with at least two components. \qed
+\end{proof}
+This is a specialization of classical alphabetic-tree
+optimization~\cite{alphabetic}. The historical three-proposal reference
+multiplies compilation time by a constant, not by $n!$. Dense spectral
+computation can itself cost $O(n^3)$; the reference clustering implementation
+uses $O(n^2\log n)$ heap operations and $O(n^2)$ storage.
+
 \section{Cost, Statistical, and Online Proof Details}\label{app:proofs}
 \subsection{Full-refresh lower bound and global negative control}
 For an $n$-leaf tree with $m$ internal nodes, the number of edges is $n+m-1$, so

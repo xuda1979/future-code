@@ -62,6 +62,82 @@ outside its window) quantifies how much a bounded-recency design
 delegates to that layer.
 \end{remark}
 
+\paragraph{Retrieval-failure sensitivity.}
+The reliable-retrieval boundary admits a closed-form sensitivity
+analysis. The following proposition is a declarative computation over
+the already-measured operation counts, not a new experiment: the
+engine's fetches never fail, so no data exists at $p>0$ and none is
+simulated here. It quantifies exactly where Proposition
+\ref{prop:sufficiency}'s guarantee stops, and why the conversion rule,
+not a looser policy, is what survives there.
+
+\begin{proposition}[Degradation under unreliable retrieval]\label{prop:pfail}
+Fix the stream invariants of Proposition~\ref{prop:sufficiency},
+replacing invariant (iii) by: each fetch succeeds independently with
+probability $1-p$ for $p\in[0,1)$, and a failed fetch leaves its
+required read unvalidated---recorded as a staleness defect, never
+zero-imputed. Let $R(\mathcal P)$ denote the number of fetch-dependent
+required reads of policy $\mathcal P$ on the stream. Then:
+\begin{enumerate}[leftmargin=*,itemsep=0pt]
+\item[(i)] \texttt{full-replay} has $R=0$ and incurs no
+retrieval-induced defects at any $p$;
+\item[(ii)] $\mathcal P$'s expected retrieval-induced defects equal
+$p\,R(\mathcal P)$, and its per-run defect-free probability is
+$(1-p)^{R(\mathcal P)}$;
+\item[(iii)] if $R(\text{frontier})<R(\text{masking})$, frontier's
+expected defects are strictly below masking's at every $p>0$, and the
+ratio is $p$-independent: the measured operations gap carries over
+unchanged as a defect-rate gap;
+\item[(iv)] \texttt{summary-reset}'s defect count is strictly positive
+at $p=0$ (109{,}761 stale reads and 385 lost obligations occurred with
+retrieval fully reliable), so no retrieval layer, however perfect,
+makes it safe.
+\end{enumerate}
+\end{proposition}
+\begin{proof}
+(i) \texttt{full-replay} resubmits all history and issues no fetch.
+(ii) Each fetch-dependent read fails independently with probability
+$p$; the count of failed reads is binomial with mean $p\,R(\mathcal P)$,
+and a run is defect-free exactly when all $R(\mathcal P)$ fetches
+succeed. (iii) Immediate from (ii) by linearity:
+$p\,R(\text{frontier})<p\,R(\text{masking})$ for $p>0$, and the ratio
+$R(\text{frontier})/R(\text{masking})$ does not depend on $p$.
+(iv) These defects arise from cross-boundary information drops inside
+the summary itself, not from fetches. \qed
+\end{proof}
+
+Three quantitative consequences use the long-horizon operation counts
+of Table~\ref{tab:retire2-long}. First, the degradation point against
+full-replay: frontier's expected excess defects reach one per accepted
+run at $p\approx1/284\approx3.5\times10^{-3}$ in the clustered family
+and $p\approx1/8{,}943\approx1.1\times10^{-4}$ in the independent
+family; the global family has $R=0$ and is structurally immune at
+every $p$. More generally, a deployment tolerating at most $\epsilon$
+expected defects per run requires $p<\epsilon/R(\text{frontier})$.
+Second, the ordering against masking is preserved: frontier's pooled
+fetch volume is \RetwoOpsReduction{} smaller, so its expected
+retrieval-induced defects are $56\%$ of masking's at every failure
+rate---the conversion rule converts an operations advantage into a
+correctness advantage precisely where retrieval is unreliable, and the
+break-even price of Proposition~\ref{prop:breakeven} is not needed for
+this direction. Third, bounded-hier enters the same formula with
+$R$ equal to its out-of-window read volume, which the cohort measured
+as exposure fractions (\ExpBhDueExposed{} of due obligations,
+\ExpBhFootprintExposed{} of footprint reads) rather than operation
+counts; its safety delegates to the retrieval layer in exactly the
+sense of item (ii), with an exposure larger than frontier's
+structural zero for pending obligations.
+
+The proposition also marks the boundary of what is claimed. A real
+retrieval layer fails with correlation, staleness, and byzantine
+responses, not independent Bernoulli trials; retries turn $p$ into
+$p^{r}$ only under independent attempts. Neither refinement is
+measured here. What the model does establish is structural: the
+conversion rule makes the failure surface \emph{countable}---$R$ is a
+measurable property of the typed capsule---where a summary's failure
+surface is silent, and item (iv) shows the difference is not a matter
+of retrieval quality at all.
+
 \begin{proposition}[Monotone break-even rule]\label{prop:breakeven}
 Let $B_f,B_m,o_f,o_m\ge 0$ be per-accepted-run regime-B means and
 per-accepted-run operation means of two policies, with $o_f<o_m$.

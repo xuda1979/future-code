@@ -1,0 +1,293 @@
+\section{Verification Substrate and Serialization}\label{sec:substrate}
+The retirement study of Section~\ref{sec:retire} asks when history can
+be discarded; this condensed section defines the verification
+substrate that makes the discarded history reconstructable and
+auditable---the stable identities, generations, and evidence layouts a
+typed capsule refers to. The conversion rule of
+Section~\ref{sec:sufficiency} consumes this substrate; it does not
+depend on any particular layout optimizer. These component results
+carry their v5.1 scope labels unchanged; they are no longer the
+paper's center, and the new ablation (Table~\ref{tab:retire2-evidence})
+now bounds when their layout choice matters at all. Full derivations
+that formerly occupied several sections here are consolidated; the
+exact-DP formulation and its proof now live in
+Appendix~\ref{app:exactdp}, and the block-backbone ablation remains in
+Appendix~\ref{app:block}.
+
+\subsection{Model and trust boundary}\label{sec:model}
+\paragraph{Semantic registry, execution, and display.}\label{sec:registry}
+Let $\R=(g_0,\ldots,g_{n-1})$ be a nonempty approved registry of unique check
+IDs. The candidate identity is
+\begin{equation}e=( \text{epoch},\ \text{snapshot},\ \text{checker},\ \text{environment},\ \text{registry}).\end{equation}
+The snapshot covers source and protected acceptance inputs. The checker and
+environment are explicitly bound; an epoch increases even after an ABA return to
+identical source bytes. Only a trusted runner submits final \PASS{}, \FAIL{}, or
+\UNKNOWN{} records. Missing, stale, skipped, incompatible, or timed-out outcomes
+are not passes.
+
+The model splits its state into two disjoint layers.
+\emph{Immutable check identities} are the registry $\R$, the candidate
+identity $e$, and the acceptance predicate each check declares; they are fixed
+at publication and are never rewritten by execution, layout choice, or
+learning. \emph{Mutable execution state} is everything a run may change: the
+result tokens, their generation counters, epoch-local timestamps, and the
+display positions. An execution permutation $\sigma_e$ determines when checks
+run. A layout $L=(\pi,T)$ independently maps tree positions to semantic
+registry indices. For a node covering positional interval $[i,j]$, its semantic
+coverage is
+\begin{equation}G_L(i,j)=\{g_{\pi(i)},\ldots,g_{\pi(j)}\}.\label{eq:coverage}\end{equation}
+The stored layout must contain an exact permutation, and every internal node's
+children must partition its positional interval without gaps or overlaps. The
+task graph is outside this mathematical tree; one worker can discharge many
+checks, and one integration check can cover several workers.
+
+The acceptance predicate is independent of both permutations:
+\begin{equation}A(e)=\mathbf 1\{\text{every }g_i\in\R\text{ has trusted, matching, current \PASS{} evidence for }e\}.\label{eq:accept}\end{equation}
+An observed fail permits rejection before all checks finish. It does not assert
+coverage of the unexecuted remainder. Acceptance is relative to the approved
+predicates, not proof of all program behavior.
+
+\paragraph{Packet and lifecycle costs.}\label{sec:packet}
+Each internal node of arity $d$ emits a fixed-width packet
+\begin{equation}c(d)=H+Sd,\qquad 2\le d\le b=\left\lfloor (C-H)/S\right\rfloor.\label{eq:price}\end{equation}
+Here $H=512$, $S=320$, and $C=3072$ bytes, so $b=8$. A mandatory field that
+exceeds its slot is rejected, not silently truncated. The cap applies to one
+certificate packet, not to all project memory, an entire registry manifest, or
+every LLM prompt. A manifest is a referenced control-plane artifact; its measured
+size is charged on migration.
+
+Let $W_{e,1},\ldots,W_{e,q_e}$ be the semantic IDs whose final records become
+available between successive refreshes. For a strict new candidate epoch, the
+observed cost is
+\begin{equation}\ell_e(L)=W(L)+\sum_{a=1}^{q_e}\sum_{v\in\mathrm{int}(T)}c(d_v)\,\mathbf 1\{W_{e,a}\cap G_L(v)\ne\varnothing\},
+\qquad W(L)=\sum_{v}c(d_v).\label{eq:lcost}\end{equation}
+The first term constructs the full initially unknown tree. A successful strict
+epoch runs the whole registry. We separately study persistent-state refresh
+traces that omit $W(L)$ at each tick, as in a cache with correctly specified
+incremental dependencies; each topology installation is still cold and
+explicitly priced. These traces evaluate the controller's cost model; they are
+not the strict candidate-gate timing experiment, and they do not demonstrate
+safe dependency inference from arbitrary code.
+
+\paragraph{Why more than invalidation or pairwise similarity is needed.}\label{sec:why}
+A classical result shows that marginal check activation cannot identify the best
+aggregation tree under joint invalidation (Appendix~\ref{app:sep}), and even the
+full initial invalidation distribution cannot identify optimal progressive
+verification. One further construction bounds what pairwise statistics can see:
+
+\begin{proposition}[Pairwise affinity is insufficient for full-wave scoring]\label{prop:pairwise}
+There exist two distributions with identical singleton and pairwise co-activity
+probabilities, hence identical Jaccard affinities, but different activation
+probabilities for the same three-check subtree.
+\end{proposition}
+\begin{proof}
+On IDs $\{0,1,2\}$, let $P$ be uniform on $\varnothing,\{0,1\},\{0,2\},\{1,2\}$
+and $Q$ uniform on $\{0\},\{1\},\{2\},\{0,1,2\}$. Every singleton has
+probability $1/2$, every pair has joint probability $1/4$, and its Jaccard
+affinity is $1/3$. Yet the probability that the triple is hit is $3/4$ under $P$
+and $1$ under $Q$. Thus a packet emitted on that interval has different expected
+cost. \qed
+\end{proof}
+The implication for the compiler is specific: a pairwise clustering
+objective cannot substitute for scoring recorded completion hyperedges.
+
+\subsection{Learning layouts without changing the contract}\label{sec:compiler}
+\paragraph{Practical catalogue and full-wave selection.}\label{sec:catalogue}
+Training waves define counts $N_i$, $N_{ij}$ and affinity
+\begin{equation}a_{ij}=\frac{N_{ij}}{N_i+N_j-N_{ij}},\label{eq:affinity}\end{equation}
+with zero for an unseen pair. Affinity orders semantically related checks
+canonically. All semantic IDs, including disconnected and unseen checks, remain
+included exactly once.
+
+Given the learned order, group consecutive leaves into blocks of at most eight,
+promote a singleton unchanged, and repeat upward. This bottom-up compact balanced
+construction does not call a tree optimizer. The catalogue retains the incumbent
+first, includes original-order fixed8 when distinct, and proposes learned-order
+fixed8. Identical layouts are deduplicated. A separate validation cohort scores
+complete completion waves, including initial construction; ties retain the
+incumbent. The API returns an advisory choice, not deployment authorization. The
+registry and packet cap cannot change during selection.
+
+For any proposal $\pi$, training episodes supply interval weights
+\begin{equation}r_\pi(i,j)=1+\frac{1}{m}\sum_{e=1}^{m}\sum_{a}\mathbf 1\{W_{e,a}\cap G_L(i,j)\ne\varnothing\}.\label{eq:weights}\end{equation}
+Pairwise affinity proposes an order; it does not replace the full-wave cost. The
+practical catalogue contains at most three candidates and uses no DP. Tree
+construction is $O(n)$ after ordering. The reference implementation retains
+spectral ordering and exact fitting for research comparisons; neither is invoked
+by the practical default. The exact conditional tree synthesis---its dynamic
+programming recurrence, exactness theorem, and proof---is retained unchanged in
+Appendix~\ref{app:exactdp} for reference; the practical default never calls it.
+
+\begin{proposition}[Validation after learned ordering]\label{prop:valid}
+Condition on a training set that fixes $K$ complete layouts. For $m$
+independent identically distributed validation epochs with each layout cost in
+$[0,B]$, let $\widehat L$ minimize empirical validation cost. With probability at
+least $1-\delta$,
+\begin{equation}J(\widehat L)\le\min_{L\in\mathcal C}J(L)+2B\sqrt{\frac{\log(2K/\delta)}{2m}}.\label{eq:valid}\end{equation}
+\end{proposition}
+\begin{proof}
+Conditionally, the catalogue is fixed. Hoeffding's inequality and a union bound
+over $K$ layouts bound every empirical mean error by the displayed radius
+without its factor two. Inserting empirical costs on either side of the empirical
+minimizer yields the result. \qed
+\end{proof}
+The guarantee is only relative to the fixed catalogue. It neither justifies
+choosing among learned permutations on their training errors alone nor covers
+distribution shift. We do not report this potentially loose bound as an empirical
+confidence interval; reported intervals use independent experimental seeds.
+
+\paragraph{Compiler identity and scope.}\label{sec:compiler-scope}
+The practical default has no hidden microtree optimization. Exact DP is a
+reference and optional offline candidate (Appendix~\ref{app:exactdp}). The
+block-backbone proposition and implementation remain in Appendix~\ref{app:block}
+solely as an ablation; its restricted-class exactness does not override the
+observed simpler-baseline advantage. At 1{,}024 checks, order learning still
+takes seconds in our measurement, so layouts should be cached and compiled away
+from the agent's per-action path. Validation of padded costs does not optimize
+compressed archives or model tokenization; adoption must measure the actual
+delivery representation.
+
+\begin{algorithm}[t]\caption{Deployable evidence control; inference and checking remain separate}\label{alg:control}
+\begin{algorithmic}[1]
+\For{each build request}
+\State Build context only from the semantic registry
+\State Check out the frozen, identified source snapshot
+\State If required, select layout offline via the frozen rule
+\If{layout changes}
+\State Revoke tickets, increment generation, remap stable IDs, rebuild and price the installation
+\EndIf
+\State Receive trusted completion records for the fixed check schedule
+\State Reject stale, conflicting or malformed records; aggregate bounded packets
+\State Publish only the complete current contract result; otherwise retain \FAIL/\UNKNOWN
+\State Expose a root-status card; retrieve diagnostic packets only when needed
+\State Score the observed event and append its cost vector to the bounded window
+\EndFor
+\end{algorithmic}\end{algorithm}
+
+\subsection{Practical online selection: price the window, not the promise}\label{sec:online}
+Freeze a compiled catalogue $\mathcal C=\{L_1,\ldots,L_K\}$. At event $t$, choose
+a layout before observing the current completion wave; afterwards score that same
+wave under every catalogue member. This is full-information feedback only because
+the check schedule is held fixed. It is not counterfactual feedback for arbitrary
+agent behavior.
+
+A different layout is installed by serializing its canonical manifest and
+reconstructing its complete certificate tree:
+\begin{equation}M_{ij}=\begin{cases}0,&L_i=L_j,\\ |\mathrm{manifest}(L_j)|+W(L_j),&L_i\ne L_j.\end{cases}
+\qquad L_T=\sum_{t}\ell_t(A_t)+\sum_{t=2}^{T}M_{A_{t-1},A_t}.\label{eq:mig}\end{equation}
+The initial installation is separate. These byte prices match the evaluated
+uncompressed migration protocol. A deployment using compression must measure its
+own priced wire representation; the DP objective is not automatically an optimum
+for a compressed log.
+
+\paragraph{The primary practical rule.}
+Let $\bar\ell_{t,i}$ be the mean cost on the last $\min(w,t-1)$ observed events,
+and $j_t=\argmin_i\bar\ell_{t,i}$ with deterministic ties. Starting from the
+calibrated incumbent $a$, use the frozen rule
+\begin{equation}A_t=\begin{cases} j_t,& w(\bar\ell_{t,a}-\bar\ell_{t,j_t})>M_{a,j_t},\\ a,&\text{otherwise},\end{cases}\qquad w=64.\label{eq:window}\end{equation}
+With no history, keep $a$. A tie in estimated savings does not trigger migration.
+During warm-up, the forecast horizon remains $w$ even if fewer events were
+observed, matching the original baseline. This is an empirical break-even
+forecast, not proof that past savings repay a future switch. It can lose under
+abrupt reversal; preserving the frozen layout is always a legitimate alternative.
+
+The runtime API enforces \texttt{choose()} before \texttt{observe()}, bounds
+history to 64 vectors, rejects nonfinite costs, and checkpoints only at event
+boundaries. Replaying all 80 archived streams, with periodic checkpoint/resume,
+must reproduce the original baseline's full action and byte-cost paths exactly.
+The exercise validates implementation equivalence, not a new performance dataset.
+
+\paragraph{Why fixed-share is no longer primary.}
+On the archived stationary, long-shift and rapid-shift streams, the coupled
+fixed-share policy is more expensive than the priced window. Its standard
+tracking analysis therefore moves to Appendix~\ref{app:fixedshare}, with all
+negative results retained. We do not manufacture an adversarial workload merely
+to make that policy win. Neither the appendix bound nor the empirical window
+result establishes general superiority over other switching-cost policies.
+
+\subsection{Stable evidence through permutation and migration}\label{sec:soundness}
+A result token carries $(\text{epoch},g_i,b_i)$, where $b_i$ binds the semantic
+ID to the registry, source snapshot, checker, and environment. It does not carry
+a display position as its identity. A layout-specific kernel maps stable IDs
+to current positions. During migration it rebuilds from canonical trusted records;
+it never transplants an ordinal cache entry into a different permutation.
+
+Publication tickets additionally carry a monotone layout generation and layout
+hash. A layout switch revokes the issued ticket, advances the generation, and
+forces a full recheck of the affected subtree. The registry, candidate identity,
+and acceptance predicates never change through a layout-only
+change, but a new candidate epoch fences it. Duplicate identical evidence is
+idempotent. Conflicting final records in one epoch revoke authorization: a
+recorded fail remains a fail; otherwise the obligation becomes unknown.
+Resolution requires a new epoch, not a more persuasive agent summary.
+
+\begin{theorem}[Layout-independent local publication soundness]\label{thm:soundness}
+Assume complete approved predicates and dependency identities, a trusted checker
+executing immutable identified inputs, collision-resistant binding, and atomic
+local epoch/generation checks. For any sequence of valid layout permutations,
+any advisory learning outputs, and any delivered evidence order, authorization
+implies Equation~\eqref{eq:accept}. If each checker is sound for its declared
+predicate, those predicates hold on the authorized candidate.
+\end{theorem}
+\begin{proof}
+A canonical pass requires a current token for the same semantic ID and immutable
+identities. Permutation is a bijection, so rebuilding moves each such record to
+exactly one position without changing its meaning. Exact child partitioning
+preserves coverage and pass/fail/unknown counts by induction up the tree. The
+root can be authorized only with $(n,0,0)$ and matching current registry, epoch,
+generation, and layout. Old tickets fail those checks. Conflicts prevent
+authorization. No choice made by the learner writes trusted outcomes or changes
+the registry. \qed
+\end{proof}
+This is a conditional local guarantee, not remote attestation or distributed
+consensus. An incomplete suite, compromised checker, omitted dependency, or
+nondeterministic external service can invalidate a broader correctness claim. The
+CLI's file copy is not an OS sandbox. An external merge/deployment service must
+atomically compare the verified candidate and integration-head identities at
+commit; a report file alone is not that transaction.
+
+\subsection{Implementation and cost accounting}\label{sec:impl}
+The artifact adds \texttt{practical.py}, \texttt{deployment.py},
+\texttt{token\_budget.py} and \texttt{tls\_probe.py}. The practical CLI produces
+a balanced catalogue without calling either exact or block DP. The historical
+exact and block compilers remain separately callable. The existing stable-ID
+guard, priced window, codec and Future Code bridge are retained. The strict CLI
+compares protected input sets and hashes, detecting added tests or configuration
+files as well as changed and deleted ones. Schema-2 contracts bind the approved
+checker and environment and refuse silent reuse of legacy contracts. Source
+manifests are checked before and after snapshotting and verification; mutation
+of an observed snapshot prevents a pass.
+
+The bridge runs as an ordinary subprocess acceptance gate in the unmodified
+Future Code v1.2 runtime. The supervisor still owns worker leases, private
+attempts, bounded contexts, and serialized integration. Non-pass exits cause
+candidate rejection. Detailed evidence and binary certificate packets live
+outside candidate write scopes; only a bounded JSON result card returns to the
+worker. The plug-in accepts a precompiled layout. The online selector and
+migration guard are separately integrated and stress-tested as a library path; a
+live, self-retuning hosted deployment was not evaluated.
+
+A different scalar objective could combine these quantities only with declared
+unit conversions and observable counterfactual costs. This implementation does
+not optimize unknown model latency or billing. The exact-byte claim also depends
+on the stated padded format; compression defines a different, potentially
+nonseparable objective for which this DP is not claimed exact.
+
+Costs are accounted in separate ledgers so byte savings are never converted into
+unsupported latency or token claims:
+
+\begin{table}[t]\centering\small
+\caption{Separate ledgers avoid converting byte savings into unsupported latency or token claims.}\label{tab:ledgers}
+\begin{tabularx}{\linewidth}{@{}lXX@{}}\toprule
+Quantity & Instrument & Ledger\\ \midrule
+Serialized certificate bytes & Sum over packets with fixed per-node header and slot widths & Bytes; never tokens\\
+Wall-clock durations & Monotonic clock around whole-run driver and per-stage timers & Seconds; never bytes\\
+Tool calls & Counted supervisor-side & Counts\\
+Check latencies & External driver timeouts are host-configured and enforced per tool call & Reported separately\\
+Migration bytes & Canonical layout manifest plus forced full rebuild & Yes, online traces\\
+Fit and scoring time & Monotonic-clock measurements & Reported separately\\
+Preparation, copying, checking, aggregation & Wrapper timers and outer call duration & Reported separately\\
+Active harness episode & Supervisor startup through completion and shutdown & Reported separately\\
+Prompt bytes and construction time & Captured actual HTTP messages and context builder & Reported; not tokens\\
+Hosted token usage and API billing & No provider inference was run & Unknown, never zero-imputed\\
+\bottomrule\end{tabularx}\end{table}

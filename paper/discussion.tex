@@ -6,7 +6,7 @@ and one still protocol-only.
 \paragraph{Mechanism-level (measured this paper).}
 Where a service already requires protected verification evidence and a
 constrained channel, the serialized-evidence component of
-Sections~\ref{sec:model}--\ref{sec:eval} applies as before. The
+Section~\ref{sec:substrate} applies as before. The
 retirement study adds a sharper rule for context policy: a policy may
 retire history only after converting it into current verified
 bindings, a typed pending-obligation set, and dependency interfaces;
@@ -44,9 +44,15 @@ is observable on a training half of any real stream. Do not adopt the
 demand-driven adaptive variant: its pre-registered promotion gate
 failed ($\RetwoAdaptiveReduction{}$ versus plain frontier).
 
-\paragraph{Live-agent cohort (pre-registered, not run).}\label{sec:live-protocol}
+\paragraph{Live-agent cohort (pre-registered, not run; highest-priority next experiment).}\label{sec:live-protocol}
 The mechanism study predicts, but cannot confirm, that avoided
-retrieval operations translate into live savings. The confirmatory
+retrieval operations translate into live savings. Executing this
+cohort is the single most informative next step the study permits
+itself: it is the only pre-registered instrument that can move
+real-world agent relevance from moderate to measured, and every
+limitation this section records---BPE token counts, provider billing,
+prompt-semantics effects, and live tool-call latencies---is either an
+outcome it measures or a risk it prices. The confirmatory
 cohort is therefore pre-registered with operations as the primary cost
 measure:
 \begin{enumerate}[leftmargin=*,itemsep=1pt]
@@ -80,10 +86,33 @@ Two explicit closure rules prevent indefinite iteration; either rule
 terminates the program with a written result. This protocol is frozen
 here, before any live data collection.
 
+The live layer also prices risks the mechanism study cannot express
+and must not silently assume away. A hosted model does not read
+idealized state capsules: structured JSON or capsule formats can
+induce attention degradation, prompt distraction, or formatting drift,
+so the cohort scores each arm's full delivered prompts, not just their
+sizes. Real summarization does not follow a synthetic four-episode
+boundary, so the summary/reset arm keeps its own provider-side
+implementation with the acceptance contract as the only fixed point.
+And live round trips are not a static additive constant: network
+jitter, rate limiting, and variable generation latency replace the
+frozen $4{,}096$\,B accounting constant with the cohort's measured
+per-tool-call durations, which is why tool-call counts, not byte
+totals, remain the pre-registered primary outcome.
+
 \paragraph{What remains unmeasured.}
 No hosted model was called for any number in this paper; BPE
 tokenization, physical-WAN behavior, and provider billing remain
-unknown and are never zero-imputed. The mechanism cohort's cost model
+unknown and are never zero-imputed. Two tokenization caveats deserve
+emphasis because the paper's savings are reported in bytes. First,
+both requested BPE encodings (\texttt{cl100k\_base} and
+\texttt{o200k\_base}) remain \UNKNOWN{}
+(Section~\ref{sec:unmeasured}); byte savings therefore do not
+necessarily convert to proportional BPE token savings, and no
+byte-to-token division is asserted anywhere. Second, even a measured
+conversion would be model-specific: tokenization is not a
+length-preserving map, so the live cohort records actual tokenizer
+output per arm rather than converting the byte result. The mechanism cohort's cost model
 is a frozen accounting of a frozen model of information flow; real
 payloads are not lognormal, and real summaries may retain obligations
 better or worse than the seeded boundary survival. The round-trip
