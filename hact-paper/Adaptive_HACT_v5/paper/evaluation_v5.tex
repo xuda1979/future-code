@@ -12,7 +12,13 @@ Checks & Family & Mean (\%) & Range (\%) & Fit median (s) & Changed\\\midrule
 \csname @@input\endcsname generated_v5/practical.tex
 \bottomrule\end{tabular}
 \end{table}
-On clustered completions, mean held-out reductions are 23.43\%, 10.75\% and 5.56\% as registry size increases. Global updates give no reduction; independent updates give zero except for one of the three 512-check seeds, whose small gain produces a 0.07\% mean. These controls do not support universal value from ordering. The selected method includes no DP, and a regression test makes any call to the exact fitting helper fail on this path.
+
+\begin{figure}[t]\centering
+\includegraphics[width=.72\linewidth]{figures/v5_heldout.pdf}
+\caption{Held-out padded-cost reduction of the learned balanced eight-ary layout against original-order fixed8 across the frozen v5 seeds (three per cell). Bars show the seed mean; whiskers span the observed seed range. Learning pays only on clustered completions; independent and global controls show no systematic reduction.}\label{fig:heldout}
+\end{figure}
+
+On clustered completions, mean held-out reductions are 23.43\%, 10.75\% and 5.56\% as registry size increases (Figure~\ref{fig:heldout}). Global updates give no reduction; independent updates give zero except for one of the three 512-check seeds, whose small gain produces a 0.07\% mean. These controls do not support universal value from ordering. The selected method includes no DP, and a regression test makes any call to the exact fitting helper fail on this path.
 
 The full catalogue fit median at 1,024 checks remains about 3 seconds; order learning is not free. The fixed construction can reuse a previously approved order in linear work, but no linear-time claim is made for the full learned pipeline. The smaller percentage at larger registries is consistent with substantial layout-independent cold construction in this benchmark; it should not be interpreted as a learned scaling law.
 
@@ -27,7 +33,7 @@ Project & Padded saving & Canonical saving & Epoch saving & vs.\ exact\\
 \csname @@input\endcsname generated_v5/replay.tex
 \bottomrule\end{tabular}
 \end{table}
-Learned balanced layouts reduce whole-epoch compressed bytes by 41.84\% for NetworkX, 4.36\% for Toolz and 18.53\% for Future Code. These are \emph{not} the larger v4 exact-layout savings relabeled as results of the new default. The balanced representation remains larger than learned exact in every project here. Exact fitting may therefore be appropriate when amortized delivery justifies its additional compilation; the practical default trades that potential gain for simpler fitting.
+Learned balanced layouts reduce whole-epoch compressed bytes by 41.84\% for NetworkX~\cite{networkx}, 4.36\% for Toolz~\cite{toolz} and 18.53\% for Future Code. These are \emph{not} the larger v4 exact-layout savings relabeled as results of the new default. The balanced representation remains larger than learned exact in every project here. Exact fitting may therefore be appropriate when amortized delivery justifies its additional compilation; the practical default trades that potential gain for simpler fitting.
 
 Across the twelve cases, batch-compressed application bytes are 416,046 for fixed8, 299,081 for learned balanced and 278,831 for the re-serialized learned exact layout. Semantic counts, verdicts and local authorization agree across all 36 replays. Their provenance binds the archived check records by digest. Serialization includes newly bound layout/run metadata; numerical bytes need not exactly reproduce a prior archive's compressibility. The independent audit checks actual emitted bytes rather than substituting earlier totals.
 
@@ -45,7 +51,12 @@ Assumed goodput & 0.05 s/candidate & 0.5 s/candidate & 5 s/candidate\\\midrule
 1 MiB/s & 6 & 54 & 538\\\bottomrule
 \end{tabular}
 \end{table}
-The 5-second column is a deliberately declared sensitivity scenario, not an estimate transferred from the historical harness. At 64 KiB/s and one export per candidate, the assumed 60 seconds of cohort overhead overwhelms the approximately 1.785-second delivery saving. Repeated delivery might change the equation, but the application must actually require it. With new candidates on each repetition, preparation recurs and cannot be amortized as the same $C$. All 27 scenarios (three codecs, three rates, three overhead assumptions) are available, including negative outcomes. The planner rejects mismatched services and missing measurements rather than inventing a benefit.
+The 5-second column is a deliberately declared sensitivity scenario, not an estimate transferred from the historical harness. At 64 KiB/s and one export per candidate, the assumed 60 seconds of cohort overhead overwhelms the approximately 1.785-second delivery saving. Repeated delivery might change the equation, but the application must actually require it. With new candidates on each repetition, preparation recurs and cannot be amortized as the same $C$. All 27 scenarios (three codecs, three rates, three overhead assumptions) are available, including negative outcomes; Figure~\ref{fig:planning} visualizes all three codecs. The planner rejects mismatched services and missing measurements rather than inventing a benefit.
+
+\begin{figure}[t]\centering
+\includegraphics[width=.98\linewidth]{figures/v5_planning.pdf}
+\caption{Minimum profitable copies of one twelve-candidate cohort for each codec, goodput and assumed extra cost (all 27 planning scenarios; darker means more copies are needed before learning pays). Table~\ref{tab:payback} gives the batch-zlib panel numerically. Adoption is plausible at low goodput with small overhead; at high goodput or large overhead, the unchanged incumbent is the rational choice. These are declared sensitivity scenarios, not measurements.}\label{fig:planning}
+\end{figure}
 
 \subsection{Historical controls remain controls}
 The earlier 288 loopback transfers belong to v4, use application pacing rather than real WAN conditions, and are not rerun or relabeled as v5 trials. For twelve compressed fixed/exact exports at 64 KiB/s, their measured totals were 6.624 and 4.413 seconds. The larger uncompressed totals were 33.499 and 18.954 seconds. Compression of fixed8 was more impactful than selecting an uncompressed learned layout. None of those durations is an IP/TLS throughput measurement or predicts a loss-prone path.
