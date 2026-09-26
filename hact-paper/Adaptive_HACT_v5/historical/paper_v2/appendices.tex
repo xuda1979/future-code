@@ -1,0 +1,90 @@
+\section{Proof and Cost-Model Details}
+\subsection{Why the kernel realizes the frontier price}
+Fix a valid tree and an epoch. On the first refresh, every internal node is uncached and emits exactly one packet of size $H+Sd$. Thereafter, submitting a final outcome marks exactly that leaf and its ancestors as potentially changed. At a refresh, a node's descendant-generation stamp differs from its cache stamp if and only if at least one submitted obligation lies in its interval. A changed node emits one packet, regardless of how many changed descendants it has in that wave. Unchanged intervals reuse their current cached capsule. Summing these contributions yields Equation~\eqref{eq:realized}.
+
+The implementation additionally validates the entire tree and computes cache keys; these operations have CPU costs that are not equal to packet bytes. The traffic theorem does not assert logarithmic total runtime. It also assumes the stated fixed-width serialization. A different compression or transport format requires re-estimating $c(d)$; reducing padding can change the optimum and the percentage benefit.
+
+\subsection{Finite bounds and the role of batching}
+Without unary internal nodes, an $n$-leaf tree has at most $n-1$ internal nodes. If each obligation has at most one final submission per epoch and waves have width $w$, then $K_e\le\lceil n/w\rceil$ for the evaluated sequential grouping rule. Hence
+\begin{equation}
+ 0\le L_e(T)\le B=(1+\lceil n/w\rceil)(n-1)C.
+\end{equation}
+This is a valid but loose range for the sufficient promotion gate. A narrower empirically estimated range is not automatically a valid replacement for a proved bound. The packet cap limits local fanout, whereas increasing $w$ reduces update frequency and increases the number of completions that may remain unreported before a flush. These are different controls. A tree comparison is meaningful only at the same batching policy or with an explicit freshness/latency trade-off.
+
+\subsection{Exact recurrence and reconstruction}
+The forest recurrence stores a split location for every finite $F_k(i,j)$ and the selected root arity for every $D(i,j)$. Reconstruction first partitions an interval into its selected $k$ child intervals and then recursively reconstructs each subtree. Any tie can be resolved deterministically; the reported empirical cost remains optimal. The artifact uses a fixed numerical tie rule and stores every fitted tree as an explicit JSON structure. An independent audit walks that structure, verifies the partition, and recomputes traffic directly from recorded waves.
+
+The counterexample in Theorem~\ref{thm:separation} is checked by exhaustive enumeration of all five ordered binary trees on four leaves. More generally, the tests compare the frontier compiler with exhaustive enumeration on two through seven leaves. These executable checks do not replace the proof, but they detect recurrence, indexing, normalization, and reconstruction mistakes.
+
+\subsection{Safety under reordered and delayed messages}
+A task result carries its obligation index, epoch token, and exact input binding. If an old result arrives after a new epoch begins, the epoch check rejects it before it changes current evidence. An ABA transition still increments the epoch; matching source bytes alone cannot resurrect the earlier ticket. If the same final record is delivered twice, the second delivery is idempotent. If two different records claim the same obligation in one epoch, the guard revokes authorization, retaining failure when either record fails and otherwise marking the obligation unknown. Further attempts require a new epoch.
+
+For an external integration, this local rule is necessary but insufficient. The merge or deployment service must compare the candidate identity and integration-head version atomically with its write. The supplied CLI emits an authorization report but deliberately performs no external merge. A user cannot infer distributed linearizability from a passing local race test.
+
+\section{Exact Experimental Scope and Reproduction}
+\subsection{Source and test scopes}
+\begin{table}[h]
+\centering\small
+\caption{Scope families; exact path arrays and node IDs are stored in the artifact.}
+\begin{tabularx}{\linewidth}{@{}p{.17\linewidth}XX@{}}
+\toprule
+Subject & Mutated source families & Approved test families\\
+\midrule
+NetworkX & Connected, strongly/weakly connected components; breadth/depth traversal; unweighted shortest paths & Component and traversal suites; unweighted and generic shortest-path tests\\
+Toolz & Iterable, functional, dictionary, recipes, utilities & Iterable, functional, dictionary, recipes, curried, utility suites\\
+Future Code & Contracts, context, coordination, security, reporting, store & Contracts, store, contract-first execution, coordination, coordination edges, hierarchy contracts\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The source snapshots are bundled rather than fetched at reproduction time. Package versions and the actual environment are recorded; installation of external dependencies remains subject to availability in the reproducer's environment. This study used Python 3.13.5 on Linux. No claim is made that Windows or an accelerator runtime was tested. The code does not require a GPU or NPU.
+
+The first experimental plan, the chosen mutation spans, the later confirmation freeze, all candidate hashes, raw pytest records, fitted plans, direct timing records, and the independent audit output are included. Validation logic rejects unknown registry IDs, duplicate interventions, nonfinite cost inputs, and order lists that omit tests. The sole unresolved development candidate is retained in the source plan and oracle logs.
+
+\subsection{Reproduction tiers}
+The least expensive check runs the kernel/compiler/wrapper tests and verifies the release manifest. The next tier reruns the independent stored-evidence audit without executing project code. A complete experimental reproduction executes source mutations and direct timing in fresh copies, then regenerates tables. Source preparation and test execution are recorded separately; stored paper measurements are never overwritten implicitly. The README provides exact commands and the archive verifier checks packaged-file identities.
+
+\begin{verbatim}
+python -m pytest -q tests tests_v1
+python audit/independent_check.py
+python -m experiments.summarize
+\end{verbatim}
+
+The full experimental scripts refuse to overwrite certain frozen outputs. The supplied preparation helper creates a new research directory and results directory, retaining the original baseline profiles and fitted plans for fixed-policy re-execution. Its safe preparation path is tested; the entire campaign was not run a second time through that convenience launcher during packaging. Expensive or destructive external actions are not part of reproduction. A practical local use of the wrapper is:
+\begin{verbatim}
+python -m ichact init --project /work/trusted-baseline \
+  --contract /work/contracts/approved.json \
+  --output /work/reports/baseline --test-path tests
+
+python -m ichact verify --project /work/candidate \
+  --contract /work/contracts/approved.json \
+  --output /work/reports/candidate-001
+\end{verbatim}
+
+An order file, when supplied, must be an exact JSON permutation of the approved registry. The report explicitly distinguishes a pass, a failed candidate, and an unresolved execution. For untrusted source code, run this wrapper within an appropriate container or VM and keep credentials, approval files, and the checker outside candidate control. The wrapper is intentionally conservative about writes to its snapshot: even a generated source-tree file can prevent a pass until the operator establishes an approved output policy.
+
+\section{Additional Diagnostics and Sensitivity}
+\input{generated/batching_table.tex}
+\input{generated/wrapper_table.tex}
+\input{generated/diagnostics.tex}
+
+\clearpage
+\section{Artifact and Claim Ledger}
+\begin{table}[h]
+\centering\small
+\caption{What each evidence source establishes, and what it does not.}
+\begin{tabularx}{\linewidth}{@{}p{.22\linewidth}XX@{}}
+\toprule
+Evidence & Supported claim & Unsupported extrapolation\\
+\midrule
+Mathematical proofs & Exact objective/DP and conditional predicate preservation & Complete program correctness or complete causal discovery\\
+Source mutation oracles & Outcomes on identified source copies and scoped existing tests & Representative real-world bug/repair distribution\\
+Direct timing & Observed process costs for the frozen cohorts and orderings & Total development cost, API billing, or universal speedup\\
+Packet replay & Exact bytes for the stated kernel format and completion waves & Measured wide-area bandwidth or LLM token savings\\
+Protocol stress tests & Rejection of tested stale, missing, conflicting and invalid records & Adversarial remote attestation or distributed consensus\\
+Wrapper smoke & Local baseline--fault--restoration lifecycle with source checks & Autonomous repair or production deployment integration\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The artifact contains a SHA-256 file manifest and a separate release verification record. The final test suite is rerun from the extracted deliverable. Generated tables are driven by recorded measurements, and the independent audit does not import the producer's optimizer or cost helpers. These controls improve traceability but are not a substitute for an independent external replication or a security assessment.

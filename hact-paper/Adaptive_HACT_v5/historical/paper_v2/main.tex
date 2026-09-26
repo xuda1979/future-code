@@ -1,0 +1,239 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=24mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amsthm}
+\usepackage{newtxtext,newtxmath,microtype}
+\usepackage{booktabs,tabularx,array,graphicx,xcolor}
+\usepackage{algorithm,algpseudocode,enumitem}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small IC-HACT: Frontier-Aware Verification}\fancyhead[R]{\small Research manuscript v2.0}\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}\setlength{\parskip}{3pt}\setlength{\emergencystretch}{2em}
+\newtheorem{theorem}{Theorem}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{lemma}[theorem]{Lemma}
+\theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
+\theoremstyle{remark}\newtheorem{remark}[theorem]{Remark}
+\newcommand{\PASS}{\mathsf{PASS}}\newcommand{\FAIL}{\mathsf{FAIL}}\newcommand{\UNKNOWN}{\mathsf{UNKNOWN}}
+\newcommand{\E}{\mathbb E}\newcommand{\Prb}{\mathbb P}\newcommand{\ind}{\mathbf 1}\newcommand{\R}{\mathcal R}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\hypersetup{pdftitle={IC-HACT: Frontier-Aware Verification with Soundness-Separated Learning},pdfauthor={Research manuscript; author information pending confirmation},pdfsubject={Revised research with executable source interventions, proofs and reproducible measurements}}
+\title{\vspace{-10mm}\textbf{IC-HACT: Frontier-Aware Verification with Soundness-Separated Learning}}
+\author{Research manuscript\thanks{Author names and affiliations are to be confirmed before submission. Mathematical development, software, experiments, and writing were AI-assisted. This manuscript is not an accepted conference paper.}}
+\date{September 18, 2026 \quad | \quad Version 2.0}
+\input{generated/macros.tex}
+\begin{document}
+\maketitle
+\begin{abstract}
+A large coding-agent system needs a compact answer to a precise question: which checks passed on the candidate that is about to be accepted? A tree of verification certificates bounds individual messages, but arranging that tree using only invalidation events is insufficient when checks finish progressively and verification can reject a candidate early. We formulate certificate layout as an optimization over \emph{completion frontiers}, including the full construction cost of each new immutable candidate epoch. A four-obligation separation proves that even identical joint invalidation distributions can require different optimal layouts. An exact ordered-tree compiler follows from classical subtree/forest dynamic programming. We combine it with intervention-conditioned test prioritization while excluding all learned edges from the trusted acceptance predicate: historical evidence changes ordering, never the obligation to establish a complete, current pass. Our implementation includes a strict pytest wrapper, source/checker/environment identities, bounded packets, and epoch-fenced evidence. Evaluation executes 121 source mutations across two upstream Python libraries and the Future Code runtime: 45 training cases, 43 development cases, and 33 fresh, nonoverlapping confirmation cases introduced after a disclosed negative pilot result. \input{generated/abstract_results.tex} These are verification and feedback measurements, not evidence of improved LLM reasoning, autonomous repair, or distributed consensus. The result is a concrete, reproducible way to optimize evidence delivery without making acceptance depend on the accuracy of a learned impact graph.
+\end{abstract}
+\noindent\textbf{Keywords:} agentic software engineering; regression testing; bounded context; completion frontiers; executable evidence; workload-aware trees.
+
+\section{Introduction}
+An agent can finish editing a file long before the system has established that the resulting candidate satisfies its acceptance contract. With many workers, old test reports, partially checked branches, and changing integration states can coexist. A manager that reads every transcript is expensive; a manager that reads only optimistic summaries may be wrong. The relevant systems object is therefore not another managerial conversation, but a compact, current, machine-checked projection of the declared verification state.
+
+Our earlier HACT prototype separated the task graph from an ordered certificate tree. It optimized certificate refresh traffic for jointly invalidated checks. That model omitted an important practical distinction: \emph{becoming stale and becoming checked are different events}. After a candidate changes, a conservative verifier may invalidate the entire test registry. Yet a useful schedule may detect a defect after one check, whereas a poor schedule runs many checks before finding the same defect. Intermediate completions, not just the initial stale set, determine which certificate ancestors must be refreshed.
+
+This paper studies that gap. IC-HACT uses a source-change descriptor and controlled mutation outcomes to order tests, then compiles the resulting completion-frontier distribution into a bounded certificate tree. Crucially, this information is advisory. The strict implementation requires every approved obligation to pass on a matching candidate/checker/environment identity before it authorizes acceptance. A missing edge in the learned graph can cause wasted work or a poor schedule; it cannot turn an unexecuted obligation into a current pass.
+
+\paragraph{A concrete use case.}
+A coding worker proposes a candidate affecting a graph traversal routine. Historical interventions indicate which checks often fail after modifications to that routine. The harness runs those checks early. If one genuinely fails, the worker receives its current failure evidence and can revise the candidate immediately. If none fail, the harness continues through the entire approved registry. A small certificate tree records progress in bounded messages; a root pass is available only at complete closure. The next revision starts a fresh epoch, so delayed evidence from the previous attempt cannot certify it.
+
+Neither test prioritization nor dependency graphs are new. Version-specific prioritization and greedy fault-exposure ordering are established~\cite{rothermel}; regression-test selection has extensive prior art~\cite{ekstazi,namerts}. We do not present these techniques as inventions. The new research object is the distribution of \emph{schedule-induced completion frontiers} under a strict evidence predicate, its separation from invalidation information, and a measured compiler that realizes the corresponding traffic objective. Learning can assist the control plane without being entrusted to define correctness.
+
+\paragraph{Contributions.}
+First, we derive a frontier-sensitive objective and prove an information separation: joint invalidation statistics, even when known exactly, are insufficient for optimal progressive certificate layout. Second, we give an exact specialization of classical alphabetic dynamic programming and a conservative holdout-based switching rule that prices reconstruction and uncertainty. Third, we implement the soundness separation in an executable harness and evaluate real source mutations, actual pytest processes, serialized packets, and adversarial state transitions. The study preserves an unfavorable result: per-source tree specialization overfits the small training set. We select the pooled-frontier variant only as a disclosed development decision, then evaluate it on newly frozen, nonoverlapping intervention sites.
+
+\section{Related Work and Attribution}
+\paragraph{Testing and change impact.}
+Rothermel et al.~\cite{rothermel} formulate test prioritization over permutations and investigate fault- and coverage-based orderings. Our empirical fault-set cover per unit cost is an instance of that established family, not a novel ranking algorithm. Ekstazi~\cite{ekstazi} tracks file dependencies to select tests after changes. NameRTS~\cite{namerts} uses a finer Python name--element graph and prior execution information. Unlike those selection techniques, our strict mode does not omit an approved obligation when issuing a pass. Our file-call baseline is an intentionally simple prioritizer, \emph{not an implementation of NameRTS or Ekstazi}. Consequently, we claim no benchmark superiority over either system.
+
+\paragraph{Incrementality and authenticated layouts.}
+Self-adjusting computation~\cite{acar} and build-system designs~\cite{build} already separate dependency reasoning from recomputation. Generalized alphabetic-tree optimization~\cite{alphabetic} provides the subtree/forest recurrence used below; its asymptotic complexity is inherited. Workload-adaptive authenticated structures, including the recent Huffman--Merkle Tree~\cite{hmt}, make layout and maintenance cost workload-dependent. Our objective instead counts bounded verification-aggregation packets on completion waves while holding leaf order and the acceptance registry fixed. The local certificates are not zero-knowledge proofs, signatures, or adversarial remote attestations.
+
+\paragraph{Agent runtime assurance.}
+Proof-Carrying Agent Actions~\cite{pcaa} addresses action-bound governance across heterogeneous runtimes. VP-Control~\cite{vpcontrol} studies verification portfolios, shared-source failures, and commit-time enforcement. These are relevant predecessors to any claim about trustworthy agent actions. Our epoch guard borrows established fencing and complete-coverage principles. It supports a narrower claim: advisory scheduling and tree changes cannot change the local acceptance predicate. It does not make an arbitrary external deployment transaction atomic.
+
+\begin{table}[t]
+\centering\small
+\caption{Novelty boundaries. An inherited mechanism is not relabeled as an invention.}
+\begin{tabularx}{\linewidth}{@{}p{.23\linewidth}XX@{}}
+\toprule
+Aspect & Established foundation & Research contribution investigated here\\
+\midrule
+Task coordination & Hierarchy, narrow contexts, durable state & Separate task ownership from schedule-dependent evidence layout\\
+Change intelligence & Mutation testing, dependencies, prioritization & Advisory intervention graph coupled to an independently enforced complete registry\\
+Layout algorithm & Alphabetic subtree/forest DP & Completion-frontier weights, initial-epoch price, and an invalidation-information separation\\
+Runtime correctness & Hash binding, fencing, trusted checkers & Executable realization and tests of invariance under learned-graph and layout errors\\
+Evaluation & Fault injection and replay & Upstream executable cases, direct timing, actual packets, and fresh confirmation after a negative pilot\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Model: Separate Advice from Acceptance}
+\subsection{Obligations and immutable candidate epochs}
+Let $\R=(g_0,\ldots,g_{n-1})$ be a nonempty, ordered, approved registry of executable obligations. An obligation is not an agent: one worker may discharge many checks, and an integration check may concern several workers. A candidate epoch has identity
+\begin{equation}
+ e=(\mathrm{epoch},\mathrm{snapshot},\mathrm{checker},\mathrm{environment},\mathrm{registry}).
+\end{equation}
+The snapshot fingerprint covers the frozen source manifest, including acceptance inputs. The checker and environment identities are recorded separately. In the local wrapper the operator first approves a contract on a trusted baseline; protected test and configuration hashes remain outside candidate write scopes.
+
+For each $g_i$, the trusted runner can submit a current outcome in $\{\PASS,\FAIL,\UNKNOWN\}$. Missing, timed-out, uncollected, incompatible, or untrusted evidence is unknown. A candidate is accepted only when the trusted predicate
+\begin{equation}\label{eq:accept}
+ A(e)=\ind\{\text{every }g_i\in\R\text{ has current, matching }\PASS\text{ evidence for }e\}
+\end{equation}
+holds. A fail permits early rejection, not an assertion that the remaining checks have been executed. A pass is relative to this registry, not a proof that arbitrary program behavior is correct.
+
+\subsection{The advisory intervention graph}
+A baseline profile records calls from tests to source files. Separately, each controlled intervention changes one AST site in a private source copy and executes the complete scoped suite. The observed failing test set is a hyperedge attached to that source-change descriptor. Since the unmodified baseline passes, the experiment establishes an effect of that particular intervention under that particular fixture. It does not establish a complete structural causal model, infer all future dependencies, or justify counterfactual conclusions about unobserved multi-file changes.
+
+The advisory graph maps a change descriptor to an ordering $\pi_e$, an exact permutation of $\R$. It can be learned incorrectly, lose edges, or encounter a new source. None of these events changes Equation~\eqref{eq:accept}. Cold-start fallback is a deterministic call-profile/cost ordering, with every remaining obligation retained in the tail. User-authored prose cannot submit trusted outcomes or rewrite the registry.
+
+\subsection{Bounded certificate interface}
+A certificate node covers a contiguous registry interval $I_v=[i,j]$. Its children must partition that interval without gaps or overlaps. A child card carries interval bounds, counts of pass/fail/unknown obligations, registry identity, input binding, and an evidence commitment. The kernel computes these values; they are not generated by an LLM. Individual logs and detailed failure traces remain in durable storage and are retrieved by identifier.
+
+An internal node with $d$ children emits a fixed-width packet of
+\begin{equation}\label{eq:packet}
+ c(d)=H+Sd,\qquad 2\le d\le b=\left\lfloor\frac{C-H}{S}\right\rfloor.
+\end{equation}
+The evaluated format uses $H=512$, $S=320$, and $C=3072$ bytes, so $b=8$. Overlong mandatory fields cause rejection rather than truncation. Bytes are not model tokens. The cap bounds one verification message; it does not bound every agent prompt, total project memory, total communication, or retrieval latency.
+
+\begin{proposition}[Soundness separation]\label{prop:safety}
+Assume (i) a complete approved registry, (ii) a trusted checker executing the identified immutable inputs, (iii) collision-resistant identity binding, and (iv) an atomic local epoch/ticket check. For any advisory graph, any complete test ordering, and any structurally valid certificate layout, authorization of a root pass implies Equation~\eqref{eq:accept}. Arbitrary changes to the advisory graph cannot create a false pass relative to the registry.
+\end{proposition}
+\begin{proof}
+A leaf can contribute a pass only through current trusted evidence matching its obligation and epoch. Every internal node sums the three counts of children whose intervals form an exact partition; induction therefore preserves both coverage and the meaning of each count. The root is authorized only for counts $(n,0,0)$ on the current registry and epoch. Changing the graph cannot manufacture a leaf outcome. Changing the layout must re-establish the same partition and commitments. The final local epoch check rejects a ticket invalidated by a concurrent change.\end{proof}
+
+The assumptions matter. An incomplete test suite, a compromised checker, nondeterministic behavior outside the recorded environment, or an unprotected external deployment can still invalidate an application-level correctness claim. Hashing an incorrect assertion does not make it true.
+
+\section{Completion-Frontier Optimization}
+\subsection{Why an invalidation set is insufficient}
+A strict new epoch invalidates all obligations. If an optimizer sees only that set, every candidate looks identical. In contrast, after test prioritization a failing candidate may need only a short executed prefix. During a successful candidate the same interval may become active repeatedly as its descendants finish. The useful workload unit is thus an \emph{ordered sequence of completion sets}, not a single initial invalidation set.
+
+\begin{definition}[Completion frontier]
+For epoch $e$, let $W_{e,1},\ldots,W_{e,K_e}$ be the nonempty sets of obligations whose final outcomes are submitted between consecutive certificate refreshes. A schedule and an outcome vector induce this sequence. The evaluated sequential harness stops at its first failed test and groups the executed prefix into waves of at most eight completed tests; it flushes the final partial wave. Other batching policies induce different sequences.
+\end{definition}
+
+A fresh strict epoch incurs one complete certificate construction, even when it fails immediately. With a tree $T$, its realized aggregation traffic is
+\begin{equation}\label{eq:realized}
+ L_e(T)=\sum_{v\in\operatorname{int}(T)}c(d_v)
+ +\sum_{k=1}^{K_e}\sum_{v\in\operatorname{int}(T)}
+ \ind\{W_{e,k}\cap I_v\ne\varnothing\}\,c(d_v).
+\end{equation}
+This charges internal aggregation packets, including initialization. It excludes raw test logs, source snapshots, transport framing, and model requests. We also measure actual serialized packet lengths to check the formula.
+
+Taking expectation gives the sufficient interval statistic
+\begin{align}
+ r(i,j)&=1+\E\left[\sum_{k=1}^{K_e}\ind\{W_{e,k}\cap[i,j]\ne\varnothing\}\right],\label{eq:weights}\\
+ J(T)&=\sum_{v\in\operatorname{int}(T)}r(I_v)c(d_v).\label{eq:objective}
+\end{align}
+Unlike an activation probability, $r(i,j)$ can exceed one. It includes repeated progress updates and the unconditional initialization cost. Replacing it with $\Prb(U_e\cap[i,j]\ne\varnothing)$ loses information even when the entire distribution of $U_e$ is known.
+
+\subsection{A strict information separation}
+\begin{theorem}[Joint invalidation does not determine optimal progressive layout]\label{thm:separation}
+Consider four ordered obligations, binary certificate trees, and internal packet price $c>0$. There exist two workloads with identical joint invalidation distributions for which the minimum frontier costs are $4c$ and $11c$, respectively, and the optimal tree families are disjoint. Any randomized selector given only the invalidation distribution has worst-case expected additive regret at least $c/2$. For deterministic selectors the bound is $c$.
+\end{theorem}
+\begin{proof}
+Every epoch invalidates $\{0,1,2,3\}$ and uses order $(0,1,2,3)$ with one completion per wave. In workload $A$, obligation 0 always fails, so only its wave is executed. A binary tree has three internal nodes; initialization costs $3c$. Its total cost is $(3+\operatorname{depth}(0))c$, minimized at $4c$ by making leaf 0 a child of the root. In workload $B$, obligation 3 always fails and all four checks execute. Its cost is $(3+\sum_i\operatorname{depth}(i))c$, minimized at $11c$ by the balanced tree. A root-0 comb has leaf-depth sum nine and costs $12c$ in $B$; the balanced tree costs $5c$ in $A$. The remaining ordered binary trees are weakly dominated by these choices. If the selector chooses a root-0 comb with probability $p$, the two regrets are at least $(1-p)c$ and $pc$. Their maximum is at least $c/2$, with equality at $p=1/2$. A deterministic choice incurs at least $c$ in one workload.\end{proof}
+
+\begin{table}[t]
+\centering\small
+\caption{The separation in units of $c$. Every row sees the same initial invalidation set. The table includes initialization, not only incremental updates.}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Tree family & Leaf depths & Workload A & Workload B & Maximum regret\\
+\midrule
+Root-0 comb & $(1,2,3,3)$ or $(1,3,3,2)$ & 4 & 12 & 1\\
+Balanced & $(2,2,2,2)$ & 5 & 11 & 1\\
+Other two ordered shapes & $(2,3,3,1)$ or $(3,3,2,1)$ & 5 or 6 & 12 & 1 or 2\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The result is deliberately narrow: it concerns the information supplied to a layout selector, not a universal impossibility for adaptive algorithms. A selector that observes completion outcomes has more information and is not covered by the lower bound.
+
+\subsection{Exact ordered-tree compilation}
+For a nonnegative interval matrix $r$, let $D(i,j)$ be the minimum cost of a subtree covering $[i,j]$. Leaves have $D(i,i)=0$. Let $F_k(i,j)$ be the minimum cost of an ordered forest of $k$ nonempty trees partitioning $[i,j]$. Using infeasibility value $+\infty$,
+\begin{align}
+ F_1(i,j)&=D(i,j),\\
+ F_k(i,j)&=\min_{m=i+k-2}^{j-1}\{F_{k-1}(i,m)+D(m+1,j)\},\quad k\ge2,\\
+ D(i,j)&=\min_{2\le k\le\min(b,j-i+1)}\{r(i,j)c(k)+F_k(i,j)\}.\label{eq:dp}
+\end{align}
+Intervals are processed by increasing length. The apparently circular $F_1=D$ term is only used on shorter intervals when building a forest with at least two components.
+
+\begin{proposition}[Exact compilation]\label{prop:dp}
+Equation~\eqref{eq:dp} returns an ordered tree minimizing Equation~\eqref{eq:objective} under the packet cap in Equation~\eqref{eq:packet}. It requires $O(bn^3)$ time and $O(bn^2)$ storage in the direct implementation. Empirical completion waves can replace the expectation without altering exactness for the empirical objective.
+\end{proposition}
+\begin{proof}
+Any feasible internal root has $k$ ordered children forming a contiguous partition. Its contribution depends only on the parent interval and $k$; remaining contributions are independent subtree costs. The forest recurrence enumerates every such partition. Induction on interval length therefore proves optimal substructure and exhaustive coverage. There are $O(bn^2)$ forest states, each scanning at most $n$ splits.\end{proof}
+
+This proof instantiates the classical alphabetic-tree template~\cite{alphabetic}. The research distinction lies in the workload statistic and the resulting separation, not in claiming a new generic DP. For numerical compatibility with the earlier optimizer, the code divides the empirical matrix by its maximum and rescales the optimum; a positive common scaling cannot change the minimizing tree. Leaf order is held fixed. We neither solve unrestricted graph partitioning nor jointly optimize all test schedules and tree shapes.
+
+\section{Learning and Conservative Adaptation}
+\subsection{Intervention-conditioned priority}
+The training dataset contains source descriptors $x_m$ and failing obligation sets $B_m$ from complete executions. For a candidate source $x$, retain matching nonempty failure sets. At each greedy step, select the remaining check that covers the largest number of still-uncovered training failure sets per baseline measured duration. Remove the covered sets and continue. Append all other obligations in a deterministic call-profile/cost order. If there are no matching failure sets, use the complete fallback order.
+
+The global-history ablation performs the same greedy operation without conditioning on $x$. The shortest-first ablation ignores both failure sets and source information. Baseline execution durations are floored at $10^{-4}$ seconds to avoid division by zero; nonfinite or negative inputs are rejected. Stable registry indices resolve ties. These choices are recorded before evaluating unseen mutations.
+
+This procedure does not produce a calibrated failure probability. Three training mutations in one source file can easily be unrepresentative. In particular, treating a missing edge as evidence that a check is irrelevant would be unsound. IC-HACT uses the graph only to decide \emph{what to check next}, not \emph{what need never be checked}.
+
+\subsection{Pooled and conditional layouts}
+Once the ranker is fixed, replay its ordering on training outcome vectors to obtain training completion waves. A pooled-frontier tree fits Equation~\eqref{eq:weights} across all training cases in a project. A more aggressive conditional variant fits a separate tree per source descriptor. Both use exactly the same acceptance semantics. The latter can reduce training cost but has fewer observations and a larger model family.
+
+Our pilot showed that conditional layouts could be substantially worse out of sample. Accordingly, the revised default is \emph{conditional priority plus a pooled-frontier layout}, with conditional layouts retained as an ablation. This decision used the development results. To avoid calling a post-selection result untouched test evidence, we subsequently froze 33 new, nonoverlapping mutation sites and left all models and serialized trees fixed for confirmation.
+
+\subsection{A sufficient holdout switching gate}
+Changing layouts has a price. Beyond initial construction already counted per epoch, a live system may need an additional reconstruction, announcement, and old-ticket revocation. Let $S_{\rm switch}$ be that measured cost in the same units as $L$. Suppose $K$ candidate plans are fixed before an independent validation sample of size $m$. Each incumbent and candidate episode cost lies in $[0,B]$. Let $\bar\Delta_j$ be paired mean savings for candidate $j$.
+
+\begin{proposition}[Conservative promotion]\label{prop:promotion}
+Under independent, identically distributed validation episodes and a stationary deployment distribution, with probability at least $1-\delta$, every fixed candidate has true expected savings at least
+\begin{equation}\label{eq:promotion}
+ \underline\Delta_j=\bar\Delta_j-B\sqrt{\frac{2\log(K/\delta)}{m}}.
+\end{equation}
+For an intended $h$-epoch horizon, $h\underline\Delta_j>S_{\rm switch}$ is a sufficient condition for positive expected net savings on the event above.
+\end{proposition}
+\begin{proof}
+The paired difference lies in $[-B,B]$, an interval of width $2B$. Applying the one-sided Hoeffding bound~\cite{hoeffding} and a union bound across $K$ fixed candidates gives Equation~\eqref{eq:promotion}. Multiplying expected per-epoch savings by $h$ and subtracting the switching price gives the final condition.\end{proof}
+
+This is a sufficient condition, not a guarantee that a small pilot permits adaptation. With few validation samples and a broad worst-case bound it can reject every switch. It is also not a drift-robust bound. If the workload shifts, the system should retain correctness through the strict gate, fall back conservatively, and collect a new held-out performance sample. Byte savings cannot be silently exchanged for latency savings; pricing time and bytes jointly requires an explicitly declared conversion.
+
+\begin{algorithm}[t]
+\caption{IC-HACT strict candidate verification}\label{alg:runtime}
+\begin{algorithmic}[1]
+\Require Approved registry and acceptance inputs; immutable candidate identity $e$; advisory model; valid bounded tree $T$
+\State Invalidate prior-epoch evidence; construct the complete unknown certificate tree
+\State Obtain an exact registry permutation $\pi$; reject any omission or duplicate
+\For{each check in $\pi$}
+  \State Execute the approved checker on the frozen candidate
+  \State Bind the final result to the obligation, epoch, checker, environment, and trace
+  \State Reject stale results; revoke authorization on conflicting same-epoch evidence
+  \If{a completion wave closes or a failed check ends the attempt}
+    \State Refresh only certificate ancestors intersecting the wave
+  \EndIf
+  \If{current trusted result is $\FAIL$}\State Return failure evidence; do not report remaining checks as complete\EndIf
+\EndFor
+\State Require complete current pass coverage and an atomic local epoch check
+\State Return a candidate-specific local authorization, not an external deployment action
+\end{algorithmic}
+\end{algorithm}
+
+\section{Executable Realization}
+The research artifact contains the original HACT kernel and tests, a frontier compiler, an intervention ranker, a pytest evidence recorder, an epoch guard, an executable strict wrapper, and independent analysis scripts. It vendors the exact source snapshots used in the experiments. No hosted LLM is required to reproduce these measurements.
+
+\paragraph{Trusted versus advisory components.}
+The ranker and fitted tree are advisory. A structurally invalid tree is rejected; a valid but poor tree can only increase cost. The recorder supplies setup, call, and teardown outcomes. A pass requires all three phases to pass; missing or skipped evidence remains unknown. The registry is collected and checked as an exact identity list. The protocol records source, checker, environment, and result fingerprints. These are local integrity bindings, not remote signatures.
+
+\paragraph{Concurrency and contradictory evidence.}
+Each submitted result carries an epoch token. A new candidate fences old tokens, including ABA transitions in which source bytes return to an earlier value. Exact delivery retries are idempotent. Conflicting results for the same obligation in one epoch revoke authorization and require a fresh epoch; a late pass cannot erase a recorded fail. A local lock protects evidence submission, root refresh, and ticket checks. The implementation does not lock an arbitrary external repository or provide a distributed transaction.
+
+\paragraph{Usable strict pytest wrapper.}
+The operator initializes an approved contract on a trusted baseline, stores it outside candidate write scopes, and verifies subsequent copies against it. The wrapper checks protected test/configuration hashes, rejects symbolic links, records a full source manifest, executes in a private copy, detects source changes during the run, and emits a fixed report plus actual certificate packets. It never deletes user source or performs a deployment. Private copying is not an OS sandbox: hostile candidate code requires a separately configured container or VM, restricted credentials, and a trusted checker boundary.
+
+\paragraph{Scope of the optimization.}
+The existing Future Code hierarchy is not replaced by this certificate tree. Tasks retain their own ownership and integration dependencies. The wrapper can serve as a candidate-stage verification component, but this artifact does not claim a completed production integration or a 512-live-agent deployment. In particular, the test registry size must not be relabeled as an agent count.
+
+\input{evaluation.tex}
+\input{discussion.tex}
+\input{references.tex}
+\appendix
+\input{appendices.tex}
+\end{document}

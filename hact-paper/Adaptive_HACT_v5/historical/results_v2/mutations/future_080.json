@@ -1,0 +1,3108 @@
+{
+  "collection_errors": [],
+  "command": [
+    "/opt/pyvenv/bin/python",
+    "-B",
+    "-m",
+    "pytest",
+    "-q",
+    "-p",
+    "ichact.pytest_probe",
+    "-p",
+    "pytest_asyncio.plugin",
+    "--tb=short",
+    "tests/test_contracts.py",
+    "tests/test_store.py",
+    "tests/test_contract_first.py",
+    "tests/test_coordination.py",
+    "tests/test_coordination_edges.py",
+    "tests/test_hierarchy_contract.py"
+  ],
+  "end_to_end_seconds": 2.8938380199999756,
+  "executed": [
+    "tests/test_contracts.py::test_bad_paths[../x]",
+    "tests/test_contracts.py::test_bad_paths[/tmp/x]",
+    "tests/test_contracts.py::test_bad_paths[C:\\\\x]",
+    "tests/test_contracts.py::test_bad_paths[a/../../b]",
+    "tests/test_contracts.py::test_bad_paths[]",
+    "tests/test_contracts.py::test_bad_paths[.]",
+    "tests/test_contracts.py::test_bad_paths[a\\x00b]",
+    "tests/test_contracts.py::test_bad_paths[a\\\\b]",
+    "tests/test_contracts.py::test_bad_paths[C:x]",
+    "tests/test_contracts.py::test_secret_paths[.env]",
+    "tests/test_contracts.py::test_secret_paths[src/.env.prod]",
+    "tests/test_contracts.py::test_secret_paths[deepseek.env]",
+    "tests/test_contracts.py::test_secret_paths[.git/config]",
+    "tests/test_contracts.py::test_secret_paths[keys/key.pem]",
+    "tests/test_contracts.py::test_secret_paths[.future-code/config.json]",
+    "tests/test_contracts.py::test_secret_paths[.ssh/id_rsa]",
+    "tests/test_contracts.py::test_scope_overlap_is_component_based",
+    "tests/test_contracts.py::test_invalid_task_contract[changes0]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes1]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes2]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes3]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes4]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes5]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes6]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes7]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes8]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes9]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes10]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes11]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes12]",
+    "tests/test_contracts.py::test_task_roundtrip_and_unknown_key",
+    "tests/test_contracts.py::test_bad_config[changes0]",
+    "tests/test_contracts.py::test_bad_config[changes1]",
+    "tests/test_contracts.py::test_bad_config[changes2]",
+    "tests/test_contracts.py::test_bad_config[changes3]",
+    "tests/test_contracts.py::test_bad_config[changes4]",
+    "tests/test_contracts.py::test_bad_config[changes5]",
+    "tests/test_contracts.py::test_bad_config[changes6]",
+    "tests/test_contracts.py::test_bad_config[changes7]",
+    "tests/test_contracts.py::test_bad_config[changes8]",
+    "tests/test_contracts.py::test_bad_config[changes9]",
+    "tests/test_contracts.py::test_bad_config[changes10]",
+    "tests/test_contracts.py::test_config_roundtrip_and_write_gating",
+    "tests/test_contracts.py::test_protected_gates_and_reviewer",
+    "tests/test_contracts.py::test_bad_endpoint[changes0]",
+    "tests/test_contracts.py::test_bad_endpoint[changes1]",
+    "tests/test_contracts.py::test_bad_endpoint[changes2]",
+    "tests/test_contracts.py::test_bad_endpoint[changes3]",
+    "tests/test_contracts.py::test_bad_endpoint[changes4]",
+    "tests/test_contracts.py::test_bad_endpoint[changes5]",
+    "tests/test_contracts.py::test_bad_endpoint[changes6]",
+    "tests/test_contracts.py::test_gate_validation",
+    "tests/test_store.py::test_dag_order_and_parallel_scopes",
+    "tests/test_store.py::test_priority_bug_fix_first",
+    "tests/test_store.py::test_atomic_graph_rejection",
+    "tests/test_store.py::test_expired_worker_fencing",
+    "tests/test_store.py::test_cancel_parent_and_children_fences_workers",
+    "tests/test_store.py::test_messages_persist_and_validate",
+    "tests/test_store.py::test_pause_retry_and_failed_dependency",
+    "tests/test_store.py::test_transport_does_not_burn_code_attempts",
+    "tests/test_store.py::test_attempt_limit_and_issue_resolution",
+    "tests/test_store.py::test_runtime_singleton_and_expiry",
+    "tests/test_store.py::test_budget_atomic_across_connections",
+    "tests/test_store.py::test_schema_rejects_newer_state",
+    "tests/test_store.py::test_delegation_cycle_rolls_back",
+    "tests/test_contract_first.py::test_path_escape_rejected",
+    "tests/test_contract_first.py::test_task_cycle_rejected_atomically",
+    "tests/test_contract_first.py::test_unknown_health_is_not_success",
+    "tests/test_contract_first.py::test_scope_lease_serializes_writers",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[1-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[2-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[3-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[8-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[9-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[16-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[63-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[512-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[4096-8]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs0]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs1]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs2]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs3]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs4]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs5]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs6]",
+    "tests/test_coordination.py::test_hierarchy_rejects_excess_depth_cycles_duplicates_and_existing_parents",
+    "tests/test_coordination.py::test_parent_graph_cycle_and_missing_parent_rejected_atomically",
+    "tests/test_coordination.py::test_scoped_board_pages_are_stable_and_prevent_unrelated_reads",
+    "tests/test_coordination.py::test_cross_cell_dependencies_are_explicit_allowed_edges",
+    "tests/test_coordination.py::test_mailbox_scope_capacity_utf8_and_terminal_recipient",
+    "tests/test_coordination.py::test_notes_are_replace_only_versioned_fenced_and_bounded",
+    "tests/test_coordination.py::test_delivery_cursor_validates_recipient_and_cannot_move_backwards",
+    "tests/test_coordination.py::test_byte_fuzzer_and_omission_accounting",
+    "tests/test_coordination.py::test_huge_unused_gate_registry_does_not_enter_context",
+    "tests/test_coordination.py::test_fair_share_limits_active_siblings_without_losing_global_bug_priority",
+    "tests/test_coordination.py::test_rollups_count_leaves_once_not_cross_dependency_edges",
+    "tests/test_coordination.py::test_v1_database_migration_preserves_tasks_and_events",
+    "tests/test_coordination.py::test_readonly_status_can_read_legacy_database_without_migration",
+    "tests/test_coordination.py::test_dynamic_tree_85_tasks_rehydrates_local_managers",
+    "tests/test_coordination.py::test_working_note_survives_yield_but_old_transcript_does_not",
+    "tests/test_coordination.py::test_pending_mail_is_not_acknowledged_on_failed_request",
+    "tests/test_coordination.py::test_results_and_inbox_tools_are_exercised_in_actual_worker",
+    "tests/test_coordination.py::test_new_status_schema_has_fixed_tables_with_measured_context",
+    "tests/test_coordination.py::test_cli_hierarchy_submission",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields0]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields1]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields2]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields3]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields4]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields5]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[artifacts]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[evidence]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[uncertainties]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[summary]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[bad-]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence--1]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence-abc]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[summary-999999999]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[uncertainties-\\u0661]",
+    "tests/test_coordination_edges.py::test_large_observation_is_really_retained_and_hash_matches",
+    "tests/test_coordination_edges.py::test_http_byte_ceiling_rejects_before_request_and_reservation",
+    "tests/test_coordination_edges.py::test_command_byte_ceiling_rejects_before_subprocess",
+    "tests/test_coordination_edges.py::test_atomic_admission_cannot_exceed_children_across_multiple_batches",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[0-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[2-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[1-0]",
+    "tests/test_coordination_edges.py::test_daemon_rejects_manually_oversized_cells_before_model_call",
+    "tests/test_coordination_edges.py::test_selective_descendant_reads_do_not_grant_broadcast_or_cross_tree_read",
+    "tests/test_coordination_edges.py::test_recorded_gate_details_are_bounded_and_missing_evidence_is_unknown",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields0]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields1]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields2]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields3]",
+    "tests/test_coordination_edges.py::test_finish_cannot_skip_an_undelivered_mailbox_page",
+    "tests/test_hierarchy_contract.py::test_512_leaves_have_bounded_recursive_fanout",
+    "tests/test_hierarchy_contract.py::test_delegation_does_not_consume_failure_attempt_and_fanout_is_cumulative",
+    "tests/test_hierarchy_contract.py::test_utf8_bound_and_contract_preservation",
+    "tests/test_hierarchy_contract.py::test_scoped_board_has_no_global_transcript"
+  ],
+  "exitstatus": 1,
+  "failfast": false,
+  "mutant_sha256_observed": "6c4ea37ac81d3329fbd81030121ad20c072f547baa22b3de8e4be1afcd1ef8e7",
+  "mutation": {
+    "base_sha256": "336660db7093d7e324311aa1cdf76195540d259f5d3aa5b8decec4ab8f114751",
+    "id": "future_080",
+    "kind": "arithmetic_replacement",
+    "line": 195,
+    "mutant_sha256": "6c4ea37ac81d3329fbd81030121ad20c072f547baa22b3de8e4be1afcd1ef8e7",
+    "project": "future",
+    "replacement": "('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns)))",
+    "source": "src/future_code/reporting.py",
+    "source_file": "results/mutants/future_080.py",
+    "span": [
+      15529,
+      15608
+    ],
+    "split": "train"
+  },
+  "package_origins": {
+    "future_code": "/mnt/data/hact_revision/ichact-oyfruxhx/project/src/future_code/__init__.py",
+    "networkx": null,
+    "toolz": null
+  },
+  "profiled": false,
+  "project": "future",
+  "pytest_wall_seconds": 1.443959717000041,
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "records": {
+    "tests/test_contract_first.py::test_path_escape_rejected": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.026599997241647e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0005050050000363626
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.049599997164478e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0008702670000388935
+    },
+    "tests/test_contract_first.py::test_scope_lease_serializes_writers": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.002619265000021187
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0008334710000212908
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00010836399997060653
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0038132719999453
+    },
+    "tests/test_contract_first.py::test_task_cycle_rejected_atomically": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0016412550000381998
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.000439314999994167
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 9.839899996677559e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0023606729999983145
+    },
+    "tests/test_contract_first.py::test_unknown_health_is_not_success": {
+      "dependencies": [],
+      "failure": "tests/test_contract_first.py:28: in test_unknown_health_is_not_success\n    assert \"UNKNOWN\" in render_markdown(data)\n                        ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0030856899999776033
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0005190649999917696
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0001373279999938859
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.030126150999990386
+    },
+    "tests/test_contracts.py::test_bad_config[changes0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0001270920000138176
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.038700000019162e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.4047000017144455e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00038266899997552173
+    },
+    "tests/test_contracts.py::test_bad_config[changes10]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.974999999760257e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.640600001148414e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.15330000009817e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003659930000026179
+    },
+    "tests/test_contracts.py::test_bad_config[changes1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.63710000089668e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00010083299997631912
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.3545999972138816e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00038351000000602653
+    },
+    "tests/test_contracts.py::test_bad_config[changes2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00012515000003077148
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.77129999707904e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.5268999997460924e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00038246899998739536
+    },
+    "tests/test_contracts.py::test_bad_config[changes3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0001262110000084249
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.664099999577957e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.589899998563851e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003864450000037323
+    },
+    "tests/test_contracts.py::test_bad_config[changes4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.404200000062701e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00013261099996952908
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.5859000010750606e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0006597089999900163
+    },
+    "tests/test_contracts.py::test_bad_config[changes5]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0001795320000042011
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001410229999692092
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.4692999981398316e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0005321349999576341
+    },
+    "tests/test_contracts.py::test_bad_config[changes6]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.370699998749842e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.849899998926048e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.424700000527082e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003609159999768963
+    },
+    "tests/test_contracts.py::test_bad_config[changes7]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00013833899998871857
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.20690000043578e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.9644999990050565e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0004120840000041426
+    },
+    "tests/test_contracts.py::test_bad_config[changes8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.093299999245573e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.32610000177192e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.208400002880808e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003420680000090215
+    },
+    "tests/test_contracts.py::test_bad_config[changes9]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.22390000255291e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.931499996833736e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.130300004590026e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003446709999934683
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.976099999496e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00011384200001884892
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.553899998427369e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00040838799998255126
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.362200000216035e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00010155399996847336
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.3966000021100626e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003764699999919685
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.036599998855309e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.039700000812445e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.1792999979861634e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00032609300001240626
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.574999997610576e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.624999998119165e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.800299996712056e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003400449999730881
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.113300003107724e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.567500001139706e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.285500000378306e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00032302900001468515
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes5]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00011990099994818593
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.478900002728551e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.479799997625378e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00037050100002034014
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes6]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.466300002713979e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.950599999479891e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.747200000565499e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00035639999998693384
+    },
+    "tests/test_contracts.py::test_bad_paths[../x]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00011839900002996728
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00031838199998901473
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.387199997310745e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0009183800000300835
+    },
+    "tests/test_contracts.py::test_bad_paths[.]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.133300001920361e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.517899999560541e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.9649999962421134e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003006549999895469
+    },
+    "tests/test_contracts.py::test_bad_paths[/tmp/x]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.0757000003141e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00011392200002546815
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.992499998479616e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00039280400000052396
+    },
+    "tests/test_contracts.py::test_bad_paths[C:\\\\x]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.8147999993707344e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.76580000155991e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.207399996403183e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003231200000186618
+    },
+    "tests/test_contracts.py::test_bad_paths[C:x]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.0486000020555366e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.460799995191337e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.011099997569545e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00028536199999962264
+    },
+    "tests/test_contracts.py::test_bad_paths[]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.3760999946916854e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.050699998169875e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.117200001019228e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00030759499998112005
+    },
+    "tests/test_contracts.py::test_bad_paths[a/../../b]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.647100002510342e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00013165899997602537
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.3134999998528656e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00036505200000647164
+    },
+    "tests/test_contracts.py::test_bad_paths[a\\\\b]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.115700002988888e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.376699997825199e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.985099999681552e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00028828699998939555
+    },
+    "tests/test_contracts.py::test_bad_paths[a\\x00b]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.705600000283084e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.648600001810337e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.059200000483543e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000338032000001931
+    },
+    "tests/test_contracts.py::test_config_roundtrip_and_write_gating": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0008109980000199357
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0025265440000339368
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00010452899999791043
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00362178200003882
+    },
+    "tests/test_contracts.py::test_gate_validation": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.462800001827418e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.762200001096062e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.7195999993855366e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00026539199996022944
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.646099996667544e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.659100001295883e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.8493000008420495e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003626889999850391
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes10]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.235400002196911e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.500899997443412e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.218399999444955e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00030294900000171765
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes11]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.768699998043303e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.553899999697023e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.942900002584793e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0002928640000163796
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes12]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.13679999712258e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.388699995975912e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.3715999993310106e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00033629899996867607
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.709100000534818e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.583999999700609e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.086199999164819e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00031138200000668803
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.03670000348211e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.425699996905678e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.3635999986690877e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003116420000424114
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.270999998989282e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.362599999145459e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.466699999738921e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00033969399999023153
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.0060999999222986e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.343600001126106e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.912900001523667e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0002984010000091075
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes5]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.339599997318146e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001226960000053623
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.039100002728446e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003422180000143271
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes6]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00010481900000058886
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.31360000006498e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.3615999970825214e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000349628999970264
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes7]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.156300003112847e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.43980000126976e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.967999998621963e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00029633799999828625
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.0641999994004436e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.001600000146937e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.085199998371536e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003038899999978639
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes9]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.430199997950695e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.42970000007881e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.184400000895039e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00033724100001109036
+    },
+    "tests/test_contracts.py::test_protected_gates_and_reviewer": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00013508500001080392
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001504080000245267
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.828299995551788e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000492555999983324
+    },
+    "tests/test_contracts.py::test_scope_overlap_is_component_based": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.7246999972448975e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.574899998033288e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.5373999992316385e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0002466029999936836
+    },
+    "tests/test_contracts.py::test_secret_paths[.env]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.869400004916315e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00021545599997807585
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.383699996424184e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00045737199997120115
+    },
+    "tests/test_contracts.py::test_secret_paths[.future-code/config.json]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.303499998874031e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.082200002945683e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.289499997867097e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00032151700003169026
+    },
+    "tests/test_contracts.py::test_secret_paths[.git/config]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.696699997770338e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.87250000118911e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.103200001281948e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003046510000217495
+    },
+    "tests/test_contracts.py::test_secret_paths[.ssh/id_rsa]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.333100000370905e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.514900002865033e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.954999999677966e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0002905899999632311
+    },
+    "tests/test_contracts.py::test_secret_paths[deepseek.env]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00010532900000725931
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.91849999788974e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.663999999365842e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003721129999689765
+    },
+    "tests/test_contracts.py::test_secret_paths[keys/key.pem]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.6185000005370966e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.376699997825199e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.9829999991525256e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00029204200001231584
+    },
+    "tests/test_contracts.py::test_secret_paths[src/.env.prod]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.623000001582113e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00012611099998594
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.19939999574126e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00036754699999619334
+    },
+    "tests/test_contracts.py::test_task_roundtrip_and_unknown_key": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00016938700002810947
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.639999997380073e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.03710000114188e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00037620999995624516
+    },
+    "tests/test_coordination.py::test_byte_fuzzer_and_omission_accounting": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.11836642699995537
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 7.19189999927039e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 8.957599999348531e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.11888160799998104
+    },
+    "tests/test_coordination.py::test_cli_hierarchy_submission": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.007725042999993548
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0007048069999768813
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00011413199996468393
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.008836586000029456
+    },
+    "tests/test_coordination.py::test_cross_cell_dependencies_are_explicit_allowed_edges": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0018409670000210099
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002155673000004299
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00038077599998587175
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0046242600000141465
+    },
+    "tests/test_coordination.py::test_delivery_cursor_validates_recipient_and_cannot_move_backwards": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0010268939999491522
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0021405899999535904
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00032943899998372217
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0037875030000122933
+    },
+    "tests/test_coordination.py::test_dynamic_tree_85_tasks_rehydrates_local_managers": {
+      "dependencies": [],
+      "failure": "src/future_code/runtime.py:233: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'\n\nDuring handling of the above exception, another exception occurred:\ntests/test_coordination.py:238: in test_dynamic_tree_85_tasks_rehydrates_local_managers\n    result=await Supervisor(tmp_path,config,backend=backend).run(until_idle=True)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/runtime.py:256: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.00599429300001475
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0007925490000388891
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0005219999999894753
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.03446568900000102
+    },
+    "tests/test_coordination.py::test_fair_share_limits_active_siblings_without_losing_global_bug_priority": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.003161195000018324
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0020266679999849657
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0003840409999611438
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.005906961999983196
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[1-2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00033375599997498284
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00018201599999656537
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.952000003617286e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0008108480000146301
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[16-4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.001181527999960963
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00013104900000371345
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.7566999998925894e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00152801299998373
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[2-2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00024647300000424366
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00015134900002067297
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.208900000752692e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0006159019999927295
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[3-2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00035960400003887116
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001294460000167419
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.274000000099477e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0007009109999671637
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[4096-8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.35177452700003187
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0003248419999977159
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00012216499999340158
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.3526263060000474
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[512-8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.04483968699997831
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00015604600002916413
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0001312489999918398
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.04547407799998382
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[63-4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.004136050999989038
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00017205099999273443
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.220400001666349e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004545750999966458
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[8-8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0005528570000024047
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001679249999710919
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.3862000015669764e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0009204730000078598
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[9-8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0006527880000248842
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00014669200004391314
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.315999999311316e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0010015859999725762
+    },
+    "tests/test_coordination.py::test_hierarchy_rejects_excess_depth_cycles_duplicates_and_existing_parents": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0002513400000339061
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 5.090700000209836e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.910999998879561e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00047161399999140485
+    },
+    "tests/test_coordination.py::test_huge_unused_gate_registry_does_not_enter_context": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.006508560999975543
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.43980000126976e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.916999999224572e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0069953080000004775
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00011434300000701114
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00023049899999705303
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.3931000024931564e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0006605599999716105
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.67919999905098e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00013345200000003388
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.6269999984360766e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00044303099997478057
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.878899998559064e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001400720000219735
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.359600001180297e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00041407700001627745
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00011298100002932188
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.307099998068225e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.967500001384906e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0005160319999504281
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.693600002767198e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00014156399998910274
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.443800003173237e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0004094600000144055
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs5]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.450699999049903e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.985600004507432e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.129299998112401e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00031846199999563396
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs6]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.281500003524343e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.547900000621667e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.012099998362828e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003040500000111024
+    },
+    "tests/test_coordination.py::test_mailbox_scope_capacity_utf8_and_terminal_recipient": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0031305989999736994
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0023718799999983275
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00040296000003081645
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.006238263000000188
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00011340099996459685
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00015007799999011695
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.9654999997983396e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000499666999985493
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.818300000257295e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00010168399995791333
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.529900002125942e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003975019999984397
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.565399999975853e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.643599997843921e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.365600000255654e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003454829999895992
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.150900000851834e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.070800001609314e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.063099999029873e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00032811700003776423
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.243999999673179e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.748799999442781e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.2134000011628814e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00035884299995814217
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields5]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.675699999434073e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.89340000185257e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.3806999997286766e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00035597900000539084
+    },
+    "tests/test_coordination.py::test_new_status_schema_has_fixed_tables_with_measured_context": {
+      "dependencies": [],
+      "failure": "src/future_code/runtime.py:233: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'\n\nDuring handling of the above exception, another exception occurred:\ntests/test_coordination.py:298: in test_new_status_schema_has_fixed_tables_with_measured_context\n    await Supervisor(tmp_path,config,backend=ScriptBackend()).run(until_idle=True)\nsrc/future_code/runtime.py:256: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.008147563000022728
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0007998909999855641
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0003845619999651717
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.03543868299999531
+    },
+    "tests/test_coordination.py::test_notes_are_replace_only_versioned_fenced_and_bounded": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0007503460000179984
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002298288999952547
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00032594399999652524
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0037260400000036498
+    },
+    "tests/test_coordination.py::test_parent_graph_cycle_and_missing_parent_rejected_atomically": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00025224199998774566
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0027356499999768857
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00030252799996333124
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0035056359999998676
+    },
+    "tests/test_coordination.py::test_pending_mail_is_not_acknowledged_on_failed_request": {
+      "dependencies": [],
+      "failure": "src/future_code/runtime.py:233: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'\n\nDuring handling of the above exception, another exception occurred:\ntests/test_coordination.py:273: in test_pending_mail_is_not_acknowledged_on_failed_request\n    result=await Supervisor(tmp_path,config,backend=backend).run(until_idle=True)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/runtime.py:256: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.007820286999958626
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0007793700000320314
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00038668599995617114
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.036700812999981736
+    },
+    "tests/test_coordination.py::test_readonly_status_can_read_legacy_database_without_migration": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.002726155999994262
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0003650730000117619
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.218899997951667e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003423702000020512
+    },
+    "tests/test_coordination.py::test_results_and_inbox_tools_are_exercised_in_actual_worker": {
+      "dependencies": [],
+      "failure": "src/future_code/runtime.py:233: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'\n\nDuring handling of the above exception, another exception occurred:\ntests/test_coordination.py:291: in test_results_and_inbox_tools_are_exercised_in_actual_worker\n    result=await Supervisor(tmp_path,config,backend=backend).run(until_idle=True)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/runtime.py:256: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.007131074000028548
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.000767151000047761
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0004065749999995205
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.04155897700002242
+    },
+    "tests/test_coordination.py::test_rollups_count_leaves_once_not_cross_dependency_edges": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0023646800000278745
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0017552570000134438
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0003142260000004171
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004744080999955713
+    },
+    "tests/test_coordination.py::test_scoped_board_pages_are_stable_and_prevent_unrelated_reads": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0024025269999583543
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0020888419999778307
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00035562900001195885
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.005084006000004138
+    },
+    "tests/test_coordination.py::test_v1_database_migration_preserves_tasks_and_events": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.002453314000035789
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0004911330000254566
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.714200003443693e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0032598440000128903
+    },
+    "tests/test_coordination.py::test_working_note_survives_yield_but_old_transcript_does_not": {
+      "dependencies": [],
+      "failure": "src/future_code/runtime.py:233: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'\n\nDuring handling of the above exception, another exception occurred:\ntests/test_coordination.py:260: in test_working_note_survives_yield_but_old_transcript_does_not\n    result=await Supervisor(tmp_path,config,backend=backend).run(until_idle=True)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/runtime.py:256: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.006986715000039112
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.001751361000003726
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00043747199998733777
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.03874618899999405
+    },
+    "tests/test_coordination_edges.py::test_atomic_admission_cannot_exceed_children_across_multiple_batches": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0005432020000171178
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002585152999984075
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00026989799999910247
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0036575359999915236
+    },
+    "tests/test_coordination_edges.py::test_command_byte_ceiling_rejects_before_subprocess": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0003611759999557762
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0029865509999922324
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0004521849999719052
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004085615000008147
+    },
+    "tests/test_coordination_edges.py::test_daemon_rejects_manually_oversized_cells_before_model_call": {
+      "dependencies": [],
+      "failure": "src/future_code/runtime.py:182: in run\n    self.db.validate_ownership_limits(specs, max_children=self.config.max_children,\nsrc/future_code/store.py:230: in validate_ownership_limits\n    raise ContractError(\"Task graph exceeds lifetime direct-child ceiling\")\nE   future_code.contracts.ContractError: Task graph exceeds lifetime direct-child ceiling\n\nDuring handling of the above exception, another exception occurred:\ntests/test_coordination_edges.py:119: in test_daemon_rejects_manually_oversized_cells_before_model_call\n    await Supervisor(tmp_path,config,backend=backend).run(until_idle=True)\nsrc/future_code/runtime.py:256: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.007529486999999335
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0013175750000300468
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00036170800001400494
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.03978994899995314
+    },
+    "tests/test_coordination_edges.py::test_finish_cannot_skip_an_undelivered_mailbox_page": {
+      "dependencies": [],
+      "failure": "src/future_code/runtime.py:233: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'\n\nDuring handling of the above exception, another exception occurred:\ntests/test_coordination_edges.py:172: in test_finish_cannot_skip_an_undelivered_mailbox_page\n    result=await Supervisor(tmp_path,config,backend=backend).run(until_idle=True)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/runtime.py:256: in run\n    write_reports(self.control / \"reports\", snapshot(self.db))\nsrc/future_code/reporting.py:233: in write_reports\n    atomic_write(directory / \"STATUS.md\", render_markdown(data).encode())\n                                          ^^^^^^^^^^^^^^^^^^^^^\nsrc/future_code/reporting.py:195: in render_markdown\n    parts.append(('| ' - ' | '.join((markdown_cell(row.get(key, 'UNKNOWN')) for key, _ in columns))) + \" |\")\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   TypeError: unsupported operand type(s) for -: 'str' and 'str'",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.013217827999994824
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.001148011999987375
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0003657739999880505
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.05225178699998878
+    },
+    "tests/test_coordination_edges.py::test_http_byte_ceiling_rejects_before_request_and_reservation": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0006824829999914073
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0035109140000031402
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00046636600001193074
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.005073870000046554
+    },
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[bad-]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0008100770000396551
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0017348259999607762
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0003211759999999231
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0031131229999914467
+    },
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence--1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0006354420000320715
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0017271039999968707
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002873550000117575
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0028556830000070477
+    },
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence-abc]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0005872689999932845
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0018407959999535706
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00028027499996596816
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0029094729999883384
+    },
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[summary-999999999]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.000696084000026076
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0017292780000275343
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00029412499998215935
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.002944457000012335
+    },
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[uncertainties-\\u0661]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0005242340000108925
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002091124999992644
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00028806599999597893
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0031659619999686583
+    },
+    "tests/test_coordination_edges.py::test_large_observation_is_really_retained_and_hash_matches": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.012704890999998497
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0034710240000208614
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0006318660000488308
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.017145312000025115
+    },
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0008109770000146455
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002626535999979751
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00029478599998356003
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004016279000040868
+    },
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0005039929999952619
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0027649360000054912
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00028452099996911784
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0037971679999486696
+    },
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0007181469999864021
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0028241040000125395
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002816470000084337
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004072272999962934
+    },
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00048445299995591995
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00275832500000206
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00028085500002816843
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0037719499999866457
+    },
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[0-2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00023455500002000917
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00271890499999472
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0011124540000082561
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004357046000052378
+    },
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[1-0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00032661500000585875
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002819356999964384
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0005321059999801037
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003972292000014477
+    },
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[2-2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0002861229999666648
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0027705740000101287
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00026687399997626926
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0036095439999712653
+    },
+    "tests/test_coordination_edges.py::test_recorded_gate_details_are_bounded_and_missing_evidence_is_unknown": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0010410460000116473
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0028806010000153037
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0003307199999653676
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004535474999954658
+    },
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[artifacts]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.001735356999972737
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.001767645999962042
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002662429999986671
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004004070000007687
+    },
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[evidence]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0020918669999900885
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0017371289999914552
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00029911299998275354
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004339678999997432
+    },
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[summary]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0008166259999597969
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0017480160000218348
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.000292452999985926
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003075034999994841
+    },
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[uncertainties]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.001669235999997909
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.001738041000010071
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00027235199996766823
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003919221999979072
+    },
+    "tests/test_coordination_edges.py::test_selective_descendant_reads_do_not_grant_broadcast_or_cross_tree_read": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.003130327999997462
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0029493540000089524
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0004040620000296258
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.006849106999993637
+    },
+    "tests/test_hierarchy_contract.py::test_512_leaves_have_bounded_recursive_fanout": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.022051518000012038
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00016095399996629567
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00016968700003872073
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.023018032000038602
+    },
+    "tests/test_hierarchy_contract.py::test_delegation_does_not_consume_failure_attempt_and_fanout_is_cumulative": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.001780865000000631
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.004774787999963337
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0004489700000362973
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.007410106000008909
+    },
+    "tests/test_hierarchy_contract.py::test_scoped_board_has_no_global_transcript": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0025084760000027018
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.003762996000034491
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0008069820000287109
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0073769360000142115
+    },
+    "tests/test_hierarchy_contract.py::test_utf8_bound_and_contract_preservation": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0010858130000315214
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00010138300001472089
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.872899999483707e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0015577479999819843
+    },
+    "tests/test_store.py::test_atomic_graph_rejection": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00039094199996725365
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0022056579999798487
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002685369999539944
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003072922000001199
+    },
+    "tests/test_store.py::test_attempt_limit_and_issue_resolution": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0009260220000442132
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002399851999996372
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00032511199998452867
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0038592820000076244
+    },
+    "tests/test_store.py::test_budget_atomic_across_connections": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.02543078400003651
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0005838839999796619
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.815800000798845e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.026324016000046413
+    },
+    "tests/test_store.py::test_cancel_parent_and_children_fences_workers": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.001083860999983699
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002331749999996191
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002865040000301633
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003909908000025553
+    },
+    "tests/test_store.py::test_dag_order_and_parallel_scopes": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0010980520000316574
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.003182057000003624
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0004179320000048392
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00520895400001109
+    },
+    "tests/test_store.py::test_delegation_cycle_rolls_back": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.000660650000043006
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0025507109999693967
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0003132049999976516
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0037435959999925217
+    },
+    "tests/test_store.py::test_expired_worker_fencing": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0009326219999934438
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0021952529999680337
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00030677500001274893
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0036852490000001126
+    },
+    "tests/test_store.py::test_messages_persist_and_validate": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0008401719999824309
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0027347500000018954
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.001023860000032073
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004826965999995991
+    },
+    "tests/test_store.py::test_pause_retry_and_failed_dependency": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0008349039999870911
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002484921000018403
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00028353900000865906
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0038818159999891577
+    },
+    "tests/test_store.py::test_priority_bug_fix_first": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0005120850000253085
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0030586699999730627
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0003025479999791969
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004088889999991352
+    },
+    "tests/test_store.py::test_runtime_singleton_and_expiry": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0025064129999918805
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0005870979999826886
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.242400002065551e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0033556689999727496
+    },
+    "tests/test_store.py::test_schema_rejects_newer_state": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0022262490000457547
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0005242539999699147
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.563899995626343e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0030935219999719266
+    },
+    "tests/test_store.py::test_transport_does_not_burn_code_attempts": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0006100439999841001
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0027743689999510934
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002938850000191451
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003881825000007666
+    }
+  },
+  "registry": [
+    "tests/test_contracts.py::test_bad_paths[../x]",
+    "tests/test_contracts.py::test_bad_paths[/tmp/x]",
+    "tests/test_contracts.py::test_bad_paths[C:\\\\x]",
+    "tests/test_contracts.py::test_bad_paths[a/../../b]",
+    "tests/test_contracts.py::test_bad_paths[]",
+    "tests/test_contracts.py::test_bad_paths[.]",
+    "tests/test_contracts.py::test_bad_paths[a\\x00b]",
+    "tests/test_contracts.py::test_bad_paths[a\\\\b]",
+    "tests/test_contracts.py::test_bad_paths[C:x]",
+    "tests/test_contracts.py::test_secret_paths[.env]",
+    "tests/test_contracts.py::test_secret_paths[src/.env.prod]",
+    "tests/test_contracts.py::test_secret_paths[deepseek.env]",
+    "tests/test_contracts.py::test_secret_paths[.git/config]",
+    "tests/test_contracts.py::test_secret_paths[keys/key.pem]",
+    "tests/test_contracts.py::test_secret_paths[.future-code/config.json]",
+    "tests/test_contracts.py::test_secret_paths[.ssh/id_rsa]",
+    "tests/test_contracts.py::test_scope_overlap_is_component_based",
+    "tests/test_contracts.py::test_invalid_task_contract[changes0]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes1]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes2]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes3]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes4]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes5]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes6]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes7]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes8]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes9]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes10]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes11]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes12]",
+    "tests/test_contracts.py::test_task_roundtrip_and_unknown_key",
+    "tests/test_contracts.py::test_bad_config[changes0]",
+    "tests/test_contracts.py::test_bad_config[changes1]",
+    "tests/test_contracts.py::test_bad_config[changes2]",
+    "tests/test_contracts.py::test_bad_config[changes3]",
+    "tests/test_contracts.py::test_bad_config[changes4]",
+    "tests/test_contracts.py::test_bad_config[changes5]",
+    "tests/test_contracts.py::test_bad_config[changes6]",
+    "tests/test_contracts.py::test_bad_config[changes7]",
+    "tests/test_contracts.py::test_bad_config[changes8]",
+    "tests/test_contracts.py::test_bad_config[changes9]",
+    "tests/test_contracts.py::test_bad_config[changes10]",
+    "tests/test_contracts.py::test_config_roundtrip_and_write_gating",
+    "tests/test_contracts.py::test_protected_gates_and_reviewer",
+    "tests/test_contracts.py::test_bad_endpoint[changes0]",
+    "tests/test_contracts.py::test_bad_endpoint[changes1]",
+    "tests/test_contracts.py::test_bad_endpoint[changes2]",
+    "tests/test_contracts.py::test_bad_endpoint[changes3]",
+    "tests/test_contracts.py::test_bad_endpoint[changes4]",
+    "tests/test_contracts.py::test_bad_endpoint[changes5]",
+    "tests/test_contracts.py::test_bad_endpoint[changes6]",
+    "tests/test_contracts.py::test_gate_validation",
+    "tests/test_store.py::test_dag_order_and_parallel_scopes",
+    "tests/test_store.py::test_priority_bug_fix_first",
+    "tests/test_store.py::test_atomic_graph_rejection",
+    "tests/test_store.py::test_expired_worker_fencing",
+    "tests/test_store.py::test_cancel_parent_and_children_fences_workers",
+    "tests/test_store.py::test_messages_persist_and_validate",
+    "tests/test_store.py::test_pause_retry_and_failed_dependency",
+    "tests/test_store.py::test_transport_does_not_burn_code_attempts",
+    "tests/test_store.py::test_attempt_limit_and_issue_resolution",
+    "tests/test_store.py::test_runtime_singleton_and_expiry",
+    "tests/test_store.py::test_budget_atomic_across_connections",
+    "tests/test_store.py::test_schema_rejects_newer_state",
+    "tests/test_store.py::test_delegation_cycle_rolls_back",
+    "tests/test_contract_first.py::test_path_escape_rejected",
+    "tests/test_contract_first.py::test_task_cycle_rejected_atomically",
+    "tests/test_contract_first.py::test_unknown_health_is_not_success",
+    "tests/test_contract_first.py::test_scope_lease_serializes_writers",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[1-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[2-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[3-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[8-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[9-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[16-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[63-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[512-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[4096-8]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs0]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs1]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs2]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs3]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs4]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs5]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs6]",
+    "tests/test_coordination.py::test_hierarchy_rejects_excess_depth_cycles_duplicates_and_existing_parents",
+    "tests/test_coordination.py::test_parent_graph_cycle_and_missing_parent_rejected_atomically",
+    "tests/test_coordination.py::test_scoped_board_pages_are_stable_and_prevent_unrelated_reads",
+    "tests/test_coordination.py::test_cross_cell_dependencies_are_explicit_allowed_edges",
+    "tests/test_coordination.py::test_mailbox_scope_capacity_utf8_and_terminal_recipient",
+    "tests/test_coordination.py::test_notes_are_replace_only_versioned_fenced_and_bounded",
+    "tests/test_coordination.py::test_delivery_cursor_validates_recipient_and_cannot_move_backwards",
+    "tests/test_coordination.py::test_byte_fuzzer_and_omission_accounting",
+    "tests/test_coordination.py::test_huge_unused_gate_registry_does_not_enter_context",
+    "tests/test_coordination.py::test_fair_share_limits_active_siblings_without_losing_global_bug_priority",
+    "tests/test_coordination.py::test_rollups_count_leaves_once_not_cross_dependency_edges",
+    "tests/test_coordination.py::test_v1_database_migration_preserves_tasks_and_events",
+    "tests/test_coordination.py::test_readonly_status_can_read_legacy_database_without_migration",
+    "tests/test_coordination.py::test_dynamic_tree_85_tasks_rehydrates_local_managers",
+    "tests/test_coordination.py::test_working_note_survives_yield_but_old_transcript_does_not",
+    "tests/test_coordination.py::test_pending_mail_is_not_acknowledged_on_failed_request",
+    "tests/test_coordination.py::test_results_and_inbox_tools_are_exercised_in_actual_worker",
+    "tests/test_coordination.py::test_new_status_schema_has_fixed_tables_with_measured_context",
+    "tests/test_coordination.py::test_cli_hierarchy_submission",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields0]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields1]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields2]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields3]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields4]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields5]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[artifacts]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[evidence]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[uncertainties]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[summary]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[bad-]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence--1]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence-abc]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[summary-999999999]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[uncertainties-\\u0661]",
+    "tests/test_coordination_edges.py::test_large_observation_is_really_retained_and_hash_matches",
+    "tests/test_coordination_edges.py::test_http_byte_ceiling_rejects_before_request_and_reservation",
+    "tests/test_coordination_edges.py::test_command_byte_ceiling_rejects_before_subprocess",
+    "tests/test_coordination_edges.py::test_atomic_admission_cannot_exceed_children_across_multiple_batches",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[0-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[2-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[1-0]",
+    "tests/test_coordination_edges.py::test_daemon_rejects_manually_oversized_cells_before_model_call",
+    "tests/test_coordination_edges.py::test_selective_descendant_reads_do_not_grant_broadcast_or_cross_tree_read",
+    "tests/test_coordination_edges.py::test_recorded_gate_details_are_bounded_and_missing_evidence_is_unknown",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields0]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields1]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields2]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields3]",
+    "tests/test_coordination_edges.py::test_finish_cannot_skip_an_undelivered_mailbox_page",
+    "tests/test_hierarchy_contract.py::test_512_leaves_have_bounded_recursive_fanout",
+    "tests/test_hierarchy_contract.py::test_delegation_does_not_consume_failure_attempt_and_fanout_is_cumulative",
+    "tests/test_hierarchy_contract.py::test_utf8_bound_and_contract_preservation",
+    "tests/test_hierarchy_contract.py::test_scoped_board_has_no_global_transcript"
+  ],
+  "returncode": 1,
+  "scheduled": [
+    "tests/test_contracts.py::test_bad_paths[../x]",
+    "tests/test_contracts.py::test_bad_paths[/tmp/x]",
+    "tests/test_contracts.py::test_bad_paths[C:\\\\x]",
+    "tests/test_contracts.py::test_bad_paths[a/../../b]",
+    "tests/test_contracts.py::test_bad_paths[]",
+    "tests/test_contracts.py::test_bad_paths[.]",
+    "tests/test_contracts.py::test_bad_paths[a\\x00b]",
+    "tests/test_contracts.py::test_bad_paths[a\\\\b]",
+    "tests/test_contracts.py::test_bad_paths[C:x]",
+    "tests/test_contracts.py::test_secret_paths[.env]",
+    "tests/test_contracts.py::test_secret_paths[src/.env.prod]",
+    "tests/test_contracts.py::test_secret_paths[deepseek.env]",
+    "tests/test_contracts.py::test_secret_paths[.git/config]",
+    "tests/test_contracts.py::test_secret_paths[keys/key.pem]",
+    "tests/test_contracts.py::test_secret_paths[.future-code/config.json]",
+    "tests/test_contracts.py::test_secret_paths[.ssh/id_rsa]",
+    "tests/test_contracts.py::test_scope_overlap_is_component_based",
+    "tests/test_contracts.py::test_invalid_task_contract[changes0]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes1]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes2]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes3]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes4]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes5]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes6]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes7]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes8]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes9]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes10]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes11]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes12]",
+    "tests/test_contracts.py::test_task_roundtrip_and_unknown_key",
+    "tests/test_contracts.py::test_bad_config[changes0]",
+    "tests/test_contracts.py::test_bad_config[changes1]",
+    "tests/test_contracts.py::test_bad_config[changes2]",
+    "tests/test_contracts.py::test_bad_config[changes3]",
+    "tests/test_contracts.py::test_bad_config[changes4]",
+    "tests/test_contracts.py::test_bad_config[changes5]",
+    "tests/test_contracts.py::test_bad_config[changes6]",
+    "tests/test_contracts.py::test_bad_config[changes7]",
+    "tests/test_contracts.py::test_bad_config[changes8]",
+    "tests/test_contracts.py::test_bad_config[changes9]",
+    "tests/test_contracts.py::test_bad_config[changes10]",
+    "tests/test_contracts.py::test_config_roundtrip_and_write_gating",
+    "tests/test_contracts.py::test_protected_gates_and_reviewer",
+    "tests/test_contracts.py::test_bad_endpoint[changes0]",
+    "tests/test_contracts.py::test_bad_endpoint[changes1]",
+    "tests/test_contracts.py::test_bad_endpoint[changes2]",
+    "tests/test_contracts.py::test_bad_endpoint[changes3]",
+    "tests/test_contracts.py::test_bad_endpoint[changes4]",
+    "tests/test_contracts.py::test_bad_endpoint[changes5]",
+    "tests/test_contracts.py::test_bad_endpoint[changes6]",
+    "tests/test_contracts.py::test_gate_validation",
+    "tests/test_store.py::test_dag_order_and_parallel_scopes",
+    "tests/test_store.py::test_priority_bug_fix_first",
+    "tests/test_store.py::test_atomic_graph_rejection",
+    "tests/test_store.py::test_expired_worker_fencing",
+    "tests/test_store.py::test_cancel_parent_and_children_fences_workers",
+    "tests/test_store.py::test_messages_persist_and_validate",
+    "tests/test_store.py::test_pause_retry_and_failed_dependency",
+    "tests/test_store.py::test_transport_does_not_burn_code_attempts",
+    "tests/test_store.py::test_attempt_limit_and_issue_resolution",
+    "tests/test_store.py::test_runtime_singleton_and_expiry",
+    "tests/test_store.py::test_budget_atomic_across_connections",
+    "tests/test_store.py::test_schema_rejects_newer_state",
+    "tests/test_store.py::test_delegation_cycle_rolls_back",
+    "tests/test_contract_first.py::test_path_escape_rejected",
+    "tests/test_contract_first.py::test_task_cycle_rejected_atomically",
+    "tests/test_contract_first.py::test_unknown_health_is_not_success",
+    "tests/test_contract_first.py::test_scope_lease_serializes_writers",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[1-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[2-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[3-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[8-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[9-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[16-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[63-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[512-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[4096-8]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs0]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs1]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs2]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs3]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs4]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs5]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs6]",
+    "tests/test_coordination.py::test_hierarchy_rejects_excess_depth_cycles_duplicates_and_existing_parents",
+    "tests/test_coordination.py::test_parent_graph_cycle_and_missing_parent_rejected_atomically",
+    "tests/test_coordination.py::test_scoped_board_pages_are_stable_and_prevent_unrelated_reads",
+    "tests/test_coordination.py::test_cross_cell_dependencies_are_explicit_allowed_edges",
+    "tests/test_coordination.py::test_mailbox_scope_capacity_utf8_and_terminal_recipient",
+    "tests/test_coordination.py::test_notes_are_replace_only_versioned_fenced_and_bounded",
+    "tests/test_coordination.py::test_delivery_cursor_validates_recipient_and_cannot_move_backwards",
+    "tests/test_coordination.py::test_byte_fuzzer_and_omission_accounting",
+    "tests/test_coordination.py::test_huge_unused_gate_registry_does_not_enter_context",
+    "tests/test_coordination.py::test_fair_share_limits_active_siblings_without_losing_global_bug_priority",
+    "tests/test_coordination.py::test_rollups_count_leaves_once_not_cross_dependency_edges",
+    "tests/test_coordination.py::test_v1_database_migration_preserves_tasks_and_events",
+    "tests/test_coordination.py::test_readonly_status_can_read_legacy_database_without_migration",
+    "tests/test_coordination.py::test_dynamic_tree_85_tasks_rehydrates_local_managers",
+    "tests/test_coordination.py::test_working_note_survives_yield_but_old_transcript_does_not",
+    "tests/test_coordination.py::test_pending_mail_is_not_acknowledged_on_failed_request",
+    "tests/test_coordination.py::test_results_and_inbox_tools_are_exercised_in_actual_worker",
+    "tests/test_coordination.py::test_new_status_schema_has_fixed_tables_with_measured_context",
+    "tests/test_coordination.py::test_cli_hierarchy_submission",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields0]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields1]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields2]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields3]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields4]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields5]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[artifacts]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[evidence]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[uncertainties]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[summary]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[bad-]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence--1]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence-abc]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[summary-999999999]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[uncertainties-\\u0661]",
+    "tests/test_coordination_edges.py::test_large_observation_is_really_retained_and_hash_matches",
+    "tests/test_coordination_edges.py::test_http_byte_ceiling_rejects_before_request_and_reservation",
+    "tests/test_coordination_edges.py::test_command_byte_ceiling_rejects_before_subprocess",
+    "tests/test_coordination_edges.py::test_atomic_admission_cannot_exceed_children_across_multiple_batches",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[0-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[2-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[1-0]",
+    "tests/test_coordination_edges.py::test_daemon_rejects_manually_oversized_cells_before_model_call",
+    "tests/test_coordination_edges.py::test_selective_descendant_reads_do_not_grant_broadcast_or_cross_tree_read",
+    "tests/test_coordination_edges.py::test_recorded_gate_details_are_bounded_and_missing_evidence_is_unknown",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields0]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields1]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields2]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields3]",
+    "tests/test_coordination_edges.py::test_finish_cannot_skip_an_undelivered_mailbox_page",
+    "tests/test_hierarchy_contract.py::test_512_leaves_have_bounded_recursive_fanout",
+    "tests/test_hierarchy_contract.py::test_delegation_does_not_consume_failure_attempt_and_fanout_is_cumulative",
+    "tests/test_hierarchy_contract.py::test_utf8_bound_and_contract_preservation",
+    "tests/test_hierarchy_contract.py::test_scoped_board_has_no_global_transcript"
+  ],
+  "schema": 1,
+  "snapshot": "/mnt/data/hact_revision/ichact-oyfruxhx/project",
+  "snapshot_after_matches": true,
+  "source_sha256": {},
+  "timed_out": false
+}

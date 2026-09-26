@@ -1,0 +1,31 @@
+# TEMPLATE ONLY: review account, paths, secret handling and sandbox policy first.
+[Unit]
+Description=Future Code bounded multi-agent supervisor
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=future-agent
+Group=future-agent
+WorkingDirectory=/srv/future-project
+EnvironmentFile=/etc/future-control/credentials.env
+ExecStart=/opt/future-control/.venv/bin/future-control --project /srv/future-project run --quiet
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/future-project
+UMask=0077
+MemoryMax=2G
+CPUQuota=200%
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

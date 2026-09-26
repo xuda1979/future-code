@@ -1,0 +1,39 @@
+\section{Service-Matched Delivery and Admission}\label{sec:delivery}
+\subsection{Do not conflate three consumers}
+The local aggregator receives bounded packets; a logging collector may receive their complete stream; a supervisor normally receives a status projection and retrieves details selectively. Define $\psi(e,c)$ as canonical status text containing semantic identity, counts and local authorization, but no display positions. For the same trusted semantic report,
+\begin{equation}\label{eq:rootcontext}
+ \psi_{L_1}(e,c)=\psi_{L_2}(e,c).
+\end{equation}
+Its byte length and token count under any fixed deterministic tokenizer are therefore identical. This identity is not a new theorem about tokenization. It supplies a negative control: layout savings cannot reduce a layout-independent root input. The card is a projection of a trusted report, not authority to accept arbitrary worker JSON.
+
+Diagnostics preserve full header/card records and page whole packets under a 16,384-byte limit. A packet that cannot fit is rejected, not truncated. For a \emph{real supplied tokenizer} $\tau$ and explicitly reserved framing budget $r$, the new admission API additionally requires
+\begin{equation}
+ |p|_{\mathrm{UTF8}}\le C_{\mathrm{bytes}},\qquad
+ |\tau(\mathrm{decode}_{\mathrm{UTF8}}(p))|+r\le C_{\mathrm{tokens}}.
+\end{equation}
+The implementation retokenizes each full proposed page, including its prefix. Token counts are not assumed additive across concatenations. Greedy packing guarantees the tested limits, not a minimum number of pages. Toy counters in API tests are not BPE measurements. The optional measurement command requires actual \texttt{tiktoken} software and vocabulary~\cite{tiktoken}, fingerprints the encoding, and records per-page content hashes. Missing encodings produce \texttt{UNKNOWN} and null counts; there is no byte-ratio fallback. Provider framing and billed usage require a separately measured adapter, not a guessed constant.
+
+\subsection{Encoding and the simplest sufficient service}
+Canonical unpadded JSON, independently compressed packets, and whole-epoch DEFLATE preserve their input records with different operational boundaries. Whole-epoch compression requires the completed archive, whereas per-packet compression permits incremental export. The padded objective is not an exact optimizer of either compressed bytes or tokens. Practical selection is advisory until its gain is measured with the deployed codec.
+
+For a trusted consumer needing only final status, a root endpoint or flat ledger can be much cheaper than the intermediate stream. This changes the diagnostic service, not necessarily the underlying check set. Comparing that smaller service with an exhaustive stream cannot demonstrate that a tree optimizer is efficient or necessary. The strict checker, data representation, and delivery demand must each be named explicitly.
+
+\subsection{Adoption cost is not marginal layout cost}\label{sec:breakeven}
+Consider $q$ copies of the \emph{same} workload and delivery service through one nonoverlapped bottleneck. Let $B_0,B_1$ be codec-matched application bytes per copy, $R>0$ effective application goodput, $E\ge0$ additional encoding/decoding work per copy, and $C\ge0$ consistently amortized one-time incremental work. Common setup cancels only when actually shared. The conditional net benefit is
+\begin{equation}\label{eq:latency}
+ d=(B_0-B_1)/R-E,\qquad \Delta(q)=qd-C.
+\end{equation}
+A strictly profitable integer copy count exists only when $d>0$, and then
+\begin{equation}\label{eq:qmin}
+ q_{\min}=\lfloor C/d\rfloor+1.
+\end{equation}
+This is accounting, not a new networking or regret theorem. A zero gain retains the baseline. The implementation uses decimal arithmetic at equality and rejects mismatched service IDs. Missing $C$, $E$ or $R$ returns \texttt{UNKNOWN}, not zero. An explicit zero is permissible only as a declared assumption or measurement.
+
+When both variants already use the same protected gate, $C$ is \emph{extra layout work}, not the full strict-wrapper cost. When adopting strict verification from ordinary testing, its additional cost must be justified independently; the services differ and the planner returns \texttt{INCOMPARABLE}. Repeating exports amortizes one candidate's preparation, not the preparation of future new candidates. Parallel links, computation overlap, cached diagnostics, queueing and different connection policies require direct critical-path measurement. High RTT alone does not make byte savings larger if both exports pay the same setup and request count.
+
+\subsection{Remote measurement and security boundaries}
+The historical transfer experiment is receiver-paced loopback, not a WAN. The new opt-in measurement kit uses verified TLS server certificates and hostname checking; upload and nonlocal bind require explicit switches. Frames and decompressed archives are bounded, and acknowledgments check received length and digest. Local tests exercise cold and reused TLS sessions, rejected hostnames, untrusted roots, malformed acknowledgments and truncated records.
+
+These tests validate a protocol path only. They provide no physical-WAN throughput, jitter, packet-loss or retransmission measurement. The supplied protocol records host and path provenance, codec, connection policy and matched payloads, and requests separately observed RTT/goodput and transport diagnostics where available, consistent with the distinctions in TCP throughput testing~\cite{rfc6349}. Fields that the minimal client cannot observe remain null. There is no receiver-side artificial pacing in a qualifying WAN trial. No public upload, account creation or credential search was performed.
+
+TLS authenticates the configured server, not the checker's truthfulness. Protected reference data, immutable candidate identity and local monotone state remain required for Theorem~\ref{thm:safety}. There is no remote attestation, Byzantine consensus, client authorization service, non-repudiation or OS sandbox. Replacing both evidence and its trusted reference still defeats a digest-only comparison. The receiver is a bounded measurement utility to use behind an operator-controlled firewall, not a production ingestion service.

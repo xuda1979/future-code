@@ -1,0 +1,105 @@
+...................F.F.F                                                 [100%]
+=================================== FAILURES ===================================
+_ test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields0] _
+
+db = <future_code.store.Store object at 0x7f1fbd9ac2d0>
+fields = {'task_id': []}
+
+    @pytest.mark.parametrize('fields',[{'task_id':[]},{'task_id':None},{'task_id':'a','section':[]},
+                                       {'task_id':'a','section':None}])
+    def test_model_result_arguments_fail_as_contract_errors_not_worker_crashes(db,fields):
+        stored_result(db)
+        with pytest.raises(ContractError):
+>           Coordination(db,Config()).result_page('b',**fields)
+
+tests/test_coordination_edges.py:157: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/future_code/coordination.py:270: in result_page
+    if not self.readable(requester, task_id):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/future_code/coordination.py:175: in readable
+    return self.allowed(requester, task_id) or self.descendant(requester, task_id)
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <future_code.coordination.Coordination object at 0x7f1fbda95010>
+ancestor = 'b', task_id = []
+
+    def descendant(self, ancestor: str, task_id: str) -> bool:
+        """Ownership traversal for selective reads, never broadcast permission."""
+        seen: set[str] = set()
+        cursor: str | None = task_id
+>       while cursor is not None and cursor not in seen:
+                                     ^^^^^^^^^^^^^^^^^^
+E       TypeError: unhashable type: 'list'
+
+src/future_code/coordination.py:167: TypeError
+_ test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields2] _
+
+db = <future_code.store.Store object at 0x7f1fbdde29d0>
+fields = {'section': [], 'task_id': 'a'}
+
+    @pytest.mark.parametrize('fields',[{'task_id':[]},{'task_id':None},{'task_id':'a','section':[]},
+                                       {'task_id':'a','section':None}])
+    def test_model_result_arguments_fail_as_contract_errors_not_worker_crashes(db,fields):
+        stored_result(db)
+        with pytest.raises(ContractError):
+>           Coordination(db,Config()).result_page('b',**fields)
+
+tests/test_coordination_edges.py:157: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <future_code.coordination.Coordination object at 0x7f1fbd94f930>
+requester = 'b', task_id = 'a'
+
+    def result_page(self, requester: str, task_id: str, *, after: str = '', limit: int | None = None,
+                    section: str = 'artifacts') -> dict:
+        if not self.readable(requester, task_id):
+            raise ContractError('Result is outside the local collaboration graph')
+        limit = self.config.context_items if limit is None else limit
+        if type(limit) is not int or not 1 <= limit <= self.config.context_items or not isinstance(after, str):
+            raise ContractError('Invalid result page')
+        row = self.db.task(task_id)
+        result = row['result'] or {}
+        if section == 'artifacts':
+            items = sorted(result.get('artifacts', []), key=lambda a: a['path'])
+            keys = [item['path'] for item in items]
+            start = next((i for i, key in enumerate(keys) if key > after), len(keys))
+>       elif section in {'evidence', 'uncertainties', 'summary'}:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: unhashable type: 'list'
+
+src/future_code/coordination.py:281: TypeError
+_____________ test_finish_cannot_skip_an_undelivered_mailbox_page ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-15/test_finish_cannot_skip_an_und0')
+config = Config(max_workers=4, lease_seconds=1, heartbeat_seconds=0.03, poll_seconds=0.005, max_requests=1000, max_reserved_tok..._pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache', '.coverage', 'dist', 'build'], allow_ungated_readonly=True)
+
+    async def test_finish_cannot_skip_an_undelivered_mailbox_page(tmp_path,config):
+        from conftest import queue
+        from future_code.runtime import Supervisor
+        from future_code.store import Store
+        config.context_items=1
+        queue(tmp_path,[TaskSpec('a','A','A'),TaskSpec('b','B','B',dependencies=['a'])])
+        with Store(tmp_path/'.future-code/state.db') as database:
+            a=database.claim('w')
+            database.send_message('a',a['fence'],'b','Interface constraint one')
+            database.send_message('a',a['fence'],'b','Interface constraint two')
+            database.finish('a',a['fence'],'done')
+        backend=ScriptBackend()
+        result=await Supervisor(tmp_path,config,backend=backend).run(until_idle=True)
+        assert set(result['task_states'].values())=={'done'}
+        with Store(tmp_path/'.future-code/state.db') as database:
+>           assert not database.messages('b',database.memory('b')['delivered_seq'])
+E           AssertionError: assert not [{'content': 'Interface constraint two', 'created_at': 1789722844.3274844, 'recipient': 'b', 'sender': 'a', ...}]
+E            +  where [{'content': 'Interface constraint two', 'created_at': 1789722844.3274844, 'recipient': 'b', 'sender': 'a', ...}] = messages('b', 1)
+E            +    where messages = <future_code.store.Store object at 0x7f1fbd7d3b90>.messages
+
+tests/test_coordination_edges.py:175: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields0] - TypeError: unhashable type: 'list'
+FAILED tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields2] - TypeError: unhashable type: 'list'
+FAILED tests/test_coordination_edges.py::test_finish_cannot_skip_an_undelivered_mailbox_page - AssertionError: assert not [{'content': 'Interface constraint two', 'created_at': 1789722844.3274844, 'recipient': 'b', 'sender': 'a', ...}]
+ +  where [{'content': 'Interface constraint two', 'created_at': 1789722844.3274844, 'recipient': 'b', 'sender': 'a', ...}] = messages('b', 1)
+ +    where messages = <future_code.store.Store object at 0x7f1fbd7d3b90>.messages
+3 failed, 21 passed in 0.37s

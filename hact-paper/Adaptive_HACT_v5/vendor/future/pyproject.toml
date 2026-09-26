@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "future-code-control"
+version = "1.2.0"
+description = "Durable, bounded, evidence-driven multi-agent control plane"
+requires-python = ">=3.11"
+dependencies = ["httpx==0.28.1"]
+
+[project.scripts]
+future-control = "future_code.cli:main"
+future-cli-bridge = "future_code.cli_bridge:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["future_code"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true

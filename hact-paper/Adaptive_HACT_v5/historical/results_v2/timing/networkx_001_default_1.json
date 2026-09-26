@@ -1,0 +1,884 @@
+{
+  "collection_errors": [],
+  "command": [
+    "/opt/pyvenv/bin/python",
+    "-B",
+    "-m",
+    "pytest",
+    "-q",
+    "-p",
+    "ichact.pytest_probe",
+    "-p",
+    "pytest_asyncio.plugin",
+    "--tb=short",
+    "-x",
+    "networkx/algorithms/components/tests",
+    "networkx/algorithms/traversal/tests",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py"
+  ],
+  "end_to_end_seconds": 2.776132801000017,
+  "executed": [
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_attracting_components",
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_number_attacting_components",
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_is_attracting_component",
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_connected_raise",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_barbell",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_articulation_points_repetitions",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_articulation_points_cycle",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_is_biconnected",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_empty_is_biconnected",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components_cycle",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components1",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components2",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_davis",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_karate",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_eppstein",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_null_graph",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_connected_raise",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components_nx_loopback",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_number_connected_components",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_number_connected_components2",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components2",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_node_connected_components",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_is_connected"
+  ],
+  "exitstatus": 1,
+  "failfast": true,
+  "mutant_sha256_observed": "8c6b0ad21c22886ee97f7b22bbad0b43527eec35e526f23913a63a0c2b25c888",
+  "mutation": {
+    "base_sha256": "b3ebaf11d1e463c74dc4d3d2e46f239e4faa4c2ba6f9b7adff2280c7cfea4d77",
+    "id": "networkx_001",
+    "kind": "relational_boundary",
+    "line": 208,
+    "mutant_sha256": "8c6b0ad21c22886ee97f7b22bbad0b43527eec35e526f23913a63a0c2b25c888",
+    "project": "networkx",
+    "replacement": "(len(next(connected_components(G))) != n)",
+    "source": "networkx/algorithms/components/connected.py",
+    "source_file": "results/mutants/networkx_001.py",
+    "span": [
+      5867,
+      5906
+    ],
+    "split": "test"
+  },
+  "package_origins": {
+    "future_code": null,
+    "networkx": "/mnt/data/hact_revision/ichact-6w1uhhc0/project/networkx/__init__.py",
+    "toolz": null
+  },
+  "profiled": false,
+  "project": "networkx",
+  "pytest_wall_seconds": 1.1957252849999804,
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "records": {
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_attracting_components": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0007045460000654202
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.001376312999923357
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 8.74719999046647e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.002670542000032583
+    },
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_connected_raise": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0006596480000098381
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00016266600005110377
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.740699993519229e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0010893080000187183
+    },
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_is_attracting_component": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0007323790000555164
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001562559999683799
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.05210000230727e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.001198624000039672
+    },
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_number_attacting_components": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0003973410000526201
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00019121899993024272
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.895399997119966e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000962457000014183
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_articulation_points_cycle": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0003344059999790261
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001080729999785035
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.718599993542739e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0009501790000285837
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_articulation_points_repetitions": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.962099994074379e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00012025199998788594
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.8903999982030655e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00040388200000052166
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_barbell": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.001074886999958835
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001277130000971738
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 9.289000001899694e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.001535243000034825
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components1": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0004887490000555772
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001026549999778581
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.587499992998346e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0008380579999993643
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components2": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00012515899993559287
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00011495399996874767
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.958499994245358e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00044540400006098935
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components_cycle": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0001406630000246878
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00019235100000969396
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.241899998509325e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0005434029999378254
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_davis": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0004066050000801624
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00010917600002358085
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.2278999987720454e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0007524789999706627
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_eppstein": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0004142369999726725
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00010665100001006067
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.296999995607621e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0007275220000337868
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_karate": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0004990549999774885
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00010322600007839355
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.549400009385863e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0008367760000282942
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_connected_raise": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.610499989776145e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.399299995038746e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.9724999939826375e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003678169999830061
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_empty_is_biconnected": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.923600000798615e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00010847399994418083
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.704100001617917e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003882070000145177
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_is_biconnected": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00028087499993034726
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00011351099999501457
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.747700004121725e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0006206799999972645
+    },
+    "networkx/algorithms/components/tests/test_biconnected.py::test_null_graph": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.87939999579612e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00013420300001598662
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.548900005829637e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00038843799995902373
+    },
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0002175889999307401
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0016149939999650087
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.7806999961940164e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0021171439999534414
+    },
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components2": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.228400002328272e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00012838500003908848
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.40659999867421e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00036997999995946884
+    },
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components_nx_loopback": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00014399799999864626
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00017943200009540305
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.112799999551498e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0005409589999771924
+    },
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_is_connected": {
+      "dependencies": [],
+      "failure": "networkx/algorithms/components/tests/test_connected.py:119: in test_is_connected\n    assert nx.is_connected(self.grid)\nE   assert False\nE    +  where False = <function is_connected at 0x7ff192a79580>(<networkx.classes.graph.Graph object at 0x7ff18fa5efd0>)\nE    +    where <function is_connected at 0x7ff192a79580> = nx.is_connected\nE    +    and   <networkx.classes.graph.Graph object at 0x7ff18fa5efd0> = <networkx.algorithms.components.tests.test_connected.TestConnected object at 0x7ff18ff8ce20>.grid",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0003282370000761148
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00017461499999171792
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00025755000001481676
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.03619258000003356
+    },
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_node_connected_components": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00020989799998005765
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00015278099999704864
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.123799996908929e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0005649759999641901
+    },
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_number_connected_components": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0002043590000084805
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.000135876000058488
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.394099991917756e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0005536079999046706
+    },
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_number_connected_components2": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.996499996603234e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00014294599998265767
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.621999994469661e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00040792799995870155
+    }
+  },
+  "registry": [
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_attracting_components",
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_number_attacting_components",
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_is_attracting_component",
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_connected_raise",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_barbell",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_articulation_points_repetitions",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_articulation_points_cycle",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_is_biconnected",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_empty_is_biconnected",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components_cycle",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components1",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components2",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_davis",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_karate",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_eppstein",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_null_graph",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_connected_raise",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components_nx_loopback",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_number_connected_components",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_number_connected_components2",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components2",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_node_connected_components",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_is_connected",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_raise",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_mutability",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_undirected",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_empty",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_single_node_graph",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_path",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_cycle",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_tree",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_dumbbell",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_alternating_path",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_tarjan",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_kosaraju",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_number_strongly_connected_components",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_is_strongly_connected",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_contract_scc1",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_contract_scc_isolate",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_contract_scc_edge",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_condensation_mapping_and_members",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_null_graph",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_connected_raise",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_connected_mutability[strongly_connected_components]",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_connected_mutability[kosaraju_strongly_connected_components]",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_weakly_connected_components",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_number_weakly_connected_components",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_is_weakly_connected",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_null_graph",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_connected_raise",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_connected_mutability",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::test_is_weakly_connected_empty_graph_raises",
+    "networkx/algorithms/traversal/tests/test_beamsearch.py::test_narrow",
+    "networkx/algorithms/traversal/tests/test_beamsearch.py::test_wide[2]",
+    "networkx/algorithms/traversal/tests/test_beamsearch.py::test_wide[None]",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_successor",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_predecessor",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_tree",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_edges",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_edges_reverse",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_edges_sorting",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_tree_isolates",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_layers",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_layers_missing_source",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_descendants_at_distance",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_descendants_at_distance_missing_source",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_labeled_edges_directed",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_bfs_successor",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_bfs_predecessor",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_bfs_tree",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_bfs_edges",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_bfs_layers",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_descendants_at_distance",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_preorder_nodes",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_postorder_nodes",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_successor",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_predecessor",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_tree",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_edges",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_edges_sorting",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_labeled_edges",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_labeled_edges_sorting",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_labeled_disconnected_edges",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_tree_isolates",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_preorder_nodes",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_postorder_nodes",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_successor",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_predecessor",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_tree",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_edges",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_labeled_edges_depth_1",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_labeled_edges_depth_2",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_labeled_disconnected_edges",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_empty",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_graph_single_source",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_graph",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_orientation_invalid",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_orientation_none",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_orientation_original",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph2",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_rev",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_rev2",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_multigraph",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_multidigraph",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_multidigraph_rev",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_ignore",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_ignore2",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_multidigraph_ignore",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_empty",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_graph",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_orientation_invalid",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_orientation_none",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_orientation_original",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph2",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_rev",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_rev2",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_multigraph",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_multidigraph",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_multidigraph_rev",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_ignore",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_ignore2",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_multidigraph_ignore",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_bidirectional_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_bidirectional_shortest_path_src_tgt_not_in_graph[8-3]",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_bidirectional_shortest_path_src_tgt_not_in_graph[3-8]",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_bidirectional_shortest_path_src_tgt_not_in_graph[8-10]",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_bidirectional_shortest_path_src_tgt_not_in_graph[8-8]",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_single_source_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_single_source_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_single_target_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_single_target_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_all_pairs_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_all_pairs_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_predecessor_path",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_predecessor_cycle",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_predecessor_cutoff",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_predecessor_target",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_predecessor_missing_source",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_sentinel_trick_all_algorithms",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_shortest_path_target",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_shortest_path_length_target",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_single_source_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_single_source_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_single_source_all_shortest_paths",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_pairs_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_pairs_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_pairs_all_shortest_paths",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_has_path",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_has_path_singleton",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_shortest_paths",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_shortest_paths_raise",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_bad_method",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_single_source_all_shortest_paths_bad_method",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_shortest_paths_zero_weight_edge",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_cycle_graph",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_path_graph",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_weighted",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_specified_methods",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_directed_not_strongly_connected",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_undirected_not_connected",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_trivial_graph",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_null_graph",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_bad_method",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLengthNumpy::test_specified_methods_numpy"
+  ],
+  "returncode": 1,
+  "scheduled": [
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_attracting_components",
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_number_attacting_components",
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_is_attracting_component",
+    "networkx/algorithms/components/tests/test_attracting.py::TestAttractingComponents::test_connected_raise",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_barbell",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_articulation_points_repetitions",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_articulation_points_cycle",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_is_biconnected",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_empty_is_biconnected",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components_cycle",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components1",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_components2",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_davis",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_karate",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_biconnected_eppstein",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_null_graph",
+    "networkx/algorithms/components/tests/test_biconnected.py::test_connected_raise",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components_nx_loopback",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_number_connected_components",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_number_connected_components2",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_components2",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_node_connected_components",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_is_connected",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_raise",
+    "networkx/algorithms/components/tests/test_connected.py::TestConnected::test_connected_mutability",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_undirected",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_empty",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_single_node_graph",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_path",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_cycle",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_tree",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_dumbbell",
+    "networkx/algorithms/components/tests/test_semiconnected.py::TestIsSemiconnected::test_alternating_path",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_tarjan",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_kosaraju",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_number_strongly_connected_components",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_is_strongly_connected",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_contract_scc1",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_contract_scc_isolate",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_contract_scc_edge",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_condensation_mapping_and_members",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_null_graph",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_connected_raise",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_connected_mutability[strongly_connected_components]",
+    "networkx/algorithms/components/tests/test_strongly_connected.py::TestStronglyConnected::test_connected_mutability[kosaraju_strongly_connected_components]",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_weakly_connected_components",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_number_weakly_connected_components",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_is_weakly_connected",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_null_graph",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_connected_raise",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::TestWeaklyConnected::test_connected_mutability",
+    "networkx/algorithms/components/tests/test_weakly_connected.py::test_is_weakly_connected_empty_graph_raises",
+    "networkx/algorithms/traversal/tests/test_beamsearch.py::test_narrow",
+    "networkx/algorithms/traversal/tests/test_beamsearch.py::test_wide[2]",
+    "networkx/algorithms/traversal/tests/test_beamsearch.py::test_wide[None]",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_successor",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_predecessor",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_tree",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_edges",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_edges_reverse",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_edges_sorting",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_tree_isolates",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_layers",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_layers_missing_source",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_descendants_at_distance",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_descendants_at_distance_missing_source",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBFS::test_bfs_labeled_edges_directed",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_bfs_successor",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_bfs_predecessor",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_bfs_tree",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_bfs_edges",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_bfs_layers",
+    "networkx/algorithms/traversal/tests/test_bfs.py::TestBreadthLimitedSearch::test_limited_descendants_at_distance",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_preorder_nodes",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_postorder_nodes",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_successor",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_predecessor",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_tree",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_edges",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_edges_sorting",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_labeled_edges",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_labeled_edges_sorting",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_labeled_disconnected_edges",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDFS::test_dfs_tree_isolates",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_preorder_nodes",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_postorder_nodes",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_successor",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_predecessor",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_tree",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_edges",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_labeled_edges_depth_1",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_labeled_edges_depth_2",
+    "networkx/algorithms/traversal/tests/test_dfs.py::TestDepthLimitedSearch::test_dls_labeled_disconnected_edges",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_empty",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_graph_single_source",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_graph",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_orientation_invalid",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_orientation_none",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_orientation_original",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph2",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_rev",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_rev2",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_multigraph",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_multidigraph",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_multidigraph_rev",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_ignore",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_digraph_ignore2",
+    "networkx/algorithms/traversal/tests/test_edgebfs.py::TestEdgeBFS::test_multidigraph_ignore",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_empty",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_graph",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_orientation_invalid",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_orientation_none",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_orientation_original",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph2",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_rev",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_rev2",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_multigraph",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_multidigraph",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_multidigraph_rev",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_ignore",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_digraph_ignore2",
+    "networkx/algorithms/traversal/tests/test_edgedfs.py::TestEdgeDFS::test_multidigraph_ignore",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_bidirectional_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_bidirectional_shortest_path_src_tgt_not_in_graph[8-3]",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_bidirectional_shortest_path_src_tgt_not_in_graph[3-8]",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_bidirectional_shortest_path_src_tgt_not_in_graph[8-10]",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_bidirectional_shortest_path_src_tgt_not_in_graph[8-8]",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_single_source_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_single_source_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_single_target_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_single_target_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_all_pairs_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_all_pairs_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_predecessor_path",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_predecessor_cycle",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_predecessor_cutoff",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_predecessor_target",
+    "networkx/algorithms/shortest_paths/tests/test_unweighted.py::TestUnweightedPath::test_predecessor_missing_source",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_sentinel_trick_all_algorithms",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_shortest_path_target",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_shortest_path_length_target",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_single_source_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_single_source_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_single_source_all_shortest_paths",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_pairs_shortest_path",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_pairs_shortest_path_length",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_pairs_all_shortest_paths",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_has_path",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_has_path_singleton",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_shortest_paths",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_shortest_paths_raise",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_bad_method",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_single_source_all_shortest_paths_bad_method",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestGenericPath::test_all_shortest_paths_zero_weight_edge",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_cycle_graph",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_path_graph",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_weighted",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_specified_methods",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_directed_not_strongly_connected",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_undirected_not_connected",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_trivial_graph",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_null_graph",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLength::test_bad_method",
+    "networkx/algorithms/shortest_paths/tests/test_generic.py::TestAverageShortestPathLengthNumpy::test_specified_methods_numpy"
+  ],
+  "schema": 1,
+  "snapshot": "/mnt/data/hact_revision/ichact-6w1uhhc0/project",
+  "snapshot_after_matches": true,
+  "source_sha256": {},
+  "timed_out": false
+}

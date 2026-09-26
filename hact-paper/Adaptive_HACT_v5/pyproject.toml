@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ic-hact"
+version = "5.0.0"
+description = "Adaptive HACT: bounded verification evidence and migration-aware layouts"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26", "pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+ichact = "ichact.cli:main"
+ichact-future-gate = "ichact.future_bridge:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ichact", "hact"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "tests_v1", "tests_v3", "tests_v4", "tests_v5"]

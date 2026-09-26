@@ -1,0 +1,3086 @@
+{
+  "collection_errors": [],
+  "command": [
+    "/opt/pyvenv/bin/python",
+    "-B",
+    "-m",
+    "pytest",
+    "-q",
+    "-p",
+    "ichact.pytest_probe",
+    "-p",
+    "pytest_asyncio.plugin",
+    "--tb=short",
+    "tests/test_contracts.py",
+    "tests/test_store.py",
+    "tests/test_contract_first.py",
+    "tests/test_coordination.py",
+    "tests/test_coordination_edges.py",
+    "tests/test_hierarchy_contract.py"
+  ],
+  "end_to_end_seconds": 2.8363956120000466,
+  "executed": [
+    "tests/test_contracts.py::test_bad_paths[../x]",
+    "tests/test_contracts.py::test_bad_paths[/tmp/x]",
+    "tests/test_contracts.py::test_bad_paths[C:\\\\x]",
+    "tests/test_contracts.py::test_bad_paths[a/../../b]",
+    "tests/test_contracts.py::test_bad_paths[]",
+    "tests/test_contracts.py::test_bad_paths[.]",
+    "tests/test_contracts.py::test_bad_paths[a\\x00b]",
+    "tests/test_contracts.py::test_bad_paths[a\\\\b]",
+    "tests/test_contracts.py::test_bad_paths[C:x]",
+    "tests/test_contracts.py::test_secret_paths[.env]",
+    "tests/test_contracts.py::test_secret_paths[src/.env.prod]",
+    "tests/test_contracts.py::test_secret_paths[deepseek.env]",
+    "tests/test_contracts.py::test_secret_paths[.git/config]",
+    "tests/test_contracts.py::test_secret_paths[keys/key.pem]",
+    "tests/test_contracts.py::test_secret_paths[.future-code/config.json]",
+    "tests/test_contracts.py::test_secret_paths[.ssh/id_rsa]",
+    "tests/test_contracts.py::test_scope_overlap_is_component_based",
+    "tests/test_contracts.py::test_invalid_task_contract[changes0]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes1]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes2]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes3]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes4]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes5]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes6]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes7]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes8]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes9]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes10]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes11]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes12]",
+    "tests/test_contracts.py::test_task_roundtrip_and_unknown_key",
+    "tests/test_contracts.py::test_bad_config[changes0]",
+    "tests/test_contracts.py::test_bad_config[changes1]",
+    "tests/test_contracts.py::test_bad_config[changes2]",
+    "tests/test_contracts.py::test_bad_config[changes3]",
+    "tests/test_contracts.py::test_bad_config[changes4]",
+    "tests/test_contracts.py::test_bad_config[changes5]",
+    "tests/test_contracts.py::test_bad_config[changes6]",
+    "tests/test_contracts.py::test_bad_config[changes7]",
+    "tests/test_contracts.py::test_bad_config[changes8]",
+    "tests/test_contracts.py::test_bad_config[changes9]",
+    "tests/test_contracts.py::test_bad_config[changes10]",
+    "tests/test_contracts.py::test_config_roundtrip_and_write_gating",
+    "tests/test_contracts.py::test_protected_gates_and_reviewer",
+    "tests/test_contracts.py::test_bad_endpoint[changes0]",
+    "tests/test_contracts.py::test_bad_endpoint[changes1]",
+    "tests/test_contracts.py::test_bad_endpoint[changes2]",
+    "tests/test_contracts.py::test_bad_endpoint[changes3]",
+    "tests/test_contracts.py::test_bad_endpoint[changes4]",
+    "tests/test_contracts.py::test_bad_endpoint[changes5]",
+    "tests/test_contracts.py::test_bad_endpoint[changes6]",
+    "tests/test_contracts.py::test_gate_validation",
+    "tests/test_store.py::test_dag_order_and_parallel_scopes",
+    "tests/test_store.py::test_priority_bug_fix_first",
+    "tests/test_store.py::test_atomic_graph_rejection",
+    "tests/test_store.py::test_expired_worker_fencing",
+    "tests/test_store.py::test_cancel_parent_and_children_fences_workers",
+    "tests/test_store.py::test_messages_persist_and_validate",
+    "tests/test_store.py::test_pause_retry_and_failed_dependency",
+    "tests/test_store.py::test_transport_does_not_burn_code_attempts",
+    "tests/test_store.py::test_attempt_limit_and_issue_resolution",
+    "tests/test_store.py::test_runtime_singleton_and_expiry",
+    "tests/test_store.py::test_budget_atomic_across_connections",
+    "tests/test_store.py::test_schema_rejects_newer_state",
+    "tests/test_store.py::test_delegation_cycle_rolls_back",
+    "tests/test_contract_first.py::test_path_escape_rejected",
+    "tests/test_contract_first.py::test_task_cycle_rejected_atomically",
+    "tests/test_contract_first.py::test_unknown_health_is_not_success",
+    "tests/test_contract_first.py::test_scope_lease_serializes_writers",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[1-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[2-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[3-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[8-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[9-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[16-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[63-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[512-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[4096-8]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs0]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs1]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs2]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs3]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs4]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs5]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs6]",
+    "tests/test_coordination.py::test_hierarchy_rejects_excess_depth_cycles_duplicates_and_existing_parents",
+    "tests/test_coordination.py::test_parent_graph_cycle_and_missing_parent_rejected_atomically",
+    "tests/test_coordination.py::test_scoped_board_pages_are_stable_and_prevent_unrelated_reads",
+    "tests/test_coordination.py::test_cross_cell_dependencies_are_explicit_allowed_edges",
+    "tests/test_coordination.py::test_mailbox_scope_capacity_utf8_and_terminal_recipient",
+    "tests/test_coordination.py::test_notes_are_replace_only_versioned_fenced_and_bounded",
+    "tests/test_coordination.py::test_delivery_cursor_validates_recipient_and_cannot_move_backwards",
+    "tests/test_coordination.py::test_byte_fuzzer_and_omission_accounting",
+    "tests/test_coordination.py::test_huge_unused_gate_registry_does_not_enter_context",
+    "tests/test_coordination.py::test_fair_share_limits_active_siblings_without_losing_global_bug_priority",
+    "tests/test_coordination.py::test_rollups_count_leaves_once_not_cross_dependency_edges",
+    "tests/test_coordination.py::test_v1_database_migration_preserves_tasks_and_events",
+    "tests/test_coordination.py::test_readonly_status_can_read_legacy_database_without_migration",
+    "tests/test_coordination.py::test_dynamic_tree_85_tasks_rehydrates_local_managers",
+    "tests/test_coordination.py::test_working_note_survives_yield_but_old_transcript_does_not",
+    "tests/test_coordination.py::test_pending_mail_is_not_acknowledged_on_failed_request",
+    "tests/test_coordination.py::test_results_and_inbox_tools_are_exercised_in_actual_worker",
+    "tests/test_coordination.py::test_new_status_schema_has_fixed_tables_with_measured_context",
+    "tests/test_coordination.py::test_cli_hierarchy_submission",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields0]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields1]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields2]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields3]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields4]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields5]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[artifacts]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[evidence]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[uncertainties]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[summary]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[bad-]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence--1]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence-abc]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[summary-999999999]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[uncertainties-\\u0661]",
+    "tests/test_coordination_edges.py::test_large_observation_is_really_retained_and_hash_matches",
+    "tests/test_coordination_edges.py::test_http_byte_ceiling_rejects_before_request_and_reservation",
+    "tests/test_coordination_edges.py::test_command_byte_ceiling_rejects_before_subprocess",
+    "tests/test_coordination_edges.py::test_atomic_admission_cannot_exceed_children_across_multiple_batches",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[0-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[2-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[1-0]",
+    "tests/test_coordination_edges.py::test_daemon_rejects_manually_oversized_cells_before_model_call",
+    "tests/test_coordination_edges.py::test_selective_descendant_reads_do_not_grant_broadcast_or_cross_tree_read",
+    "tests/test_coordination_edges.py::test_recorded_gate_details_are_bounded_and_missing_evidence_is_unknown",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields0]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields1]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields2]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields3]",
+    "tests/test_coordination_edges.py::test_finish_cannot_skip_an_undelivered_mailbox_page",
+    "tests/test_hierarchy_contract.py::test_512_leaves_have_bounded_recursive_fanout",
+    "tests/test_hierarchy_contract.py::test_delegation_does_not_consume_failure_attempt_and_fanout_is_cumulative",
+    "tests/test_hierarchy_contract.py::test_utf8_bound_and_contract_preservation",
+    "tests/test_hierarchy_contract.py::test_scoped_board_has_no_global_transcript"
+  ],
+  "exitstatus": 1,
+  "failfast": false,
+  "mutant_sha256_observed": "b9202952364a7732774c7ea0f87c633d7b9abdd11eb8bb21be25563d50a2f0cc",
+  "mutation": {
+    "base_sha256": "86ddfab685fbebb4174241760c362351860cac5107c0a14ea136d50fa04d322b",
+    "id": "future_057",
+    "kind": "relational_boundary",
+    "line": 50,
+    "mutant_sha256": "b9202952364a7732774c7ea0f87c633d7b9abdd11eb8bb21be25563d50a2f0cc",
+    "project": "future",
+    "replacement": "(str(p) != '.')",
+    "source": "src/future_code/contracts.py",
+    "source_file": "results/mutants/future_057.py",
+    "span": [
+      1758,
+      1771
+    ],
+    "split": "test"
+  },
+  "package_origins": {
+    "future_code": "/mnt/data/hact_revision/ichact-jb80qmlp/project/src/future_code/__init__.py",
+    "networkx": null,
+    "toolz": null
+  },
+  "profiled": false,
+  "project": "future",
+  "pytest_wall_seconds": 1.531106479000016,
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "records": {
+    "tests/test_contract_first.py::test_path_escape_rejected": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.405200000855984e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0007657589999894299
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.2539000023443805e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0011438020000014149
+    },
+    "tests/test_contract_first.py::test_scope_lease_serializes_writers": {
+      "dependencies": [],
+      "failure": "tests/test_contract_first.py:33: in test_scope_lease_serializes_writers\n    db.add_tasks([TaskSpec(\"a\", \"A\", \"A\", write_scope=[\"src\"]),\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n<string>:19: in __init__\n    ???\nsrc/future_code/contracts.py:122: in __post_init__\n    self.write_scope = [relative_path(p) for p in self.write_scope]\n                        ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.001609886999972332
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0003797640000016145
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00011519499997802995
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.012217853999970885
+    },
+    "tests/test_contract_first.py::test_task_cycle_rejected_atomically": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00150666999996929
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00036283899999034475
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.23549999545503e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0021435949999499826
+    },
+    "tests/test_contract_first.py::test_unknown_health_is_not_success": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.003001965000009932
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0003558290000000852
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.335599999829356e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003619809000042551
+    },
+    "tests/test_contracts.py::test_bad_config[changes0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00015721699998039185
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00015485500000522734
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.235899999433968e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0005385349999755817
+    },
+    "tests/test_contracts.py::test_bad_config[changes10]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.3921000023347e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.648099998254111e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.053199995723844e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00032141600001978077
+    },
+    "tests/test_contracts.py::test_bad_config[changes1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.010600001602143e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00013685699997267875
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.5779000004131376e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0004162000000178523
+    },
+    "tests/test_contracts.py::test_bad_config[changes2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.956599998555248e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.283099996082456e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.4197000022450084e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000358783000024232
+    },
+    "tests/test_contracts.py::test_bad_config[changes3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.642599996415811e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.27399999568479e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.911499996751445e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00037036000003354275
+    },
+    "tests/test_contracts.py::test_bad_config[changes4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.896900001469476e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.961499997894862e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.211399999576315e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003361590000281467
+    },
+    "tests/test_contracts.py::test_bad_config[changes5]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.549500003278808e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.339100000715916e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.25840000275457e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003314209999984996
+    },
+    "tests/test_contracts.py::test_bad_config[changes6]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00010325700003477323
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.546999998770843e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.264399996145585e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003548669999986487
+    },
+    "tests/test_contracts.py::test_bad_config[changes7]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.370199995828443e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.657099999709317e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.375700001446603e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00038039599996864126
+    },
+    "tests/test_contracts.py::test_bad_config[changes8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.742700000790137e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.370100002570325e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.1473000010228134e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003408360000207722
+    },
+    "tests/test_contracts.py::test_bad_config[changes9]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.968600002390303e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.617500001013468e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.186299997854803e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003797349999672406
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0001419650000116235
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00017266099996504636
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.1377000033880904e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0005479090000335418
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.927999996582002e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00010585000001128719
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.606000004514499e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00037075099999128724
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.021699997267206e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.358200003362072e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.47270000449862e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00033752100000583596
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.218899997951667e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.900899999593094e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.294500001833512e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00034473199997364645
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.195399998887297e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.979599999747734e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.4858000023850764e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00032007500004738176
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes5]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0001727809999465535
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.716199999980745e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.770200001757985e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00043729200001507706
+    },
+    "tests/test_contracts.py::test_bad_endpoint[changes6]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00017398300002469114
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.299099997406302e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.15180000206783e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00046651600001723637
+    },
+    "tests/test_contracts.py::test_bad_paths[../x]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00011597599996093777
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00027791000002252986
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 9.706700001288482e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0008627960000353596
+    },
+    "tests/test_contracts.py::test_bad_paths[.]": {
+      "dependencies": [],
+      "failure": "tests/test_contracts.py:11: in test_bad_paths\n    with pytest.raises(ContractError):\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   Failed: DID NOT RAISE <class 'future_code.contracts.ContractError'>",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 9.023700005172941e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.281100000180231e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00012142299999595707
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.021167800000000625
+    },
+    "tests/test_contracts.py::test_bad_paths[/tmp/x]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.165799996755595e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.000115984999979446
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.1879000011467724e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0004027690000043549
+    },
+    "tests/test_contracts.py::test_bad_paths[C:\\\\x]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.919000000176311e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.797800004207602e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.2554000003747205e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00032893799999555995
+    },
+    "tests/test_contracts.py::test_bad_paths[C:x]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.5755000005319744e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.306100002959283e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00010482800001909709
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000383741000007376
+    },
+    "tests/test_contracts.py::test_bad_paths[]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.333100000370905e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.965600000010454e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.427199994936018e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00034391000002642613
+    },
+    "tests/test_contracts.py::test_bad_paths[a/../../b]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.716100000403458e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001252999999792337
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.281499997205174e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003612670000165963
+    },
+    "tests/test_contracts.py::test_bad_paths[a\\\\b]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.784799998309609e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001023049999844261
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.336599999987811e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00033942300001399417
+    },
+    "tests/test_contracts.py::test_bad_paths[a\\x00b]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.762300001308176e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00018871600002512423
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.8563000007106893e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0004943480000179079
+    },
+    "tests/test_contracts.py::test_config_roundtrip_and_write_gating": {
+      "dependencies": [],
+      "failure": "tests/test_contracts.py:58: in test_config_roundtrip_and_write_gating\n    cfg = Config()\n          ^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.00012746300001253985
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0014908769999806282
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00011495400002559109
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.01165763500000594
+    },
+    "tests/test_contracts.py::test_gate_validation": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.523400000764013e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 5.5264000025090354e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.951899998355657e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003051520000099117
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00013754799999787792
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.441299999934927e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.375600002504143e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000397741999961454
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes10]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.225399999948422e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.560999998508123e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.219400000238238e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000306163999994169
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes11]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.8228000000326574e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.390699997562479e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.799300001603115e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00032567299996344445
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes12]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.190400000605223e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.903500003043519e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.996100002723324e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00030801599996266305
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.830400002399983e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.007600004906635e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.059200000483543e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00032239799998023955
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.936000002928267e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00011691700001392746
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.534900000408015e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003693589999897995
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.412800002588483e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00012848500000472995
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.3465999965519586e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003837909999901967
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.082200002310856e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.937500001593435e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.939999999147403e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003112409999630472
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes5]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.959999998594867e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.594999997058039e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.861800001914162e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0002984019999985321
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes6]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.346099999949729e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.525399997301065e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.242400001430724e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00035636000001204593
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes7]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.61149999625377e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.570900001814152e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.1632999966623174e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003470959999845036
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.083200003104139e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.888399997886154e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.01959999673818e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00034254800004873687
+    },
+    "tests/test_contracts.py::test_invalid_task_contract[changes9]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.373700000494864e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.081700000024284e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.118200001812511e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003184819999546562
+    },
+    "tests/test_contracts.py::test_protected_gates_and_reviewer": {
+      "dependencies": [],
+      "failure": "/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup\n    return (yield)\n            ^^^^^\ntests/conftest.py:48: in config\n    return Config(heartbeat_seconds=0.03, lease_seconds=1, stale_seconds=1, poll_seconds=0.005,\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "setup": {
+          "outcome": "failed",
+          "seconds": 0.00019789000003811452
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00012197399996694003
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.015232487000048422
+    },
+    "tests/test_contracts.py::test_scope_overlap_is_component_based": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.6926000013390876e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.686099998707505e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.469299997505004e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00024893699998074226
+    },
+    "tests/test_contracts.py::test_secret_paths[.env]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.165299998883711e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.536400000342837e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.1232999990370445e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003265649999661946
+    },
+    "tests/test_contracts.py::test_secret_paths[.future-code/config.json]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.28050000273106e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.557000001019333e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.012099998362828e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003339449999657518
+    },
+    "tests/test_contracts.py::test_secret_paths[.git/config]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.587499998682688e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.852399997749671e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.913899996632608e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0002995930000224689
+    },
+    "tests/test_contracts.py::test_secret_paths[.ssh/id_rsa]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.676600000015242e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.526899995331405e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.028099999686674e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0002989520000369339
+    },
+    "tests/test_contracts.py::test_secret_paths[deepseek.env]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.001699999089396e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.544900003926159e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.398600003696629e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003460039999936271
+    },
+    "tests/test_contracts.py::test_secret_paths[keys/key.pem]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.195400004571638e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001254400000334499
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.0330999979687476e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00034753599999248763
+    },
+    "tests/test_contracts.py::test_secret_paths[src/.env.prod]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.72870000041803e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.946600001991101e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.964000001133172e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000306733999991593
+    },
+    "tests/test_contracts.py::test_task_roundtrip_and_unknown_key": {
+      "dependencies": [],
+      "failure": "tests/test_contracts.py:39: in test_task_roundtrip_and_unknown_key\n    task = TaskSpec(\"a\", \"A\", \"A\", write_scope=[\"src\"], gates=[\"unit\"])\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n<string>:19: in __init__\n    ???\nsrc/future_code/contracts.py:122: in __post_init__\n    self.write_scope = [relative_path(p) for p in self.write_scope]\n                        ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 9.607499998764979e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.587899996977285e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00010126300003321376
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.010888551999983065
+    },
+    "tests/test_coordination.py::test_byte_fuzzer_and_omission_accounting": {
+      "dependencies": [],
+      "failure": "tests/test_coordination.py:144: in test_byte_fuzzer_and_omission_accounting\n    config=Config(max_context_bytes=budget)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.00015861000002814762
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 7.223000000067259e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00010739300000750518
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.01654966000000968
+    },
+    "tests/test_coordination.py::test_cli_hierarchy_submission": {
+      "dependencies": [],
+      "failure": "tests/test_coordination.py:313: in test_cli_hierarchy_submission\n    assert main(prefix+['init'])==0\nE   AssertionError: assert 2 == 0\nE    +  where 2 = main((['--project', '/tmp/pytest-of-root/pytest-10/test_cli_hierarchy_submission0'] + ['init']))",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.002235172999974111
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0009703489999992598
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00015390299995488022
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.01116697300000169
+    },
+    "tests/test_coordination.py::test_cross_cell_dependencies_are_explicit_allowed_edges": {
+      "dependencies": [],
+      "failure": "tests/test_coordination.py:95: in test_cross_cell_dependencies_are_explicit_allowed_edges\n    board = Coordination(db, Config())\n                             ^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0024412960000290695
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.003206093000017063
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0006672600000001694
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.032332330000031106
+    },
+    "tests/test_coordination.py::test_delivery_cursor_validates_recipient_and_cannot_move_backwards": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0010903200000029756
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0033174410000356147
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00030808700000761746
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.005052948000013657
+    },
+    "tests/test_coordination.py::test_dynamic_tree_85_tasks_rehydrates_local_managers": {
+      "dependencies": [],
+      "failure": "/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:458: in setup\n    return super().setup()\n           ^^^^^^^^^^^^^^^\n/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup\n    return (yield)\n            ^^^^^\ntests/conftest.py:48: in config\n    return Config(heartbeat_seconds=0.03, lease_seconds=1, stale_seconds=1, poll_seconds=0.005,\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "setup": {
+          "outcome": "failed",
+          "seconds": 0.0006996889999868472
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00014928599995300829
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.02061591500000759
+    },
+    "tests/test_coordination.py::test_fair_share_limits_active_siblings_without_losing_global_bug_priority": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0029818130000194287
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002665845000024092
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0003397540000378285
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.006243040000015299
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[1-2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00025778999997783103
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0002068530000087776
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.597400001988717e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0007673320000094463
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[16-4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0010280960000272898
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00013219999999591892
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.3110000010292424e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0013622619999864582
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[2-2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0002721619999874747
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00013508400002137932
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.17679999916254e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000608951000003799
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[3-2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0003228389999776482
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00012704199997415344
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.853900001464353e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0006787169999711296
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[4096-8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.3621803099999852
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00022038399998791647
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0001298770000062177
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.3629165639999883
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[512-8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.031270291999987876
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001407729999982621
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0004995460000145613
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0323479529999986
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[63-4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.003762715999982902
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00012864500001796841
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.93600000229344e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004111614000009922
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[8-8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0007352729999752228
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00012880499997436345
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.101200000330209e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0010872459999973216
+    },
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[9-8]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0006519770000181779
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00013766799997938506
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.383199999187127e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0010013250000042717
+    },
+    "tests/test_coordination.py::test_hierarchy_rejects_excess_depth_cycles_duplicates_and_existing_parents": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00031937300002482516
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 7.637499999191277e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.5348000014655554e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0007332000000133121
+    },
+    "tests/test_coordination.py::test_huge_unused_gate_registry_does_not_enter_context": {
+      "dependencies": [],
+      "failure": "tests/test_coordination.py:164: in test_huge_unused_gate_registry_does_not_enter_context\n    c=Config(gates={f'g-{i}':GateSpec(['true']) for i in range(4000)})\n      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.004798964000030992
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.340599998746256e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00010765299998638511
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.019842163999953755
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00015056800003776516
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0005945799999835799
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.4682000040884304e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.001045382000029349
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0002149760000520473
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00010949599999321435
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.041099999265498e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0005610989999809135
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.841400000392241e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00010969599998134072
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.662100002406078e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00042571500000576634
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.358100003784784e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.677700001020639e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.2144000019561645e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003439610000555149
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.624000002375396e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.868400004757859e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.1642999974556005e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00031905299999834824
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs5]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0012389749999783817
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00011560500001905893
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.97360000003755e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0016592810000020108
+    },
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs6]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.918999995126796e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00011477399999648696
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 8.353600003374595e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000435439000000315
+    },
+    "tests/test_coordination.py::test_mailbox_scope_capacity_utf8_and_terminal_recipient": {
+      "dependencies": [],
+      "failure": "tests/test_coordination.py:104: in test_mailbox_scope_capacity_utf8_and_terminal_recipient\n    board = Coordination(db, Config(max_inbox_pending=2,max_message_bytes=100))\n                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.002270877000000837
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.004402705000018159
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0006012499999883403
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.03349515999997266
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0001390209999954095
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00019388399999797912
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.400200001304256e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0005818100000283266
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.9114999980211e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00011041700003033839
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.542900001069938e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003934159999516851
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.519900001147107e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00012701199995035495
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.422699998940516e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0003938760000323782
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.19490000165024e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.945500002255358e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.179400002612965e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00032745499999009553
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields4]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.569400003148985e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.056699997245232e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.2544999985238974e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00033210200001576595
+    },
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields5]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.952099998145059e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.625600000617851e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.539799999747629e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00039469799997959853
+    },
+    "tests/test_coordination.py::test_new_status_schema_has_fixed_tables_with_measured_context": {
+      "dependencies": [],
+      "failure": "/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:458: in setup\n    return super().setup()\n           ^^^^^^^^^^^^^^^\n/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup\n    return (yield)\n            ^^^^^\ntests/conftest.py:48: in config\n    return Config(heartbeat_seconds=0.03, lease_seconds=1, stale_seconds=1, poll_seconds=0.005,\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "setup": {
+          "outcome": "failed",
+          "seconds": 0.0009467429999858723
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00016713299999082665
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.019843605999994907
+    },
+    "tests/test_coordination.py::test_notes_are_replace_only_versioned_fenced_and_bounded": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0011321529999577251
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.004179596000028596
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0004309820000116815
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.006083348000004207
+    },
+    "tests/test_coordination.py::test_parent_graph_cycle_and_missing_parent_rejected_atomically": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00027059900003223447
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002001149000022906
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0003673859999935303
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.002835512000046947
+    },
+    "tests/test_coordination.py::test_pending_mail_is_not_acknowledged_on_failed_request": {
+      "dependencies": [],
+      "failure": "/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:458: in setup\n    return super().setup()\n           ^^^^^^^^^^^^^^^\n/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup\n    return (yield)\n            ^^^^^\ntests/conftest.py:48: in config\n    return Config(heartbeat_seconds=0.03, lease_seconds=1, stale_seconds=1, poll_seconds=0.005,\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "setup": {
+          "outcome": "failed",
+          "seconds": 0.0012803480000229683
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00017104799997014197
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.029148099999986243
+    },
+    "tests/test_coordination.py::test_readonly_status_can_read_legacy_database_without_migration": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0034446340000044984
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0004903020000028846
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.053699999914897e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.004222400999992715
+    },
+    "tests/test_coordination.py::test_results_and_inbox_tools_are_exercised_in_actual_worker": {
+      "dependencies": [],
+      "failure": "/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:458: in setup\n    return super().setup()\n           ^^^^^^^^^^^^^^^\n/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup\n    return (yield)\n            ^^^^^\ntests/conftest.py:48: in config\n    return Config(heartbeat_seconds=0.03, lease_seconds=1, stale_seconds=1, poll_seconds=0.005,\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "setup": {
+          "outcome": "failed",
+          "seconds": 0.0009612850000166873
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00016584100001182378
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.026208530000019437
+    },
+    "tests/test_coordination.py::test_rollups_count_leaves_once_not_cross_dependency_edges": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.002167851000024257
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002458562000015263
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00028240799997547583
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.005173430000013468
+    },
+    "tests/test_coordination.py::test_scoped_board_pages_are_stable_and_prevent_unrelated_reads": {
+      "dependencies": [],
+      "failure": "tests/test_coordination.py:75: in test_scoped_board_pages_are_stable_and_prevent_unrelated_reads\n    board = Coordination(db, Config(context_items=2))\n                             ^^^^^^^^^^^^^^^^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0015123489999950834
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0019940079999969385
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00053480999997646
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.020100415000001703
+    },
+    "tests/test_coordination.py::test_v1_database_migration_preserves_tasks_and_events": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0031381899999587404
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0005015589999857184
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.824300004382167e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003926112999977249
+    },
+    "tests/test_coordination.py::test_working_note_survives_yield_but_old_transcript_does_not": {
+      "dependencies": [],
+      "failure": "/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:458: in setup\n    return super().setup()\n           ^^^^^^^^^^^^^^^\n/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup\n    return (yield)\n            ^^^^^\ntests/conftest.py:48: in config\n    return Config(heartbeat_seconds=0.03, lease_seconds=1, stale_seconds=1, poll_seconds=0.005,\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "setup": {
+          "outcome": "failed",
+          "seconds": 0.0009074440000063078
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002298579999546746
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.021215023000024757
+    },
+    "tests/test_coordination_edges.py::test_atomic_admission_cannot_exceed_children_across_multiple_batches": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0007152630000177851
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.003916869000022416
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00043883399996502703
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0054085570000097505
+    },
+    "tests/test_coordination_edges.py::test_command_byte_ceiling_rejects_before_subprocess": {
+      "dependencies": [],
+      "failure": "/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:458: in setup\n    return super().setup()\n           ^^^^^^^^^^^^^^^\n/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup\n    return (yield)\n            ^^^^^\ntests/conftest.py:48: in config\n    return Config(heartbeat_seconds=0.03, lease_seconds=1, stale_seconds=1, poll_seconds=0.005,\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "setup": {
+          "outcome": "failed",
+          "seconds": 0.00028814699999202276
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0001563559999908648
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.019801902999972754
+    },
+    "tests/test_coordination_edges.py::test_daemon_rejects_manually_oversized_cells_before_model_call": {
+      "dependencies": [],
+      "failure": "/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:458: in setup\n    return super().setup()\n           ^^^^^^^^^^^^^^^\n/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup\n    return (yield)\n            ^^^^^\ntests/conftest.py:48: in config\n    return Config(heartbeat_seconds=0.03, lease_seconds=1, stale_seconds=1, poll_seconds=0.005,\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "setup": {
+          "outcome": "failed",
+          "seconds": 0.000807361999989098
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00020525099995438723
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.025185822000025837
+    },
+    "tests/test_coordination_edges.py::test_finish_cannot_skip_an_undelivered_mailbox_page": {
+      "dependencies": [],
+      "failure": "/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:458: in setup\n    return super().setup()\n           ^^^^^^^^^^^^^^^\n/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup\n    return (yield)\n            ^^^^^\ntests/conftest.py:48: in config\n    return Config(heartbeat_seconds=0.03, lease_seconds=1, stale_seconds=1, poll_seconds=0.005,\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "setup": {
+          "outcome": "failed",
+          "seconds": 0.0004246029999990242
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00010960600002363208
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.018127437999964968
+    },
+    "tests/test_coordination_edges.py::test_http_byte_ceiling_rejects_before_request_and_reservation": {
+      "dependencies": [],
+      "failure": "/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:458: in setup\n    return super().setup()\n           ^^^^^^^^^^^^^^^\n/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup\n    return (yield)\n            ^^^^^\ntests/conftest.py:48: in config\n    return Config(heartbeat_seconds=0.03, lease_seconds=1, stale_seconds=1, poll_seconds=0.005,\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "setup": {
+          "outcome": "failed",
+          "seconds": 0.0002671039999881941
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00015581600001723928
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.01904745100000582
+    },
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[bad-]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0004750699999931385
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0028005389999634644
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00035689000003458204
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003888025000037487
+    },
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence--1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0004615390000139996
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0028737499999920146
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00032070600002498395
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0038966889999869636
+    },
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence-abc]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00045923499999389605
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0026311029999988023
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002895279999961531
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0036296140000331434
+    },
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[summary-999999999]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0004750990000275124
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002641369000002669
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00031332399998973415
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0036844669999709367
+    },
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[uncertainties-\\u0661]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0005015289999619199
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0024518710000052124
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00031082999998943706
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0034889109999767243
+    },
+    "tests/test_coordination_edges.py::test_large_observation_is_really_retained_and_hash_matches": {
+      "dependencies": [],
+      "failure": "/opt/pyvenv/lib/python3.13/site-packages/pytest_asyncio/plugin.py:730: in pytest_fixture_setup\n    return (yield)\n            ^^^^^\ntests/conftest.py:48: in config\n    return Config(heartbeat_seconds=0.03, lease_seconds=1, stale_seconds=1, poll_seconds=0.005,\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "setup": {
+          "outcome": "failed",
+          "seconds": 0.002438862000019526
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.000472085000012612
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.02040831099998286
+    },
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0004675479999605159
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.001744120000012117
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00028677400001697606
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.002720447999990938
+    },
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields1]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0004261650000216832
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.001568753999947603
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00029535700002725207
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0024939049999943563
+    },
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0003834600000232058
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0015672320000135187
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.000277971000002708
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0024226280000334555
+    },
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields3]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0004008669999961967
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0017780309999579913
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.000570964000019103
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.002954101999989689
+    },
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[0-2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0003057129999888275
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0026170110000407476
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00029426600002580017
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0034753109999883236
+    },
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[1-0]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00024004300001934098
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0027033419999611397
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002731839999796648
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003474989000039841
+    },
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[2-2]": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00022143499995763705
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0025313510000160022
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002957980000246607
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003319654999984323
+    },
+    "tests/test_coordination_edges.py::test_recorded_gate_details_are_bounded_and_missing_evidence_is_unknown": {
+      "dependencies": [],
+      "failure": "tests/test_coordination_edges.py:144: in test_recorded_gate_details_are_bounded_and_missing_evidence_is_unknown\n    board=Coordination(db,Config())\n                          ^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0007733799999982693
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0017532040000105553
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00036976999996340965
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.01358661500000835
+    },
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[artifacts]": {
+      "dependencies": [],
+      "failure": "tests/test_coordination_edges.py:32: in test_result_pages_recover_all_records_not_only_card_excerpt\n    board=Coordination(db,Config(context_items=3))\n                          ^^^^^^^^^^^^^^^^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0005890009999802714
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0029166449999706856
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0005674390000081075
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.020120565000013357
+    },
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[evidence]": {
+      "dependencies": [],
+      "failure": "tests/test_coordination_edges.py:32: in test_result_pages_recover_all_records_not_only_card_excerpt\n    board=Coordination(db,Config(context_items=3))\n                          ^^^^^^^^^^^^^^^^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0006250460000387648
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0036890139999741223
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0005139280000321378
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.10418203400001858
+    },
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[summary]": {
+      "dependencies": [],
+      "failure": "tests/test_coordination_edges.py:32: in test_result_pages_recover_all_records_not_only_card_excerpt\n    board=Coordination(db,Config(context_items=3))\n                          ^^^^^^^^^^^^^^^^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0004771919999484453
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.002577271000006931
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00044292100000120627
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.015497096999979476
+    },
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[uncertainties]": {
+      "dependencies": [],
+      "failure": "tests/test_coordination_edges.py:32: in test_result_pages_recover_all_records_not_only_card_excerpt\n    board=Coordination(db,Config(context_items=3))\n                          ^^^^^^^^^^^^^^^^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0005991770000264296
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0030406129999960285
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00038615400001162925
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.017953906000002462
+    },
+    "tests/test_coordination_edges.py::test_selective_descendant_reads_do_not_grant_broadcast_or_cross_tree_read": {
+      "dependencies": [],
+      "failure": "tests/test_coordination_edges.py:127: in test_selective_descendant_reads_do_not_grant_broadcast_or_cross_tree_read\n    board=Coordination(db,Config(context_items=2))\n                          ^^^^^^^^^^^^^^^^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0020448749999673055
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.003860864000046149
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00047463800001423806
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.020173985999974775
+    },
+    "tests/test_hierarchy_contract.py::test_512_leaves_have_bounded_recursive_fanout": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.01977816700002677
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00011314099998571692
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.430199997315867e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.020258224000031078
+    },
+    "tests/test_hierarchy_contract.py::test_delegation_does_not_consume_failure_attempt_and_fanout_is_cumulative": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0011950190000220573
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.001986445999989428
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00030513199999404605
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00373358100000587
+    },
+    "tests/test_hierarchy_contract.py::test_scoped_board_has_no_global_transcript": {
+      "dependencies": [],
+      "failure": "tests/test_hierarchy_contract.py:46: in test_scoped_board_has_no_global_transcript\n    board = Coordination(db, Config())\n                             ^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.001410866000014721
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0017969599999787533
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0006103239999788457
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.013015710999980001
+    },
+    "tests/test_hierarchy_contract.py::test_utf8_bound_and_contract_preservation": {
+      "dependencies": [],
+      "failure": "tests/test_hierarchy_contract.py:34: in test_utf8_bound_and_contract_preservation\n    c = Config(max_context_bytes=6000)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n<string>:39: in __init__\n    ???\nsrc/future_code/contracts.py:297: in __post_init__\n    self.protected_paths = [relative_path(p) for p in self.protected_paths]\n                            ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0001338430000146218
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 7.196899997552464e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 8.315599995967204e-05
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.010130804999960219
+    },
+    "tests/test_store.py::test_atomic_graph_rejection": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0004190239999957157
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0015508070000009866
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00024984899999935806
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00245853100000204
+    },
+    "tests/test_store.py::test_attempt_limit_and_issue_resolution": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.000782954999976937
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0019100309999657838
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0003605059999927107
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0032620070000461965
+    },
+    "tests/test_store.py::test_budget_atomic_across_connections": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.026468604000001505
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0003318419999800426
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00014306700001043282
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.027239591000011387
+    },
+    "tests/test_store.py::test_cancel_parent_and_children_fences_workers": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0010862639999800194
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0017746869999655246
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002858020000076067
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.003353485999980421
+    },
+    "tests/test_store.py::test_dag_order_and_parallel_scopes": {
+      "dependencies": [],
+      "failure": "tests/test_store.py:10: in test_dag_order_and_parallel_scopes\n    db.add_tasks([TaskSpec(\"a\", \"A\", \"A\", write_scope=[\"a.py\"]),\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n<string>:19: in __init__\n    ???\nsrc/future_code/contracts.py:122: in __post_init__\n    self.write_scope = [relative_path(p) for p in self.write_scope]\n                        ^^^^^^^^^^^^^^^^\nsrc/future_code/contracts.py:51: in relative_path\n    raise ContractError(\"A whole-project write scope is forbidden; name explicit directories\")\nE   future_code.contracts.ContractError: A whole-project write scope is forbidden; name explicit directories",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0001175679999505519
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0022866920000410573
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0005824010000310409
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.0142791339999917
+    },
+    "tests/test_store.py::test_delegation_cycle_rolls_back": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0007145220000097652
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0019508930000142755
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00027540700000372453
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0032333740000467515
+    },
+    "tests/test_store.py::test_expired_worker_fencing": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0012661869999988085
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00154043200001297
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002911809999659454
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0033431800000016665
+    },
+    "tests/test_store.py::test_messages_persist_and_validate": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0006672700000081022
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.001632139999969695
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002610450000020137
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00280245199996898
+    },
+    "tests/test_store.py::test_pause_retry_and_failed_dependency": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0008603829999742629
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.001671930999975757
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00030699500001674096
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0030461610000429573
+    },
+    "tests/test_store.py::test_priority_bug_fix_first": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0006693240000004153
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.001961639999990439
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.0002767689999814138
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0031615649999707784
+    },
+    "tests/test_store.py::test_runtime_singleton_and_expiry": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0019639029999893864
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0003751279999733015
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.348599998773352e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0025979729999789924
+    },
+    "tests/test_store.py::test_schema_rejects_newer_state": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0018807370000217816
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0004885589999616968
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.51990000051228e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.002691303999995398
+    },
+    "tests/test_store.py::test_transport_does_not_burn_code_attempts": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0006334990000027574
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0016563169999699312
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00026050399998212015
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0027530770000225857
+    }
+  },
+  "registry": [
+    "tests/test_contracts.py::test_bad_paths[../x]",
+    "tests/test_contracts.py::test_bad_paths[/tmp/x]",
+    "tests/test_contracts.py::test_bad_paths[C:\\\\x]",
+    "tests/test_contracts.py::test_bad_paths[a/../../b]",
+    "tests/test_contracts.py::test_bad_paths[]",
+    "tests/test_contracts.py::test_bad_paths[.]",
+    "tests/test_contracts.py::test_bad_paths[a\\x00b]",
+    "tests/test_contracts.py::test_bad_paths[a\\\\b]",
+    "tests/test_contracts.py::test_bad_paths[C:x]",
+    "tests/test_contracts.py::test_secret_paths[.env]",
+    "tests/test_contracts.py::test_secret_paths[src/.env.prod]",
+    "tests/test_contracts.py::test_secret_paths[deepseek.env]",
+    "tests/test_contracts.py::test_secret_paths[.git/config]",
+    "tests/test_contracts.py::test_secret_paths[keys/key.pem]",
+    "tests/test_contracts.py::test_secret_paths[.future-code/config.json]",
+    "tests/test_contracts.py::test_secret_paths[.ssh/id_rsa]",
+    "tests/test_contracts.py::test_scope_overlap_is_component_based",
+    "tests/test_contracts.py::test_invalid_task_contract[changes0]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes1]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes2]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes3]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes4]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes5]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes6]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes7]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes8]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes9]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes10]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes11]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes12]",
+    "tests/test_contracts.py::test_task_roundtrip_and_unknown_key",
+    "tests/test_contracts.py::test_bad_config[changes0]",
+    "tests/test_contracts.py::test_bad_config[changes1]",
+    "tests/test_contracts.py::test_bad_config[changes2]",
+    "tests/test_contracts.py::test_bad_config[changes3]",
+    "tests/test_contracts.py::test_bad_config[changes4]",
+    "tests/test_contracts.py::test_bad_config[changes5]",
+    "tests/test_contracts.py::test_bad_config[changes6]",
+    "tests/test_contracts.py::test_bad_config[changes7]",
+    "tests/test_contracts.py::test_bad_config[changes8]",
+    "tests/test_contracts.py::test_bad_config[changes9]",
+    "tests/test_contracts.py::test_bad_config[changes10]",
+    "tests/test_contracts.py::test_config_roundtrip_and_write_gating",
+    "tests/test_contracts.py::test_protected_gates_and_reviewer",
+    "tests/test_contracts.py::test_bad_endpoint[changes0]",
+    "tests/test_contracts.py::test_bad_endpoint[changes1]",
+    "tests/test_contracts.py::test_bad_endpoint[changes2]",
+    "tests/test_contracts.py::test_bad_endpoint[changes3]",
+    "tests/test_contracts.py::test_bad_endpoint[changes4]",
+    "tests/test_contracts.py::test_bad_endpoint[changes5]",
+    "tests/test_contracts.py::test_bad_endpoint[changes6]",
+    "tests/test_contracts.py::test_gate_validation",
+    "tests/test_store.py::test_dag_order_and_parallel_scopes",
+    "tests/test_store.py::test_priority_bug_fix_first",
+    "tests/test_store.py::test_atomic_graph_rejection",
+    "tests/test_store.py::test_expired_worker_fencing",
+    "tests/test_store.py::test_cancel_parent_and_children_fences_workers",
+    "tests/test_store.py::test_messages_persist_and_validate",
+    "tests/test_store.py::test_pause_retry_and_failed_dependency",
+    "tests/test_store.py::test_transport_does_not_burn_code_attempts",
+    "tests/test_store.py::test_attempt_limit_and_issue_resolution",
+    "tests/test_store.py::test_runtime_singleton_and_expiry",
+    "tests/test_store.py::test_budget_atomic_across_connections",
+    "tests/test_store.py::test_schema_rejects_newer_state",
+    "tests/test_store.py::test_delegation_cycle_rolls_back",
+    "tests/test_contract_first.py::test_path_escape_rejected",
+    "tests/test_contract_first.py::test_task_cycle_rejected_atomically",
+    "tests/test_contract_first.py::test_unknown_health_is_not_success",
+    "tests/test_contract_first.py::test_scope_lease_serializes_writers",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[1-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[2-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[3-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[8-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[9-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[16-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[63-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[512-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[4096-8]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs0]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs1]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs2]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs3]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs4]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs5]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs6]",
+    "tests/test_coordination.py::test_hierarchy_rejects_excess_depth_cycles_duplicates_and_existing_parents",
+    "tests/test_coordination.py::test_parent_graph_cycle_and_missing_parent_rejected_atomically",
+    "tests/test_coordination.py::test_scoped_board_pages_are_stable_and_prevent_unrelated_reads",
+    "tests/test_coordination.py::test_cross_cell_dependencies_are_explicit_allowed_edges",
+    "tests/test_coordination.py::test_mailbox_scope_capacity_utf8_and_terminal_recipient",
+    "tests/test_coordination.py::test_notes_are_replace_only_versioned_fenced_and_bounded",
+    "tests/test_coordination.py::test_delivery_cursor_validates_recipient_and_cannot_move_backwards",
+    "tests/test_coordination.py::test_byte_fuzzer_and_omission_accounting",
+    "tests/test_coordination.py::test_huge_unused_gate_registry_does_not_enter_context",
+    "tests/test_coordination.py::test_fair_share_limits_active_siblings_without_losing_global_bug_priority",
+    "tests/test_coordination.py::test_rollups_count_leaves_once_not_cross_dependency_edges",
+    "tests/test_coordination.py::test_v1_database_migration_preserves_tasks_and_events",
+    "tests/test_coordination.py::test_readonly_status_can_read_legacy_database_without_migration",
+    "tests/test_coordination.py::test_dynamic_tree_85_tasks_rehydrates_local_managers",
+    "tests/test_coordination.py::test_working_note_survives_yield_but_old_transcript_does_not",
+    "tests/test_coordination.py::test_pending_mail_is_not_acknowledged_on_failed_request",
+    "tests/test_coordination.py::test_results_and_inbox_tools_are_exercised_in_actual_worker",
+    "tests/test_coordination.py::test_new_status_schema_has_fixed_tables_with_measured_context",
+    "tests/test_coordination.py::test_cli_hierarchy_submission",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields0]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields1]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields2]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields3]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields4]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields5]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[artifacts]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[evidence]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[uncertainties]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[summary]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[bad-]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence--1]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence-abc]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[summary-999999999]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[uncertainties-\\u0661]",
+    "tests/test_coordination_edges.py::test_large_observation_is_really_retained_and_hash_matches",
+    "tests/test_coordination_edges.py::test_http_byte_ceiling_rejects_before_request_and_reservation",
+    "tests/test_coordination_edges.py::test_command_byte_ceiling_rejects_before_subprocess",
+    "tests/test_coordination_edges.py::test_atomic_admission_cannot_exceed_children_across_multiple_batches",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[0-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[2-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[1-0]",
+    "tests/test_coordination_edges.py::test_daemon_rejects_manually_oversized_cells_before_model_call",
+    "tests/test_coordination_edges.py::test_selective_descendant_reads_do_not_grant_broadcast_or_cross_tree_read",
+    "tests/test_coordination_edges.py::test_recorded_gate_details_are_bounded_and_missing_evidence_is_unknown",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields0]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields1]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields2]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields3]",
+    "tests/test_coordination_edges.py::test_finish_cannot_skip_an_undelivered_mailbox_page",
+    "tests/test_hierarchy_contract.py::test_512_leaves_have_bounded_recursive_fanout",
+    "tests/test_hierarchy_contract.py::test_delegation_does_not_consume_failure_attempt_and_fanout_is_cumulative",
+    "tests/test_hierarchy_contract.py::test_utf8_bound_and_contract_preservation",
+    "tests/test_hierarchy_contract.py::test_scoped_board_has_no_global_transcript"
+  ],
+  "returncode": 1,
+  "scheduled": [
+    "tests/test_contracts.py::test_bad_paths[../x]",
+    "tests/test_contracts.py::test_bad_paths[/tmp/x]",
+    "tests/test_contracts.py::test_bad_paths[C:\\\\x]",
+    "tests/test_contracts.py::test_bad_paths[a/../../b]",
+    "tests/test_contracts.py::test_bad_paths[]",
+    "tests/test_contracts.py::test_bad_paths[.]",
+    "tests/test_contracts.py::test_bad_paths[a\\x00b]",
+    "tests/test_contracts.py::test_bad_paths[a\\\\b]",
+    "tests/test_contracts.py::test_bad_paths[C:x]",
+    "tests/test_contracts.py::test_secret_paths[.env]",
+    "tests/test_contracts.py::test_secret_paths[src/.env.prod]",
+    "tests/test_contracts.py::test_secret_paths[deepseek.env]",
+    "tests/test_contracts.py::test_secret_paths[.git/config]",
+    "tests/test_contracts.py::test_secret_paths[keys/key.pem]",
+    "tests/test_contracts.py::test_secret_paths[.future-code/config.json]",
+    "tests/test_contracts.py::test_secret_paths[.ssh/id_rsa]",
+    "tests/test_contracts.py::test_scope_overlap_is_component_based",
+    "tests/test_contracts.py::test_invalid_task_contract[changes0]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes1]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes2]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes3]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes4]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes5]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes6]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes7]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes8]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes9]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes10]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes11]",
+    "tests/test_contracts.py::test_invalid_task_contract[changes12]",
+    "tests/test_contracts.py::test_task_roundtrip_and_unknown_key",
+    "tests/test_contracts.py::test_bad_config[changes0]",
+    "tests/test_contracts.py::test_bad_config[changes1]",
+    "tests/test_contracts.py::test_bad_config[changes2]",
+    "tests/test_contracts.py::test_bad_config[changes3]",
+    "tests/test_contracts.py::test_bad_config[changes4]",
+    "tests/test_contracts.py::test_bad_config[changes5]",
+    "tests/test_contracts.py::test_bad_config[changes6]",
+    "tests/test_contracts.py::test_bad_config[changes7]",
+    "tests/test_contracts.py::test_bad_config[changes8]",
+    "tests/test_contracts.py::test_bad_config[changes9]",
+    "tests/test_contracts.py::test_bad_config[changes10]",
+    "tests/test_contracts.py::test_config_roundtrip_and_write_gating",
+    "tests/test_contracts.py::test_protected_gates_and_reviewer",
+    "tests/test_contracts.py::test_bad_endpoint[changes0]",
+    "tests/test_contracts.py::test_bad_endpoint[changes1]",
+    "tests/test_contracts.py::test_bad_endpoint[changes2]",
+    "tests/test_contracts.py::test_bad_endpoint[changes3]",
+    "tests/test_contracts.py::test_bad_endpoint[changes4]",
+    "tests/test_contracts.py::test_bad_endpoint[changes5]",
+    "tests/test_contracts.py::test_bad_endpoint[changes6]",
+    "tests/test_contracts.py::test_gate_validation",
+    "tests/test_store.py::test_dag_order_and_parallel_scopes",
+    "tests/test_store.py::test_priority_bug_fix_first",
+    "tests/test_store.py::test_atomic_graph_rejection",
+    "tests/test_store.py::test_expired_worker_fencing",
+    "tests/test_store.py::test_cancel_parent_and_children_fences_workers",
+    "tests/test_store.py::test_messages_persist_and_validate",
+    "tests/test_store.py::test_pause_retry_and_failed_dependency",
+    "tests/test_store.py::test_transport_does_not_burn_code_attempts",
+    "tests/test_store.py::test_attempt_limit_and_issue_resolution",
+    "tests/test_store.py::test_runtime_singleton_and_expiry",
+    "tests/test_store.py::test_budget_atomic_across_connections",
+    "tests/test_store.py::test_schema_rejects_newer_state",
+    "tests/test_store.py::test_delegation_cycle_rolls_back",
+    "tests/test_contract_first.py::test_path_escape_rejected",
+    "tests/test_contract_first.py::test_task_cycle_rejected_atomically",
+    "tests/test_contract_first.py::test_unknown_health_is_not_success",
+    "tests/test_contract_first.py::test_scope_lease_serializes_writers",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[1-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[2-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[3-2]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[8-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[9-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[16-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[63-4]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[512-8]",
+    "tests/test_coordination.py::test_hierarchy_preserves_leaf_contracts_and_has_correct_depth[4096-8]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs0]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs1]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs2]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs3]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs4]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs5]",
+    "tests/test_coordination.py::test_invalid_hierarchy_parameters_fail[kwargs6]",
+    "tests/test_coordination.py::test_hierarchy_rejects_excess_depth_cycles_duplicates_and_existing_parents",
+    "tests/test_coordination.py::test_parent_graph_cycle_and_missing_parent_rejected_atomically",
+    "tests/test_coordination.py::test_scoped_board_pages_are_stable_and_prevent_unrelated_reads",
+    "tests/test_coordination.py::test_cross_cell_dependencies_are_explicit_allowed_edges",
+    "tests/test_coordination.py::test_mailbox_scope_capacity_utf8_and_terminal_recipient",
+    "tests/test_coordination.py::test_notes_are_replace_only_versioned_fenced_and_bounded",
+    "tests/test_coordination.py::test_delivery_cursor_validates_recipient_and_cannot_move_backwards",
+    "tests/test_coordination.py::test_byte_fuzzer_and_omission_accounting",
+    "tests/test_coordination.py::test_huge_unused_gate_registry_does_not_enter_context",
+    "tests/test_coordination.py::test_fair_share_limits_active_siblings_without_losing_global_bug_priority",
+    "tests/test_coordination.py::test_rollups_count_leaves_once_not_cross_dependency_edges",
+    "tests/test_coordination.py::test_v1_database_migration_preserves_tasks_and_events",
+    "tests/test_coordination.py::test_readonly_status_can_read_legacy_database_without_migration",
+    "tests/test_coordination.py::test_dynamic_tree_85_tasks_rehydrates_local_managers",
+    "tests/test_coordination.py::test_working_note_survives_yield_but_old_transcript_does_not",
+    "tests/test_coordination.py::test_pending_mail_is_not_acknowledged_on_failed_request",
+    "tests/test_coordination.py::test_results_and_inbox_tools_are_exercised_in_actual_worker",
+    "tests/test_coordination.py::test_new_status_schema_has_fixed_tables_with_measured_context",
+    "tests/test_coordination.py::test_cli_hierarchy_submission",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields0]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields1]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields2]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields3]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields4]",
+    "tests/test_coordination.py::test_new_configuration_is_strict[fields5]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[artifacts]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[evidence]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[uncertainties]",
+    "tests/test_coordination_edges.py::test_result_pages_recover_all_records_not_only_card_excerpt[summary]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[bad-]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence--1]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[evidence-abc]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[summary-999999999]",
+    "tests/test_coordination_edges.py::test_invalid_result_sections_and_cursors_fail[uncertainties-\\u0661]",
+    "tests/test_coordination_edges.py::test_large_observation_is_really_retained_and_hash_matches",
+    "tests/test_coordination_edges.py::test_http_byte_ceiling_rejects_before_request_and_reservation",
+    "tests/test_coordination_edges.py::test_command_byte_ceiling_rejects_before_subprocess",
+    "tests/test_coordination_edges.py::test_atomic_admission_cannot_exceed_children_across_multiple_batches",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[0-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[2-2]",
+    "tests/test_coordination_edges.py::test_prebuilt_graph_depth_is_validated_at_admission[1-0]",
+    "tests/test_coordination_edges.py::test_daemon_rejects_manually_oversized_cells_before_model_call",
+    "tests/test_coordination_edges.py::test_selective_descendant_reads_do_not_grant_broadcast_or_cross_tree_read",
+    "tests/test_coordination_edges.py::test_recorded_gate_details_are_bounded_and_missing_evidence_is_unknown",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields0]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields1]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields2]",
+    "tests/test_coordination_edges.py::test_model_result_arguments_fail_as_contract_errors_not_worker_crashes[fields3]",
+    "tests/test_coordination_edges.py::test_finish_cannot_skip_an_undelivered_mailbox_page",
+    "tests/test_hierarchy_contract.py::test_512_leaves_have_bounded_recursive_fanout",
+    "tests/test_hierarchy_contract.py::test_delegation_does_not_consume_failure_attempt_and_fanout_is_cumulative",
+    "tests/test_hierarchy_contract.py::test_utf8_bound_and_contract_preservation",
+    "tests/test_hierarchy_contract.py::test_scoped_board_has_no_global_transcript"
+  ],
+  "schema": 1,
+  "snapshot": "/mnt/data/hact_revision/ichact-jb80qmlp/project",
+  "snapshot_after_matches": true,
+  "source_sha256": {},
+  "timed_out": false
+}

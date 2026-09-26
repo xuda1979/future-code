@@ -1,0 +1,61 @@
+{
+  "version": "3.0.0",
+  "scope": "learned permutation, stable-ID migration, coupled fixed-share controller, actual Future Code subprocess gate",
+  "defaults": {
+    "n": 64,
+    "synthetic_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "calibration_episodes": 256,
+    "validation_episodes": 128,
+    "test_episodes": 512,
+    "online_events": 2048,
+    "fanout": 8,
+    "header": 512,
+    "card": 320,
+    "cap": 3072,
+    "eta": 0.5,
+    "share": 0.01
+  },
+  "controls": [
+    "fixed8",
+    "original_order_dp",
+    "spectral_dp",
+    "jaccard_cluster_dp",
+    "validation_selected_dp",
+    "frozen",
+    "independent_share",
+    "coupled_share",
+    "offline_switching_oracle"
+  ],
+  "inference": "seed-cluster bootstrap 10000 resamples; no tuned test-set hyperparameters",
+  "safety": "no hosted calls without supplied authorized endpoint; no token estimates presented as measurements; unchanged legacy results explicitly historical",
+  "acceptance": [
+    "baseline tests pass",
+    "permutation and migration tests pass",
+    "controller causal and costs priced",
+    "real-source cases run",
+    "Future Code integration run",
+    "independent auditor",
+    "final extracted package tests"
+  ]
+}

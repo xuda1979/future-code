@@ -1,0 +1,12 @@
+\section{Block-Backbone Compiler: Retained Ablation}\label{sec:block}
+The exact compiler's cubic cost makes frequent full recompilation inappropriate. For a supplied display order, divide the leaves into consecutive blocks of at most $s$ leaves, and fix a compact $b$-ary macro-tree on those blocks. Optimize each block's microtree using its restricted completion waves and strict-epoch initialization cost. Replace each macro leaf by its optimized microtree. No evaluation waves enter this process.
+
+\begin{proposition}[Exactness in the block-backbone class]\label{prop:block}
+With display order, block boundaries and macro-tree fixed, independent exact optimization of the blocks minimizes the training objective over every layout in that restricted class. The dynamic-programming work is $O(bns^2)$ with $O(bs^2)$ reusable DP workspace, excluding order learning and wave preparation.
+\end{proposition}
+\begin{proof}
+Every macro node covers a fixed union of complete blocks, so its activation weight and packet price are constant across the class. All variable costs lie inside disjoint microtrees. The objective is a constant plus the sum of their independent objectives. Conditional exactness therefore gives the minimizing member. There are at most $\lceil n/s\rceil$ subproblems, each of size at most $s$, yielding the stated DP bound. Reusing the subproblem arrays yields the workspace bound.\end{proof}
+For the reference implementation, $M$ recorded waves and $L$ total wave memberships add filtering and weight-preparation work of $O(\lceil n/s\rceil L+Mns)$, and storage for the input, output and local $M\times s$ arrays. This is not a linear-time claim for the entire pipeline. Dense affinity construction and order learning remain separate costs. No bounded approximation ratio against the unrestricted exact tree is asserted; held-out cost can deteriorate. The historical experiment froze $s=32$ before measurement. Its negative result motivates excluding this compiler from the v5 practical path.
+
+
+The original 18-workload v4 scaling data remain in the artifact. Block DP reduced fitting time relative to exact DP but lost to same-order balanced fixed8 in held-out bytes. Restricted-class exactness is a mathematical property, not an empirical recommendation.

@@ -1,0 +1,234 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=24mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amsthm,newtxtext,newtxmath,microtype}
+\usepackage{booktabs,tabularx,array,graphicx,xcolor}
+\usepackage{algorithm,algpseudocode,enumitem}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Research manuscript v5.0}\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}\setlength{\parskip}{3pt}\setlength{\emergencystretch}{2em}
+\newtheorem{theorem}{Theorem}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{lemma}[theorem]{Lemma}
+\theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
+\newcommand{\PASS}{\mathsf{PASS}}\newcommand{\FAIL}{\mathsf{FAIL}}\newcommand{\UNKNOWN}{\mathsf{UNKNOWN}}
+\newcommand{\E}{\mathbb E}\newcommand{\Prb}{\mathbb P}\newcommand{\ind}{\mathbf 1}\newcommand{\R}{\mathcal R}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\hypersetup{pdftitle={Adaptive HACT: Service-Matched Verification Evidence and Deployment Boundaries},pdfauthor={Research manuscript; author information pending confirmation}}
+\title{\vspace{-9mm}\textbf{Adaptive HACT: Service-Matched Verification Evidence and Deployment Boundaries}}
+\author{Research manuscript\thanks{Author names and affiliations require confirmation before submission. Mathematical development, implementation, experiments, and writing were AI-assisted. This is a research artifact, not an accepted conference paper.}}
+\date{September 21, 2026 \quad | \quad Version 5.0}
+\begin{document}
+\maketitle
+\begin{abstract}
+Reducing verification evidence is useful only when its delivery service is needed and the savings repay incremental cost. Adaptive HACT separates immutable check identities and acceptance predicates from the layout used to aggregate their completion records. Full completion hyperedges, rather than pairwise similarity alone, score feasible layouts; generation fencing preserves conditional publication soundness across permutations. We retain exact alphabetic dynamic programming as a reference, but make a learned-order compact balanced eight-ary tree the low-compilation-cost baseline and relegate the slower, empirically inferior block compiler to an ablation. A fresh, frozen-seed study contains 27 train/validation/held-out workloads. On clustered completions, the practical catalogue reduces held-out padded cost by 23.43\%, 10.75\%, and 5.56\% at 128, 512, and 1,024 checks; independent and global controls give essentially no improvement. Re-aggregating twelve archived source candidates under three layouts produces 36 layout replays, not new code-generation or checker trials. The practical balanced layout reduces whole-epoch compressed bytes by 4.36--41.84\% versus original-order fixed8, but remains larger than learned-order exact layouts. We derive an explicit, codec- and service-matched deployment test rather than claiming that historical export savings cancel a different harness's verification overhead. Root-status inputs remain identical across layouts. BPE and physical-WAN measurements remain unavailable; we supply actual-tokenizer admission and authenticated TLS measurement tools without presenting local protocol tests as those missing experiments. The result identifies both a lower-cost implementation and a narrow, auditable operating region, not a universal agent or verification accelerator.
+\end{abstract}
+\noindent\textbf{Keywords:} bounded evidence; verification contracts; bandwidth-limited logging; completion hyperedges; cost-aware layout selection.
+
+\section{Introduction}
+Many-agent systems need a reliable answer to ``which declared checks hold on this exact candidate?'' Their task graph and conversational organization need not be the layout that aggregates this evidence. HACT separates the two: immutable check identities determine the acceptance contract, while a bounded-packet tree represents intermediate results. A smaller tree transcript is not automatically a faster build, a better agent, or a smaller root-status prompt.
+
+The distinction matters economically. Historical source timings were 39.69 versus 39.77 seconds for fixed and learned layouts. A separate small harness paid roughly five seconds per episode for strict verification compared with direct pytest. Meanwhile, a historical compressed loopback export saved approximately 2.21 seconds \emph{across twelve source streams}. These different cohorts cannot be combined into a measured end-to-end speedup, and neither observation justifies adding a strict wrapper solely to save transmission time.
+
+\paragraph{Three deployment decisions, not one.}
+A trusted root-status consumer needs neither a learned tree nor all intermediate packets. A deployment that \emph{already requires} protected verification and hierarchical evidence can compare fixed and learned layouts at marginal cost under that unchanged service. Adopting protected verification where ordinary pytest was sufficient is a different decision: its additional preparation and checking costs must be justified independently. We make this service distinction explicit in both the paper and a fail-closed planning API.
+
+\paragraph{The simpler compiler is now primary.}
+The prior block compiler was 1.54--5.34\% more expensive in held-out bytes than a compact balanced eight-ary tree on the same learned order. We therefore remove block DP from the practical path. The new default catalogue retains the incumbent and proposes a balanced tree on a training-learned average-linkage order; separate validation compares full-wave costs. Exact DP remains a useful conditional optimum and reference. It can still produce smaller evidence than the practical default, as our source replays show. Low fitting cost and lowest byte cost are different objectives.
+
+\paragraph{Contributions and evidence boundaries.}
+The substantive research contribution remains hyperedge-scored, identity-preserving verification aggregation and its conditional guarantees. This revision resolves an implementation choice, adds service-matched cost accounting, and evaluates the no-DP practical catalogue on fresh frozen synthetic splits. It separately replays archived source evidence and provides tools for the unmeasured token and WAN boundaries. Clustering, balanced trees, alphabetic DP, compression, break-even arithmetic and TLS are established techniques, not new inventions claimed here. The artifact is a tested research implementation; its tests do not establish production readiness or top-conference acceptance.
+
+\section{Related Work and Positioning}
+\paragraph{Testing, impact analysis, and incremental computation.}
+Test prioritization seeks earlier fault exposure~\cite{rothermel}; regression-test selection uses change dependencies~\cite{ekstazi,namerts}. The earlier IC-HACT ranker uses controlled mutation outcomes to prioritize checks, an instance of established fault-exposure methods. It is held fixed in the new source comparisons. Self-adjusting computation and build-system research already formalize dependency-aware recomputation~\cite{acar,build}. In contrast to test selection, our strict pass requires the entire approved registry on the identified candidate. We do not reproduce NameRTS or Ekstazi and claim no superiority over them.
+
+\paragraph{Seriation and authenticated layouts.}
+Spectral seriation orders items using an affinity matrix~\cite{atkins}. Average-linkage clustering likewise provides an established proximity-based ordering. Generalized alphabetic-tree optimization supplies the subtree/forest recurrence used here~\cite{alphabetic}. Workload-adaptive authenticated structures, including Huffman--Merkle Trees~\cite{hmt}, already optimize layouts under access patterns. Our price counts repeated completion-frontier updates, including strict-epoch construction, under a fixed packet cap. Pairwise affinity proposes an order; full hyperedge observations score it. No global optimality or unproved NP-hardness result is claimed for unrestricted joint ordering and tree synthesis.
+
+\paragraph{Online decisions with switching costs.}
+Fixed-share learning tracks changing experts~\cite{herbster}; dependent sampling reduces switches compared with independent weighted-majority draws~\cite{geulen}. Full-information and bandit switching-cost settings have different achievable regret guarantees~\cite{cesa}. We use the full-information setting because one recorded completion wave can be scored against every frozen certificate layout without reexecuting the tests. This is not full counterfactual feedback for arbitrary agent strategies: if a layout changes the tests' execution schedule or model behavior, our exogenous-cost assumption may fail. Our bound specializes established tools to measured layout-installation costs; it is not a new minimax online-learning result.
+
+\paragraph{Agent runtime assurance and evaluation.}
+Proof-Carrying Agent Actions~\cite{pcaa} and verification-portfolio commit gates~\cite{vpcontrol} address related action-governance problems. Our local certificates are neither signatures nor zero-knowledge proofs. SWE-bench evaluates real repository issues and patches~\cite{swebench}; our source mutations and scripted I/O repairs must not be called SWE-bench results. The current integration measures real orchestration and verification, not model reasoning quality.
+
+\paragraph{Logging and serialization controls.}
+Telemetry systems already batch and compress records~\cite{otel}. HACT is not a replacement for those techniques: fewer padded bytes need not imply fewer compressed bytes. We measure both. Moreover, flat result ledgers and a trusted root-status endpoint can be much smaller than an archive of all intermediate aggregation updates; they satisfy different delivery needs and must not be hidden from the comparison.
+
+\section{Model and Trust Boundary}\label{sec:model}
+\subsection{Semantic registry, execution, and display}
+Let $\R=(g_0,\ldots,g_{n-1})$ be a nonempty approved registry of unique check IDs. The candidate identity is
+\[
+ e=(\mathrm{epoch},\mathrm{snapshot},\mathrm{checker},\mathrm{environment},\mathrm{registry}).
+\]
+The snapshot covers source and protected acceptance inputs. The checker and environment are explicitly bound; an epoch increases even after an ABA return to identical source bytes. Only a trusted runner submits final $\PASS$, $\FAIL$, or $\UNKNOWN$ records. Missing, stale, skipped, incompatible, or timed-out outcomes are not passes.
+
+An execution permutation $\sigma_e$ determines when checks run. A layout $L=(\pi,T)$ independently maps tree positions to semantic registry indices. For a node covering positional interval $[i,j]$, its semantic coverage is
+\begin{equation}
+ G_L(i,j)=\{g_{\pi(i)},\ldots,g_{\pi(j)}\}.
+\end{equation}
+The stored layout must contain an exact permutation, and every internal node's children must partition its positional interval without gaps or overlaps. The task graph is outside this mathematical tree; one worker can discharge many checks, and one integration check can cover several workers.
+
+The acceptance predicate is independent of both permutations:
+\begin{equation}\label{eq:accept}
+ A(e)=\ind\{\text{every }g_i\in\R\text{ has trusted, matching, current }\PASS\text{ evidence for }e\}.
+\end{equation}
+An observed fail permits rejection before all checks finish. It does not assert coverage of the unexecuted remainder. Acceptance is relative to the approved predicates, not proof of all program behavior.
+
+\subsection{Packet and lifecycle costs}
+Each internal node of arity $d$ emits a fixed-width packet
+\begin{equation}\label{eq:packet}
+ c(d)=H+Sd,\qquad 2\le d\le b=\left\lfloor(C-H)/S\right\rfloor.
+\end{equation}
+Here $H=512$, $S=320$, and $C=3072$ bytes, so $b=8$. A mandatory field that exceeds its slot is rejected, not silently truncated. The cap applies to one certificate packet, not to all project memory, an entire registry manifest, or every LLM prompt. A manifest is a referenced control-plane artifact; its measured size is charged on migration.
+
+Let $W_{e,1},\ldots,W_{e,q_e}$ be the semantic IDs whose final records become available between successive refreshes. For a strict new candidate epoch, the observed cost is
+\begin{equation}\label{eq:strict}
+ \ell_e(L)=W(L)+\sum_{a=1}^{q_e}\sum_{v\in\operatorname{int}(T)}
+ c(d_v)\ind\{W_{e,a}\cap G_L(v)\ne\varnothing\},\quad
+ W(L)=\sum_v c(d_v).
+\end{equation}
+The first term constructs the full initially unknown tree. The CLI batches an executed prefix into groups of eight, flushing its final partial group. A successful strict epoch runs the whole registry. This conservative implementation does not reuse a pass across distinct source snapshots.
+
+We separately study persistent-state refresh traces that omit $W(L)$ at each tick, as in a cache with correctly specified incremental dependencies. Each topology installation is still cold and explicitly priced. These traces evaluate the controller's cost model; they are not the strict candidate-gate timing experiment. They do not demonstrate safe dependency inference from arbitrary code.
+
+\subsection{Why more than invalidation or pairwise similarity is needed}
+The inherited HACT result shows that marginal check activation cannot identify the best aggregation tree under joint invalidation (Appendix~\ref{app:separations}). IC-HACT further shows that even the full initial invalidation distribution cannot identify optimal progressive verification: early rejection and completion batching change the update sequence. Both distinctions remain relevant after allowing permutations.
+
+\begin{proposition}[Pairwise affinity is insufficient for full-wave scoring]\label{prop:pairwise}
+There exist two distributions with identical singleton and pairwise co-activity probabilities, hence identical Jaccard affinities, but different activation probabilities for the same three-check subtree.
+\end{proposition}
+\begin{proof}
+On IDs $\{0,1,2\}$, let $P$ be uniform on $\emptyset,\{0,1\},\{0,2\},\{1,2\}$ and $Q$ uniform on $\{0\},\{1\},\{2\},\{0,1,2\}$. Every singleton has probability $1/2$, every pair has joint probability $1/4$, and its Jaccard affinity is $1/3$. Yet the probability that the triple is hit is $3/4$ under $P$ and $1$ under $Q$. Thus a packet emitted on that interval has different expected cost.\end{proof}
+This elementary parity construction is not a new fact about higher-order statistics. Its implication for the compiler is specific: a pairwise clustering objective cannot substitute for scoring recorded completion hyperedges. It does not, by itself, prove that these two distributions have different globally optimal layouts.
+
+\section{Learning Layouts Without Changing the Contract}\label{sec:compiler}
+\subsection{Practical catalogue and full-wave selection}
+Training waves define counts $N_i,N_{ij}$ and affinity
+\begin{equation}
+ a_{ij}=\frac{N_{ij}}{N_i+N_j-N_{ij}},
+\end{equation}
+with zero for an unobserved union and zero diagonal. The practical proposal uses established average-linkage clustering: join the closest current clusters, choose endpoint orientation by cross-boundary affinity, and break ties canonically. All semantic IDs, including disconnected and unseen checks, remain included exactly once.
+
+Given the learned order, group consecutive leaves into blocks of at most eight, promote a singleton unchanged, and repeat upward. This bottom-up compact balanced construction does not call a tree optimizer. The catalogue retains the incumbent first, includes original-order fixed8 when distinct, and proposes learned-order fixed8. Identical layouts are deduplicated. A separate validation cohort scores complete completion waves, including initial construction; ties retain the incumbent. The API returns an advisory choice, not deployment authorization. The registry and packet cap cannot change during selection.
+
+For any proposal $\pi$, training episodes supply interval weights
+\begin{equation}\label{eq:weight}
+ r_\pi(i,j)=1+\frac1m\sum_{e=1}^m\sum_a
+ \ind\{W_{e,a}\cap G_L(i,j)\ne\varnothing\}.
+\end{equation}
+These weights also define the exact-DP reference below. Pairwise affinity \emph{proposes} an order; it does not replace the full-wave cost. The practical catalogue contains at most three candidates and uses no DP. Tree construction is $O(n)$ after ordering, not a linear-time claim for affinity construction, clustering or validation scoring. The reference implementation retains spectral ordering and exact fitting for research comparisons; neither is invoked by the practical default.
+
+\subsection{Exact conditional tree synthesis}
+Let $D(i,j)$ be the optimal subtree cost and $F_k(i,j)$ the optimal cost of an ordered forest with $k$ nonempty children. With infeasible states equal to $+\infty$,
+\begin{align}
+ D(i,i)&=0,\\
+ F_1(i,j)&=D(i,j),\\
+ F_k(i,j)&=\min_{i+k-2\le u<j}\{F_{k-1}(i,u)+D(u+1,j)\},\\
+ D(i,j)&=\min_{2\le k\le\min(b,j-i+1)}\{r_\pi(i,j)c(k)+F_k(i,j)\}.\label{eq:dp}
+\end{align}
+\begin{theorem}[Exactness conditional on order]\label{thm:exact}
+For a fixed $\pi$, nonnegative interval weights, and the packet model in Equation~\eqref{eq:packet}, Equation~\eqref{eq:dp} returns a minimizing feasible tree in $O(bn^3)$ time and $O(bn^2)$ space.
+\end{theorem}
+\begin{proof}
+Every feasible root has an arity and a contiguous partition of its interval. Its local contribution depends only on that interval and arity; all remaining contributions belong to independent child subtrees. The forest recurrence enumerates every such partition. Induction on interval length proves exactness. There are $O(bn^2)$ states, each scanning at most $n$ splits. The apparent $F_1=D$ dependency is used only on shorter intervals when constructing a forest with at least two components.\end{proof}
+This is a specialization of classical alphabetic-tree optimization~\cite{alphabetic}. The historical three-proposal reference multiplies compilation time by a constant, not by $n!$. Dense spectral computation can itself cost $O(n^3)$; the reference clustering implementation uses $O(n^2\log n)$ heap operations and $O(n^2)$ storage.
+
+\begin{proposition}[Validation after learned ordering]\label{prop:validation}
+Condition on a training set that fixes $K$ complete layouts. For $m$ independent identically distributed validation epochs with each layout cost in $[0,B]$, let $\widehat L$ minimize empirical validation cost. With probability at least $1-\delta$,
+\begin{equation}
+ J(\widehat L)\le\min_{L\in\mathcal C}J(L)+2B\sqrt{\frac{\log(2K/\delta)}{2m}}.
+\end{equation}
+\end{proposition}
+\begin{proof}
+Conditionally, the catalogue is fixed. Hoeffding's inequality and a union bound over $K$ layouts bound every empirical mean error by the displayed radius without its factor two. Inserting empirical costs on either side of the empirical minimizer yields the result.\end{proof}
+The guarantee is only relative to the fixed catalogue. It neither justifies choosing among learned permutations on their training errors alone nor covers distribution shift. We do not report this potentially loose bound as an empirical confidence interval; reported intervals use independent experimental seeds.
+
+\subsection{Compiler identity and scope}
+The practical default has no hidden microtree optimization. Exact DP is a reference and optional offline candidate. The block-backbone proposition and implementation remain in Appendix~\ref{sec:block} solely as an ablation; its restricted-class exactness does not override the observed simpler-baseline advantage. At 1,024 checks, order learning still takes seconds in our measurement, so layouts should be cached and compiled away from the agent's per-action path. Validation of padded costs does not optimize compressed archives or model tokenization; adoption must measure the actual delivery representation.
+
+\section{Practical Online Selection: Price the Window, Not the Promise}\label{sec:online}
+Freeze a compiled catalogue $\mathcal C=\{L_1,\ldots,L_K\}$. At event $t$, choose a layout before observing the current completion wave; afterwards score that same wave under every catalogue member. This is full-information feedback only because the check schedule is held fixed. It is not counterfactual feedback for arbitrary agent behavior.
+
+A different layout is installed by serializing its canonical manifest and reconstructing its complete certificate tree:
+\begin{equation}\label{eq:migration}
+ M_{ij}=\begin{cases}0,&L_i=L_j,\\
+ |\operatorname{manifest}(L_j)|+W(L_j),&L_i\ne L_j.
+ \end{cases}\qquad
+ \mathcal L_T=\sum_t\ell_t(A_t)+\sum_{t=2}^T M_{A_{t-1},A_t}.
+\end{equation}
+The initial installation is separate. These byte prices match the evaluated uncompressed migration protocol. A deployment using compression must measure its own priced wire representation; the DP objective is not automatically an optimum for a compressed log.
+
+\paragraph{The primary practical rule.}
+Let $\bar\ell_{t,i}$ be the mean cost on the last $\min(w,t-1)$ observed events, and $j_t=\argmin_i\bar\ell_{t,i}$ with deterministic ties. Starting from the calibrated incumbent $a$, use the frozen v3 rule
+\begin{equation}\label{eq:window}
+ A_t=\begin{cases}j_t,&w(\bar\ell_{t,a}-\bar\ell_{t,j_t})>M_{a,j_t},\\a,&\text{otherwise},\end{cases}\qquad w=64.
+\end{equation}
+With no history, keep $a$. A tie in estimated savings does not trigger migration. During warm-up, the forecast horizon remains $w$ even if fewer events were observed, matching the original baseline. This is an empirical break-even forecast, not proof that past savings repay a future switch. It can lose under abrupt reversal; preserving the frozen layout is always a legitimate alternative.
+
+The runtime API enforces \texttt{choose()} before \texttt{observe()}, bounds history to 64 vectors, rejects nonfinite costs, and checkpoints only at event boundaries. Replaying all 80 archived v3 streams, with periodic checkpoint/resume, must reproduce the original baseline's full action and byte-cost paths exactly. The exercise validates implementation equivalence, not a new performance dataset.
+
+\paragraph{Why fixed-share is no longer primary.}
+On v3's stationary, long-shift and rapid-shift streams, the coupled fixed-share policy is more expensive than the priced window. Its standard tracking analysis therefore moves to Appendix~\ref{app:tracking}, with all negative results retained. We do not manufacture an adversarial workload merely to make that policy win. Neither the appendix bound nor the empirical window result establishes general superiority over other switching-cost policies.
+
+\begin{algorithm}[t]
+\caption{Deployable evidence control; inference and checking remain separate}
+\begin{algorithmic}[1]
+\Require Protected registry, checker and snapshot identities; frozen layout catalogue
+\For{each event}
+ \State Choose from past evidence using Equation~\eqref{eq:window}, or keep the frozen layout
+ \If{layout changes}
+  \State Revoke tickets, increment generation, remap stable IDs, rebuild and price the installation
+ \EndIf
+ \State Receive trusted completion records for the fixed check schedule
+ \State Reject stale, conflicting or malformed records; aggregate bounded packets
+ \State Publish only the complete current contract result; otherwise retain FAIL/UNKNOWN
+ \State Expose a root-status card; retrieve diagnostic packets only when needed
+ \State Score the observed event and append its cost vector to the bounded window
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\section{Stable Evidence Through Permutation and Migration}\label{sec:safety}
+A result token carries $(\mathrm{epoch},g_i,b_i)$, where $b_i$ binds the semantic ID to the registry, source snapshot, checker, and environment. It does not carry a display position as its identity. A layout-specific kernel maps stable IDs to current positions. During migration it rebuilds from canonical trusted records; it never transplants an ordinal cache entry into a different permutation.
+
+Publication tickets additionally carry a monotone layout generation and layout hash. A layout switch revokes the issued ticket, advances the generation, and forces reconstruction. Returning to an earlier tree therefore cannot revive that tree's old ticket. An in-flight token may remain valid through a layout-only change, but a new candidate epoch fences it. Duplicate identical evidence is idempotent. Conflicting final records in one epoch revoke authorization: a recorded fail remains a fail; otherwise the obligation becomes unknown. Resolution requires a new epoch, not a more persuasive agent summary.
+
+\begin{theorem}[Layout-independent local publication soundness]\label{thm:safety}
+Assume complete approved predicates and dependency identities, a trusted checker executing immutable identified inputs, collision-resistant binding, and atomic local epoch/generation checks. For any sequence of valid layout permutations, any advisory learning outputs, and any delivered evidence order, authorization implies Equation~\eqref{eq:accept}. If each checker is sound for its declared predicate, those predicates hold on the authorized candidate.
+\end{theorem}
+\begin{proof}
+A canonical pass requires a current token for the same semantic ID and immutable identities. Permutation is a bijection, so rebuilding moves each such record to exactly one position without changing its meaning. Exact child partitioning preserves coverage and pass/fail/unknown counts by induction up the tree. The root can be authorized only with $(n,0,0)$ and matching current registry, epoch, generation, and layout. Old tickets fail those checks. Conflicts prevent authorization. No choice made by the learner writes trusted outcomes or changes the registry.\end{proof}
+This is a conditional local guarantee, not remote attestation or distributed consensus. An incomplete suite, compromised checker, omitted dependency, or nondeterministic external service can invalidate a broader correctness claim. The CLI's file copy is not an OS sandbox. An external merge/deployment service must atomically compare the verified candidate and integration-head identities at commit; a report file alone is not that transaction.
+
+\section{Implementation and Cost Accounting}\label{sec:implementation}
+The v5 artifact adds \texttt{practical.py}, \texttt{deployment.py}, \texttt{token\_budget.py} and \texttt{tls\_probe.py}. The practical CLI produces a balanced catalogue without calling either exact or block DP. The historical exact and block compilers remain separately callable. The existing stable-ID guard, priced window, codec and Future Code bridge are retained. The strict CLI compares protected input \emph{sets} and hashes, detecting added tests or configuration files as well as changed and deleted ones. Schema-2 contracts bind the approved checker and environment and refuse silent reuse of legacy contracts. Source manifests are checked before and after snapshotting and verification; mutation of an observed snapshot prevents a pass.
+
+The bridge runs as an ordinary subprocess acceptance gate in the unmodified Future Code v1.2 runtime. The supervisor still owns worker leases, private attempts, bounded contexts, and serialized integration. Non-pass exits cause candidate rejection. Detailed evidence and binary certificate packets live outside candidate write scopes; only a bounded JSON result card returns to the worker. The plug-in accepts a precompiled layout. The online selector and migration guard are separately integrated and stress-tested as a library path; a live, self-retuning hosted deployment was not evaluated.
+
+\begin{table}[t]\centering\small
+\caption{Separate ledgers avoid converting byte savings into unsupported latency or token claims.}
+\begin{tabularx}{\linewidth}{@{}p{.27\linewidth}XX@{}}\toprule
+Measurement & How obtained & Included in optimized objective?\\\midrule
+Certificate bytes & Actual padded packets; independently reconstructed from waves & Yes\\
+Migration bytes & Canonical layout manifest plus forced full rebuild & Yes, online traces\\
+Fit and scoring time & Monotonic-clock measurements & Reported separately\\
+Preparation, copying, checking, aggregation & Wrapper timers and outer call duration & Reported separately\\
+Active harness episode & Supervisor startup through task completion and shutdown & Reported separately\\
+Prompt bytes and construction time & Captured actual HTTP messages and context builder & Reported; not tokens\\
+Hosted token usage and API billing & No provider inference was run & Unknown, never zero-imputed\\\bottomrule
+\end{tabularx}
+\end{table}
+A different scalar objective could combine these quantities only with declared unit conversions and observable counterfactual costs. This implementation does not optimize unknown model latency or billing. The exact-byte claim also depends on the stated padded format; compression defines a different, potentially nonseparable objective for which this DP is not claimed exact.
+
+\input{delivery.tex}
+\input{evaluation_v5.tex}
+\input{discussion.tex}
+\input{references.tex}
+\appendix
+\input{tracking_appendix.tex}
+\input{compiler_ablation.tex}
+\input{appendices.tex}
+\input{evaluation_v3_archive.tex}
+\input{evaluation_v4_archive.tex}
+\end{document}

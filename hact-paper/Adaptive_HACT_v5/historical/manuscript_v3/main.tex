@@ -1,0 +1,246 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=24mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amsthm,newtxtext,newtxmath,microtype}
+\usepackage{booktabs,tabularx,array,graphicx,xcolor}
+\usepackage{algorithm,algpseudocode,enumitem}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Research manuscript v3.0}\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}\setlength{\parskip}{3pt}\setlength{\emergencystretch}{2em}
+\newtheorem{theorem}{Theorem}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{lemma}[theorem]{Lemma}
+\theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
+\newcommand{\PASS}{\mathsf{PASS}}\newcommand{\FAIL}{\mathsf{FAIL}}\newcommand{\UNKNOWN}{\mathsf{UNKNOWN}}
+\newcommand{\E}{\mathbb E}\newcommand{\Prb}{\mathbb P}\newcommand{\ind}{\mathbf 1}\newcommand{\R}{\mathcal R}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\hypersetup{pdftitle={Adaptive HACT: Learned Layouts and Migration-Aware Verification for Agent Harnesses},pdfauthor={Research manuscript; author information pending confirmation}}
+\title{\vspace{-9mm}\textbf{Adaptive HACT: Learned Layouts and Migration-Aware Verification for Agent Harnesses}}
+\author{Research manuscript\thanks{Author names and affiliations require confirmation before submission. Mathematical development, implementation, experiments, and writing were AI-assisted. This is a research artifact, not an accepted conference paper.}}
+\date{September 20, 2026 \quad | \quad Version 3.0}
+\begin{document}
+\maketitle
+\begin{abstract}
+Verification trees can bound the evidence delivered to a manager in a multi-agent coding system, but a fixed leaf order can scatter jointly changing checks, and changing the tree can consume more resources than it saves. We study adaptive verification layouts while keeping test identity and the acceptance contract immutable. Our compiler proposes display orders using established spectral and average-linkage seriation, then optimizes each proposal with the full completion-frontier objective rather than pairwise similarity. A parity construction shows why pairwise co-activity is insufficient to score this objective. Stable-ID evidence bindings and generation-fenced migration preserve the meaning of a current root pass across permutations. For nonstationary streams, we instantiate fixed-share exponential weights with maximal coupling and derive an explicit service-plus-migration bound over a frozen catalogue; the underlying online-learning primitives are not claimed as new. On 80 synthetic workloads, learned ordering reduces bytes by 26.38\% relative to original-order dynamic programming on shuffled clusters, but does not improve the independent control. Across 80 online streams, priced coupled selection improves long-shift cost by 15.52\% relative to a frozen layout, yet regresses on stationary and rapidly alternating streams. We distinguish replay of 33 previously published source interventions from 24 fresh paired checker executions and nine actual Future Code harness episodes. Fresh source runs reduce serialized bytes by 16.63--56.14\%; wall-clock time is essentially unchanged. In a 40-check SQLite/HTTP fixture, learned and fixed layouts tie, and strict verification adds about five seconds per episode versus direct pytest gates. No hosted LLM or SWE-bench experiment was performed. The contribution is an executable, cost-accounted adaptation mechanism whose learning errors can waste resources but cannot bypass a complete, current acceptance contract under stated trust assumptions.
+\end{abstract}
+\noindent\textbf{Keywords:} agent harnesses; bounded evidence; completion frontiers; learned seriation; online switching; verification contracts.
+
+\section{Introduction}
+A manager of many coding agents should not have to read every conversation to determine whether a candidate passed its required checks. Conversely, replacing those conversations with optimistic summaries does not establish correctness. HACT separates the semantic task graph from a verification plane: workers perform bounded tasks, while a trusted local kernel aggregates current check results into compact certificates. The root reports what the declared evidence establishes, not what an agent believes.
+
+That separation is useful but incomplete. First, an ordered aggregation tree inherits the registry's arbitrary directory or collection order. Checks that complete together can be far apart, activating many ancestors. Second, a layout learned during local feature work can become poor during cross-cutting changes. Third, recompilation and migration are not free. Finally, fewer certificate bytes need not produce lower wall-clock latency, fewer model tokens, or better repairs.
+
+This revision addresses these issues without equating a registry of checks with a population of agents. We distinguish three independent objects: the \emph{task graph}, the \emph{check execution order}, and the \emph{certificate display layout}. Only the latter is reordered here. A permanent semantic ID names each check; a permutation changes where that ID appears in the aggregation tree, not what must pass. Layout learning may use co-completion evidence, but it cannot remove an obligation or manufacture a result.
+
+\paragraph{A practical example.}
+Suppose graph-traversal checks are interleaved with connectivity checks in pytest's collection order. A source-aware ranker executes related traversal tests in adjacent batches. A fixed certificate tree may refresh multiple subtrees on every batch. A learned display layout places those same IDs nearby while leaving the execution sequence unchanged. Later, a development phase changes which groups complete together. Switching layouts is considered only with an explicit reconstruction and manifest price; old publication tickets cannot become current merely because an earlier layout is reused.
+
+\paragraph{Contributions and attribution.}
+The paper makes four scoped contributions. (1) It formulates layout adaptation over immutable semantic IDs and schedule-induced completion hyperedges, with a pairwise-information separation and an exact compiler conditional on a proposed order. (2) It connects a priced online layout catalogue to a stable-ID migration protocol, with a tracking bound and executable identity/fencing tests. (3) It supplies a strict verification plug-in exercised by the actual Future Code supervisor, workers, local HTTP adapter, staged workspaces, and integration gates. (4) It provides a multi-level cost ledger and independently audited results, including clear negative outcomes. Spectral seriation, hierarchical clustering, alphabetic dynamic programming, fixed-share learning, coupling, hashing, and fencing are established ingredients. The research claim concerns their certificate-specific objective, identity-preserving composition, and measured operating limits, not invention of those generic techniques.
+
+\section{Related Work and Positioning}
+\paragraph{Testing, impact analysis, and incremental computation.}
+Test prioritization seeks earlier fault exposure~\cite{rothermel}; regression-test selection uses change dependencies~\cite{ekstazi,namerts}. The earlier IC-HACT ranker uses controlled mutation outcomes to prioritize checks, an instance of established fault-exposure methods. It is held fixed in the new source comparisons. Self-adjusting computation and build-system research already formalize dependency-aware recomputation~\cite{acar,build}. In contrast to test selection, our strict pass requires the entire approved registry on the identified candidate. We do not reproduce NameRTS or Ekstazi and claim no superiority over them.
+
+\paragraph{Seriation and authenticated layouts.}
+Spectral seriation orders items using an affinity matrix~\cite{atkins}. Average-linkage clustering likewise provides an established proximity-based ordering. Generalized alphabetic-tree optimization supplies the subtree/forest recurrence used here~\cite{alphabetic}. Workload-adaptive authenticated structures, including Huffman--Merkle Trees~\cite{hmt}, already optimize layouts under access patterns. Our price counts repeated completion-frontier updates, including strict-epoch construction, under a fixed packet cap. Pairwise affinity proposes an order; full hyperedge observations score it. No global optimality or unproved NP-hardness result is claimed for unrestricted joint ordering and tree synthesis.
+
+\paragraph{Online decisions with switching costs.}
+Fixed-share learning tracks changing experts~\cite{herbster}; dependent sampling reduces switches compared with independent weighted-majority draws~\cite{geulen}. Full-information and bandit switching-cost settings have different achievable regret guarantees~\cite{cesa}. We use the full-information setting because one recorded completion wave can be scored against every frozen certificate layout without reexecuting the tests. This is not full counterfactual feedback for arbitrary agent strategies: if a layout changes the tests' execution schedule or model behavior, our exogenous-cost assumption may fail. Our bound specializes established tools to measured layout-installation costs; it is not a new minimax online-learning result.
+
+\paragraph{Agent runtime assurance and evaluation.}
+Proof-Carrying Agent Actions~\cite{pcaa} and verification-portfolio commit gates~\cite{vpcontrol} address related action-governance problems. Our local certificates are neither signatures nor zero-knowledge proofs. SWE-bench evaluates real repository issues and patches~\cite{swebench}; our source mutations and scripted I/O repairs must not be called SWE-bench results. The current integration measures real orchestration and verification, not model reasoning quality.
+
+\begin{table}[t]\centering\small
+\caption{What is new in this revision, and what remains inherited or untested.}
+\begin{tabularx}{\linewidth}{@{}p{.22\linewidth}XX@{}}\toprule
+Surface & Added mechanism or evidence & Boundary\\\midrule
+Registry order & Learned display permutation; exact full-wave scoring & Heuristic permutation search, not unrestricted optimum\\
+Drift & Coupled fixed-share catalogue with explicit installation price & Standard learning primitives; can lose to a simple window rule\\
+Evidence safety & Stable-ID bindings; migration generation; cold rebuild & Trusted local checker, not a hostile-worker sandbox\\
+Integration & Actual Future Code execution, SQLite and HTTP checks & Scripted model actions; no hosted model or natural-bug benchmark\\
+Cost & Migration, preparation, aggregation, prompts and episode time & Bytes are not tokens; optimization remains byte-specific\\\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Model and Trust Boundary}\label{sec:model}
+\subsection{Semantic registry, execution, and display}
+Let $\R=(g_0,\ldots,g_{n-1})$ be a nonempty approved registry of unique check IDs. The candidate identity is
+\[
+ e=(\mathrm{epoch},\mathrm{snapshot},\mathrm{checker},\mathrm{environment},\mathrm{registry}).
+\]
+The snapshot covers source and protected acceptance inputs. The checker and environment are explicitly bound; an epoch increases even after an ABA return to identical source bytes. Only a trusted runner submits final $\PASS$, $\FAIL$, or $\UNKNOWN$ records. Missing, stale, skipped, incompatible, or timed-out outcomes are not passes.
+
+An execution permutation $\sigma_e$ determines when checks run. A layout $L=(\pi,T)$ independently maps tree positions to semantic registry indices. For a node covering positional interval $[i,j]$, its semantic coverage is
+\begin{equation}
+ G_L(i,j)=\{g_{\pi(i)},\ldots,g_{\pi(j)}\}.
+\end{equation}
+The stored layout must contain an exact permutation, and every internal node's children must partition its positional interval without gaps or overlaps. The task graph is outside this mathematical tree; one worker can discharge many checks, and one integration check can cover several workers.
+
+The acceptance predicate is independent of both permutations:
+\begin{equation}\label{eq:accept}
+ A(e)=\ind\{\text{every }g_i\in\R\text{ has trusted, matching, current }\PASS\text{ evidence for }e\}.
+\end{equation}
+An observed fail permits rejection before all checks finish. It does not assert coverage of the unexecuted remainder. Acceptance is relative to the approved predicates, not proof of all program behavior.
+
+\subsection{Packet and lifecycle costs}
+Each internal node of arity $d$ emits a fixed-width packet
+\begin{equation}\label{eq:packet}
+ c(d)=H+Sd,\qquad 2\le d\le b=\left\lfloor(C-H)/S\right\rfloor.
+\end{equation}
+Here $H=512$, $S=320$, and $C=3072$ bytes, so $b=8$. A mandatory field that exceeds its slot is rejected, not silently truncated. The cap applies to one certificate packet, not to all project memory, an entire registry manifest, or every LLM prompt. A manifest is a referenced control-plane artifact; its measured size is charged on migration.
+
+Let $W_{e,1},\ldots,W_{e,q_e}$ be the semantic IDs whose final records become available between successive refreshes. For a strict new candidate epoch, the observed cost is
+\begin{equation}\label{eq:strict}
+ \ell_e(L)=W(L)+\sum_{a=1}^{q_e}\sum_{v\in\operatorname{int}(T)}
+ c(d_v)\ind\{W_{e,a}\cap G_L(v)\ne\varnothing\},\quad
+ W(L)=\sum_v c(d_v).
+\end{equation}
+The first term constructs the full initially unknown tree. The CLI batches an executed prefix into groups of eight, flushing its final partial group. A successful strict epoch runs the whole registry. This conservative implementation does not reuse a pass across distinct source snapshots.
+
+We separately study persistent-state refresh traces that omit $W(L)$ at each tick, as in a cache with correctly specified incremental dependencies. Each topology installation is still cold and explicitly priced. These traces evaluate the controller's cost model; they are not the strict candidate-gate timing experiment. They do not demonstrate safe dependency inference from arbitrary code.
+
+\subsection{Why more than invalidation or pairwise similarity is needed}
+The inherited HACT result shows that marginal check activation cannot identify the best aggregation tree under joint invalidation (Appendix~\ref{app:separations}). IC-HACT further shows that even the full initial invalidation distribution cannot identify optimal progressive verification: early rejection and completion batching change the update sequence. Both distinctions remain relevant after allowing permutations.
+
+\begin{proposition}[Pairwise affinity is insufficient for full-wave scoring]\label{prop:pairwise}
+There exist two distributions with identical singleton and pairwise co-activity probabilities, hence identical Jaccard affinities, but different activation probabilities for the same three-check subtree.
+\end{proposition}
+\begin{proof}
+On IDs $\{0,1,2\}$, let $P$ be uniform on $\emptyset,\{0,1\},\{0,2\},\{1,2\}$ and $Q$ uniform on $\{0\},\{1\},\{2\},\{0,1,2\}$. Every singleton has probability $1/2$, every pair has joint probability $1/4$, and its Jaccard affinity is $1/3$. Yet the probability that the triple is hit is $3/4$ under $P$ and $1$ under $Q$. Thus a packet emitted on that interval has different expected cost.\end{proof}
+This elementary parity construction is not a new fact about higher-order statistics. Its implication for the compiler is specific: a pairwise clustering objective cannot substitute for scoring recorded completion hyperedges. It does not, by itself, prove that these two distributions have different globally optimal layouts.
+
+\section{Learning Layouts Without Changing the Contract}\label{sec:compiler}
+\subsection{Proposal, compilation, and held-out selection}
+Training waves define counts $N_i,N_{ij}$ and affinity
+\begin{equation}
+ a_{ij}=\frac{N_{ij}}{N_i+N_j-N_{ij}},
+\end{equation}
+with zero for an unobserved union and zero diagonal. A proposal catalogue contains the original order, spectral order, and average-linkage order. Spectral ordering uses a graph Laplacian's Fiedler vector within connected components; disconnected and unobserved checks remain deterministically included. Near-degenerate relevant eigenvalues trigger a deterministic clustering fallback rather than a claim that a floating-point eigenbasis is unique. Average linkage joins the closest current clusters; endpoint orientation maximizes cross-boundary affinity, with canonical tie breaking.
+
+For each proposal $\pi$, training episodes supply interval weights
+\begin{equation}\label{eq:weight}
+ r_\pi(i,j)=1+\frac1m\sum_{e=1}^m\sum_a
+ \ind\{W_{e,a}\cap G_L(i,j)\ne\varnothing\}.
+\end{equation}
+The tree is fitted with these full-wave weights, not the pairwise matrix. A separate validation set selects the lowest mean-cost compiled proposal. Evaluation outcomes are not used in fitting or selection. The result is exact within each proposed order, heuristic across orders, and empirical rather than distribution-free across unobserved software tasks.
+
+\subsection{Exact conditional tree synthesis}
+Let $D(i,j)$ be the optimal subtree cost and $F_k(i,j)$ the optimal cost of an ordered forest with $k$ nonempty children. With infeasible states equal to $+\infty$,
+\begin{align}
+ D(i,i)&=0,\\
+ F_1(i,j)&=D(i,j),\\
+ F_k(i,j)&=\min_{i+k-2\le u<j}\{F_{k-1}(i,u)+D(u+1,j)\},\\
+ D(i,j)&=\min_{2\le k\le\min(b,j-i+1)}\{r_\pi(i,j)c(k)+F_k(i,j)\}.\label{eq:dp}
+\end{align}
+\begin{theorem}[Exactness conditional on order]\label{thm:exact}
+For a fixed $\pi$, nonnegative interval weights, and the packet model in Equation~\eqref{eq:packet}, Equation~\eqref{eq:dp} returns a minimizing feasible tree in $O(bn^3)$ time and $O(bn^2)$ space.
+\end{theorem}
+\begin{proof}
+Every feasible root has an arity and a contiguous partition of its interval. Its local contribution depends only on that interval and arity; all remaining contributions belong to independent child subtrees. The forest recurrence enumerates every such partition. Induction on interval length proves exactness. There are $O(bn^2)$ states, each scanning at most $n$ splits. The apparent $F_1=D$ dependency is used only on shorter intervals when constructing a forest with at least two components.\end{proof}
+This is a specialization of classical alphabetic-tree optimization~\cite{alphabetic}. Three proposals multiply compilation time by a constant, not by $n!$. Dense spectral computation can itself cost $O(n^3)$; the reference clustering implementation uses $O(n^2\log n)$ heap operations and $O(n^2)$ storage.
+
+\begin{proposition}[Validation after learned ordering]\label{prop:validation}
+Condition on a training set that fixes $K$ complete layouts. For $m$ independent identically distributed validation epochs with each layout cost in $[0,B]$, let $\widehat L$ minimize empirical validation cost. With probability at least $1-\delta$,
+\begin{equation}
+ J(\widehat L)\le\min_{L\in\mathcal C}J(L)+2B\sqrt{\frac{\log(2K/\delta)}{2m}}.
+\end{equation}
+\end{proposition}
+\begin{proof}
+Conditionally, the catalogue is fixed. Hoeffding's inequality and a union bound over $K$ layouts bound every empirical mean error by the displayed radius without its factor two. Inserting empirical costs on either side of the empirical minimizer yields the result.\end{proof}
+The guarantee is only relative to the fixed catalogue. It neither justifies choosing among learned permutations on their training errors alone nor covers distribution shift. We do not report this potentially loose bound as an empirical confidence interval; reported intervals use independent experimental seeds.
+
+\section{Priced Online Layout Selection}\label{sec:online}
+\subsection{Observable costs and migration price}
+Before deployment, freeze a catalogue $\mathcal C=\{L_1,\ldots,L_K\}$. At event $t$, choose $A_t$ before observing the current wave. Afterwards score that same wave for all catalogue layouts. Scoring costs CPU time but requires no additional checker execution because the execution schedule is held fixed.
+
+For our cold-install protocol the measured transition price is
+\begin{equation}\label{eq:migration}
+ M_{ij}=\begin{cases}0,&L_i=L_j,\\
+ |\operatorname{manifest}(L_j)|+W(L_j),&L_i\ne L_j.
+ \end{cases}
+\end{equation}
+This is actual canonical manifest serialization plus full new-tree reconstruction, not an unmeasured constant. A session's initial setup is reported separately. Total charged cost is
+\begin{equation}
+ \mathcal L_T=\sum_{t=1}^T\ell_t(A_t)+\sum_{t=2}^TM_{A_{t-1},A_t}.
+\end{equation}
+No retrospective improvement is assumed to pay for future migration. A familiar break-even heuristic, $h\widehat d>M_{ij}$, is included as a window baseline but has no general nonstationary guarantee.
+
+\subsection{Fixed-share weights with maximal coupling}
+Let a declared bound $R$ cover each round's loss spread, $\max_i\ell_t(i)-\min_i\ell_t(i)\le R$. Reject a measurement exceeding it instead of clipping the cost. Define $z_{t,i}=(\ell_t(i)-\min_j\ell_t(j))/R$. Starting at $p_1(i)=1/K$, update
+\begin{align}
+ q_{t+1}(i)&=\frac{p_t(i)\exp(-\eta z_{t,i})}{\sum_jp_t(j)\exp(-\eta z_{t,j})},\\
+ p_{t+1}(i)&=(1-\alpha)q_{t+1}(i)+\alpha/K,\quad 0<\eta\le1,\;0\le\alpha<1.\label{eq:share}
+\end{align}
+Independent draws from each new distribution can waste migrations. Instead, conditional on $A_t=i$, retain $i$ with probability $\min\{1,p_{t+1}(i)/p_t(i)\}$. If it is not retained, sample from the normalized positive residual $(p_{t+1}-p_t)_+$. This maximal coupling has marginal $p_{t+1}$ and switch probability $\operatorname{TV}(p_t,p_{t+1})$. Established dependent-sampling methods motivate this choice~\cite{geulen}; we do not claim it as a new sampling algorithm.
+
+\begin{theorem}[Catalogue tracking with migration]\label{thm:tracking}
+Assume a frozen catalogue, a fixed exogenous sequence of full-information loss vectors, spread at most $R$, and $M_{ij}\le M$. For any comparator path $u_{1:T}$ with $s$ changes and $0<\alpha<1$, the coupled policy satisfies
+\begin{align}
+ \E[\mathcal L_T]-\sum_t\ell_t(u_t)
+ \le{}& R\left[\frac{\log K+s\log(K/\alpha)+(T-1-s)\log(1/(1-\alpha))}{\eta}
+             +\frac{\eta T}{8}\right]\nonumber\\
+ &+M(T-1)(\eta+\alpha).\label{eq:tracking}
+\end{align}
+For $\alpha=0$ the stationary-comparator bound has numerator $\log K$ and applies only to $s=0$.
+\end{theorem}
+\begin{proof}
+The fixed-share update is exponential weighting over paths with an initial uniform prior, self-transition mass at least $1-\alpha$, and transition mass at least $\alpha/K$. The negative log prior of a path with $s$ switches is bounded by the numerator. The bounded exponential-moment inequality gives expected normalized service regret at most that numerator divided by $\eta$, plus $\eta T/8$ (Appendix~\ref{app:online}). Since losses are exogenous, the weights are independent of the sampled action path, and the coupling preserves each unconditional marginal. Exponential reweighting changes total variation by at most $\eta$; uniform mixing adds at most $\alpha$. Thus the expected switch count is at most $(T-1)(\eta+\alpha)$. Multiplication by $M$ and addition of service regret proves the bound.\end{proof}
+The bound also upper-bounds regret relative to the comparator's service \emph{plus} nonnegative migration cost, but can be quite loose. It is not a per-run improvement guarantee. Choosing fixed $\eta=.5$ and $\alpha=.01$, as in our frozen experiment, need not make this bound sublinear with increasing $T$. Horizon-dependent tuning yields sublinear stationary bounds (Appendix~\ref{app:online}), without creating a guarantee against arbitrary reactive agents or newly introduced catalogue entries.
+
+\begin{algorithm}[t]
+\caption{Adaptive layout control with an unchanged acceptance predicate}
+\begin{algorithmic}[1]
+\Require Approved semantic registry; frozen compiled catalogue; declared loss spread; outside-scope trusted checker
+\For{each candidate or persistent refresh event}
+ \State Choose a layout from past observations only
+ \If{its identity differs from the active layout}
+   \State Revoke tickets; increment layout generation; remap stable IDs
+   \State Rebuild from matching canonical evidence; charge manifest and packet bytes
+ \EndIf
+ \State Execute the fixed check schedule or receive the current trusted completion wave
+ \State Reject mismatched, stale, missing, or conflicting evidence
+ \State Aggregate bounded packets; authorize only a complete current root pass
+ \State Score the observed wave for all frozen layouts and update the coupled weights
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\section{Stable Evidence Through Permutation and Migration}\label{sec:safety}
+A result token carries $(\mathrm{epoch},g_i,b_i)$, where $b_i$ binds the semantic ID to the registry, source snapshot, checker, and environment. It does not carry a display position as its identity. A layout-specific kernel maps stable IDs to current positions. During migration it rebuilds from canonical trusted records; it never transplants an ordinal cache entry into a different permutation.
+
+Publication tickets additionally carry a monotone layout generation and layout hash. A layout switch revokes the issued ticket, advances the generation, and forces reconstruction. Returning to an earlier tree therefore cannot revive that tree's old ticket. An in-flight token may remain valid through a layout-only change, but a new candidate epoch fences it. Duplicate identical evidence is idempotent. Conflicting final records in one epoch revoke authorization: a recorded fail remains a fail; otherwise the obligation becomes unknown. Resolution requires a new epoch, not a more persuasive agent summary.
+
+\begin{theorem}[Layout-independent local publication soundness]\label{thm:safety}
+Assume complete approved predicates and dependency identities, a trusted checker executing immutable identified inputs, collision-resistant binding, and atomic local epoch/generation checks. For any sequence of valid layout permutations, any advisory learning outputs, and any delivered evidence order, authorization implies Equation~\eqref{eq:accept}. If each checker is sound for its declared predicate, those predicates hold on the authorized candidate.
+\end{theorem}
+\begin{proof}
+A canonical pass requires a current token for the same semantic ID and immutable identities. Permutation is a bijection, so rebuilding moves each such record to exactly one position without changing its meaning. Exact child partitioning preserves coverage and pass/fail/unknown counts by induction up the tree. The root can be authorized only with $(n,0,0)$ and matching current registry, epoch, generation, and layout. Old tickets fail those checks. Conflicts prevent authorization. No choice made by the learner writes trusted outcomes or changes the registry.\end{proof}
+This is a conditional local guarantee, not remote attestation or distributed consensus. An incomplete suite, compromised checker, omitted dependency, or nondeterministic external service can invalidate a broader correctness claim. The CLI's file copy is not an OS sandbox. An external merge/deployment service must atomically compare the verified candidate and integration-head identities at commit; a report file alone is not that transaction.
+
+\section{Implementation and Cost Accounting}\label{sec:implementation}
+The artifact extends the v2 Python prototype with \texttt{layout.py}, \texttt{online.py}, \texttt{adaptive\_guard.py}, and \texttt{future\_bridge.py}. It retains the original kernel and exact compiler. The strict CLI compares protected input \emph{sets} and hashes, detecting added tests or configuration files as well as changed and deleted ones. Schema-2 contracts bind the approved checker and environment and refuse silent reuse of legacy contracts. Source manifests are checked before and after snapshotting and verification; mutation of an observed snapshot prevents a pass.
+
+The bridge runs as an ordinary subprocess acceptance gate in the unmodified Future Code v1.2 runtime. The supervisor still owns worker leases, private attempts, bounded contexts, and serialized integration. Non-pass exits cause candidate rejection. Detailed evidence and binary certificate packets live outside candidate write scopes; only a bounded JSON result card returns to the worker. The plug-in accepts a precompiled layout. The online selector and migration guard are separately integrated and stress-tested as a library path; a live, self-retuning hosted deployment was not evaluated.
+
+\begin{table}[t]\centering\small
+\caption{Separate ledgers avoid converting byte savings into unsupported latency or token claims.}
+\begin{tabularx}{\linewidth}{@{}p{.27\linewidth}XX@{}}\toprule
+Measurement & How obtained & Included in optimized objective?\\\midrule
+Certificate bytes & Actual padded packets; independently reconstructed from waves & Yes\\
+Migration bytes & Canonical layout manifest plus forced full rebuild & Yes, online traces\\
+Fit and scoring time & Monotonic-clock measurements & Reported separately\\
+Preparation, copying, checking, aggregation & Wrapper timers and outer call duration & Reported separately\\
+Active harness episode & Supervisor startup through task completion and shutdown & Reported separately\\
+Prompt bytes and construction time & Captured actual HTTP messages and context builder & Reported; not tokens\\
+Hosted token usage and API billing & No provider inference was run & Unknown, never zero-imputed\\\bottomrule
+\end{tabularx}
+\end{table}
+A different scalar objective could combine these quantities only with declared unit conversions and observable counterfactual costs. This implementation does not optimize unknown model latency or billing. The exact-byte claim also depends on the stated padded format; a compressed or variable-length encoding requires refitting its cost function.
+
+\input{evaluation.tex}
+\input{discussion.tex}
+\input{references.tex}
+\appendix
+\input{appendices.tex}
+\end{document}

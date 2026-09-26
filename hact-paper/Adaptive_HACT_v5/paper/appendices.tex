@@ -1,0 +1,110 @@
+\section{Information Separations Retained from Earlier Versions}\label{app:separations}
+These results concern the information available to a selector. They are not hardness results for all adaptive tree algorithms, and they do not imply that a complete hypergraph must be recovered: interval hit statistics are sufficient for a fixed order and objective.
+
+\subsection{Marginals do not determine a co-invalidation optimum}
+Consider four ordered leaves, binary trees, and a constant internal packet price $c>0$. Let $\mathcal D_A$ choose $\{0,1\}$ or $\{2,3\}$ equiprobably and $\mathcal D_B$ choose $\{0,3\}$ or $\{1,2\}$ equiprobably. All leaf marginal activation probabilities equal $1/2$ in both distributions. The root and every three-leaf interval are always activated. The five tree shapes therefore fall into the following classes:
+\begin{center}\small
+\begin{tabular}{@{}lrr@{}}\toprule
+Ordered tree & $J_A/c$ & $J_B/c$\\\midrule
+$((0,1),(2,3))$ & 2 & 3\\
+$(0,((1,2),3))$, $((0,(1,2)),3)$ & 3 & 2.5\\
+$(0,(1,(2,3)))$, $(((0,1),2),3)$ & 2.5 & 3\\\bottomrule
+\end{tabular}
+\end{center}
+Optimal costs are $2c$ and $2.5c$. A deterministic marginal-only selector receives identical input and must choose the same class, incurring at least $c/2$ regret on one distribution. The last class is weakly dominated by the balanced tree. If a randomized selector chooses the balanced tree with probability $q$, its regrets are at least $(1-q)c$ and $qc/2$. Their maximum is minimized at $q=2/3$ and equals $c/3$, which is attainable for this instance. A fixed initialization price adds the same $3c$ to all binary shapes and does not alter the separation.
+
+\subsection{Joint invalidation does not determine progressive layout}
+Every epoch now invalidates all four checks, and execution order is $(0,1,2,3)$ with singleton completion waves. In workload $A$, check 0 fails, so only its wave is executed. In workload $B$, check 3 fails, so all four checks execute. Initial invalidation is identical, even jointly.
+
+Every binary tree has three internal nodes. Its cost in $A$ is $(3+\operatorname{depth}(0))c$, minimized at $4c$ by a root-0 comb. Its cost in $B$ is $(3+\sum_i\operatorname{depth}(i))c$, minimized at $11c$ by the balanced tree. The root-0 comb costs $12c$ in $B$, whereas the balanced tree costs $5c$ in $A$. The remaining shapes are weakly dominated. An invalidation-only randomized selector using a root-0 comb with probability $p$ incurs regrets at least $(1-p)c$ and $pc$, whose maximum is at least $c/2$. A deterministic selector incurs at least $c$. The example proves a separation between stale-set information and schedule-induced completion information; it does not prohibit a selector that observes both.
+
+\section{Cost, Statistical, and Online Proof Details}\label{app:online}
+\subsection{Exact serialization accounting}
+On the first refresh in a strict epoch, every internal node emits one packet. Within a fixed tree and registry, the cache uses monotone descendant-generation stamps. A subsequent wave emits a node's packet exactly when at least one final record in its semantic coverage changed. Multiple completed descendants in one wave still induce one packet at that node. Summing initialization and wave contributions yields Equation~\eqref{eq:strict}. After migration, a new kernel remaps canonical IDs and the old ordinal cache is not reused; the entire cold rebuild is charged in Equation~\eqref{eq:migration}.
+
+This argument concerns logical and actual serialized packet lengths. The separate v4 study measures controlled application-level export time, not production-network throughput. It does not include raw log streams, TLS framing, operating-system scheduling, or Python traversal costs. The reference kernel validates and traverses trees and is not claimed to have logarithmic total runtime. Small contexts do not imply small total system state.
+
+\subsection{Full-refresh lower bound and global negative control}
+For an $n$-leaf tree with $m$ internal nodes, the number of edges is $n+m-1$, so $\sum_vd_v=n+m-1$. Therefore
+\begin{equation}
+ W(L)=S(n-1)+(H+S)m\ge S(n-1)+(H+S)\left\lceil\frac{n-1}{b-1}\right\rceil.
+\end{equation}
+The inequality follows from $n-1=\sum_v(d_v-1)\le m(b-1)$. At $n=64,b=8$, a complete eight-child construction attains the bound with $m=9$ and $W=27,648$ bytes. Thus all selected global-control layouts can tie an analytically minimal full refresh. Strict initialization followed by one global completion wave costs $2W$. This explains the exact negative control without assuming every balanced tree at every $n$ attains the lower bound.
+
+\subsection{Uniform statistical control at a fixed order}
+For one activation wave per episode and a fixed registry order, let $M_n=n(n+1)/2$ and
+\[
+ \epsilon=\sqrt{\log(2M_n/\delta)/(2m)}.
+\]
+The interval hit indicators are bounded independent variables \emph{across} independent episodes, though checks within an episode may be arbitrarily dependent. Hoeffding plus a union bound gives simultaneous interval-frequency error at most $\epsilon$. For every feasible tree, $|\widehat J(T)-J(T)|\le W(T)\epsilon$. Inserting the empirical minimizer gives regret at most $[W(\widehat T)+W(T^*)]\epsilon\le2(n-1)C\epsilon$. This is the original HACT bound, retained for attribution. It is not automatically valid uniformly over arbitrary data-selected permutations; the separate held-out catalogue bound in Proposition~\ref{prop:validation} addresses that selection step.
+
+For strict epochs with at most $q$ completion waves, a loose range is $B=(q+1)(n-1)C$. Under the evaluated sequential eight-record flush rule with at most one final record per obligation, $q\le\lceil n/8\rceil$. A narrower observed range is not automatically a proved bound for an unobserved deployment distribution.
+
+\subsection{Maximal coupling and its switch count}
+Let $p,p'$ be consecutive distributions. The probability mass that remains at index $i$ under the coupling is $\min(p_i,p'_i)$. The remaining mass is distributed as $(p'-p)_+$, so the new marginal is exactly $p'$ and
+\[
+ \Prb(A_{t+1}\ne A_t)=1-\sum_i\min(p_i,p'_i)=\operatorname{TV}(p,p').
+\]
+For exponential reweighting by $a_i=\exp(-\eta z_i)$ with $z_i\in[0,1]$, the normalizer is at most one, hence $q_i\ge e^{-\eta}p_i$. Thus $\sum_i\min(p_i,q_i)\ge e^{-\eta}$ and $\operatorname{TV}(p,q)\le1-e^{-\eta}\le\eta$. Mixing $q$ with the uniform distribution by weight $\alpha$ changes total variation by at most $\alpha$. The triangle inequality gives the switch bound in Theorem~\ref{thm:tracking}. Zero old mass is never the probability of a selected previous action in exact arithmetic; the implementation rejects inconsistent checkpoints.
+
+\subsection{Fixed-share path argument}
+A path $u_{1:T}$ with $s$ changes has prior mass at least
+\[
+ P(u_{1:T})\ge K^{-1}(\alpha/K)^s(1-\alpha)^{T-1-s}.
+\]
+The share update is the forward recursion for exponential weighting over such paths. If $Z_t=\sum_ip_t(i)\exp(-\eta z_{t,i})$, then the bounded exponential-moment inequality implies
+\[
+ \log Z_t\le-\eta\langle p_t,z_t\rangle+\eta^2/8.
+\]
+On the other hand, the cumulative mixture likelihood is at least the comparator path's prior times its exponential loss. Combining the inequalities yields
+\[
+ \sum_t\langle p_t,z_t\rangle-\sum_tz_{t,u_t}
+ \le-\log P(u_{1:T})/\eta+\eta T/8.
+\]
+Centering losses by their per-round minimum cancels in regret, and multiplying by $R$ restores byte units. For a fixed exogenous cost sequence, each $p_t$ is determined by past full-information observations independently of the sampled action sequence; maximal coupling preserves its marginal. Therefore expected sampled service equals the left-side weighted service. Adding at most $M$ per expected switch proves Equation~\eqref{eq:tracking}.
+
+The result does not cover a cost sequence chosen in reaction to the coupled hidden action history. It also does not cover agents changing future task choices because a layout changed the text they read. These limitations are why the paper distinguishes a verification-plane cost experiment from an end-to-end learning claim.
+
+\subsection{Horizon dependence and break-even interpretation}
+For $K\ge2$, $s=0$, and $\alpha=0$, write $B_T=RT/8+M(T-1)$. The bound is $R\log K/\eta+\eta B_T$. When $\sqrt{R\log K/B_T}\le1$, choosing that learning rate gives at most $2\sqrt{R\log K\,B_T}$ expected regret, which is sublinear for fixed $R,M,K$. This is an established style of switching-cost bound, not a new rate. With a known sparse switch budget, selecting a horizon-dependent share similarly prices tracking complexity. Our fixed-parameter experiments do not invoke such a tuned asymptotic guarantee.
+
+A single empirical switch with estimated future saving $d$ and anticipated remaining horizon $h$ satisfies the familiar break-even inequality $hd>M_{ij}$. This is arithmetic, not a drift theorem: savings may reverse before $h$ events. The included window rule uses its past 64 events as that estimate and is deliberately reported as a heuristic. All choices, including greedy choices that ignore migration when deciding, are charged their actual transition price during evaluation.
+
+\section{Experimental Reproduction and Threats to Validity}
+\subsection{Software and data identities}
+The archived v3 runs used Python 3.13.5 on Linux x86\_64; exact installed package and platform records accompany emitted reports. Compilers were measured with \texttt{OPENBLAS\_NUM\_THREADS=1}. No accelerator is required. Vendored upstream sources and tests are retained with their notices. Every fresh mutation is checked against its archived base-source hash, replacement span, and resulting source hash. This binds a result to a specific intervention, not a natural historical bug distribution.
+
+For the archived v3 record, there are three named output categories: \texttt{historical/results\_v2} contains previous observations; \texttt{results/v3} contains v3's generated layouts, raw waves, online paths, fresh subprocess reports, and harness records; \texttt{paper/generated} contains tables regenerated from those files. Running reproduction in a fresh destination avoids overwriting the released record. The release manifest identifies the exact packaged files. The final extracted archive is tested again before delivery. New v4 transfers, compiler traces, contexts, summaries and audits are stored separately in \texttt{results/v4}; they do not change the number of earlier checker or harness executions. V5 adds \texttt{results/v5} for the practical catalogue, archived-source re-aggregation, conditional deployment accounting and failed BPE attempts. Neither a new layout nor a reproduced experiment is counted as another repaired candidate.
+
+\subsection{Costs not hidden by replay}
+Ordering measurements include strict initialization; online traces explicitly use persistent-state incremental service plus cold switch prices. These are different lifecycles. Source replay uses a fixed previous ranker; fresh paired executions hold that ranker constant. The I/O harness does not compare different model-generated solutions: it sends identical scripted patch content to the same real runtime under different gates. Its model endpoint produces no provider token-usage field, so absent usage remains null in the records. Prompt byte lengths are measured directly and never converted to tokens by a heuristic multiplier.
+
+Timing rows report outer-wrapper or active-episode boundaries explicitly. The wrapper's internal total ends just before final report and packet-file writes; the fresh study additionally records the outer call duration including those writes. Fit, contract approval, and baseline preparation are setup costs, not silently amortized into a claimed end-to-end speedup. With only three harness repeats, ranges are more honest than a precise broad-population confidence claim.
+
+\subsection{Test adequacy, nondeterminism, and I/O}
+The fixture performs real disk and loopback I/O but is intentionally controlled. It is not a test of internet reliability, production SQLite contention, nondeterministic service responses, or all flaky-test policies. When a collected check is skipped, missing, or inconsistent, it is not accepted as a pass. Two contradictory final records in one epoch trigger conflict handling, and an operator must establish a new epoch rather than cherry-pick the favorable record. Actual source tests can themselves be incomplete; agreement with their oracle is only agreement with the declared acceptance contract.
+
+\section{Artifact Usage and Integration Contract}
+A reviewed operator baseline is initialized outside candidate write scopes:
+\begin{verbatim}
+python -m ichact init --project /work/trusted-baseline \
+  --contract /work/contracts/approved.json \
+  --output /work/reports/baseline --test-path tests
+
+python -m ichact verify --project /work/candidate \
+  --contract /work/contracts/approved.json \
+  --output /work/reports/candidate-001 \
+  --layout /work/contracts/layout.json
+\end{verbatim}
+A layout must match the full semantic registry. The optional execution-order file is separate and must also be an exact permutation, never a subset. Legacy schema-1 contracts must be reviewed and reinitialized; the software does not silently reinterpret them.
+
+The Future Code gate invokes the installed module or a pinned absolute bridge path outside the candidate:
+\begin{verbatim}
+python -m ichact.future_bridge \
+  --contract /work/contracts/approved.json \
+  --reports /work/verification-reports \
+  --layout /work/contracts/layout.json
+\end{verbatim}
+The working directory is the candidate snapshot. Exit 0 means complete current pass; nonzero means rejection or unknown. This CLI does not itself deploy or merge. The original harness performs its own staged-source fingerprint and integration checks. For hostile code, use an outer container/VM and do not give it access to secrets or trusted contract storage.
+
+The artifact contains an actual scripted harness campaign, a separate live-endpoint configuration guide, deterministic tests, an independent audit, and an isolated reproduction launcher. The live guide is a deployment recipe, not evidence that paid inference or hosted evaluation was performed.

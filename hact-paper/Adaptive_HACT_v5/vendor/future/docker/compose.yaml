@@ -1,0 +1,23 @@
+# TEMPLATE ONLY. Initialize/configure a disposable project before starting.
+# Ensure /project is writable by UID 10001; do not mount the original valuable tree.
+services:
+  supervisor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    user: "10001:10001"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 2g
+    cpus: 2
+    stop_grace_period: 30s
+    restart: "on-failure:5"
+    environment:
+      FUTURE_CODE_API_KEY: ${FUTURE_CODE_API_KEY:?Supply via an approved secret mechanism}
+    volumes:
+      - ${PROJECT_PATH:?Set to an initialized disposable project}:/project
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m

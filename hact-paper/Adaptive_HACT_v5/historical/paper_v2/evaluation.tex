@@ -1,0 +1,55 @@
+\section{Evaluation Design}\label{sec:evaluation}
+We ask four questions. \textbf{RQ1:} Can a source-conditioned schedule return genuine failure feedback with fewer executed tests and lower measured process time? \textbf{RQ2:} Does a frontier-aware tree improve measured certificate traffic after charging initialization? \textbf{RQ3:} Do missing, stale, conflicting, or adversarially incomplete records ever obtain a local pass? \textbf{RQ4:} Which costs and negative results limit practical value?
+
+\subsection{Executable subjects and scope}
+We use exact local source copies of NetworkX~\cite{networkx}, Toolz~\cite{toolz}, and Future Code Control v1.2.0. The first two are upstream libraries with their unmodified existing tests. The third is the uploaded agent-runtime prototype, not an independent industrial deployment. Source copies and licenses are included in the artifact. A public benchmark download was unavailable because container DNS resolution failed; we did not substitute invented external-benchmark results.
+
+The frozen scopes contain 170 NetworkX tests for components, traversal, and unweighted/generic shortest paths; 148 Toolz tests for iterable, functional, dictionary, recipe, curried, and utility behavior; and 138 Future Code core tests for contracts, state, coordination, and hierarchy. All scoped baselines passed. Separately, the original Future Code full suite passed all 263 tests. The mutation study does not claim to rerun that full 263-test scope on every changed candidate. An initially considered SymPy scope was excluded before mutation outcomes because its upstream test configuration required an unavailable dependency; the replacement with Toolz is recorded in the contract.
+
+\input{generated/cohort_table.tex}
+
+\subsection{Predefined interventions and disclosed development decisions}
+For each of 17 predefined source files, we select up to six nonoverlapping AST sites by a fixed seeded hash. Operators alter relational boundaries, arithmetic operators, Boolean constants, or negation. Only the selected expression span changes; the surrounding file is not reformatted. Selected sites alternate between training and development. This yields 45 training and 43 development cases. We retain surviving mutants, timeouts, and collection failures rather than replacing them with easier-to-detect faults. A surviving mutant means only that the scoped tests did not reject it.
+
+After the development outcomes revealed conditional-tree overfitting, we fixed pooled-frontier layout as the revised default and froze 33 additional intervention sites with a new seed. These sites do not overlap any training or development mutation span, including nested expressions. They span 11 source files; some files had too few unused sites. The original 45 training cases, ranker, and serialized plans remain fixed. Confirmation outcomes do not refit them. Model-plan hashes and the freeze timestamp precede all confirmation executions. This is a local registered experimental contract, not a claim of third-party preregistration.
+
+Every full-oracle execution runs in a fresh private source copy. We check the intended mutant hash and store pytest phase records. A completed oracle must have the exact registry and a final pass/fail outcome for every obligation. Incomplete or timed-out attempts remain unknown and are excluded only from metrics requiring a complete finite oracle; their counts remain visible. Full-oracle runs use four worker processes for throughput. Their durations are not used as controlled latency measurements because of resource contention.
+
+\subsection{Baselines and measurements}
+The prioritization baselines are default collection order, shortest-first, file-call coverage first, global empirical fault-set cover, and source-conditioned fault-set cover. All are full permutations. We replay each ordering against the complete outcome vector to count executed tests to first failure; replayed phase time is explicitly not wall-clock latency.
+
+For actual timing, the development cohort consists of the first eight predefined development IDs per project. After retaining one incomplete oracle as unknown, 23 eligible snapshots are executed with four orderings and three repetitions, for 276 fresh subprocess runs. The confirmation timing cohort is the first four confirmation IDs per project, with default, call-profile, and source-conditioned orderings and three repetitions. The exact eligible count and observed agreement are given below. Within each repetition, candidate blocks and ordering labels are deterministically randomized. Repetitions are not treated as independent source mutations.
+
+Timing includes process startup, imports, pytest collection, test execution, evidence writing, and order planning. It excludes source copying, offline tree fitting, and certificate replay. A separate strict-wrapper smoke test includes copying, source hashing, and certificate generation. We report per-candidate medians of three repetitions, then aggregate those paired values. Variance from startup and scheduling is real and must not be hidden behind a test-count ratio.
+
+Tree baselines use the same conditional schedule and outcome vectors: (a) a compact bottom-up eight-ary fixed tree; (b) the old invalidation-only exact optimizer, which sees every interval active under strict whole-snapshot invalidation; (c) a pooled-frontier tree; and (d) per-source frontier trees. All trees preserve the same registry order and 3072-byte cap. The invalidation-only optimizer is an objective ablation, not the strongest practical baseline; the compact fixed tree is essential. We run the trusted kernel for each evaluated tree and sum actual serialized packet lengths, including the first full construction. This is a measured protocol replay over real outcomes, not live network transmission.
+
+\paragraph{Uncertainty and estimands.}
+For paired comparisons, the primary reduction is $100(1-\sum_i y_i/\sum_i x_i)$, where $x_i$ and $y_i$ are baseline and candidate measurements on the same mutation. Confidence intervals use a seeded paired cluster bootstrap, resampling source-file clusters within each project; timing first reduces repeated runs to per-mutation medians. These intervals are conditional on three chosen projects and the intervention design. They do not establish generalization to a population of repositories. We also report project-level values, absolute seconds/bytes, and unfavorable comparisons.
+
+\section{Results}
+\subsection{Failure feedback and actual latency}
+\input{generated/priority_table.tex}
+\input{generated/timing_table.tex}
+\input{generated/feedback_results.tex}
+\begin{figure}[t]
+\centering\includegraphics[width=.90\linewidth]{generated/feedback_tradeoff.pdf}
+\caption{Sequence efficiency is not wall-clock acceleration. Confirmation check-count reductions use all oracle-rejected cases; timing reductions use the separately frozen timing cohort. The two denominators are intentionally labeled and must not be equated.}
+\label{fig:feedback}
+\end{figure}
+
+\subsection{Certificate traffic and the negative specialization result}
+\input{generated/traffic_table.tex}
+\input{generated/traffic_results.tex}
+
+The invalidation-only objective can produce a deep tree with low one-time construction cost but expensive repeated progress updates. This is not an optimizer bug: it is the wrong objective for that trace. Conversely, a compact fixed hierarchy is a strong baseline, and data-dependent layout is not uniformly superior on every candidate. Lower aggregate bytes do not imply faster execution or higher repair quality.
+
+\subsection{Soundness and integrity checks}
+\input{generated/safety_results.tex}
+The protocol tests exercise complete coverage, missing leaves, stale bindings, same-content and ABA epoch changes, contradictory same-epoch evidence, idempotent retries, invalid layouts, tampered displays, and local concurrent submissions. Exhaustive enumeration of small binary trees checks the compiler independently of the DP recurrence. A separate auditor reads stored trees and outcomes and recomputes packet costs without importing the optimizer or the producer's pricing helpers. It also checks site disjointness, source hashes, registry equality, timing-record identities, and observed verdict agreement.
+
+We additionally replay a deliberately unsafe comparator that assumes a previous pass can be reused for every test outside an observed call graph. Its edge-pruning ablation removes three quarters of file--test edges by an outcome-independent hash. Any false pass in that ablation demonstrates the danger of allowing incomplete learned relationships to authorize acceptance. It is not a measurement of NameRTS, and it does not estimate an attack rate in production. The strict protocol never converts omitted checks into pass evidence.
+
+\subsection{Overhead, batching, and practical boundaries}
+\input{generated/overhead_results.tex}
+The empirical priority needs historic complete outcomes; producing these through deliberate fault injection costs real testing time. A production deployment should normally reuse approved development/repair traces or justify a bounded offline intervention budget, rather than continuously mutating a production checkout. Tree fitting is offline and should be amortized. If startup dominates the suite or few candidates fail, the benefit of reordering can be small. Successful strict candidates still execute the full registry.

@@ -1,0 +1,82 @@
+{
+  "revision": "4.0.0",
+  "scope": "Systems evidence, not live-model efficacy",
+  "frozen_before_new_measurements": true,
+  "source_archive_sha256": "2ed82032b089b749117899c7e14e76b8306bb6a6f5e315b354d560909fee29bc",
+  "transport": {
+    "inputs": "all 24 archived v3 paired checker packet streams; no new checker outcomes claimed",
+    "formats": [
+      "padded",
+      "compact",
+      "packet_zlib",
+      "batch_zlib"
+    ],
+    "timed_formats": [
+      "compact",
+      "batch_zlib"
+    ],
+    "rates_bytes_per_second": [
+      65536,
+      1048576,
+      null
+    ],
+    "paired_repeats": 2,
+    "loopback_only": true,
+    "timeout_seconds": 60,
+    "shuffle_seed": 44001,
+    "include": "encode, framing, paced socket receive, decode, digest comparison",
+    "exclude": "checker execution, LLM, TLS/TCP/IP overhead, deployment"
+  },
+  "contexts": {
+    "input_byte_budget": 16384,
+    "representations": [
+      "stable root status",
+      "single local aggregation packet",
+      "all diagnostic packet pages"
+    ],
+    "token_counts": "null unless a real installed tokenizer succeeds; no byte/token conversion"
+  },
+  "scaling": {
+    "n": [
+      128,
+      512,
+      1024
+    ],
+    "seeds": [
+      44011,
+      44012,
+      44013
+    ],
+    "training_epochs": 128,
+    "heldout_epochs": 256,
+    "block_size": 32,
+    "families": [
+      "cluster",
+      "independent"
+    ],
+    "full_exact_sizes": [
+      128,
+      512
+    ],
+    "order": "average-linkage from training only; time separately",
+    "claim": "exact within fixed block backbone only"
+  },
+  "online": {
+    "policy": "64-event priced window; unchanged rule from v3 promoted to runtime API",
+    "validation": "replay all 80 archived streams, bit-exact actions/cost against original baseline",
+    "new_policy_tuning": false
+  },
+  "live_model": {
+    "performed": false,
+    "reason": "no designated authorized endpoint/credentials or downloadable tokenizer in the execution environment; no private credentials searched",
+    "provider_tokens": null
+  },
+  "acceptance": [
+    "existing suites stay green",
+    "new policy replay matches",
+    "all transport digests match",
+    "all contexts respect byte cap or fail closed",
+    "restricted-DP costs not below exact optimum on training",
+    "all report tables independently recomputed"
+  ]
+}

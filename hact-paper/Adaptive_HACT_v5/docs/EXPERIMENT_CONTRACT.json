@@ -1,0 +1,39 @@
+{
+  "objective": "Extend HACT from synthetic traffic savings to executable software-change verification with conservative publication and measured feedback latency.",
+  "baseline": "HACT v1.0; pooled ordered certificate tree; default/full and history-only test order.",
+  "hypotheses": [
+    "Change-conditioned, intervention-derived test ordering reduces work to first genuine failure without authorizing selective PASS.",
+    "Conditioning certificate layout on actual completion frontiers reduces update traffic; switching overhead may erase the gain.",
+    "Arbitrary learned-edge omissions cannot produce PASS through a strict complete-registry gate."
+  ],
+  "scope": "Local CPU-only experiments, immutable copied snapshots, no paid API calls or deployment.",
+  "non_goals": [
+    "No claim of autonomous repair quality or live LLM evaluation.",
+    "No claim of complete causal discovery.",
+    "No bypass of tests on the strength of learned impact alone."
+  ],
+  "evaluation": "Upstream NetworkX and Toolz tests plus uploaded Future Code v1.2 tests. Predefined mutation operator split by site; survivors and timeouts retained. Separate timing validation from trace replay.",
+  "metrics": [
+    "failure agreement with full-suite execution",
+    "tests executed until first failure",
+    "end-to-end subprocess time including startup",
+    "actual certificate bytes and rebuild costs",
+    "PASS on clean complete suites",
+    "stale/race/tamper rejection"
+  ],
+  "stop_conditions": [
+    "unexplained baseline failures",
+    "invalid test registry",
+    "non-finite statistics",
+    "deadline per subprocess 60 seconds",
+    "no writes outside private copied snapshots"
+  ],
+  "risk": "R2",
+  "approval": "Local reversible copies and tests authorized by user.",
+  "random_seed": 20260918,
+  "created": "2026-09-18",
+  "known_limit": "Container DNS failed for a public benchmark download; use locally installed upstream packages and retain their sources and versions.",
+  "scope_amendment_before_outcomes": "SymPy excluded before baseline: its upstream root conftest requires unavailable hypothesis. Replaced with Toolz, preserving unmodified upstream suites.",
+  "scope_amendment_core": "Full Future Code suite independently passed 263/263 in 26.59 seconds. Mutation campaign is scoped to six core test files to avoid repeating unrelated external-process and transport tests. This scope is frozen before mutation selection/outcomes.",
+  "mutation_design": "For each of 17 predefined source files select up to 6 distinct AST sites by fixed seeded hash; alternate train/test (up to 3 each). Relational boundary changes, arithmetic replacement, Boolean constant inversion, not-removal. No outcome-based replacement; timeouts/collection errors/survivors retained."
+}

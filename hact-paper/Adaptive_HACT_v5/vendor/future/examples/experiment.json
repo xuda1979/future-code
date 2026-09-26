@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "experiment_id": "SCHEMA-FIXTURE-ONLY",
+  "code_sha256": "40a4290e29bd73668c95ea6ee4abe3dab0cad7a8db472205ac871ddd356a9dbf",
+  "config_sha256": "1d71226173d8bf3e6400e3d725d336b0983052148084885fa8cb759a2036eb8e",
+  "model_sha256": "66b731fabd0690538d4c04e5010c775c4ad8253cb817e502a4669944c4a213ba",
+  "dataset_manifest_sha256": "6d13b0e00fc632e491eb4d3a41e8e131b842a7cef000d67ab7fe339b07dc5d6e",
+  "seed": 42,
+  "train_ids": [
+    "train-fixture-1"
+  ],
+  "eval_ids": [
+    "eval-fixture-1",
+    "eval-fixture-2"
+  ],
+  "primary": {
+    "name": "synthetic_fixture_score",
+    "value": 0.9,
+    "baseline": 0.8,
+    "direction": "maximize",
+    "min_improvement": 0.05,
+    "samples": 2
+  },
+  "guardrails": [
+    {
+      "name": "synthetic_memory_value",
+      "value": 4,
+      "operator": "<=",
+      "threshold": 8
+    }
+  ],
+  "evidence_files": [
+    {
+      "path": "fixture_evidence.json",
+      "sha256": "16572f9b26c4e8f09d330d413facdc37d6fac99f8184950925c20610ba049168"
+    }
+  ],
+  "runtime": {
+    "python": "SCHEMA_EXAMPLE",
+    "framework": "NOT_A_TRAINING_RUN",
+    "device": "NO_ACCELERATOR_USED"
+  }
+}

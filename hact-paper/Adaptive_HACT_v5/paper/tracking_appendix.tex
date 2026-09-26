@@ -1,0 +1,24 @@
+\section{Optional Fixed-Share Analysis: Not the Deployment Recommendation}\label{app:tracking}
+This section retains v3's former Theorem 4 and its assumptions. It is an optional comparator, not the practical selector recommended in v4. On the measured streams it loses to the deterministic priced-window rule in three regimes. We have not searched for a favorable adversarial stream after seeing those results, and make no claim that a tracking bound implies an empirical advantage.
+\subsection{Fixed-share weights with maximal coupling}
+Let a declared bound $R$ cover each round's loss spread, $\max_i\ell_t(i)-\min_i\ell_t(i)\le R$. Reject a measurement exceeding it instead of clipping the cost. Define $z_{t,i}=(\ell_t(i)-\min_j\ell_t(j))/R$. Starting at $p_1(i)=1/K$, update
+\begin{align}
+ q_{t+1}(i)&=\frac{p_t(i)\exp(-\eta z_{t,i})}{\sum_jp_t(j)\exp(-\eta z_{t,j})},\\
+ p_{t+1}(i)&=(1-\alpha)q_{t+1}(i)+\alpha/K,\quad 0<\eta\le1,\;0\le\alpha<1.\label{eq:share}
+\end{align}
+Independent draws from each new distribution can waste migrations. Instead, conditional on $A_t=i$, retain $i$ with probability $\min\{1,p_{t+1}(i)/p_t(i)\}$. If it is not retained, sample from the normalized positive residual $(p_{t+1}-p_t)_+$. This maximal coupling has marginal $p_{t+1}$ and switch probability $\operatorname{TV}(p_t,p_{t+1})$. Established dependent-sampling methods motivate this choice~\cite{geulen}; we do not claim it as a new sampling algorithm.
+
+\begin{theorem}[Catalogue tracking with migration]\label{thm:tracking}
+Assume a frozen catalogue, a fixed exogenous sequence of full-information loss vectors, spread at most $R$, and $M_{ij}\le M$. For any comparator path $u_{1:T}$ with $s$ changes and $0<\alpha<1$, the coupled policy satisfies
+\begin{align}
+ \E[\mathcal L_T]-\sum_t\ell_t(u_t)
+ \le{}& R\left[\frac{\log K+s\log(K/\alpha)+(T-1-s)\log(1/(1-\alpha))}{\eta}
+             +\frac{\eta T}{8}\right]\nonumber\\
+ &+M(T-1)(\eta+\alpha).\label{eq:tracking}
+\end{align}
+For $\alpha=0$ the stationary-comparator bound has numerator $\log K$ and applies only to $s=0$.
+\end{theorem}
+\begin{proof}
+The fixed-share update is exponential weighting over paths with an initial uniform prior, self-transition mass at least $1-\alpha$, and transition mass at least $\alpha/K$. The negative log prior of a path with $s$ switches is bounded by the numerator. The bounded exponential-moment inequality gives expected normalized service regret at most that numerator divided by $\eta$, plus $\eta T/8$ (Appendix~\ref{app:online}). Since losses are exogenous, the weights are independent of the sampled action path, and the coupling preserves each unconditional marginal. Exponential reweighting changes total variation by at most $\eta$; uniform mixing adds at most $\alpha$. Thus the expected switch count is at most $(T-1)(\eta+\alpha)$. Multiplication by $M$ and addition of service regret proves the bound.\end{proof}
+The bound also upper-bounds regret relative to the comparator's service \emph{plus} nonnegative migration cost, but can be quite loose. It is not a per-run improvement guarantee. Choosing fixed $\eta=.5$ and $\alpha=.01$, as in our frozen experiment, need not make this bound sublinear with increasing $T$. Horizon-dependent tuning yields sublinear stationary bounds (Appendix~\ref{app:online}), without creating a guarantee against arbitrary reactive agents or newly introduced catalogue entries.
+

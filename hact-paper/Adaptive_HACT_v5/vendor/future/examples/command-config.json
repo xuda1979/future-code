@@ -1,0 +1,84 @@
+{
+  "max_workers": 4,
+  "lease_seconds": 45,
+  "heartbeat_seconds": 5,
+  "poll_seconds": 0.25,
+  "max_requests": 1000,
+  "max_reserved_tokens": 2000000,
+  "max_context_chars": 24000,
+  "max_output_tokens": 4096,
+  "max_response_bytes": 2000000,
+  "max_workspace_bytes": 100000000,
+  "max_file_bytes": 1000000,
+  "max_total_tasks": 500,
+  "max_delegation_depth": 3,
+  "max_children": 8,
+  "circuit_failures": 3,
+  "retry_base_seconds": 1,
+  "retry_cap_seconds": 60,
+  "stale_seconds": 30,
+  "minimum_free_bytes": 100000000,
+  "backend": "command",
+  "command_argv": [
+    "/absolute/path/to/venv/bin/future-cli-bridge",
+    "--prompt-mode",
+    "argument",
+    "--forward-env",
+    "FUTURE_CODE_API_KEY",
+    "--",
+    "/absolute/path/to/future-code",
+    "--print"
+  ],
+  "command_env_allowlist": [
+    "FUTURE_CODE_API_KEY"
+  ],
+  "endpoint": {
+    "name": "primary",
+    "url": "http://127.0.0.1:8090/v1/chat/completions",
+    "model": "configure-model-id",
+    "api_key_env": "FUTURE_CODE_API_KEY",
+    "health_url": null,
+    "headers_env": {},
+    "connect_timeout": 10,
+    "read_timeout": 120,
+    "request_timeout": 180,
+    "health_interval": 60
+  },
+  "reviewer_endpoint": null,
+  "gates": {
+    "unit": {
+      "argv": [
+        "$PYTHON",
+        "-c",
+        "import unittest,sys; suite=unittest.defaultTestLoader.discover('tests'); count=suite.countTestCases(); assert count>0, 'No acceptance tests discovered'; result=unittest.TextTestRunner(verbosity=2).run(suite); sys.exit(not result.wasSuccessful())"
+      ],
+      "timeout_seconds": 120,
+      "protected_inputs": [
+        "tests"
+      ]
+    }
+  },
+  "required_gates": {
+    "software": [
+      "unit"
+    ],
+    "ml": [],
+    "research": []
+  },
+  "protected_paths": [
+    "tests/acceptance"
+  ],
+  "ignored_dirs": [
+    "node_modules",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".coverage",
+    "dist",
+    "build"
+  ],
+  "allow_ungated_readonly": true
+}

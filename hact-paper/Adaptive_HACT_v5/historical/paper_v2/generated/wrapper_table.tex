@@ -1,0 +1,19 @@
+\begin{table}[t]
+\centering\small
+\caption{Functional wrapper smoke with actual project tests. One known rejected confirmation mutant per project is selected for demonstration, then the original source is restored. These are single runs, not a sampled timing benchmark or autonomous repairs.}\label{tab:wrapper}
+\begin{tabular}{@{}llrlrr@{}}
+\toprule
+Subject & Stage & Tests & Verdict & Process s & Wrapper s\\
+\midrule
+NetworkX & Baseline & 170 & PASS & 2.777 & 3.265\\
+NetworkX & Known fault & 1 & FAIL & 2.574 & 3.068\\
+NetworkX & Restoration & 170 & PASS & 3.033 & 3.550\\
+Toolz & Baseline & 148 & PASS & 1.473 & 1.784\\
+Toolz & Known fault & 43 & FAIL & 1.471 & 1.771\\
+Toolz & Restoration & 148 & PASS & 1.423 & 1.743\\
+Future Code & Baseline & 138 & PASS & 2.824 & 3.160\\
+Future Code & Known fault & 1 & FAIL & 1.321 & 1.665\\
+Future Code & Restoration & 138 & PASS & 2.675 & 2.996\\
+\bottomrule
+\end{tabular}
+\end{table}

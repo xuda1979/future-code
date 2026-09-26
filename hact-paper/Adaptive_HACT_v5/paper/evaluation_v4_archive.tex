@@ -1,0 +1,63 @@
+\section{Historical V4 Delivery and Compiler Evidence}\label{app:v4evidence}\label{sec:evaluation}
+The observations and implementation recommendations in this appendix are historical v4 records. The v5 practical path excludes block DP; its current recommendation and new measurements are in Section~\ref{sec:v5evaluation}.
+
+\subsection{Frozen questions and provenance}
+The v4 contract was written before its new measurements. It fixes all 24 packet streams from v3's 12 matched source-checker pairs, four encodings, two timed encodings, three link settings and two repetitions. It separately fixes 18 new synthetic compiler workloads (three seeds, two families, three sizes). The data categories remain distinct: v3 contains executed check outcomes; v4 re-exports those bytes and constructs new synthetic compiler traces. Re-exporting a packet is not another successful code repair.
+
+For transport, each trial opens a real loopback TCP connection. The receiver consumes chunks under an application-rate limiter, decodes the received archive, compares its SHA-256 to the trusted experimental reference, and returns an acknowledgment. Timers include sender encoding, connection and transfer, receiver decoding and acknowledgment. Application byte counts include the codec envelope, packet framing, the eight-byte outer length and 32-byte acknowledgment. They exclude TCP/IP/TLS overhead. No receiver-rate policy is represented as a measured physical WAN. Tests are not reexecuted during these transfers.
+
+The timed formats are unpadded canonical JSON and whole-epoch DEFLATE at level 6; padded and independently compressed packets are additional size controls. All 288 trials are retained. Order is randomized by the frozen seed. Tables aggregate the 12 predetermined exports and average the two repetitions; they are descriptive instrument measurements, not population confidence intervals for arbitrary projects. Initial layout compilation is outside the export timer and reported separately.
+
+\subsection{RQ1: Does the saving survive compression?}
+\begin{table}[t]\centering\small
+\caption{V4 byte reductions (percent) versus the matched fixed8 layout, including application framing. Four archived candidates per project; positive is better. Every column preserves the same intermediate packet records.}\label{tab:v4wire}
+\begin{tabular}{@{}lrrrr@{}}\toprule
+Project & Padded & Canonical & Per-packet zip & Epoch zip\\\midrule
+\csname @@input\endcsname generated_v4/wire_rows.tex
+\bottomrule\end{tabular}
+\end{table}
+After whole-epoch compression, the reductions are 47.92\% for NetworkX, 5.80\% for Toolz and 23.60\% for Future Code. In particular, Toolz's 16.62\% padded-wire saving falls to 5.80\%. Compression and batching are therefore substantive baselines, not negligible framing details. The fixed layout with compression is much cheaper than an uncompressed learned stream; claims must compare like with like.
+
+The compressed payload is a post-verification archive. Independent packet compression preserves per-packet streaming but yields different savings. Neither codec is optimized by the padded-byte DP, and no universal preservation of the learned layout's ranking is assumed. A flat final-status ledger is also much smaller in these cases, but omits intermediate aggregation and trace commitments. Its size is recorded as an alternative for a trusted central consumer, not as a substitute for a portable proof or the same diagnostic service.
+
+\subsection{RQ2: Does smaller evidence improve actual export time?}
+\begin{table}[t]\centering\small
+\caption{Historical v4 controlled TCP exports. Seconds are total export time for 12 candidate streams, averaged over two repetitions. The study is not a new run of their checkers or an end-to-end agent evaluation.}\label{tab:v4transport}
+\begin{tabular}{@{}llrrr@{}}\toprule
+Receiver pacing & Format & Fixed (s) & Learned (s) & Reduction (\%)\\\midrule
+\csname @@input\endcsname generated_v4/timing_rows.tex
+\bottomrule\end{tabular}
+\end{table}
+At 64 KiB/s, canonical export takes 33.499 versus 18.954 seconds for the 12-stream cohort (43.42\% reduction). With epoch compression the same totals are 6.624 and 4.413 seconds (33.38\%). The approximately 2.21-second compressed saving is \emph{across twelve exports}, not per candidate. All decoded packet counts and payload digests match the archived inputs.
+
+Unpaced and 1 MiB/s runs also improve in this controlled setting; encoding and decoding fewer records contributes when pacing no longer dominates. The timings are not predictions for TLS, congested networks, remote storage, a concurrent multi-link tree or a deployment that hides export behind checking. Compression itself is the larger immediate optimization here. Adding an expensive strict wrapper solely to obtain a small export saving would not follow from these results.
+
+The historical checker and harness negative controls are unchanged: fixed and learned source wrappers total 39.69 and 39.77 seconds; the nine scripted harness episodes show an approximately five-second strict-gate premium over direct pytest. Complete details remain in Appendix~\ref{app:v3evidence}. Combining those historical times with new loopback times and calling the sum a measured end-to-end speedup would be invalid.
+
+\subsection{RQ3: Which supervisor context actually gets smaller?}
+The root-status representation is exactly identical within all 12 candidate pairs and occupies 593--594 UTF-8 bytes. Its \emph{layout-induced} reduction is zero, consistent with Equation~\eqref{eq:rootcontext}. Fixed-size root reporting is already sufficient for ordinary status display. We do not claim that an optimizer is necessary to achieve it.
+
+The exhaustive diagnostic path differs. With a 16,384-byte per-request cap and whole-packet packing, NetworkX uses 82 versus 36 requests across four candidates, Toolz 27 versus 25, and Future Code 39 versus 26. Overall, the cohort requires 148 versus 87 diagnostic pages (41.22\% fewer), while every page respects the same cap. These are exact requests needed by the implemented exhaustive reader, not observed tool-use choices by an LLM. Selective retrieval could use far fewer pages, and a root-only supervisor uses none of them.
+
+No tokenizer was installed in this execution environment; attempts to obtain its package/vocabulary failed because network resolution was unavailable. We therefore report exact input bytes against the harness's actual byte-admission limit and leave tokenizer counts null. The optional hook invokes a real tokenizer~\cite{tiktoken} when available; it never estimates tokens from bytes. No claim is made about model understanding, billing or the token-window fit of these diagnostics.
+
+\subsection{RQ4: Can compilation cost be bounded usefully?}
+The new compiler study fixes a training-learned average-linkage order, 128 training epochs, 256 held-out epochs, and block size 32. The two families are shuffled clustered and independent completions. Exact and blocked methods share the same order and full-wave objective; order-learning time is measured separately. At 1,024 checks only blocked compilation is performed; an unmeasured exact timing or gap is shown as missing, not extrapolated.
+
+\begin{table}[t]\centering\small
+\caption{Historical v4 compiler measurements. Times are medians of three seeds in seconds. Gap is the mean held-out blocked cost relative to the same-order exact cost; positive is worse. No new asymptotic claim is inferred from timing.}\label{tab:v4scale}
+\begin{tabular}{@{}rlrrrr@{}}\toprule
+Checks & Family & Order & Exact DP & Block DP & Gap (\%)\\\midrule
+\csname @@input\endcsname generated_v4/scaling_rows.tex
+\bottomrule\end{tabular}
+\end{table}
+At 512 checks, blocked microtree compilation is roughly 25--26 times faster than the same-order exact DP, with mean held-out penalties of 3.40\% (clustered) and 0.40\% (independent). The entire pipeline does not accelerate by that factor: learning the order still costs about 0.53--0.58 seconds. At 1,024 checks, microtree fitting is about 0.26--0.28 seconds and ordering about 2.84--3.20 seconds. The old 18.435-second v3 measurement fitted a \emph{three-proposal catalogue}; it was not a directly comparable single-DP timing on this runtime. Restricted compilation and order reuse are practical options, not a claim that global optimization is now linear or free.
+
+A simpler baseline is important: the blocked trees use 1.54--5.34\% more held-out bytes than a balanced eight-ary tree on the same learned order across these six settings. The block compiler is therefore an optional bounded-cost candidate generator, not the default winner. Selection must retain the incumbent and a simple fixed-fanout candidate; faster fitting alone does not justify adopting a worse layout.
+
+\subsection{Online policy and software validation}
+The deterministic window is promoted from comparator to primary runtime API without parameter retuning. Across all 80 archived online streams (163,840 events), the new API reproduces every prior baseline action and byte-cost total, including periodic checkpoint/resume. This establishes compatibility, not fresh generalization evidence. In v3 its charged-cost ratios to a frozen layout were 1.000 (stationary), 0.833 (long shift), 1.007 (rapid shift) and 1.000 (global). A last-event greedy rule performs better on the rapid-shift family, so the window is not declared universally best. The weaker fixed-share results and theoretical analysis remain visible in the appendix.
+
+The v4 release passed 253 tests, including 66 new tests beyond v3's 187. That release separately passed 263 unmodified Future Code tests. New tests check constrained compilation, exact codec round trips, decompression bounds, malformed partitions, root projection, context-budget overflow, controller sequencing/checkpoints, and independent-auditor rejection of altered measurements. A duplicate test-module basename initially prevented collection; it was renamed, the failure log retained, and the complete suite rerun.
+
+The independent audit imports no producer optimizer or codec. It reconstructs packet framing, compression sizes, page packing and compiler costs from saved records; checks all 288 transfer ledgers, 18 compiler workloads and 80 historical online replays; and verifies identical paired root projections and independently recomputes the reported numerical summaries. This is an independent implementation path, not third-party replication or a security certification.

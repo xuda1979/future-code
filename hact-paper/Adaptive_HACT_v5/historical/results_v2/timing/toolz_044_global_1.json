@@ -1,0 +1,922 @@
+{
+  "collection_errors": [],
+  "command": [
+    "/opt/pyvenv/bin/python",
+    "-B",
+    "-m",
+    "pytest",
+    "-q",
+    "-p",
+    "ichact.pytest_probe",
+    "-p",
+    "pytest_asyncio.plugin",
+    "--tb=short",
+    "-x",
+    "toolz/tests/test_itertoolz.py",
+    "toolz/tests/test_functoolz.py",
+    "toolz/tests/test_dicttoolz.py",
+    "toolz/tests/test_recipes.py",
+    "toolz/tests/test_curried.py",
+    "toolz/tests/test_utils.py"
+  ],
+  "end_to_end_seconds": 13.151252532000058,
+  "executed": [
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge_with_iterable_arg",
+    "toolz/tests/test_itertoolz.py::test_diff",
+    "toolz/tests/test_recipes.py::test_countby",
+    "toolz/tests/test_functoolz.py::test_memoize_kwargs",
+    "toolz/tests/test_functoolz.py::test_curry_call",
+    "toolz/tests/test_itertoolz.py::test_get",
+    "toolz/tests/test_functoolz.py::test_compose_metadata",
+    "toolz/tests/test_itertoolz.py::test_concatv",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_keyfilter",
+    "toolz/tests/test_itertoolz.py::test_accumulate_works_on_consumable_iterables",
+    "toolz/tests/test_itertoolz.py::test_take",
+    "toolz/tests/test_itertoolz.py::test_left_outer_join",
+    "toolz/tests/test_itertoolz.py::test_concat",
+    "toolz/tests/test_itertoolz.py::test_cons",
+    "toolz/tests/test_itertoolz.py::test_reduce_by_callable_default",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_itemfilter",
+    "toolz/tests/test_itertoolz.py::test_iterate",
+    "toolz/tests/test_functoolz.py::test_do",
+    "toolz/tests/test_itertoolz.py::test_peek",
+    "toolz/tests/test_itertoolz.py::test_sliding_window_of_short_iterator",
+    "toolz/tests/test_itertoolz.py::test_tail",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_keymap",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_valfilter",
+    "toolz/tests/test_itertoolz.py::test_join_missing_element",
+    "toolz/tests/test_itertoolz.py::test_peekn",
+    "toolz/tests/test_itertoolz.py::test_count",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_itemmap",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge_iterable_arg"
+  ],
+  "exitstatus": 1,
+  "failfast": true,
+  "mutant_sha256_observed": "1b2929fae52db83f458269cc05a206bf63b814e34f18b32c66085c07a56f84fd",
+  "mutation": {
+    "base_sha256": "b04f3094634b7b385d9a446a07681073149bc1b3baf9cfb84956d8fb2163ba81",
+    "id": "toolz_044",
+    "kind": "relational_boundary",
+    "line": 33,
+    "mutant_sha256": "1b2929fae52db83f458269cc05a206bf63b814e34f18b32c66085c07a56f84fd",
+    "project": "toolz",
+    "replacement": "(len(dicts) != 1)",
+    "source": "toolz/dicttoolz.py",
+    "source_file": "results/mutants/toolz_044.py",
+    "span": [
+      821,
+      836
+    ],
+    "split": "test"
+  },
+  "package_origins": {
+    "future_code": null,
+    "networkx": null,
+    "toolz": "/mnt/data/hact_revision/ichact-hh_lxjbr/project/toolz/__init__.py"
+  },
+  "profiled": false,
+  "project": "toolz",
+  "pytest_wall_seconds": 4.79947769599994,
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "records": {
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_itemmap": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.198900004823372e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 6.72519998943244e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.3444999960229325e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00033436599994729477
+    },
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_keyfilter": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.655600000409322e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 5.125699999553035e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.069200008416374e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00027038999996875646
+    },
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge_iterable_arg": {
+      "dependencies": [],
+      "failure": "toolz/tests/test_dicttoolz.py:35: in test_merge_iterable_arg\n    assert merge([D({1: 1, 2: 2}), D({3: 4})], **kw) == D({1: 1, 2: 2, 3: 4})\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\ntoolz/dicttoolz.py:39: in merge\n    rv.update(d)\nE   ValueError: dictionary update sequence element #1 has length 1; 2 is required",
+      "phases": {
+        "call": {
+          "outcome": "failed",
+          "seconds": 0.0001160959999424449
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 5.3440999977283354e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00043883399996502703
+        }
+      },
+      "status": "FAIL",
+      "wall_seconds": 0.21724380900002416
+    },
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge_with_iterable_arg": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0007901860000174565
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0005886710000595485
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 7.313999992675235e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0034525050000411284
+    },
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_valfilter": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.000253554000096301
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.6941000050537696e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.795700001774094e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.001775768000015887
+    },
+    "toolz/tests/test_dicttoolz.py::TestDict::test_itemfilter": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.9641000007104594e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00012018200004604296
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00030453099998339894
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0006253770000057557
+    },
+    "toolz/tests/test_dicttoolz.py::TestDict::test_keymap": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.513299993253895e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.950499999267777e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.6274999956731335e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00025797000000693515
+    },
+    "toolz/tests/test_functoolz.py::test_compose_metadata": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0003993949999312463
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 6.787299992083717e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.7591999987162126e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0006706350000058592
+    },
+    "toolz/tests/test_functoolz.py::test_curry_call": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00016834499990636687
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.033100004922744e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.554899999220652e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0007894649999116155
+    },
+    "toolz/tests/test_functoolz.py::test_do": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 4.87129999555691e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 5.243999999038351e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.747699997802556e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00026982800000041607
+    },
+    "toolz/tests/test_functoolz.py::test_memoize_kwargs": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.0006618119999757255
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.748200002628437e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00011323199998969358
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0011534960000290084
+    },
+    "toolz/tests/test_itertoolz.py::test_accumulate_works_on_consumable_iterables": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00027013800001896016
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.732200000034936e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.224499998097599e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0005973949999997785
+    },
+    "toolz/tests/test_itertoolz.py::test_concat": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.000600003768341e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 5.3772000001117704e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.708600002028106e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00025740000000951113
+    },
+    "toolz/tests/test_itertoolz.py::test_concatv": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.049199998869881e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 5.4373000011764816e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.006000006029353e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00028462099999160273
+    },
+    "toolz/tests/test_itertoolz.py::test_cons": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 4.542900001069938e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.806300000836927e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.368099999079277e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00023386399993796658
+    },
+    "toolz/tests/test_itertoolz.py::test_count": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.489800000508694e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 8.259499998075626e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.250400002092647e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00042308100000809645
+    },
+    "toolz/tests/test_itertoolz.py::test_diff": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00020402799998464616
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.0001160159999926691
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.868299993177061e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0008010720000584115
+    },
+    "toolz/tests/test_itertoolz.py::test_get": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00010117300007550512
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 6.658099994183431e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 0.00019135000002279412
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000600397999960478
+    },
+    "toolz/tests/test_itertoolz.py::test_iterate": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 6.0141000062685634e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 0.00012193500003832014
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 5.181799997444614e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0007283720000259564
+    },
+    "toolz/tests/test_itertoolz.py::test_join_missing_element": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.007836200000042481
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.234000003743859e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 9.404200000062701e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.01209862299992892
+    },
+    "toolz/tests/test_itertoolz.py::test_left_outer_join": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 7.564499992440687e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 5.0407000003360736e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.9409000009982265e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.000327616000049602
+    },
+    "toolz/tests/test_itertoolz.py::test_peek": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.241999997451785e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.960499995831924e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.612999998698797e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0010807160000467775
+    },
+    "toolz/tests/test_itertoolz.py::test_peekn": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00024178600006052875
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 7.01259999686954e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.0472000086519984e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.022711376999950517
+    },
+    "toolz/tests/test_itertoolz.py::test_reduce_by_callable_default": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 4.93750000032378e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.344600006334076e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 6.0781999991377234e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0002776299999140974
+    },
+    "toolz/tests/test_itertoolz.py::test_sliding_window_of_short_iterator": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 9.592599997176876e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 6.774299993139721e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.9118999893617e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0004488800000217452
+    },
+    "toolz/tests/test_itertoolz.py::test_tail": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 5.262999991373363e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 4.89939999397393e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 3.616499998315703e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0002562880000596124
+    },
+    "toolz/tests/test_itertoolz.py::test_take": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 8.42270000021017e-05
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 9.879999993245292e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.043100000217237e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.00036805799993544497
+    },
+    "toolz/tests/test_recipes.py::test_countby": {
+      "dependencies": [],
+      "phases": {
+        "call": {
+          "outcome": "passed",
+          "seconds": 0.00020465000000058353
+        },
+        "setup": {
+          "outcome": "passed",
+          "seconds": 5.877900002815295e-05
+        },
+        "teardown": {
+          "outcome": "passed",
+          "seconds": 4.218399999444955e-05
+        }
+      },
+      "status": "PASS",
+      "wall_seconds": 0.0004896310000503945
+    }
+  },
+  "registry": [
+    "toolz/tests/test_itertoolz.py::test_remove",
+    "toolz/tests/test_itertoolz.py::test_groupby",
+    "toolz/tests/test_itertoolz.py::test_groupby_non_callable",
+    "toolz/tests/test_itertoolz.py::test_merge_sorted",
+    "toolz/tests/test_itertoolz.py::test_interleave",
+    "toolz/tests/test_itertoolz.py::test_unique",
+    "toolz/tests/test_itertoolz.py::test_isiterable",
+    "toolz/tests/test_itertoolz.py::test_isdistinct",
+    "toolz/tests/test_itertoolz.py::test_nth",
+    "toolz/tests/test_itertoolz.py::test_first",
+    "toolz/tests/test_itertoolz.py::test_second",
+    "toolz/tests/test_itertoolz.py::test_last",
+    "toolz/tests/test_itertoolz.py::test_rest",
+    "toolz/tests/test_itertoolz.py::test_take",
+    "toolz/tests/test_itertoolz.py::test_tail",
+    "toolz/tests/test_itertoolz.py::test_drop",
+    "toolz/tests/test_itertoolz.py::test_take_nth",
+    "toolz/tests/test_itertoolz.py::test_get",
+    "toolz/tests/test_itertoolz.py::test_mapcat",
+    "toolz/tests/test_itertoolz.py::test_cons",
+    "toolz/tests/test_itertoolz.py::test_concat",
+    "toolz/tests/test_itertoolz.py::test_concatv",
+    "toolz/tests/test_itertoolz.py::test_interpose",
+    "toolz/tests/test_itertoolz.py::test_frequencies",
+    "toolz/tests/test_itertoolz.py::test_reduceby",
+    "toolz/tests/test_itertoolz.py::test_reduce_by_init",
+    "toolz/tests/test_itertoolz.py::test_reduce_by_callable_default",
+    "toolz/tests/test_itertoolz.py::test_iterate",
+    "toolz/tests/test_itertoolz.py::test_accumulate",
+    "toolz/tests/test_itertoolz.py::test_accumulate_works_on_consumable_iterables",
+    "toolz/tests/test_itertoolz.py::test_sliding_window",
+    "toolz/tests/test_itertoolz.py::test_sliding_window_of_short_iterator",
+    "toolz/tests/test_itertoolz.py::test_partition",
+    "toolz/tests/test_itertoolz.py::test_partition_all",
+    "toolz/tests/test_itertoolz.py::test_count",
+    "toolz/tests/test_itertoolz.py::test_pluck",
+    "toolz/tests/test_itertoolz.py::test_join",
+    "toolz/tests/test_itertoolz.py::test_getter",
+    "toolz/tests/test_itertoolz.py::test_key_as_getter",
+    "toolz/tests/test_itertoolz.py::test_join_double_repeats",
+    "toolz/tests/test_itertoolz.py::test_join_missing_element",
+    "toolz/tests/test_itertoolz.py::test_left_outer_join",
+    "toolz/tests/test_itertoolz.py::test_right_outer_join",
+    "toolz/tests/test_itertoolz.py::test_outer_join",
+    "toolz/tests/test_itertoolz.py::test_diff",
+    "toolz/tests/test_itertoolz.py::test_topk",
+    "toolz/tests/test_itertoolz.py::test_topk_is_stable",
+    "toolz/tests/test_itertoolz.py::test_peek",
+    "toolz/tests/test_itertoolz.py::test_peekn",
+    "toolz/tests/test_itertoolz.py::test_random_sample",
+    "toolz/tests/test_functoolz.py::test_apply",
+    "toolz/tests/test_functoolz.py::test_thread_first",
+    "toolz/tests/test_functoolz.py::test_thread_last",
+    "toolz/tests/test_functoolz.py::test_memoize",
+    "toolz/tests/test_functoolz.py::test_memoize_kwargs",
+    "toolz/tests/test_functoolz.py::test_memoize_curried",
+    "toolz/tests/test_functoolz.py::test_memoize_partial",
+    "toolz/tests/test_functoolz.py::test_memoize_key_signature",
+    "toolz/tests/test_functoolz.py::test_memoize_curry_cache",
+    "toolz/tests/test_functoolz.py::test_memoize_key",
+    "toolz/tests/test_functoolz.py::test_memoize_wrapped",
+    "toolz/tests/test_functoolz.py::test_curry_simple",
+    "toolz/tests/test_functoolz.py::test_curry_kwargs",
+    "toolz/tests/test_functoolz.py::test_curry_passes_errors",
+    "toolz/tests/test_functoolz.py::test_curry_docstring",
+    "toolz/tests/test_functoolz.py::test_curry_is_like_partial",
+    "toolz/tests/test_functoolz.py::test_curry_is_idempotent",
+    "toolz/tests/test_functoolz.py::test_curry_attributes_readonly",
+    "toolz/tests/test_functoolz.py::test_curry_attributes_writable",
+    "toolz/tests/test_functoolz.py::test_curry_module",
+    "toolz/tests/test_functoolz.py::test_curry_comparable",
+    "toolz/tests/test_functoolz.py::test_curry_doesnot_transmogrify",
+    "toolz/tests/test_functoolz.py::test_curry_on_classmethods",
+    "toolz/tests/test_functoolz.py::test_memoize_on_classmethods",
+    "toolz/tests/test_functoolz.py::test_curry_call",
+    "toolz/tests/test_functoolz.py::test_curry_bind",
+    "toolz/tests/test_functoolz.py::test_curry_unknown_args",
+    "toolz/tests/test_functoolz.py::test_curry_bad_types",
+    "toolz/tests/test_functoolz.py::test_curry_subclassable",
+    "toolz/tests/test_functoolz.py::test_compose",
+    "toolz/tests/test_functoolz.py::test_compose_metadata",
+    "toolz/tests/test_functoolz.py::test_compose_left",
+    "toolz/tests/test_functoolz.py::test_pipe",
+    "toolz/tests/test_functoolz.py::test_complement",
+    "toolz/tests/test_functoolz.py::test_do",
+    "toolz/tests/test_functoolz.py::test_juxt_generator_input",
+    "toolz/tests/test_functoolz.py::test_flip",
+    "toolz/tests/test_functoolz.py::test_excepts",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_merge",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_merge_iterable_arg",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_merge_with",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_merge_with_iterable_arg",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_valmap",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_keymap",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_itemmap",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_valfilter",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_keyfilter",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_itemfilter",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_assoc",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_dissoc",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_assoc_in",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_update_in",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_factory",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge_iterable_arg",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge_with",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge_with_iterable_arg",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_valmap",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_keymap",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_itemmap",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_valfilter",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_keyfilter",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_itemfilter",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_assoc",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_dissoc",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_assoc_in",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_update_in",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_factory",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_merge",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_merge_iterable_arg",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_merge_with",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_merge_with_iterable_arg",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_valmap",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_keymap",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_itemmap",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_valfilter",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_keyfilter",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_itemfilter",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_assoc",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_dissoc",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_assoc_in",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_update_in",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_factory",
+    "toolz/tests/test_dicttoolz.py::test_environ",
+    "toolz/tests/test_dicttoolz.py::test_merge_with_non_dict_mappings",
+    "toolz/tests/test_recipes.py::test_countby",
+    "toolz/tests/test_recipes.py::test_partitionby",
+    "toolz/tests/test_curried.py::test_take",
+    "toolz/tests/test_curried.py::test_first",
+    "toolz/tests/test_curried.py::test_merge",
+    "toolz/tests/test_curried.py::test_merge_with",
+    "toolz/tests/test_curried.py::test_merge_with_list",
+    "toolz/tests/test_curried.py::test_sorted",
+    "toolz/tests/test_curried.py::test_reduce",
+    "toolz/tests/test_curried.py::test_module_name",
+    "toolz/tests/test_curried.py::test_curried_operator",
+    "toolz/tests/test_curried.py::test_curried_namespace",
+    "toolz/tests/test_utils.py::test_raises"
+  ],
+  "returncode": 1,
+  "scheduled": [
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge_with_iterable_arg",
+    "toolz/tests/test_itertoolz.py::test_diff",
+    "toolz/tests/test_recipes.py::test_countby",
+    "toolz/tests/test_functoolz.py::test_memoize_kwargs",
+    "toolz/tests/test_functoolz.py::test_curry_call",
+    "toolz/tests/test_itertoolz.py::test_get",
+    "toolz/tests/test_functoolz.py::test_compose_metadata",
+    "toolz/tests/test_itertoolz.py::test_concatv",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_keyfilter",
+    "toolz/tests/test_itertoolz.py::test_accumulate_works_on_consumable_iterables",
+    "toolz/tests/test_itertoolz.py::test_take",
+    "toolz/tests/test_itertoolz.py::test_left_outer_join",
+    "toolz/tests/test_itertoolz.py::test_concat",
+    "toolz/tests/test_itertoolz.py::test_cons",
+    "toolz/tests/test_itertoolz.py::test_reduce_by_callable_default",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_itemfilter",
+    "toolz/tests/test_itertoolz.py::test_iterate",
+    "toolz/tests/test_functoolz.py::test_do",
+    "toolz/tests/test_itertoolz.py::test_peek",
+    "toolz/tests/test_itertoolz.py::test_sliding_window_of_short_iterator",
+    "toolz/tests/test_itertoolz.py::test_tail",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_keymap",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_valfilter",
+    "toolz/tests/test_itertoolz.py::test_join_missing_element",
+    "toolz/tests/test_itertoolz.py::test_peekn",
+    "toolz/tests/test_itertoolz.py::test_count",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_itemmap",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge_iterable_arg",
+    "toolz/tests/test_itertoolz.py::test_topk_is_stable",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_itemmap",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_valmap",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_itemmap",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_assoc",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_keymap",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_keyfilter",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_valfilter",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_valmap",
+    "toolz/tests/test_itertoolz.py::test_unique",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_valmap",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_dissoc",
+    "toolz/tests/test_functoolz.py::test_juxt_generator_input",
+    "toolz/tests/test_itertoolz.py::test_join_double_repeats",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_assoc",
+    "toolz/tests/test_itertoolz.py::test_interpose",
+    "toolz/tests/test_itertoolz.py::test_second",
+    "toolz/tests/test_functoolz.py::test_thread_first",
+    "toolz/tests/test_functoolz.py::test_curry_docstring",
+    "toolz/tests/test_itertoolz.py::test_rest",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_itemfilter",
+    "toolz/tests/test_itertoolz.py::test_last",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_assoc_in",
+    "toolz/tests/test_functoolz.py::test_curry_attributes_writable",
+    "toolz/tests/test_functoolz.py::test_curry_attributes_readonly",
+    "toolz/tests/test_itertoolz.py::test_reduceby",
+    "toolz/tests/test_itertoolz.py::test_sliding_window",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_factory",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_assoc_in",
+    "toolz/tests/test_functoolz.py::test_memoize_wrapped",
+    "toolz/tests/test_functoolz.py::test_compose",
+    "toolz/tests/test_itertoolz.py::test_drop",
+    "toolz/tests/test_functoolz.py::test_complement",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_merge_with_iterable_arg",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_merge_iterable_arg",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_assoc",
+    "toolz/tests/test_itertoolz.py::test_right_outer_join",
+    "toolz/tests/test_itertoolz.py::test_accumulate",
+    "toolz/tests/test_itertoolz.py::test_reduce_by_init",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_itemfilter",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_keymap",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_merge_with",
+    "toolz/tests/test_itertoolz.py::test_join",
+    "toolz/tests/test_functoolz.py::test_pipe",
+    "toolz/tests/test_itertoolz.py::test_pluck",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_merge",
+    "toolz/tests/test_itertoolz.py::test_getter",
+    "toolz/tests/test_itertoolz.py::test_frequencies",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_update_in",
+    "toolz/tests/test_functoolz.py::test_compose_left",
+    "toolz/tests/test_itertoolz.py::test_key_as_getter",
+    "toolz/tests/test_itertoolz.py::test_mapcat",
+    "toolz/tests/test_itertoolz.py::test_partition",
+    "toolz/tests/test_curried.py::test_merge_with_list",
+    "toolz/tests/test_functoolz.py::test_flip",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_valfilter",
+    "toolz/tests/test_functoolz.py::test_curry_bad_types",
+    "toolz/tests/test_itertoolz.py::test_interleave",
+    "toolz/tests/test_functoolz.py::test_curry_is_idempotent",
+    "toolz/tests/test_functoolz.py::test_apply",
+    "toolz/tests/test_itertoolz.py::test_isdistinct",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_factory",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_dissoc",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_update_in",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_update_in",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_assoc_in",
+    "toolz/tests/test_functoolz.py::test_curry_bind",
+    "toolz/tests/test_curried.py::test_module_name",
+    "toolz/tests/test_itertoolz.py::test_isiterable",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_dissoc",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_merge_with",
+    "toolz/tests/test_itertoolz.py::test_groupby_non_callable",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_merge",
+    "toolz/tests/test_itertoolz.py::test_topk",
+    "toolz/tests/test_itertoolz.py::test_partition_all",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_keyfilter",
+    "toolz/tests/test_itertoolz.py::test_merge_sorted",
+    "toolz/tests/test_curried.py::test_first",
+    "toolz/tests/test_itertoolz.py::test_take_nth",
+    "toolz/tests/test_curried.py::test_merge",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_merge_iterable_arg",
+    "toolz/tests/test_functoolz.py::test_memoize_partial",
+    "toolz/tests/test_dicttoolz.py::TestCustomMapping::test_merge_with",
+    "toolz/tests/test_functoolz.py::test_memoize",
+    "toolz/tests/test_dicttoolz.py::TestDict::test_merge_with_iterable_arg",
+    "toolz/tests/test_itertoolz.py::test_outer_join",
+    "toolz/tests/test_utils.py::test_raises",
+    "toolz/tests/test_functoolz.py::test_memoize_curry_cache",
+    "toolz/tests/test_functoolz.py::test_curry_is_like_partial",
+    "toolz/tests/test_curried.py::test_reduce",
+    "toolz/tests/test_functoolz.py::test_curry_passes_errors",
+    "toolz/tests/test_functoolz.py::test_memoize_key",
+    "toolz/tests/test_recipes.py::test_partitionby",
+    "toolz/tests/test_itertoolz.py::test_groupby",
+    "toolz/tests/test_curried.py::test_take",
+    "toolz/tests/test_itertoolz.py::test_first",
+    "toolz/tests/test_functoolz.py::test_curry_unknown_args",
+    "toolz/tests/test_itertoolz.py::test_nth",
+    "toolz/tests/test_functoolz.py::test_curry_subclassable",
+    "toolz/tests/test_functoolz.py::test_curry_doesnot_transmogrify",
+    "toolz/tests/test_functoolz.py::test_memoize_curried",
+    "toolz/tests/test_functoolz.py::test_curry_kwargs",
+    "toolz/tests/test_functoolz.py::test_curry_comparable",
+    "toolz/tests/test_functoolz.py::test_memoize_on_classmethods",
+    "toolz/tests/test_curried.py::test_merge_with",
+    "toolz/tests/test_functoolz.py::test_excepts",
+    "toolz/tests/test_dicttoolz.py::TestDefaultDict::test_factory",
+    "toolz/tests/test_functoolz.py::test_memoize_key_signature",
+    "toolz/tests/test_functoolz.py::test_curry_on_classmethods",
+    "toolz/tests/test_functoolz.py::test_curry_module",
+    "toolz/tests/test_curried.py::test_sorted",
+    "toolz/tests/test_dicttoolz.py::test_merge_with_non_dict_mappings",
+    "toolz/tests/test_functoolz.py::test_thread_last",
+    "toolz/tests/test_functoolz.py::test_curry_simple",
+    "toolz/tests/test_dicttoolz.py::test_environ",
+    "toolz/tests/test_itertoolz.py::test_random_sample",
+    "toolz/tests/test_itertoolz.py::test_remove",
+    "toolz/tests/test_curried.py::test_curried_namespace",
+    "toolz/tests/test_curried.py::test_curried_operator"
+  ],
+  "schema": 1,
+  "snapshot": "/mnt/data/hact_revision/ichact-hh_lxjbr/project",
+  "snapshot_after_matches": true,
+  "source_sha256": {},
+  "timed_out": false
+}
