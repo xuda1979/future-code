@@ -1,6 +1,6 @@
 /**
  * future-code harness CLI — the platform's control surface.
- * Subcommands: build | run | monitor | improve | log | selfapply | context | scribe
+ * Subcommands: build | run | monitor | improve | log | selfapply | context | scribe | revalidate
  *
  * These let the platform create (build), execute (run), watch (monitor),
  * tune (improve), inspect decisions (log), self-apply (selfapply), write
@@ -16,6 +16,7 @@ import { improve, applyProposal, shouldApply } from "./improver/index.ts";
 import { recordRun, recentRuns, passRateTrend, runtimeTrend } from "./history.ts";
 import { resolveBudget, boundedMonitorContext, boundedImproverContext, estimateTokens } from "./context.ts";
 import { runScribe } from "./scribe/index.ts";
+import { revalidate, loadReport, revalidationReportPath } from "./evidence/index.ts";
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { HarnessManifest } from "./types.ts";
@@ -252,8 +253,29 @@ async function main(): Promise<void> {
       }, null, 2));
       break;
     }
+    case "revalidate": {
+      // Re-run every gate and re-classify persisted run evidence against
+      // the fresh outcome: "verified now" vs "verified once".
+      const limitIdx = process.argv.indexOf("--limit");
+      const limit = limitIdx >= 0 ? parseInt(process.argv[limitIdx + 1] ?? "100", 10) : 100;
+      if (process.argv.includes("--last")) {
+        // No re-run: surface the most recent persisted report, if any.
+        const last = loadReport(ctx.project);
+        console.log(JSON.stringify({ reportPath: revalidationReportPath(ctx.project), report: last }, null, 2));
+        break;
+      }
+      const report = await revalidate(ctx.project, { limit: Number.isFinite(limit) && limit > 0 ? limit : 100 });
+      console.log(JSON.stringify({
+        reportPath: revalidationReportPath(ctx.project),
+        evidenceStale: report.summary.evidenceStale,
+        summary: report.summary,
+        gates: report.gates,
+        runs: report.runs,
+      }, null, 2));
+      break;
+    }
     default:
-      console.log("usage: harness build|run|monitor|improve|log|selfapply|context|scribe [--project <dir>] [--verbose]");
+      console.log("usage: harness build|run|monitor|improve|log|selfapply|context|scribe|revalidate [--project <dir>] [--verbose]");
   }
 }
 

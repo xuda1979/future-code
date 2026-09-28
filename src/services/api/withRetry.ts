@@ -88,25 +88,69 @@ function shouldRetry529(querySource: QuerySource | undefined): boolean {
   )
 }
 
-// FUTURE_CODE_UNATTENDED_RETRY: for unattended sessions (ant-only). Retries 429/529
-// indefinitely with higher backoff and periodic keep-alive yields so the host
-// environment does not mark the session idle mid-wait.
+// FUTURE_CODE_UNATTENDED_RETRY: retries 429/529 (and, in persistent mode,
+// connection-level network failures) indefinitely with higher backoff and
+// periodic keep-alive yields so the host environment does not mark the
+// session idle mid-wait. An agent must keep working toward its objective
+// through API/network outages — it resumes automatically when service is
+// restored. Default ON; set FUTURE_CODE_UNATTENDED_RETRY=0 to opt out.
 // TODO(ANT-344): the keep-alive via SystemAPIErrorMessage yields is a stopgap
 // until there's a dedicated keep-alive channel.
 const PERSISTENT_MAX_BACKOFF_MS = 5 * 60 * 1000
 const PERSISTENT_RESET_CAP_MS = 6 * 60 * 60 * 1000
 const HEARTBEAT_INTERVAL_MS = 30_000
 
-function isPersistentRetryEnabled(): boolean {
-  return feature('UNATTENDED_RETRY')
-    ? isEnvTruthy(process.env.FUTURE_CODE_UNATTENDED_RETRY)
-    : false
+/**
+ * Persistent (never-give-up) retry mode. Default ON for the future-code
+ * build: an agent session must survive API/network outages and resume when
+ * service returns, instead of dying after ~10 attempts and waiting for a
+ * human to re-prompt. Set FUTURE_CODE_UNATTENDED_RETRY=0 (or false/off) to
+ * opt out and restore the old bounded-retry behavior.
+ * @internal Exported for testing
+ */
+export function isPersistentRetryEnabled(): boolean {
+  const v = process.env.FUTURE_CODE_UNATTENDED_RETRY
+  if (v === undefined || v === '') return true
+  return isEnvTruthy(v)
 }
 
 function isTransientCapacityError(error: unknown): boolean {
   return (
     is529Error(error) || (error instanceof APIError && error.status === 429)
   )
+}
+
+/**
+ * Connection-level failure: the request never got an HTTP verdict — the
+ * network dropped, DNS failed, the socket stalled and was watchdog-aborted,
+ * or the fetch itself threw. These are always transient (the service did not
+ * say "no", it was unreachable), so in persistent mode they retry
+ * indefinitely and the session resumes when connectivity returns.
+ * @internal Exported for testing
+ */
+export function isConnectionLevelError(error: unknown): boolean {
+  if (error instanceof APIConnectionError) return true
+  // Bun/undici wrap some failures in plain TypeError("fetch failed") with
+  // the real cause nested (ENOTFOUND, ECONNREFUSED, ETIMEDOUT, ...).
+  if (error instanceof Error) {
+    if (error.message === 'fetch failed') return true
+    const cause = (error as { cause?: unknown }).cause
+    if (cause instanceof Error) {
+      const code = (cause as { code?: string }).code
+      if (
+        code === 'ENOTFOUND' ||
+        code === 'ECONNREFUSED' ||
+        code === 'ETIMEDOUT' ||
+        code === 'ECONNRESET' ||
+        code === 'EPIPE' ||
+        code === 'EAI_AGAIN'
+      ) {
+        return true
+      }
+      if (cause.message === 'fetch failed') return true
+    }
+  }
+  return false
 }
 
 function isStaleConnectionError(error: unknown): boolean {
@@ -366,7 +410,8 @@ export async function* withRetry<T>(
 
       // Only retry if the error indicates we should
       const persistent =
-        isPersistentRetryEnabled() && isTransientCapacityError(error)
+        isPersistentRetryEnabled() &&
+        (isTransientCapacityError(error) || isConnectionLevelError(error))
       if (attempt > maxRetries && !persistent) {
         throw new CannotRetryError(error, retryContext)
       }
@@ -376,6 +421,7 @@ export async function* withRetry<T>(
         handleAwsCredentialError(error) || handleGcpCredentialError(error)
       if (
         !handledCloudAuthError &&
+        !persistent &&
         (!(error instanceof APIError) || !shouldRetry(error))
       ) {
         throw new CannotRetryError(error, retryContext)

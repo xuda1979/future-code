@@ -208,3 +208,52 @@ export interface ScribeResult {
   /** True when the validation process was killed for exceeding its timeout. */
   timedOut?: boolean;
 }
+
+/** How a persisted run record fares under revalidation. */
+export type RevalidationOutcome = "fresh" | "flipped" | "missing";
+
+/** One gate re-run during evidence revalidation. */
+export interface GateRevalidation {
+  /** The manifest gate id. */
+  gateId: string;
+  /** True iff the gate passes when re-run now. */
+  passedNow: boolean;
+  /** Exit code of the re-run (−1 when the gate could not execute at all). */
+  exitCodeNow: number;
+  /** Wall-clock duration of the re-run. */
+  durationMsNow: number;
+  /** Whether the gate is required in the manifest. */
+  required: boolean;
+  /** Error message when the gate could not be executed (tool broken etc.). */
+  error?: string;
+}
+
+/** One persisted run record classified against fresh gate outcomes. */
+export interface RunRevalidation {
+  runId: string;
+  task: string;
+  startedAt: string;
+  outcome: RevalidationOutcome;
+  /** Gates that passed then but fail now (flipped only). */
+  changedGates: string[];
+}
+
+/** The full evidence-revalidation report, persisted per project. */
+export interface RevalidationReport {
+  schema: number;
+  revalidatedAt: string;
+  harnessId: string;
+  project: string;
+  gates: GateRevalidation[];
+  runs: RunRevalidation[];
+  summary: {
+    gatesTotal: number;
+    gatesPassedNow: number;
+    runsExamined: number;
+    runsFresh: number;
+    runsFlipped: number;
+    runsMissing: number;
+    /** True when any evidence can no longer be trusted as current. */
+    evidenceStale: boolean;
+  };
+}

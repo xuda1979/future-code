@@ -1871,9 +1871,14 @@ async function* queryModel(
     // kill hung streams. Without this, a silently dropped connection can hang
     // the session indefinitely since the SDK's request timeout only covers the
     // initial fetch(), not the streaming body.
-    const streamWatchdogEnabled = isEnvTruthy(
-      process.env.FUTURE_ENABLE_STREAM_WATCHDOG,
-    )
+    // Default ON — a hung stream must be killed and retried (persistent
+    // retry in withRetry.ts then resumes the request when the network is
+    // good again). Set FUTURE_ENABLE_STREAM_WATCHDOG=0 to disable.
+    const streamWatchdogEnabled =
+      process.env.FUTURE_ENABLE_STREAM_WATCHDOG === undefined ||
+      process.env.FUTURE_ENABLE_STREAM_WATCHDOG === ''
+        ? true
+        : isEnvTruthy(process.env.FUTURE_ENABLE_STREAM_WATCHDOG)
     const STREAM_IDLE_TIMEOUT_MS =
       parseInt(process.env.FUTURE_STREAM_IDLE_TIMEOUT_MS || '', 10) || 90_000
     const STREAM_IDLE_WARNING_MS = STREAM_IDLE_TIMEOUT_MS / 2
