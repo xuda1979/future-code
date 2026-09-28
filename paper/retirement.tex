@@ -18,14 +18,17 @@ correctly, and in which cost regime does the answer pay?}
 The study is \emph{mechanism-level}: every number below is produced by
 a deterministic engine that models information flow between a context
 policy and a seeded work stream. No hosted model is called. The
-answer that survives two frozen protocol generations is a
-\textbf{conversion rule with a regime-conditional payoff}:
+pattern that survives two frozen protocol generations in this
+simulator is a \textbf{conversion heuristic with a regime-conditional
+payoff}:
 \begin{quote}
-\emph{An agent may retire its history only after converting it into
-(i)~verified interface bindings for every fact another component will
-read, (ii)~a typed pending-obligation set, and (iii)~declared
-dependency interfaces. The payoff is not bytes: it is avoided
-retrieval round trips, which pay only in the round-trip-bound regime.}
+\emph{In this simulator, every measured policy that retires history
+through a lossy summary fails the acceptance contract, while the
+policy that first converts history into (i)~verified interface
+bindings for every fact another component will read, (ii)~a typed
+pending-obligation set, and (iii)~declared dependency interfaces
+passes it. The payoff direction is not bytes: it is avoided retrieval
+round trips, which pay only in the round-trip-bound regime.}
 \end{quote}
 
 \subsection{Study provenance and what changed between generations}\label{sec:retire-provenance}
@@ -116,19 +119,22 @@ Policy & Accepted & Regime-B B/run & Regime-O B/run & Ops/run & A3 & Stale & Los
 \RetwofrontieradaptiveRow
 \bottomrule\end{tabularx}\end{table}
 
-\paragraph{The conversion rule is necessary: lossy conversion fails,
-typed conversion does not.} Periodic summary/reset---the cheapest
+\paragraph{Lossy conversion fails; typed conversion does not.}
+Periodic summary/reset---the cheapest
 policy on submitted bytes---accepts only \RetwoSummaryResetAccepted{}
 runs: 109{,}761 stale reads and 385 lost obligations at the new scale,
 the same structural failure v1 measured (30{,}820/280 on its smaller
-grid). The mechanism is exact: a summary reverts values to a belief
-older than the working window, and obligations crossing a reset
+grid). The failure mechanism is exact: a summary reverts values to a
+belief older than the working window, and obligations crossing a reset
 boundary survive only through a lossy summary. Every policy that
 converts before retiring---frontier, and at higher cost the verified
 board and full replay---accepts 84/84 with zero staleness and zero
 loss. Bounded pages accept 84/84 but pay $1{,}211$ ops/run
 ($896$ in the steady phase); masking accepts 84/84 and pays $1{,}875$
-ops/run ($1{,}436$ steady).
+ops/run ($1{,}436$ steady). Within the frozen arm list this is the
+observed separation; it is evidence for the conversion heuristic, and
+Proposition~\ref{prop:sufficiency} supplies the complementary
+model-internal guarantee.
 
 \paragraph{The null closure passes in the round-trip regime, not the
 byte regime---exactly as pre-registered.} Frontier retirement reduces
@@ -260,7 +266,8 @@ exploratory and every number below is labeled as such. One amendment
 E1's pre-specified output; its motivation is disclosed in the protocol
 document and summarized here.
 
-\paragraph{E1/E5: the sensitivity sweep becomes a decision rule.}
+\paragraph{E1/E5: the sensitivity sweep becomes a conditional
+threshold formula.}
 Proposition~\ref{prop:breakeven} (Section~\ref{sec:sufficiency})
 replaces the three-point sensitivity with a closed-form break-even:
 with per-accepted means $(B_f,B_m,o_f,o_m)$, frontier satisfies the
@@ -273,15 +280,17 @@ $c_{0.85}\approx658$\,B and $c_{0.8}\approx1{,}364$\,B pooled, with
 every additional unit of round-trip price widening the advantage
 (pooled ratio $0.920\to0.588$ as $c$ goes $0\to32{,}768$\,B). Per
 family the thresholds are sharper where reads cross the frontier
-often: $c_{0.8}\approx1{,}048$\,B on clustered, $\approx191$\,B on
+often: $c_{0.8}\approx1{,}047$\,B on clustered, $\approx191$\,B on
 independent, and no finite price clears the gate in the global
 family, where both policies are fetch-free and the ratio is constant
 at $0.924$. The frozen 4{,}096\,B price sits above every pooled and
 per-family threshold it can clear, which is why the frozen null
 closure fired on regime O; the v1 20\% byte gate never fired in v2
 because v2's null closure was pre-registered on regime O, not regime
-B. A deployment pilot therefore measures its own $c$ rather than
-assuming the byte direction carries the claim.
+B. These thresholds are properties of the frozen accounting: they say
+where the simulator's gate flips, and the live cohort is the
+instrument that would measure a real deployment's byte costs,
+operation mix, and round-trip price.
 
 \paragraph{E2: distributional robustness.} Paired over the 84 cells
 at $S=\mathrm{fixed}$: frontier's regime-O cost is below masking's in
@@ -312,9 +321,9 @@ correctness and cost both ride on the retrieval layer being free and
 reliable, which the engine grants and a deployment may not. The
 deployment recommendation
 (Section~\ref{sec:deploy}) is updated accordingly: at prices below
-the break-even, a deployment with reliable retrieval should prefer
-the bounded window; the conversion rule remains the boundary of what
-is safe without it.
+the break-even, a deployment with reliable retrieval would prefer
+the bounded window in the simulator; the conversion heuristic remains
+the boundary of what the model certifies as safe without it.
 
 \paragraph{E3: a real trace, replayed.} This repository's own git
 history, pinned at the pre-analysis commit \texttt{2c928d1}
@@ -360,17 +369,71 @@ arm if its retrieval-exposure profile can be instrumented there.
 
 \subsection{What the mechanism study does and does not
 establish}\label{sec:retire-limits}
-The conversion rule and the regime-conditional payoff are structural
-predictions about policies, not measurements of agents. The audit
-checks a policy's capsule against stream ground truth in a
-deterministic engine; a live agent's summaries, retrievals, and
+The conversion heuristic and the regime-conditional payoff are
+structural properties of this simulator: predictions about policies
+in a deterministic engine, not measurements of agents. The audit
+checks a policy's capsule against stream ground truth in that
+engine; a live agent's summaries, retrievals, and
 obligations are not instrumented by it. The $4{,}096$\,B
 round-trip constant is a frozen accounting choice, not a measured
 latency; the sensitivity range brackets it but does not replace a live
-measurement. Byte numbers are the frozen accounting of a frozen model
+measurement, and every break-even threshold in this paper is a
+property of that frozen accounting rather than validated deployment
+guidance. Byte numbers are the frozen accounting of a frozen model
 of information flow; no hosted model was called, no token or billing
 claim is made, and the BPE and physical-WAN gaps of
 Section~\ref{sec:eval} remain open. The live cohort of
-Section~\ref{sec:live-protocol} pre-registers operations as its
+Section~\ref{sec:live-protocol} pre-registers measured retrieval,
+context, acceptance, and end-to-end outcomes under matched budgets,
+with operations as its
 primary cost measure precisely because that is where the mechanism
 result predicts the payoff.
+
+\subsection{The simulator's contract, stated precisely}\label{sec:retire-simulator}
+Because every number above is a simulator output, the simulator's
+measurement boundary is itself part of the result and is stated
+here rather than left implicit. The engine is a deterministic
+function from a seeded episode stream to per-run outcomes; nothing
+in it calls a model, reads a clock, or observes a network.
+
+\paragraph{Stream.} Each episode presents: an invalidation set
+(gates whose bindings changed), arriving facts (stable identity,
+verified bit, payload bytes, coupling edges, obligation bit),
+required reads, and a dependency footprint of $D{=}12$
+interfaces. Gates persist with probability $0.6$ per episode
+(redrawn on family change); obligations open with a six-episode
+resolution window; payloads are log-normal with median $128$\,B.
+Three families fix the invalidation structure (clustered,
+independent, global) and are the only source of distributional
+variation.
+
+\paragraph{Policies.} A policy sees the stream through a fixed
+per-call budget and answers required reads from its own state:
+submitted context, on-demand fetches, or a lossy summary. The
+seven frozen arms and their framing constants
+(fact $32$\,B, capsule $160$\,B, binding $16$\,B, pending
+$48$\,B, invariants $64$\,B, summary $96$\,B, board row $48$\,B,
+recency window $64$ gates, reset every $4$ episodes) are frozen in
+the protocol and its engine notes; the audit compares a policy's
+capsule against the stream's ground truth (retained-generation
+equality, pending-set equality in both directions, and
+defective-service counts), not against any external oracle.
+
+\paragraph{Acceptance.} A run is accepted iff no required read is
+served stale and no obligation is lost. Staleness is defined
+exactly: a read is stale when the generation the policy answers
+from is older than the stream's current generation for that gate.
+Loss is exact: an obligation whose gate is not validly read at its
+due episode is lost. There is no partial credit and no
+model-mediated judgment anywhere in the acceptance contract.
+
+\paragraph{What this boundary excludes.} The engine grants reliable
+retrieval (every fetch succeeds and returns a current value),
+exact summaries that drop only what crosses a reset boundary, and
+payload distributions chosen ex ante. It does not model attention
+degradation, prompt distraction, formatting drift, provider
+latency, rate limiting, or billing. Those are the live layer's
+phenomena; the live cohort
+(Section~\ref{sec:live-protocol}) is the pre-registered instrument
+that measures them, and no claim in this paper extends past the
+boundary stated here.

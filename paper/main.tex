@@ -7,7 +7,7 @@
 \usepackage[font=small,labelfont=bf]{caption}
 \usepackage[hidelinks]{hyperref}
 \usepackage{fancyhdr}
-\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Context Retirement Mechanism Study}\fancyhead[R]{\small Research manuscript v7.1}\fancyfoot[C]{\thepage}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Verified Context Retirement}\fancyhead[R]{\small Research manuscript v8.0}\fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}\setlength{\parskip}{3pt}\setlength{\emergencystretch}{2em}
 \newtheorem{theorem}{Theorem}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{lemma}[theorem]{Lemma}
 \theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
@@ -16,66 +16,70 @@
 \newcommand{\T}{\mathcal T}
 \newcommand{\E}{\mathbb E}\newcommand{\Prb}{\mathbb P}\newcommand{\ind}{\mathbf 1}\newcommand{\R}{\mathcal R}
 \DeclareMathOperator*{\argmin}{arg\,min}
-\hypersetup{pdftitle={When Can an Agent Stop Remembering? A Pre-Registered Mechanism Study of Context Retirement},pdfauthor={Research manuscript; author information pending confirmation}}
-\title{\vspace{-9mm}\textbf{When Can an Agent Stop Remembering?\\[1mm] A Pre-Registered Mechanism Study of Context Retirement, Its Audit, and the Cost Regime That Pays}}
+\hypersetup{pdftitle={Verified Context Retirement: Safety Conditions and Retrieval-Memory Trade-offs},pdfauthor={Research manuscript; author information pending confirmation}}
+\title{\vspace{-9mm}\textbf{Verified Context Retirement:\\[1mm] Safety Conditions and Retrieval--Memory Trade-offs}}
 \author{Research manuscript\\[1mm]
 \small This artifact candidacy draft accompanies the \texttt{future-code} research repository. Author names and affiliations require confirmation before any submission. Mathematical development, implementation, experiments, and writing were AI-assisted. This is a research artifact, not an accepted or peer-reviewed venue.}
-\date{September 28, 2026 \quad | \quad Version 7.1 (break-even sign correction; disclosed)}
+\date{September 28, 2026 \quad | \quad Version 8.0 (major revision: scoped claims, consistency audit)}
 \input{generated/retirement_macros.tex}
 \input{generated/retirement2_macros.tex}
 \input{generated/exploratory_tables.tex}
 \begin{document}
 \maketitle
 \begin{abstract}
-When can an agent stop remembering its execution history without losing
-the current evidence and obligations it needs to finish correctly---and
-in which cost regime does the answer pay? We answer at the mechanism
-level with a pre-registered, factorial, frozen-protocol study of
-context retirement: 1{,}176 runs crossing seven retention policies with
-a scheduler factor, plus a 160-episode long-horizon sub-cohort, across
-four registry sizes, three dependency families, and seven seeds, with
+When can an agent stop remembering its execution history without
+losing the current evidence and obligations it needs to finish
+correctly---and in which cost regime might the answer pay? We study
+this question at the \emph{mechanism level}: a pre-registered,
+factorial, frozen-protocol simulator study of context retirement,
+with 1{,}176 runs crossing seven retention policies with a scheduler
+factor, plus a 160-episode long-horizon sub-cohort, across four
+registry sizes, three dependency families, and seven seeds, with
 temporal persistence, obligation lifetimes, three-phase accounting, a
 five-episode capsule audit against stream ground truth, and two frozen
-cost regimes (bytes; bytes plus a per-round-trip constant). The result
-that survives is a \emph{conversion rule with a regime-conditional
-payoff}. An agent may retire its history only after converting it into
-verified interface bindings, a typed pending-obligation set, and
-declared dependencies; lossy conversion measurably fails (periodic
-summary/reset accepts 28 of 84 runs at the new scale, with 109{,}761
-stale reads and 385 lost obligations), while verified-frontier
-retirement accepts 84/84 and passes the capsule audit with zero
-defective service. The payoff is regime-conditional and was
-pre-registered as such: frontier retirement is cheaper than masking on
-\emph{both} axes---bytes by \RetwoBytesWin{} pooled (76 of 84
-cells, sign test $p{=}5{\times}10^{-15}$; below the frozen 20\% byte
-gate, so no byte-threshold win is claimed) and round-trip-regime cost
-by \RetwoCostOReduction{} (84 of 84 cells, $p{=}10^{-25}$), cutting
-retrieval operations \RetwoOpsReduction{} pooled and
-\RetwoLongOpsReduction{} at four times the horizon; a closed-form
-break-even rule (Proposition~\ref{prop:breakeven}) replaces the
-sensitivity sweep and gives a deployment pilot an exact go/no-go. The
-conversion rule is also \emph{sufficient} within the model
-(Proposition~\ref{prop:sufficiency}): under the engine's stream
+cost regimes (bytes; bytes plus a per-round-trip constant). Within
+this simulator, the pattern that survives is a \emph{conversion
+heuristic with a regime-conditional payoff}. Every measured policy
+that retires history through a lossy summary fails the acceptance
+contract (periodic summary/reset accepts 28 of 84 runs, with
+109{,}761 stale reads and 385 lost obligations), while the policy that
+first converts history into verified interface bindings, a typed
+pending-obligation set, and declared dependencies accepts 84/84 and
+passes the capsule audit with zero defective service. The payoff
+direction in the simulator is operations, not bytes: frontier
+retirement cuts on-demand retrieval operations by \RetwoOpsReduction{}
+pooled ($\RetwoLongOpsReduction{}$ at four times the horizon; sign
+test $p{=}10^{-25}$ on round-trip-regime cost) and is cheaper than
+masking on bytes by \RetwoBytesWin{} pooled---below the frozen 20\%
+byte gate, so no byte-threshold win is claimed. A closed-form
+break-even rule (Proposition~\ref{prop:breakeven}) converts the frozen
+sensitivity sweep into a conditional threshold formula
+($c_{0.8}\approx1{,}364$\,B pooled in the simulator); it is a property
+of the frozen accounting, not validated deployment guidance.
+Sufficiency of the conversion heuristic is proved \emph{within the
+model} (Proposition~\ref{prop:sufficiency}): under the engine's stream
 invariants and reliable retrieval, the frontier policy provably
-incurs zero staleness and zero obligation loss. The scheduler
-factor is byte-neutral by design and measured at \RetwoSEffectOnBytes{}
-leak with an \RetwoMakespanReduction{} makespan reduction. Grouped
-certificate layouts survive only as a conditional component selected by
-measured update density (dense stratum pass; \RetwoDensityRegret{}
-decision-rule regret), and a demand-driven adaptive-coordination
-variant was evaluated against pre-registered promotion gates and
-\emph{rejected} ($\RetwoAdaptiveReduction{}$ versus frontier; the
-correctness-preserving mechanism does not need it). Pre-specified
-exploratory analyses (labeled as such) stress the result: a
-bounded-recency comparator is cheaper than frontier below a stated
-break-even price but leaves 69.0\% of due obligations outside its
-retention, quantifying what it delegates to the retrieval layer; and a
-replay of a real repository's change history through the same engine
-preserves the operations advantage (23.0\% cut) with the density rule
-matching the oracle on its first real trace. All experiments are
-mechanism-level: no hosted model was called, no token or billing claim
-is made, and the live-agent cohort remains future work with its
-protocol pre-registered here.
+incurs zero staleness and zero obligation loss---a structural
+prediction of the simulator, not a guarantee about agents. The
+scheduler factor is byte-neutral by design and measured at
+\RetwoSEffectOnBytes{} leak with an \RetwoMakespanReduction{} makespan
+reduction. Grouped certificate layouts survive only as a conditional
+component selected by measured update density (dense stratum pass;
+\RetwoDensityRegret{} decision-rule regret), and a demand-driven
+adaptive-coordination variant was evaluated against pre-registered
+promotion gates and \emph{rejected} ($\RetwoAdaptiveReduction{}$
+versus frontier). Pre-specified exploratory analyses (labeled as
+such) stress the result: a bounded-recency comparator is cheaper than
+frontier below a stated break-even price but leaves 69.0\% of due
+obligations outside its retention, quantifying what it delegates to
+the retrieval layer; and a replay of a real repository's change
+history through the same engine preserves the operations advantage
+(23.0\% cut) with the density rule matching the oracle on its first
+real trace. All experiments are simulator-level: no hosted model was
+called, no token or billing claim is made, and the live-agent
+cohort---which measures retrieval, context, acceptance, and
+end-to-end outcomes under matched budgets---remains future work with
+its protocol pre-registered here.
 \end{abstract}
 
 \noindent\textbf{Keywords:} bounded evidence; verification contracts; bandwidth-limited logging; completion hyperedges; cost-aware layout selection.

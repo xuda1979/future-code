@@ -1,16 +1,23 @@
-\section{Sufficiency of the Conversion Rule Within the Model}\label{sec:sufficiency}
+\section{Sufficiency of the Conversion Heuristic Within the Model}\label{sec:sufficiency}
 
-The frozen cohort shows the conversion rule is \emph{necessary} at
-mechanism level: every measured policy that retires before
-converting fails the acceptance contract. This section proves the
-complementary direction---\emph{sufficiency}---for the frontier policy
-under the engine's semantics, so the paper's rule is
-necessity-plus-sufficiency within the model rather than an empirical
-regularity. The proposition is scoped to the deterministic engine and
-to streams with reliable retrieval (every fetch succeeds and returns a
-current value); the unreliable-retrieval boundary is exactly where the
-rule's guarantees stop, and Section~\ref{sec:retire-results} measures
-what bounded-hier's exposure looks like there.
+The frozen cohort shows the conversion heuristic is supported at
+mechanism level: every measured policy that retires before converting
+fails the acceptance contract. This section proves the complementary
+direction---\emph{sufficiency}---for the frontier policy under the
+engine's semantics. What is thereby established is a
+\emph{model-internal} statement: among the frozen arms of this
+simulator, the converting policies are exactly the ones that pass,
+and that statement should not be read as a necessary-and-sufficient
+retirement rule for agents. The failure direction is a measured
+property of the
+seven frozen policies---a lossy summary is the only measured way to
+fail, but the arm list is not exhaustive over all conceivable
+policies; sufficiency is a theorem about the engine's semantics. The
+proposition is scoped to the deterministic engine and to streams with
+reliable retrieval (every fetch succeeds and returns a current
+value); the unreliable-retrieval boundary is exactly where the
+guarantees stop, and Section~\ref{sec:retire-results} measures what
+bounded-hier's exposure looks like there.
 
 \begin{proposition}[Frontier sufficiency]\label{prop:sufficiency}
 Fix a finite episode stream $E_0,\dots,E_{T-1}$ satisfying the frozen
@@ -47,15 +54,19 @@ the resolution happens within the horizon.
 \end{proof}
 
 \begin{remark}
-The two directions use disjoint evidence. Necessity is measured: every
-lossy-conversion policy fails on the frozen grid
-(Section~\ref{sec:retire-results}). Sufficiency is proved under
-invariants the frozen stream generator guarantees by construction,
-which is also why the 84/84 acceptance of frontier runs is a
-\emph{check} of the implementation against the proposition rather than
-independent evidence for it. What the model does not prove is the
+The two directions use disjoint evidence. The failure direction is
+measured: every lossy-conversion policy in the frozen arm list fails
+on the frozen grid
+(Section~\ref{sec:retire-results}); because the arm list is finite
+and pre-registered rather than exhaustive, this is evidence that
+lossy conversion is unsafe in this simulator, not a proof that it is
+the only way to fail. Sufficiency is proved under invariants the
+frozen stream generator guarantees by construction, which is also why
+the 84/84 acceptance of frontier runs is a \emph{check} of the
+implementation against the proposition rather than independent
+evidence for it. What the model does not prove is the
 reliable-retrieval assumption itself: in a deployment where re-fetches
-can fail or return stale state, the conversion rule's safety reduces
+can fail or return stale state, the conversion heuristic's safety reduces
 to the retrieval layer's guarantees, and bounded-hier's measured
 exposure (69.0\% of due obligations and 35.9\% of footprint reads
 outside its window) quantifies how much a bounded-recency design
@@ -68,7 +79,7 @@ analysis. The following proposition is a declarative computation over
 the already-measured operation counts, not a new experiment: the
 engine's fetches never fail, so no data exists at $p>0$ and none is
 simulated here. It quantifies exactly where Proposition
-\ref{prop:sufficiency}'s guarantee stops, and why the conversion rule,
+\ref{prop:sufficiency}'s guarantee stops, and why the conversion heuristic,
 not a looser policy, is what survives there.
 
 \begin{proposition}[Degradation under unreliable retrieval]\label{prop:pfail}
@@ -117,7 +128,7 @@ expected defects per run requires $p<\epsilon/R(\text{frontier})$.
 Second, the ordering against masking is preserved: frontier's pooled
 fetch volume is \RetwoOpsReduction{} smaller, so its expected
 retrieval-induced defects are $56\%$ of masking's at every failure
-rate---the conversion rule converts an operations advantage into a
+rate---the conversion heuristic converts an operations advantage into a
 correctness advantage precisely where retrieval is unreliable, and the
 break-even price of Proposition~\ref{prop:breakeven} is not needed for
 this direction. Third, bounded-hier enters the same formula with
@@ -133,7 +144,7 @@ retrieval layer fails with correlation, staleness, and byzantine
 responses, not independent Bernoulli trials; retries turn $p$ into
 $p^{r}$ only under independent attempts. Neither refinement is
 measured here. What the model does establish is structural: the
-conversion rule makes the failure surface \emph{countable}---$R$ is a
+conversion heuristic makes the failure surface \emph{countable}---$R$ is a
 measurable property of the typed capsule---where a summary's failure
 surface is silent, and item (iv) shows the difference is not a matter
 of retrieval quality at all.
@@ -171,18 +182,20 @@ finite $c$. The case $o_m=0$ forces $o_f=0$, so $R$ is constant at
 $B_f/B_m$ and only the first endpoint rule applies.
 \end{proof}
 
-\begin{remark}[Deployment use]
-Proposition~\ref{prop:breakeven} turns the frozen sensitivity sweep
-into a decision rule. A deployment pilot that estimates the four means
-$(B_f,B_m,o_f,o_m)$ and the deployment's round-trip price $c$ obtains
-an exact go/no-go for the frozen 20\% promotion gate: adopt frontier
-iff $c\ge c_{0.8}$, where
-$c_{0.8}=(0.8B_m-B_f)/(o_f-0.8\,o_m)$ whenever
-$o_f/o_m<0.8<B_f/B_m$. On the frozen cohort the pilot must actually
-price its round trips: frontier's byte advantage alone ($8.0\%$
-pooled) does not meet a 15\% or 20\% gate, so
-$c_{0.8}\approx1{,}364$\,B pooled, $c_{0.85}\approx658$\,B pooled,
-and $c_{0.8}$ is never met in the global family, where both policies
-are fetch-free and the ratio is constant at $0.924$
-(Section~\ref{sec:retire-exploratory}).
+\begin{remark}[Scope of the break-even formula]
+Proposition~\ref{prop:breakeven} converts the frozen sensitivity sweep
+into a conditional threshold formula. The formula is a property of the
+frozen accounting: $c_{0.8}=(0.8B_m-B_f)/(o_f-0.8\,o_m)$ is the price
+at which the simulator's 20\% gate flips, given four means measured in
+the simulator. On the frozen cohort the byte direction alone does not
+clear the gate: frontier's byte advantage is $8.0\%$ pooled, below
+both the 15\% and 20\% gates, so $c_{0.8}\approx1{,}364$\,B pooled,
+$c_{0.85}\approx658$\,B pooled, and $c_{0.8}$ is never met in the
+global family, where both policies are fetch-free and the ratio is
+constant at $0.924$ (Section~\ref{sec:retire-exploratory}). These
+numbers are simulator thresholds under the frozen accounting, not
+validated deployment guidance: a real deployment's byte costs,
+operation mix, and round-trip price are not the simulator's, and the
+live cohort (Section~\ref{sec:live-protocol}) is the instrument that
+would measure them.
 \end{remark}

@@ -51,3 +51,19 @@ Restructure the Manuscript for Narrative Cohesion: Condense Sections 6–10 into
 Stress the Retrieval Failure Boundary: In Section 5, augment Proposition 1 with a sensitivity or degradation analysis modeling non-zero retrieval failure rates ($p_{\text{fail}} > 0$). Quantifying the point at which frontier's correctness degrades relative to full-replay under unreliable tooling would directly reinforce why the conversion rule is necessary.  
 Execute the Pre-Registered Live-Agent Cohort: Prioritize the pre-registered SWE-bench live cohort (Section 13.1). Measuring tool-call counts, actual billed provider tokens, and noninferiority task completion on models like Claude 3.7 Sonnet or GPT-4o will determine whether the operations advantage observed in the simulator survives live agent execution.  
 This manuscript provides an uncommonly honest, disciplined, and mathematically sound systems study. It effectively debunks naïve periodic summarization and establishes an operational decision rule for memory compaction in automated software agents.
+
+---
+
+# Review 2 (major revision recommendation), received 2026-09-28
+
+> Overall assessment: The updated paper has a valuable research direction, but
+> major revision before submission. Most urgent issue is internal consistency.
+> [Recommendations include:] Measured retrieval, context, acceptance, and
+> end-to-end outcomes under matched budgets. A more focused title:
+> "Verified Context Retirement: Safety Conditions and Retrieval–Memory Trade-offs".
+> Bottom line: retain the idea of replacing unnecessary history with verified,
+> task-relevant state. But the current paper should not yet claim a
+> necessary-and-sufficient retirement rule or use its numerical thresholds as
+> validated deployment guidance. The next revision should rebuild confidence in
+> the simulator and its measurement boundary before adding more experiments or
+> stronger claims.

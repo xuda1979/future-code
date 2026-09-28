@@ -7,9 +7,9 @@ and this manuscript is explicit about the ladder of evidence it
 occupies.
 
 \paragraph{What this paper is.}
-It is a mechanism study of context retirement
+It is a simulator study of context retirement
 (Section~\ref{sec:retire}) plus the verification and evidence
-components the surviving rule depends on
+components the surviving heuristic depends on
 (Section~\ref{sec:substrate}, with derivations in the appendices). Two protocol generations
 were run; the current one is factorial, pre-registered, and
 git-frozen before data generation. Five closure rules were declared
@@ -20,10 +20,13 @@ submitted bytes versus masking---below the 20\% gate, no win claimed)
 and the demand-driven
 adaptive-coordination variant ($\RetwoAdaptiveReduction{}$ regime-O
 versus plain frontier; promotion gate $\ge$10\%). What survives is
-(i)~a necessary conversion rule---retire history only after
-converting it into verified bindings, typed obligations, and declared
-dependencies; lossy conversion fails the acceptance contract at every
-scale tested (28/84 at the largest grid); (ii)~an operations result
+(i)~a conversion heuristic supported by the simulator's evidence---in
+the frozen arm list, every policy that retires history through a lossy
+summary fails the acceptance contract at every
+scale tested (28/84 at the largest grid), while the policy that first
+converts history into
+verified bindings, typed obligations, and declared
+dependencies passes it; (ii)~an operations result
 at equal correctness---frontier retirement cuts on-demand retrieval
 operations \RetwoOpsReduction{} and round-trip-regime cost
 \RetwoCostOReduction{} versus observation masking, persisting at
@@ -33,11 +36,12 @@ layouts (\RetwoDensityRegret{} decision-rule regret). HACT is not the
 paper's center; it survives only where its ablation says it wins.
 
 \paragraph{The boundary that remains.}
-The retirement study is mechanism-level. It models information flow
+The retirement study is a simulator study. It models information flow
 between a context policy and a seeded work stream; it does not call a
 hosted model, and it cannot establish that any agent finishes faster,
 bills less, or reasons better. Its staleness, obligation-loss, and
-audit results are structural predictions about policies, not
+audit results are structural properties of policies in that
+simulator, not
 measurements of agents. The live-agent cohort that could test those
 predictions has its protocol pre-registered in
 Section~\ref{sec:live-protocol} and has not been run. The negative

@@ -295,7 +295,7 @@ Source replay reductions & Table~\ref{tab:replay}; 36 replays & Diagnostic, not 
 Root status identical & Equation~\eqref{eq:rootid}; 593--594 bytes & Fixed tokenizer, layout-independent\\
 Break-even accounting & Equations~\eqref{eq:netbenefit}--\eqref{eq:qmin} & Declared $C,E,R$, codec-matched\\
 BPE tokenization gap & \texttt{cl100k\_base}/\texttt{o200k\_base} remain \UNKNOWN{}; admission tool supplied & Vocabulary retrieval failed; no billing claim\\
-Context-retirement mechanism study & Pre-registered, factorial, executed: v2 = 1{,}176 runs + 63 long-horizon, seven retention levels $\times$ scheduler factor, five closures (two proposals rejected by their gates) & Measured at mechanism level; live cohort still protocol-only\\
+Context-retirement simulator study & Pre-registered, factorial, executed: v2 = 1{,}176 runs + 63 long-horizon, seven retention levels $\times$ scheduler factor, five closures (two proposals rejected by their gates) & Measured in the simulator; live cohort still protocol-only\\
 \bottomrule\end{tabularx}\end{center}
 
 \section{Retirement-Study Protocol Deviations and Engine History}\label{app:retire-deviations}
@@ -363,6 +363,24 @@ direction clears the gate. The same error existed in the
 the pre-specified exploratory protocol; all three are corrected
 together, and regression tests now pin the corrected semantics
 against the frozen pooled means.
+\item \textbf{Major revision (v8.0, 2026-09-28; scoped claims and
+consistency audit).} An external review of v7.1 recommended major
+revision: internal consistency as the most urgent issue, no
+necessary-and-sufficient retirement-rule claim, and no use of the
+simulator's numerical thresholds as validated deployment guidance.
+This revision (a)~renames the central claim a \emph{conversion
+heuristic} and re-frames every necessity/sufficiency statement as
+model-internal (the failure direction is a measured property of the
+seven frozen arms, not of all conceivable policies; the sufficiency
+theorem is a statement about the engine's semantics); (b)~re-labels
+all break-even thresholds as properties of the frozen accounting
+rather than deployment go/no-go rules, and rewrites the deployment
+section as two tiers---what the simulator measures and what remains
+protocol-only; (c)~re-titles the manuscript; and (d)~adds a 25-point
+numeric consistency audit of every in-text figure against the frozen
+cohort (all pass), plus uniform simulator/mechanism-level
+terminology. No data, cohort, closure, or theorem changed in this
+revision; only claim scope and presentation.
 \end{enumerate}
 
 No amendment was written after the final cohort was generated. The

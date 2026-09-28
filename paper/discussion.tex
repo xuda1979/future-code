@@ -1,28 +1,34 @@
 \section{Deployment Recommendation, Limitations, and the Pre-Registered Live Cohort}\label{sec:discussion}
-\subsection{Deployment recommendation}\label{sec:deploy}
-The recommendation now has two tiers, one measured at mechanism level
-and one still protocol-only.
+\subsection{Recommendations from the simulator, and the protocol-only tier}\label{sec:deploy}
+The recommendations below have two tiers: what this paper's simulator
+measures, and what remains protocol-only.
 
-\paragraph{Mechanism-level (measured this paper).}
+\paragraph{Mechanism-level (measured in this paper's simulator).}
 Where a service already requires protected verification evidence and a
 constrained channel, the serialized-evidence component of
 Section~\ref{sec:substrate} applies as before. The
-retirement study adds a sharper rule for context policy: a policy may
-retire history only after converting it into current verified
-bindings, a typed pending-obligation set, and dependency interfaces;
-policies that rely on lossy summaries of obligations, or that revert
-values to beliefs older than the current working window, measurably
-fail at every scale tested (Section~\ref{sec:retire-results}). The
-conversion is necessary; whether it is worth adopting depends on the
+retirement study adds a sharper pattern for context policy: in the
+simulator, the policy that first converts history into current
+verified bindings, a typed pending-obligation set, and dependency
+interfaces passes the acceptance contract at every scale tested,
+while policies that rely on lossy summaries of obligations, or that
+revert values to beliefs older than the current working window,
+measurably fail (Section~\ref{sec:retire-results}). The
+conversion is the pattern the simulator supports; whether it is worth
+adopting depends on the
 cost regime and on the retrieval layer. It buys \RetwoOpsReduction{}
 fewer retrieval round trips at equal correctness, and by the closed
-form of Proposition~\ref{prop:breakeven} a pilot estimating
-$(B_f,B_m,o_f,o_m)$ and the deployment's round-trip price $c$ obtains
-an exact go/no-go: adopt iff $c\ge c_{0.8}$. On the frozen cohort
+form of Proposition~\ref{prop:breakeven} the simulator's gate flips
+at a computable round-trip price: given means
+$(B_f,B_m,o_f,o_m)$ measured in a deployment's own pilot and that
+deployment's price $c$, the formula's threshold $c_{0.8}$ states
+where the frozen 20\% gate would flip. In the simulator,
 $c_{0.8}\approx1{,}364$\,B pooled (frontier's 8.0\% byte advantage
 does not by itself clear the 20\% gate; the frozen 4{,}096\,B
-round-trip price does), and the pilot prices its own $c$ rather than
-assuming the byte direction carries the claim.
+round-trip price does). These are simulator thresholds under the
+frozen accounting, not validated deployment guidance: they identify
+what a deployment must measure---its own byte costs, operation mix,
+and round-trip price---rather than prescribing adoption.
 Second, and now stated because the exploratory analyses forced it: a
 64-gate bounded-recency window (\texttt{bounded-hier}) is cheaper
 than frontier below a break-even price of
@@ -30,21 +36,26 @@ than frontier below a break-even price of
 global) at equal acceptance---but \ExpBhDueExposed{} of its due
 obligations and \ExpBhFootprintExposed{} of its footprint reads sit
 outside its retention, so its safety delegates to the retrieval
-layer. The honest recommendation is therefore conditional on two
-observable quantities, not one: with reliable, cheap retrieval and
-round-trip price below the break-even, prefer the bounded window;
-with expensive or unreliable retrieval, prefer the conversion rule,
-whose guarantees do not depend on the retrieval layer beyond the
-fetch itself. The real-trace replay
+layer. The simulator-conditional reading is therefore a function of
+two observable quantities, not one: with reliable, cheap retrieval and
+round-trip price below the break-even, the bounded window is the
+cheaper arm in the simulator; with expensive or unreliable retrieval,
+the conversion heuristic is the arm whose model-internal guarantees
+do not depend on the retrieval layer beyond the
+fetch itself. Which of these a real deployment should prefer is
+exactly what the live cohort measures; the simulator brackets the
+possibilities rather than deciding between them. The real-trace replay
 (Section~\ref{sec:retire-exploratory}) brackets what this looks like
 on non-synthetic change patterns. Between grouped
 certificate layouts and flat delta ledgers, select by update density:
 the measured-density rule matched the per-cell oracle on every cell of
 the frozen cohort (\RetwoDensityRegret{} regret); dense updates favor
 the tree, sparse deltas favor the flat ledger, and the density signal
-is observable on a training half of any real stream. Do not adopt the
-demand-driven adaptive variant: its pre-registered promotion gate
-failed ($\RetwoAdaptiveReduction{}$ versus plain frontier).
+is observable on a training half of any real stream. The
+demand-driven adaptive variant is not promoted: its pre-registered
+gate failed in the simulator
+($\RetwoAdaptiveReduction{}$ versus plain frontier), and adoption
+decisions belong to the live cohort, not to the simulator alone.
 
 \paragraph{Live-agent cohort (pre-registered, not run; highest-priority next experiment).}\label{sec:live-protocol}
 The mechanism study predicts, but cannot confirm, that avoided
@@ -63,12 +74,12 @@ benchmark (SWE-bench-class), screened for dependency coupling; the
 same frozen independent acceptance contract for all arms; equal total
 budgets, sandbox, and protected state; every failed branch in the
 numerator.
-\item \textbf{Arms.} The arms the mechanism study separates:
+\item \textbf{Arms.} The arms the simulator separates:
 observation masking; summary/reset; verified-frontier retirement; and
 the density-selected evidence layout (flat delta ledger versus
 grouped tree, chosen per the measured update density of the pilot).
 The demand-driven adaptive variant is excluded because its promotion
-gate failed at mechanism level; including it would re-litigate a
+gate failed in the simulator; including it would re-litigate a
 pre-registered decision.
 \item \textbf{Primary outcomes.} Tool-call round trips per accepted
 project (the pre-registered live-cost measure, from the mechanism
