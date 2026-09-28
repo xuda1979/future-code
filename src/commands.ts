@@ -64,6 +64,13 @@ import save from './commands/save/index.js'
 import load from './commands/load/index.js'
 import watch from './commands/watch/index.js'
 import learn from './commands/learn/index.js'
+import listAgents from './commands/list-agents/index.js'
+import todos from './commands/todos/index.js'
+import recap from './commands/recap/index.js'
+import pauseMemory from './commands/pause-memory/index.js'
+import autocompact from './commands/autocompact/index.js'
+import skillDoctor from './commands/skill-doctor/index.js'
+import focus from './commands/focus/index.js'
 import { feature } from 'bun:bundle'
 // Dead code elimination: conditional imports
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -355,6 +362,13 @@ const COMMANDS = memoize((): Command[] => [
   load,
   watch,
   learn,
+  listAgents,
+  todos,
+  recap,
+  pauseMemory,
+  autocompact,
+  skillDoctor,
+  focus,
   ...(workflowsCmd ? [workflowsCmd] : []),
   ...(torch ? [torch] : []),
   ...(process.env.USER_TYPE === 'ant' && !process.env.IS_DEMO
