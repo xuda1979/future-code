@@ -1,7 +1,7 @@
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { tmpdir } from "node:os";
-import { canonical, digest, invariant } from "../kernel.ts";
+import { canonical, digest, invariant, validateEvidence } from "../kernel.ts";
 import { FatalAttemptError } from "../errors.ts";
 import type { Capsule, Json, Task, Verification } from "../types.ts";
 import type { Store } from "../store.ts";
@@ -51,10 +51,24 @@ export function patchText(store: Store, hash: string, limit: number): string {
   const patch = store.readArtifact(hash); invariant(typeof patch === "string" && Buffer.byteLength(patch) <= limit, "invalid/oversized patch receipt"); return patch;
 }
 export function readPatchArtifact(store: Store, run: string, id: string): PatchArtifact {
-  const row = store.db.prepare("SELECT status,artifact FROM tasks WHERE run=? AND id=?").get(run, id);
+  const row = store.db.prepare("SELECT status,artifact,evidence,spec FROM tasks WHERE run=? AND id=?").get(run, id);
   invariant(row?.status === "PASS", "dependency not accepted");
-  const artifact = store.readArtifact(row.artifact) as unknown as PatchArtifact;
-  invariant(artifact?.schema === 1 && typeof artifact.patchHash === "string", "dependency is not a swarm patch"); return artifact;
+  invariant(typeof row.evidence === "string" && row.evidence.length > 0, "missing dependency acceptance evidence");
+  const execution = store.db.prepare("SELECT recipe,contract FROM runs WHERE id=?").get(run);
+  const contract = store.contract();
+  invariant(execution?.contract === digest(contract), "dependency run contract drift");
+  const task: Task = JSON.parse(row.spec);
+  invariant(task.id === id, "dependency task identity mismatch");
+  const value = store.readArtifact(row.artifact);
+  // Content integrity is not acceptance. Re-bind the artifact to the current
+  // task, pinned recipe, verifier, and required checks whenever it is reused.
+  validateEvidence(contract, execution.recipe, task, value, store.readArtifact(row.evidence));
+  const artifact = value as unknown as PatchArtifact;
+  invariant(artifact?.schema === 1 && typeof artifact.patchHash === "string", "dependency is not a swarm patch");
+  // A valid wrapper cannot hide a missing/corrupt referenced patch on the
+  // cached-integration path, which deliberately does not rebuild a worktree.
+  invariant(typeof store.readArtifact(artifact.patchHash) === "string", "dependency patch is not text");
+  return artifact;
 }
 export class LocalGitHands implements Hands {
   private temp: string | null = null;

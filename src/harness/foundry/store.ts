@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync, openSync, closeSync, fsyncSync, linkSync, unlinkSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
+import { installContinuationTables } from "./continuation.ts";
 import { canonical, digest, invariant, validateContract, validateRecipe } from "./kernel.ts";
 import type { Contract, Json, Recipe, PinnedCommand } from "./types.ts";
 
@@ -31,7 +32,7 @@ export class Store {
         context_bytes INTEGER, progress_count INTEGER NOT NULL DEFAULT 0, last_progress_at REAL, failure_fingerprint TEXT,
         PRIMARY KEY(run,task,fence));
       CREATE TABLE IF NOT EXISTS evaluations(id TEXT PRIMARY KEY, json TEXT NOT NULL, hash TEXT NOT NULL, promoted INTEGER NOT NULL DEFAULT 0);`);
-    return new Store(root, db);
+    const store = new Store(root, db); installContinuationTables(store); return store;
   }
   transaction<T>(fn: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");

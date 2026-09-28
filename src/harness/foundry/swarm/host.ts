@@ -1,3 +1,5 @@
+import { runHealth, type HealthObserver } from "../health.ts";
+import { ResearchJobs } from "./jobs.ts";
 import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { checkPins, pinCommand } from "../commands.ts";
@@ -9,7 +11,7 @@ import type { Capsule, Contract, Json, Task } from "../types.ts";
 import { executable, validateSwarmSpec, validateSwarmTasks, type PinnedSwarm, type SwarmSpec } from "./config.ts";
 import { SwarmDriver, verifierIdentity, workerIdentity } from "./driver.ts";
 import { SessionJournal } from "./session.ts";
-import { git, LocalGitHands, orderedTasks } from "./workspace.ts";
+import { git, LocalGitHands, orderedTasks, readPatchArtifact } from "./workspace.ts";
 const json = (value: unknown): Json => JSON.parse(canonical(value));
 const KEY = "extension.swarm";
 export async function initializeSwarm(store: Store, input: SwarmSpec, signal: AbortSignal): Promise<PinnedSwarm> {
@@ -29,8 +31,18 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
       if (path && !path.startsWith("../") && !isAbsolute(path)) spec.protectedPaths.push(path);
     }
   }
+  if (spec.jobs) {
+    cfg.jobAdapters = {};
+    for (const [name, job] of Object.entries(spec.jobs)) {
+      cfg.jobAdapters[name] = pinCommand({ ...job.adapter, argv: [job.adapter.argv[0] === "$NODE" ? executable("node") : job.adapter.argv[0], ...job.adapter.argv.slice(1)] }, spec.project);
+      for (const pin of cfg.jobAdapters[name].pins) {
+        const path = relative(spec.project, pin.path).replaceAll("\\", "/");
+        if (path && !path.startsWith("../") && !isAbsolute(path)) spec.protectedPaths.push(path);
+      }
+    }
+  }
   spec.protectedPaths = [...new Set([...spec.protectedPaths, ".gitignore", ".gitattributes", ".gitmodules"])].sort();
-  const contract: Contract = { schema: 1, name: spec.name, workerId: workerIdentity(cfg), verifierId: verifierIdentity(cfg),
+  const contract: Contract = { schema: 1, ...(spec.supervision?.snapshotReads ? { readIsolation: "snapshot" as const } : {}), name: spec.name, workerId: workerIdentity(cfg), verifierId: verifierIdentity(cfg),
     environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior"],
     slos: [], limits: spec.limits };
   store.initialize(contract, spec.recipe, undefined, { [KEY]: json(cfg) });
@@ -40,17 +52,19 @@ export function loadSwarm(store: Store): PinnedSwarm {
   const cfg = store.getMeta<PinnedSwarm>(KEY); invariant(cfg?.version === 1, "swarm is not initialized");
   invariant(cfg.handsId === "local-git-posix-v1", "unsupported execution backend");
   validateSwarmSpec(cfg.spec); checkPins(cfg.git); Object.values(cfg.checks).forEach(checkPins);
+  Object.values(cfg.jobAdapters ?? {}).forEach(checkPins);
+  invariant((store.contract().readIsolation === "snapshot") === !!cfg.spec.supervision?.snapshotReads, "snapshot isolation drift");
   const c = store.contract();
   invariant(c.workerId === workerIdentity(cfg) && c.verifierId === verifierIdentity(cfg) &&
     c.environmentId === digest({ project: cfg.spec.project, base: cfg.baseCommit, checks: cfg.checks }), "swarm configuration drift");
   return cfg;
 }
-export async function runSwarm(store: Store, tasks: Task[], signal: AbortSignal, resumeRun?: string, fetcher?: typeof fetch): Promise<Json> {
+export async function runSwarm(store: Store, tasks: Task[], signal: AbortSignal, resumeRun?: string, fetcher?: typeof fetch, onProgress?: HealthObserver): Promise<Json> {
   const cfg = loadSwarm(store);
   const actual: Task[] = resumeRun ? store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(resumeRun).map(r => JSON.parse(r.spec)) : tasks;
   validateTasks(store.contract(), actual); validateSwarmTasks(cfg.spec, actual);
   const driver = new SwarmDriver(store, cfg, fetcher);
-  const summary = await runTasks(store, tasks, driver, { signal, resumeRun });
+  const summary = await runTasks(store, tasks, driver, { signal, resumeRun, onProgress, reportEveryMs: cfg.spec.supervision?.reportEveryMs });
   return json({ ...summary, providerUsage: driver.journal.usage(summary.id), baseCommit: cfg.baseCommit,
     note: "Acceptance is per-task. Run integrate for cross-task checks. Monetary cost is unknown without a trusted price meter." });
 }
@@ -62,6 +76,7 @@ export function swarmStatus(store: Store, run?: string, after = ""): Json {
   const page = tasks.slice(0, 200);
   return json({ ...new Scheduler(store).summary(run), providerUsage: new SessionJournal(store).usage(run),
     tasks: page, nextTaskAfter: tasks.length > 200 ? page.at(-1)!.id : null,
+    health: runHealth(store, run), researchJobs: new ResearchJobs(new SessionJournal(store), cfg).list(run),
     taskPageLimit: 200, integrationReceipt: store.getMeta(`extension.swarm.integration.${run}`) ?? null });
 }
 interface IntegrationReceipt { run: string; base: string; tree: string; commit: string; branch: string; checksHash: string; binding: string }
@@ -85,7 +100,12 @@ export async function integrateSwarm(store: Store, run: string, signal: AbortSig
     else invariant(refs === value.commit, "integration branch already points elsewhere; never overwrite it");
     store.transaction(() => store.event("swarm.integrated", value, run)); return value;
   };
-  if (receipt) return publish(receipt);
+  if (receipt) {
+    // Hashing DB pointers alone does not detect corrupted proof/patch files.
+    // Reuse expensive integration checks, never skip acceptance revalidation.
+    for (const task of ordered) readPatchArtifact(store, run, task.id);
+    return publish(receipt);
+  }
   const c: Capsule = { schema: 1, runId: run, task: { id: "integration", goal: "Integrate accepted patches", acceptance: ["all integration checks"],
     dependencies: [], writeScope: [], input: null }, fence: 0, recipeHash: summary.recipeHash, contractHash: summary.contractHash, dependencies: [] };
   const hands = new LocalGitHands(store, cfg, c, cfg.spec.agents[cfg.spec.defaultAgent], signal, null, ordered.map(t => t.id));

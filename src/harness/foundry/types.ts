@@ -4,6 +4,8 @@ export type Verdict = "PASS" | "FAIL" | "UNKNOWN" | "INVALID";
 export type Metric = "durationMs" | "tokens" | "costUsd" | "progressDensity";
 export interface Contract {
   schema: 1;
+  /** Set only by a host that guarantees private pinned read snapshots. */
+  readIsolation?: "snapshot";
   name: string;
   verifierId: string;
   workerId: string;
@@ -95,6 +97,9 @@ export interface AttemptControl {
   /** Host/adapter observation, NOT correctness evidence. Repeats do not renew
    *  the idle deadline. The hard lease deadline is never extended. */
   progress(fingerprint: string): void;
+  /** Activity never renews a no-progress timer. */
+  activity?(stage: string): void;
+  checked?(): void;
 }
 export interface FailureOptions {
   retryable?: boolean;
@@ -106,6 +111,8 @@ export interface Driver {
   /** Honor cancellation. The command adapter kills the child's process group. */
   execute(capsule: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult>;
   verify(capsule: Capsule, result: WorkerResult, signal: AbortSignal, control?: AttemptControl): Promise<Verification>;
+  /** Trusted cumulative usage for this lease, including interrupted RPCs. */
+  measurement?(lease: Lease): Measurement;
 }
 export interface Lease {
   runId: string;

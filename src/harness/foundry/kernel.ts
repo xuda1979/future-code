@@ -32,7 +32,8 @@ function exactKeys(value: object, required: string[], optional: string[] = []): 
 }
 export function validateContract(c: Contract): void {
   canonical(c);
-  exactKeys(c, ["schema", "name", "verifierId", "workerId", "environmentId", "requiredChecks", "slos", "limits"]);
+  exactKeys(c, ["schema", "name", "verifierId", "workerId", "environmentId", "requiredChecks", "slos", "limits"], ["readIsolation"]);
+  invariant(c.readIsolation === undefined || c.readIsolation === "snapshot", "invalid read isolation");
   invariant(c.schema === 1 && [c.name, c.verifierId, c.workerId, c.environmentId].every(s => typeof s === "string" && s.length > 0), "invalid contract identity");
   invariant(Array.isArray(c.requiredChecks) && c.requiredChecks.length > 0, "at least one required check is mandatory");
   c.requiredChecks.forEach(identifier);

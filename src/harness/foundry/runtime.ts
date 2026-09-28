@@ -1,3 +1,5 @@
+import { DeferredAttemptError } from "./continuation.ts";
+import { runHealth, type HealthObserver } from "./health.ts";
 import { FatalAttemptError } from "./errors.ts";
 import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
@@ -26,30 +28,35 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
     }, recipe.noProgressMs);
   };
   const control: AttemptControl = { progress(fingerprint) {
-    if (closed || controller.signal.aborted || recipe.noProgressMs === undefined) return;
+    if (closed || controller.signal.aborted) return;
     invariant(typeof fingerprint === "string" && fingerprint.length > 0 &&
       Buffer.byteLength(fingerprint, "utf8") <= 256, "invalid progress fingerprint");
     const key = digest({ stage, fingerprint });
     if (!progress.observe(key, performance.now())) return;
     if (!scheduler.progress(lease, key)) { controller.abort(new Error("stale lease")); return; }
     armIdle();
+  }, activity(name) {
+    if (!closed && !controller.signal.aborted) scheduler.activity(lease, name);
+  }, checked() {
+    if (!closed && !controller.signal.aborted) scheduler.activity(lease, "checked", true);
   } };
   const work = async () => {
     if (controller.signal.aborted) throw controller.signal.reason;
     const capsule = scheduler.capsule(lease);
     const contract = store.contract();
     invariant(driver.verifierId === contract.verifierId && driver.workerId === contract.workerId, "driver identity mismatch");
-    stage = "execute"; armIdle();
-    const result = await driver.execute(capsule, controller.signal, recipe.noProgressMs === undefined ? undefined : control);
+    stage = "execute"; scheduler.activity(lease, stage); armIdle();
+    const result = await driver.execute(capsule, controller.signal, control);
     if (controller.signal.aborted) throw controller.signal.reason;
     invariant(Buffer.byteLength(canonical(result.artifact), "utf8") <= contract.limits.outputBytes, "worker artifact exceeds output budget");
     artifactHash = digest(result.artifact);
     // A producer's success string is not an acceptance result. Verification is
     // also bounded: a hung test process cannot occupy a slot indefinitely.
-    stage = "verify"; armIdle();
-    const check = await driver.verify(capsule, result, controller.signal, recipe.noProgressMs === undefined ? undefined : control);
+    stage = "verify"; scheduler.activity(lease, stage); armIdle();
+    const check = await driver.verify(capsule, result, controller.signal, control);
     if (controller.signal.aborted) throw controller.signal.reason;
     invariant(Buffer.byteLength(canonical(check), "utf8") <= contract.limits.outputBytes, "verifier output exceeds output budget");
+    control.checked?.();
     verificationHash = digest({ artifactHash: check.artifactHash, checks: check.checks });
     measured = combineMeasurements(validMeasurement(result.measurement), validMeasurement(check.measurement));
     const metrics = { ...measured, durationMs: performance.now() - t0 };
@@ -72,6 +79,11 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
   try { await Promise.race([work(), stopped]); }
   catch (e) {
     controller.abort(e);
+    if (driver.measurement) measured = validMeasurement(driver.measurement(lease));
+    if (e instanceof DeferredAttemptError || outer?.aborted) {
+      scheduler.defer(lease, e instanceof DeferredAttemptError ? e : new DeferredAttemptError("cancelled", Date.now(), "caller paused; checkpoint retained"), measured);
+      return;
+    }
     const reason = e instanceof Error ? e.message : String(e);
     scheduler.fail(lease, reason, measured, Date.now(), {
       // Retrying the same oversized/invalid capsule cannot repair its contract.
@@ -89,7 +101,7 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
 
 /** Bounded DAG execution; a different process may claim the same run safely. */
 export async function runTasks(store: Store, tasks: Task[], driver: Driver,
-  options: { recipeHash?: string; resumeRun?: string; signal?: AbortSignal } = {}): Promise<RunSummary> {
+  options: { recipeHash?: string; resumeRun?: string; signal?: AbortSignal; onProgress?: HealthObserver; reportEveryMs?: number } = {}): Promise<RunSummary> {
   invariant(driver.verifierId === store.contract().verifierId && driver.workerId === store.contract().workerId, "driver identity mismatch");
   const scheduler = new Scheduler(store);
   const runId = options.resumeRun ?? scheduler.start(tasks, options.recipeHash);
@@ -100,6 +112,14 @@ export async function runTasks(store: Store, tasks: Task[], driver: Driver,
     const expected = [...tasks].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
     invariant(digest(actual) === digest(expected), "resume task graph mismatch");
   }
+  const every = options.reportEveryMs ?? 30000;
+  invariant(Number.isSafeInteger(every) && every >= 10 && every <= 3600000, "invalid report interval");
+  const report = () => {
+    if (!options.onProgress) return;
+    try { options.onProgress(runHealth(store, runId)); }
+    catch { store.event("observer.error", { reason: "progress observer threw; execution continues" }, runId); }
+  };
+  report(); const heartbeat = options.onProgress ? setInterval(report, every) : undefined;
   const recipe = store.recipe(pinned);
   const owner = randomUUID(); const active = new Set<Promise<void>>();
   const controllers = new Set<AbortController>();
@@ -142,6 +162,7 @@ export async function runTasks(store: Store, tasks: Task[], driver: Driver,
     store.transaction(() => store.event("run.paused", { reason: "caller cancelled; resume by run id" }, runId));
     return scheduler.summary(runId);
   } finally {
+    if (heartbeat) clearInterval(heartbeat); report();
     options.signal?.removeEventListener("abort", cancelAll);
     cancelAll(); await Promise.allSettled(active);
   }

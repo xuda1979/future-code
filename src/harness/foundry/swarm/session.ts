@@ -9,6 +9,9 @@ import type { SwarmBudget } from "./config.ts";
 
 export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
 export interface ThreadState {
+  lastFence?: number;
+  lastCheckAt?: number;
+  recoveryNote?: string;
   history: Message[];
   turns: number;
   toolCalls: number;

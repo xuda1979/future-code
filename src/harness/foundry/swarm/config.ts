@@ -3,7 +3,7 @@ import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { identifier, invariant, positive, validateContract, validateRecipe } from "../kernel.ts";
 import type { CommandSpec, Contract, PinnedCommand, Recipe, Task } from "../types.ts";
 
-export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall"] as const;
+export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "run_job"] as const;
 export type ToolName = typeof TOOLS[number];
 export type Protocol = "anthropic" | "chat-completions";
 export interface AgentProfile {
@@ -14,6 +14,7 @@ export interface AgentProfile {
   system: string;
   tools: ToolName[];
   checks: string[];
+  jobs?: string[];
   promptCache?: boolean;
   allowHttp?: boolean;
 }
@@ -30,7 +31,16 @@ export interface SwarmBudget {
   maxToolOutputBytes: number;
   maxPatchBytes: number;
 }
+export interface JobTemplate {
+  adapter: CommandSpec;
+  /** Adapter ensure(key) must reconcile/deduplicate remotely, not blindly resubmit. */
+  idempotentEnsure: true;
+  pollMs: number; staleMs: number; maxJobs: number; maxConcurrent: number;
+}
+export interface SupervisionPolicy { reportEveryMs: number; checkpointEveryMs: number; snapshotReads?: boolean }
 export interface SwarmSpec {
+  jobs?: Record<string, JobTemplate>;
+  supervision?: SupervisionPolicy;
   schema: 1;
   name: string;
   project: string;
@@ -51,6 +61,7 @@ export interface PinnedSwarm {
   baseCommit: string;
   git: PinnedCommand;
   checks: Record<string, PinnedCommand>;
+  jobAdapters?: Record<string, PinnedCommand>;
 }
 export function keys(value: object, required: string[], optional: string[] = []): void {
   invariant(value && typeof value === "object" && !Array.isArray(value), "expected object");
@@ -68,7 +79,7 @@ function names(names: string[], known: string[], label: string): void {
   invariant(Array.isArray(names) && names.length > 0 && new Set(names).size === names.length && names.every(n => known.includes(n)), `invalid ${label}`);
 }
 export function validateSwarmSpec(s: SwarmSpec): void {
-  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"]);
+  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "supervision"]);
   invariant(s.schema === 1 && typeof s.name === "string" && !!s.name.trim(), "invalid swarm identity");
   invariant(typeof s.project === "string" && s.project.length > 0, "missing project");
   invariant(typeof s.baseRef === "string" && s.baseRef.length > 0 && !s.baseRef.startsWith("-") && !s.baseRef.includes("\0"), "invalid baseRef");
@@ -89,7 +100,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   names(s.integrationChecks, checks, "integration checks");
   invariant(s.integrationChecks.every(n => s.checks[n].replaySafe), "integration checks must be replay-safe");
   for (const [id, a] of Object.entries(s.agents)) {
-    identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"], ["keyEnv", "promptCache", "allowHttp"]);
+    identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"], ["keyEnv", "promptCache", "allowHttp", "jobs"]);
     invariant(["anthropic", "chat-completions"].includes(a.protocol), "unsupported provider protocol");
     const url = new URL(a.url);
     const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
@@ -98,11 +109,33 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     invariant(typeof a.model === "string" && !!a.model.trim() && typeof a.system === "string" && !!a.system.trim(), "missing model/system");
     if (a.keyEnv !== undefined) invariant(/^[A-Z_][A-Z0-9_]*$/.test(a.keyEnv), "invalid keyEnv");
     for (const x of [a.promptCache, a.allowHttp]) invariant(x === undefined || typeof x === "boolean", "invalid provider flag");
+    if (a.jobs !== undefined) names(a.jobs, Object.keys(s.jobs ?? {}), "agent jobs");
+    if (a.tools.includes("run_job")) invariant(a.jobs && a.jobs.length > 0, "run_job requires named job capabilities");
+    if (s.supervision) invariant(a.tools.includes("run_check"), "supervision requires a permitted checkpoint check");
     names(a.tools, [...TOOLS], "tools"); names(a.checks, checks, "agent checks");
     invariant(a.checks.every(n => s.checks[n].replaySafe), "independent verification checks must be replay-safe");
   }
+  if (s.supervision) {
+    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["snapshotReads"]);
+    positive(s.supervision.reportEveryMs, 3600000, "reportEveryMs");
+    invariant(s.supervision.reportEveryMs >= 10, "report interval too small");
+    positive(s.supervision.checkpointEveryMs, 3600000, "checkpointEveryMs");
+    invariant(s.supervision.snapshotReads === undefined || typeof s.supervision.snapshotReads === "boolean", "invalid snapshotReads");
+  }
+  if (s.jobs) {
+    keys(s.jobs, [], Object.keys(s.jobs)); positive(Object.keys(s.jobs).length, 32, "job templates");
+    for (const [id, job] of Object.entries(s.jobs)) {
+      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"]);
+      keys(job.adapter, ["argv"], ["envAllow", "files"]);
+      invariant(job.idempotentEnsure === true, "remote ensure must be idempotent");
+      positive(job.pollMs, 3600000, "job poll interval"); invariant(job.pollMs >= 10, "job poll interval too short");
+      positive(job.staleMs, 604800000, "job stale interval"); invariant(job.staleMs >= job.pollMs, "job stale interval too short");
+      positive(job.maxJobs, 100000, "job count");
+      positive(job.maxConcurrent, Math.min(256, job.maxJobs), "remote concurrency");
+    }
+  }
   const credentialNames = new Set(Object.values(s.agents).map(a => a.keyEnv).filter(Boolean));
-  for (const check of Object.values(s.checks)) {
+  for (const check of [...Object.values(s.checks), ...Object.values(s.jobs ?? {}).map(j => j.adapter)]) {
     invariant(!(check.envAllow ?? []).some(name => credentialNames.has(name)), "model credentials may not be forwarded to checks");
   }
   invariant(Array.isArray(s.protectedPaths), "invalid protectedPaths"); s.protectedPaths.forEach(safePath);

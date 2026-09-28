@@ -1,6 +1,7 @@
+import { DeferredAttemptError, persistContinuation } from "./continuation.ts";
 import { randomUUID } from "node:crypto";
 import { Store } from "./store.ts";
-import { digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
+import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
 import { accessConflicts, compilePlan, projectDependency } from "./productivity.ts";
 import type { Capsule, FailureOptions, Json, Lease, Measurement, Recipe, RunSummary, Task } from "./types.ts";
 
@@ -49,10 +50,11 @@ export class Scheduler {
       const rows = this.store.db.prepare("SELECT * FROM tasks WHERE run=?").all(runId);
       const plan = this.plan(runId, run.recipe, recipe, rows);
       const byId = new Map(rows.map(t => [t.id as string, t]));
+      const waits = new Map(this.store.db.prepare("SELECT task,wake FROM task_waits WHERE run=?").all(runId).map(t => [t.task, t.wake]));
       for (const t of rows.filter(t => t.status === "RUNNING" && t.deadline <= now)) {
         const attempt = this.store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(runId, t.id, t.fence)!;
         this.store.db.prepare("UPDATE attempts SET status='EXPIRED',ended=?,duration=? WHERE run=? AND task=? AND fence=? AND status='RUNNING'").run(now, Math.max(0, now - attempt.started), runId, t.id, t.fence);
-        t.status = t.fence >= recipe.attempts ? "FAIL" : "READY";
+        t.status = this.failureCount(runId, t.id) >= recipe.attempts ? "FAIL" : "READY";
         this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error='lease expired' WHERE run=? AND id=?").run(t.status, runId, t.id);
         this.store.event("lease.expired", { fence: t.fence }, runId, t.id);
       }
@@ -77,10 +79,12 @@ export class Scheduler {
       const active = running.map(t => plan.byId.get(t.id)!);
       let reserved = active.reduce((n, task) => n + plan.budgets.get(task.id)!, 0);
       const leases: Lease[] = [];
+      const snapshotReads = this.store.contract().readIsolation === "snapshot";
       for (const task of plan.order) {
         const row = byId.get(task.id)!;
-        if (row.status !== "READY" || !task.dependencies.every(d => byId.get(d)!.status === "PASS") ||
-            active.some(other => accessConflicts(task, other))) continue;
+        if (row.status !== "READY" || (waits.get(task.id) ?? 0) > now || !task.dependencies.every(d => byId.get(d)!.status === "PASS") ||
+            active.some(other => snapshotReads
+              ? conflicts(task.writeScope, other.writeScope) : accessConflicts(task, other))) continue;
         const budget = plan.budgets.get(task.id)!;
         if (recipe.maxInFlightContextBytes !== undefined && reserved + budget > recipe.maxInFlightContextBytes) continue;
         const fence = row.fence + 1; const deadline = now + recipe.timeoutMs;
@@ -89,10 +93,30 @@ export class Scheduler {
         this.store.event("task.claimed", { owner, fence, deadline, reservedContextBytes: budget,
           criticalPathEstimate: plan.ranks.get(task.id) ?? null }, runId, task.id);
         leases.push({ runId, taskId: task.id, owner, fence, deadline, recipeHash: run.recipe, contractHash: run.contract });
+        this.store.db.prepare("DELETE FROM task_waits WHERE run=? AND task=?").run(runId, task.id);
+        this.store.db.prepare("INSERT INTO attempt_health VALUES(?,?,?,?,?,NULL,NULL)").run(runId, task.id, fence, "prepare", now);
         active.push(task); reserved += budget; row.status = "RUNNING";
         if (leases.length >= capacity) break;
       }
       return leases;
+    });
+  }
+  private failureCount(run: string, task: string): number {
+    return this.store.db.prepare("SELECT COUNT(*) AS n FROM attempts WHERE run=? AND task=? AND status IN ('FAIL','EXPIRED')").get(run, task)!.n;
+  }
+  defer(lease: Lease, error: DeferredAttemptError, measurement: Measurement = { tokens: null, costUsd: null }, now = Date.now()): boolean {
+    validMeasurement(measurement);
+    return this.store.transaction(() => {
+      if (!this.current(lease, now)) return false;
+      persistContinuation(this.store, lease, error, measurement, now); return true;
+    });
+  }
+  activity(lease: Lease, stage: string, checked = false, now = Date.now()): boolean {
+    invariant(typeof stage === "string" && stage.length > 0 && stage.length <= 128, "invalid stage");
+    return this.store.transaction(() => {
+      if (!this.current(lease, now)) return false;
+      this.store.db.prepare("UPDATE attempt_health SET stage=?,activity_at=?,check_at=CASE WHEN ? THEN ? ELSE check_at END WHERE run=? AND task=? AND fence=?")
+        .run(stage, now, checked ? 1 : 0, now, lease.runId, lease.taskId, lease.fence); return true;
     });
   }
   status(runId: string): RunSummary["status"] {
@@ -139,6 +163,7 @@ export class Scheduler {
       this.store.db.prepare(`INSERT INTO attempt_telemetry(run,task,fence,progress_count,last_progress_at) VALUES(?,?,?,1,?)
         ON CONFLICT(run,task,fence) DO UPDATE SET progress_count=progress_count+1,last_progress_at=excluded.last_progress_at`)
         .run(lease.runId, lease.taskId, lease.fence, now);
+      this.store.db.prepare("UPDATE attempt_health SET progress_at=? WHERE run=? AND task=? AND fence=?").run(now, lease.runId, lease.taskId, lease.fence);
       this.store.event("attempt.progress", { fence: lease.fence, fingerprint: digest(fingerprint) }, lease.runId, lease.taskId);
       return true;
     });
@@ -175,11 +200,11 @@ export class Scheduler {
         .run(lease.runId, lease.taskId, lease.fence, fingerprint);
       let repeated = 0;
       const previous = this.store.db.prepare(`SELECT m.failure_fingerprint FROM attempts a LEFT JOIN attempt_telemetry m
-        ON a.run=m.run AND a.task=m.task AND a.fence=m.fence WHERE a.run=? AND a.task=? ORDER BY a.fence DESC`)
+        ON a.run=m.run AND a.task=m.task AND a.fence=m.fence WHERE a.run=? AND a.task=? AND a.status<>'DEFERRED' ORDER BY a.fence DESC`)
         .all(lease.runId, lease.taskId);
       for (const prior of previous) { if (prior.failure_fingerprint !== fingerprint) break; repeated++; }
       const exhausted = recipe.maxRepeatedFailures !== undefined && repeated >= recipe.maxRepeatedFailures;
-      const status = options.retryable === false || exhausted || lease.fence >= recipe.attempts ? "FAIL" : "READY";
+      const status = options.retryable === false || exhausted || this.failureCount(lease.runId, lease.taskId) + 1 >= recipe.attempts ? "FAIL" : "READY";
       this.store.db.prepare("UPDATE attempts SET status='FAIL',ended=?,duration=?,tokens=?,cost=? WHERE run=? AND task=? AND fence=?").run(now, Math.max(0, now - a.started), measurement.tokens, measurement.costUsd, lease.runId, lease.taskId, lease.fence);
       this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error=? WHERE run=? AND id=?").run(status, reason.slice(0, 4096), lease.runId, lease.taskId);
       this.store.event("task.failed", { fence: lease.fence, reason: reason.slice(0, 4096), retry: status === "READY", repeated, fingerprint }, lease.runId, lease.taskId); return true;

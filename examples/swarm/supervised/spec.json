@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "name": "supervised-rnd-demo",
+  "project": ".",
+  "baseRef": "HEAD",
+  "defaultAgent": "coder",
+  "agents": {
+    "coder": {
+      "protocol": "chat-completions",
+      "url": "http://127.0.0.1:8000/v1/chat/completions",
+      "model": "YOUR_DEPLOYED_MODEL_ID",
+      "system": "Implement only the assigned task. Read relevant scoped files, make the smallest correct patch, run the configured named check, and finish with a concise summary. Acceptance belongs to the independent verifier. Do not invent file contents or read credentials. Make one testable change at a time. Prefer named durable run_job capabilities for long remote work instead of keeping an SSH process open. A heartbeat is not verified progress. Use failures to reduce scope and change strategy.",
+      "tools": [
+        "list_files",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "delete_file",
+        "run_check",
+        "recall"
+      ],
+      "checks": [
+        "behavior"
+      ]
+    }
+  },
+  "checks": {
+    "behavior": {
+      "argv": [
+        "$NODE",
+        "./examples/swarm/verify-demo.mjs"
+      ],
+      "files": [
+        "./examples/swarm/verify-demo.mjs"
+      ],
+      "replaySafe": true
+    }
+  },
+  "integrationChecks": [
+    "behavior"
+  ],
+  "protectedPaths": [
+    "package.json",
+    "bun.lock",
+    "examples/swarm/verify-demo.mjs",
+    "examples/swarm/spec.json"
+  ],
+  "limits": {
+    "parallelism": 16,
+    "attempts": 3,
+    "contextBytes": 65536,
+    "outputBytes": 32768,
+    "timeoutMs": 1800000,
+    "tasks": 1000
+  },
+  "recipe": {
+    "parallelism": 8,
+    "attempts": 3,
+    "contextBytes": 32768,
+    "timeoutMs": 900000,
+    "scheduling": "critical-path",
+    "maxInFlightContextBytes": 262144,
+    "maxRepeatedFailures": 2,
+    "noProgressMs": 360000
+  },
+  "budget": {
+    "maxRequests": 256,
+    "maxRequestBytes": 16777216,
+    "maxTurns": 50,
+    "maxToolCalls": 100,
+    "modelConcurrency": 8,
+    "requestTimeoutMs": 120000,
+    "toolTimeoutMs": 30000,
+    "maxOutputTokens": 2048,
+    "maxToolOutputBytes": 262144,
+    "maxPatchBytes": 262144
+  },
+  "supervision": {
+    "reportEveryMs": 30000,
+    "checkpointEveryMs": 300000,
+    "snapshotReads": true
+  }
+}

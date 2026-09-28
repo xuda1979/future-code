@@ -1,7 +1,9 @@
+import { DeferredAttemptError } from "../continuation.ts";
+import { ResearchJobs } from "./jobs.ts";
 import { canonical, digest, invariant, allocateContext } from "../kernel.ts";
 import { FatalAttemptError } from "../errors.ts";
 import type { Store } from "../store.ts";
-import type { AttemptControl, Capsule, Driver, Json, Task, Verification, WorkerResult } from "../types.ts";
+import type { AttemptControl, Capsule, Driver, Json, Task, Verification, WorkerResult, Lease, Measurement } from "../types.ts";
 import { keys, type PinnedSwarm } from "./config.ts";
 import { inlineReceipt, type Call } from "./context.ts";
 import { HttpBrain } from "./model.ts";
@@ -33,12 +35,24 @@ export class SwarmDriver implements Driver {
     this.workerId = workerIdentity(cfg); this.verifierId = verifierIdentity(cfg);
     this.journal = new SessionJournal(store); this.brain = new HttpBrain(this.journal, fetcher);
   }
+  measurement(lease: Lease): Measurement {
+    return { tokens: this.journal.usage(lease.runId, lease.taskId, lease.fence).tokens, costUsd: null };
+  }
   async execute(c: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult> {
     const profile = this.cfg.spec.agents[c.task.agent ?? this.cfg.spec.defaultAgent]; invariant(profile, "unknown agent profile");
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
       contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. Do not delegate or edit infrastructure." }) }],
       turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null });
+    const resumed = c.fence > (t.state.lastFence ?? 0);
+    if (resumed) {
+      const prior = this.store.db.prepare("SELECT status FROM attempts WHERE run=? AND task=? AND fence<? ORDER BY fence DESC LIMIT 1").get(c.runId, c.task.id, c.fence);
+      if (prior && ["FAIL", "EXPIRED"].includes(prior.status)) {
+        // Defer the repair instruction until outstanding tool pairs are closed.
+        t.state.recoveryNote = "The previous episode failed or exceeded its deadline. The latest patch/checkpoints are preserved. Inspect failing checks, reduce the decision scope, and change strategy rather than repeating the same action. Use run_job for long external work.";
+      }
+      t.state.lastFence = c.fence;
+    }
     const feedbackHash = this.journal.feedback(c);
     if (t.state.output && feedbackHash && feedbackHash !== t.state.feedbackHash) {
       const feedback = this.store.readArtifact(feedbackHash);
@@ -56,6 +70,8 @@ export class SwarmDriver implements Driver {
     }
     const hands = this.backend.open(this.store, this.cfg, c, profile, signal, t.state.patchHash);
     const budget = this.cfg.spec.budget;
+    const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg) : null;
+    t.state.lastCheckAt ??= Date.now();
     if (this.contextPlan?.run !== c.runId || this.contextPlan.recipe !== c.recipeHash) {
       const allTasks: Task[] = this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(c.runId).map(r => JSON.parse(r.spec));
       this.contextPlan = { run: c.runId, recipe: c.recipeHash,
@@ -80,9 +96,13 @@ export class SwarmDriver implements Driver {
             }
             t.state.pending = call; this.journal.checkpoint(t, "tool.intent", call);
             let result: Json;
+            control?.activity?.(`tool:${call.name}`);
             try {
               invariant(profile.tools.includes(call.name as any), "tool not allowed");
-              if (call.name === "recall") {
+              if (call.name === "run_job") {
+                invariant(jobs, "no remote job templates configured");
+                result = await jobs.execute(c, profile, call, signal);
+              } else if (call.name === "recall") {
                 const a = call.arguments; keys(a, [], ["receipt", "offset", "length", "historyAfter", "limit"]);
                 if (a.receipt !== undefined) {
                   invariant(typeof a.receipt === "string" && a.historyAfter === undefined && a.limit === undefined, "ambiguous recall");
@@ -94,17 +114,40 @@ export class SwarmDriver implements Driver {
               } else result = await hands.tool(call);
             } catch (e) {
               signal.throwIfAborted(); this.journal.assertLease(c);
-              if (e instanceof FatalAttemptError) throw e;
+              if (e instanceof FatalAttemptError || e instanceof DeferredAttemptError) throw e;
               result = { error: e instanceof Error ? e.message.slice(0, 2048) : "tool error" };
             }
             // Snapshot even a failed tool: a trusted command may have partially edited files.
-            if (["write_file", "edit_file", "delete_file", "run_check"].includes(call.name)) t.state.patchHash = await hands.snapshot();
+            if (["write_file", "edit_file", "delete_file", "run_check"].includes(call.name)) {
+              const patch = await hands.snapshot();
+              if (patch !== t.state.patchHash) control?.progress(`patch:${patch}`);
+              t.state.patchHash = patch;
+            }
+            if (call.name === "run_check") { t.state.lastCheckAt = Date.now(); control?.checked?.(); }
             const receipt = this.journal.receipt(c, result);
             t.state.history.push({ role: "tool", callId: call.id, content: inlineReceipt(receipt, result) });
             t.state.pending = null; this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
-            control?.progress(`tool:${receipt}`);
+            control?.activity?.(`completed:${call.name}`);
           }
           continue;
+        }
+        if (t.state.recoveryNote) {
+          t.state.history.push({ role: "user", content: t.state.recoveryNote }); delete t.state.recoveryNote;
+          this.journal.checkpoint(t, "episode.recovery", { fence: c.fence });
+        }
+        const checkEvery = this.cfg.spec.supervision?.checkpointEveryMs;
+        if (checkEvery && !(t.state.history.at(-1)?.role === "assistant" && !t.state.history.at(-1)?.calls?.length) && Date.now() - t.state.lastCheckAt! >= checkEvery) {
+          // Safe tool boundary: do not interrupt a healthy remote experiment.
+          if (t.state.toolCalls >= budget.maxToolCalls) throw new FatalAttemptError("THREAD_TOOL_BUDGET_EXHAUSTED");
+          t.state.toolCalls++;
+          control?.activity?.("checkpoint:check");
+          const call: Call = { id: `checkpoint-${t.seq}`, name: "run_check", arguments: { name: profile.checks[0] } };
+          let check: Json;
+          try { check = await hands.tool(call); } catch (e) { signal.throwIfAborted(); check = { error: e instanceof Error ? e.message.slice(0, 512) : "checkpoint check failed" }; }
+          t.state.patchHash = await hands.snapshot();
+          const receipt = this.journal.receipt(c, check); t.state.lastCheckAt = Date.now(); control?.checked?.();
+          t.state.history.push({ role: "user", content: canonical({ checkpointCheck: inlineReceipt(receipt, check), instruction: "Use this diagnostic to choose a smaller next step. This is not final acceptance." }) });
+          this.journal.checkpoint(t, "checkpoint.checked", { receipt, patchHash: t.state.patchHash });
         }
         // A persisted model reply without tools represents a final answer.
         const last = t.state.history.at(-1)!;
@@ -115,10 +158,11 @@ export class SwarmDriver implements Driver {
         }
         if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
         this.journal.checkpoint(t, "model.intent", { step: t.state.turns });
+        control?.activity?.("model:request");
         const next = await this.brain.next(c, profile, t.state.history, budget, limit, signal, t.state.turns);
         t.state.history = [...next.history, next.turn.message]; t.state.turns++;
         this.journal.checkpoint(t, "model.reply", next.turn.message);
-        control?.progress(`model:${t.state.turns}:${digest(next.turn.message)}`);
+        control?.activity?.("model:reply");
       }
     } finally { await hands.dispose(); }
   }

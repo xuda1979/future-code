@@ -1,3 +1,5 @@
+import { formatHealth, type HealthObserver } from "../health.ts";
+import { superviseSwarm, objectiveStatus } from "./supervisor.ts";
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,13 +12,15 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   init --spec FILE --allow-exec
   run --tasks FILE --allow-exec
   resume --run ID --allow-exec
+  supervise --objective ID [--goal FILE --tasks FILE] --allow-exec
+  objective --objective ID
   status [--run ID] [--task-after TASK_ID]
   receipt --hash HASH [--offset N] [--length N]
   events --run ID --task ID [--after N]
   integrate --run ID --allow-exec
 All accept --root DIR (default .future-code/swarm).
 Local worktrees isolate edits, NOT hostile processes. Use only trusted code/checks.
-Run/resume call configured model endpoints and may incur charges. No background daemon is started.
+Run/resume call configured model endpoints and may incur charges. No background daemon is started. supervise stays attached and resumable until final checks pass or the operator pauses it.
 Integrate tests the merged tree and creates refs/heads/swarm/ID; it never edits main or pushes.`;
 export function tokenize(text: string): string[] {
   const out: string[] = []; let word = ""; let quote = ""; let started = false;
@@ -30,23 +34,31 @@ export function tokenize(text: string): string[] {
   invariant(!quote, "unterminated quote"); if (started) out.push(word); return out;
 }
 function file(path: string): any { invariant(statSync(path).size <= 32 * 1024 * 1024, "JSON input exceeds 32 MiB"); return JSON.parse(readFileSync(path, "utf8")); }
-export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal): Promise<Json> {
+export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal, onProgress: HealthObserver = r => console.error(formatHealth(r))): Promise<Json> {
   const cmd = argv[0] ?? "help"; if (cmd === "help") return { help };
-  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--allow-exec"]);
+  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--allow-exec"]);
   for (let i = 1; i < argv.length; i++) {
     const k = argv[i]; invariant(allowed.has(k) && !opts.has(k), `unknown/duplicate option ${k}`);
     if (k === "--allow-exec") opts.set(k, "true");
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "status", "receipt", "events", "integrate"].includes(cmd), "unknown swarm command");
-  if (["init", "run", "resume", "integrate"].includes(cmd)) need("--allow-exec");
+  invariant(["init", "run", "resume", "supervise", "objective", "status", "receipt", "events", "integrate"].includes(cmd), "unknown swarm command");
+  if (["init", "run", "resume", "supervise", "integrate"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
     switch (cmd) {
       case "init": { const cfg = await initializeSwarm(store, file(need("--spec")), signal); return { initialized: true, root: store.root, baseCommit: cfg.baseCommit }; }
-      case "run": return await runSwarm(store, file(need("--tasks")) as Task[], signal);
-      case "resume": return await runSwarm(store, [], signal, need("--run"));
+      case "run": return await runSwarm(store, file(need("--tasks")) as Task[], signal, undefined, undefined, onProgress);
+      case "resume": return await runSwarm(store, [], signal, need("--run"), undefined, onProgress);
+      case "supervise": {
+        const goalPath = opts.get("--goal");
+        if (goalPath) invariant(statSync(goalPath).size <= 16384, "goal file exceeds 16 KiB");
+        return await superviseSwarm(store, { id: need("--objective"),
+          ...(goalPath ? { goal: readFileSync(goalPath, "utf8") } : {}),
+          ...(opts.has("--tasks") ? { tasks: file(need("--tasks")) as Task[] } : {}) }, signal, onProgress);
+      }
+      case "objective": return objectiveStatus(store, need("--objective"));
       case "status": return swarmStatus(store, opts.get("--run"), opts.get("--task-after"));
       case "receipt": {
         const offset = Number(opts.get("--offset") ?? 0); const length = Number(opts.get("--length") ?? 4096);

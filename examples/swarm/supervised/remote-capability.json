@@ -1,0 +1,23 @@
+{
+  "adapter": {
+    "argv": [
+      "/usr/bin/ssh",
+      "-F",
+      "/absolute/path/research-ssh.conf",
+      "-o",
+      "BatchMode=yes",
+      "-o",
+      "ConnectTimeout=15",
+      "research-worker",
+      "python3 /opt/future-code/research-job-agent.py --root /srv/research/job-spool --config /opt/research/job-template.json"
+    ],
+    "files": [
+      "/absolute/path/research-ssh.conf"
+    ]
+  },
+  "idempotentEnsure": true,
+  "pollMs": 30000,
+  "staleMs": 900000,
+  "maxJobs": 4,
+  "maxConcurrent": 1
+}

@@ -15,7 +15,11 @@ Save the proposed plan in a user-approved JSON file. Do not silently initialize,
 run code, or integrate a branch: these require the user's explicit /swarm ... --allow-exec action.
 Use /swarm status/events for evidence. Task PASS is not integration PASS. Never merge into main
 or claim a live-model speedup without a matched measurement. Read docs/agent-platform/SWARM.md
-for the contract, commands, limits and recovery behavior.`
+for the contract, commands, limits and recovery behavior.
+For unattended work use /swarm supervise with a stable objective ID and final integration checks.
+Use named run_job capabilities for long remote work instead of blocking shell sessions. Independent
+ready tasks run in parallel up to the admitted resource ceilings; do not invent extra agents for
+blocked work. Require progress/check evidence in bounded episodes, not 30-minute silent monologues.`
 
 export const swarmPlan = {
   type: 'prompt',
@@ -35,7 +39,7 @@ export default {
   type: 'local',
   name: 'swarm',
   description: 'Run durable, scoped coding agents with the existing Foundry kernel',
-  argumentHint: 'help | init | run | resume | status | events | integrate',
+  argumentHint: 'help | init | run | resume | supervise | objective | status | events | integrate',
   supportsNonInteractive: true,
   disableModelInvocation: true,
   load: () => import('./swarm.ts'),

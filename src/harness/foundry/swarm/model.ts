@@ -1,4 +1,5 @@
 import { canonical, digest, invariant } from "../kernel.ts";
+import { DeferredAttemptError } from "../continuation.ts";
 import { FatalAttemptError } from "../errors.ts";
 import type { Capsule, Json } from "../types.ts";
 import type { AgentProfile, Protocol, SwarmBudget, ToolName } from "./config.ts";
@@ -11,6 +12,7 @@ const string = { type: "string" }; const integer = { type: "integer", minimum: 0
 const def = (name: ToolName, description: string, properties: Record<string, Json>, required: string[]): ToolDefinition =>
   ({ name, description, schema: { type: "object", properties, required, additionalProperties: false } });
 export const definitions: ToolDefinition[] = [
+  def("run_job", "Run a permitted external research job. The host persists its ID, releases this worker while waiting, and resumes with the result. Never launch duplicate work through run_check.", { name: string, input: {} }, ["name", "input"]),
   def("list_files", "List tracked and new files in the task's readable scopes. Paginated; paths only.", { offset: integer, limit: { type: "integer", minimum: 1, maximum: 200 } }, []),
   def("read_file", "Read a bounded line range of a non-symlink UTF-8 file in readable scopes.", { path: string, start: { type: "integer", minimum: 1 }, lines: { type: "integer", minimum: 1, maximum: 300 } }, ["path"]),
   def("write_file", "Write a UTF-8 file within the task's exclusive write scopes; use edit_file for small changes.", { path: string, content: string }, ["path", "content"]),
@@ -147,7 +149,11 @@ export class HttpBrain {
             const ms = Number.isFinite(parsed) ? parsed * 1000 : Number.isFinite(date) ? date : 1000;
             this.journal.cooldown(provider, Math.min(60000, Math.max(100, ms))); continue;
           }
-          throw new Error(`Model HTTP ${response.status}`);
+          if ([408, 425, 429, 500, 502, 503, 504, 529].includes(response.status)) {
+            const n = this.journal.usage(c.runId, c.task.id).requests;
+            throw new DeferredAttemptError("provider", Date.now() + Math.min(60000, 1000 * 2 ** Math.min(n - 1, 6)), `Provider HTTP ${response.status}; resume scheduled`);
+          }
+          throw new FatalAttemptError(`Model HTTP ${response.status}; credentials/configuration require attention`);
         }
         const raw = await boundedJson(response, budget.maxToolOutputBytes);
         const turn = decodeTurn(profile.protocol, raw);
@@ -155,8 +161,24 @@ export class HttpBrain {
         signal.throwIfAborted(); this.journal.assertLease(c);
         if (turn.truncated) throw new FatalAttemptError("Model output truncated; admit more output or split task");
         return { turn, history: projection };
+      } catch (e) {
+        signal.throwIfAborted();
+        if (isTransportFailure(e)) throw new DeferredAttemptError("provider", Date.now() + Math.min(60000, 1000 * 2 ** Math.min(this.journal.usage(c.runId, c.task.id).requests - 1, 6)), "Provider transport unavailable; replay-safe continuation scheduled");
+        throw e;
       } finally { if (!completed) this.journal.complete(id, null, null); }
     }
     throw new Error("model retry budget exhausted");
   }
+}
+
+/** Inspect bounded cause chains; syntax/schema errors are NOT network outages. */
+export function isTransportFailure(error: unknown): boolean {
+  let e = error as any; const seen = new Set<unknown>();
+  for (let n = 0; e && n < 8 && !seen.has(e); n++, e = e.cause) {
+    seen.add(e);
+    if (["TimeoutError", "APIConnectionError"].includes(e.name) ||
+      ["ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "EPIPE", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_SOCKET"].includes(e.code) ||
+      (e instanceof TypeError && /fetch failed|network|connection/i.test(e.message))) return true;
+  }
+  return false;
 }
