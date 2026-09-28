@@ -84,7 +84,9 @@ export interface RunReport {
 export interface SloResult {
   sloId: string;
   met: boolean;
-  observed: number;
+  /** Missing or invalid measurements remain unknown, never an invented zero. */
+  observed: number | null;
+  status?: "PASS" | "FAIL" | "UNKNOWN";
   threshold: number;
   op: MonitorSlo["op"];
 }

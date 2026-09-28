@@ -50,10 +50,20 @@ test("registry rejects unknown schema", () => {
 
 test("evaluateSLOs reports pass-rate met/unmet", () => {
   const m = { slos: [{ id: "p", metric: "pass_rate", op: "gte", threshold: 1.0 }] } as any;
-  const pass: RunReport = { runId: "r1", task: "t", startedAt: "", durationMs: 1, gates: [], metrics: { pass_rate: 1 }, sloResults: evaluateSLOs(m, { metrics: { pass_rate: 1 } } as any) };
-  const fail: RunReport = { runId: "r2", task: "t", startedAt: "", durationMs: 1, gates: [], metrics: { pass_rate: 0 }, sloResults: evaluateSLOs(m, { metrics: { pass_rate: 0 } } as any) };
+  const pass: RunReport = { runId: "r1", task: "t", startedAt: "", durationMs: 1, gates: [{ toolId: "unit", passed: true, exitCode: 0, durationMs: 1 }], metrics: { pass_rate: 1 }, sloResults: evaluateSLOs(m, { metrics: { pass_rate: 1 } } as any) };
+  const fail: RunReport = { runId: "r2", task: "t", startedAt: "", durationMs: 1, gates: [{ toolId: "unit", passed: false, exitCode: 1, durationMs: 1 }], metrics: { pass_rate: 0 }, sloResults: evaluateSLOs(m, { metrics: { pass_rate: 0 } } as any) };
+  // healthy() is fail-closed since the correctness guardrails patch: a report
+  // must carry at least one passing required gate — green SLOs alone (or a
+  // gate-less report) are not healthy, and SLOs must carry a finite observed
+  // measurement. evaluateSLOs still reports met/unmet per SLO as before.
+  const met = evaluateSLOs(m, { metrics: { pass_rate: 1 } } as any);
+  expect(met.find((s) => s.sloId === "p")!.met).toBe(true);
+  const unmet = evaluateSLOs(m, { metrics: { pass_rate: 0 } } as any);
+  expect(unmet.find((s) => s.sloId === "p")!.met).toBe(false);
   expect(healthy(pass)).toBe(true);
   expect(healthy(fail)).toBe(false);
+  const noGates = { ...pass, gates: [] } as RunReport;
+  expect(healthy(noGates)).toBe(false); // absent gate evidence is never healthy
   void summary;
 });
 

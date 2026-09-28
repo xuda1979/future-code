@@ -195,21 +195,14 @@ export const widenTimeoutOnHang: ImprovementRule = ({ manifest, report }) => {
       ? policyTarget
       : Math.min(current * 2, 600_000);
     if (target <= current) continue; // already at the 10-minute cap
-    // Keep config and SLOs coherent: if the new timeout ceiling exceeds the
-    // bounded-runtime SLO threshold, raise the threshold too — otherwise the
-    // config would permit (and the widened timeout encourage) runs the SLO
-    // permanently fails, and healthy() would never recover.
+    // Execution patience is not an acceptance threshold. Keep the original
+    // runtime SLO fixed so a slower run remains visible as a regression.
     const changes: Record<string, unknown> = { [`tools.${tool.id}.timeoutMs`]: target };
-    const runtimeSlo = manifest.slos.find((s) => s.id === "bounded-runtime");
-    if (runtimeSlo && runtimeSlo.threshold < target) {
-      changes["slos.bounded-runtime.threshold"] = target;
-    }
     const proposal: ImprovementProposal = {
       id: nextId(manifest),
       description: `Gate "${g.gateId}" hung and was killed at its ${current}ms timeout; widening tool "${tool.id}" timeout to ${target}ms.`,
       changes,
-      rationale: `timedOut[${g.gateId}]=true (killed at ${current}ms); slow_gate_seconds=${slowGateSeconds}; timeoutMs=${current}→${target}` +
-        (runtimeSlo && runtimeSlo.threshold < target ? `; slos.bounded-runtime.threshold=${runtimeSlo.threshold}→${target} (co-aligned)` : ""),
+      rationale: `timedOut[${g.gateId}]=true (killed at ${current}ms); slow_gate_seconds=${slowGateSeconds}; timeoutMs=${current}→${target}; acceptance thresholds unchanged`,
       approved: false,
     };
     return proposal;
@@ -218,10 +211,10 @@ export const widenTimeoutOnHang: ImprovementRule = ({ manifest, report }) => {
 };
 
 /**
- * Built-in rule: quarantine a gate that keeps failing across consecutive
- * runs. A gate failing N times in a row (default 3) is likely broken at the
- * project level (env drift, missing dependency) rather than flaky — demote
- * it to advisory so it stops blocking the harness while still surfacing.
+ * Legacy diagnostic proposal retained for API compatibility. Repeated failure
+ * does not prove that a gate is invalid. shouldApply/applyProposal reject this
+ * acceptance change; the operator must diagnose and repair the failure or
+ * explicitly create a separately reviewed acceptance-contract version.
  */
 export const quarantineRepeatFailure: ImprovementRule = ({ manifest, report, history }) => {
   const runs = history ?? [];
@@ -319,7 +312,7 @@ export const promoteStableAdvisoryGate: ImprovementRule = ({ manifest, report, h
   return null;
 };
 
-/** Default set of rules, in priority order. */
+/** Default proposals, including diagnostic-only gate proposals vetoed at application. */
 export const defaultRules: ImprovementRule[] = [widenContextOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow, widenTimeoutOnHang, quarantineRepeatFailure, promoteStableAdvisoryGate];
 
 /**
@@ -339,46 +332,53 @@ export function improve(manifest: HarnessManifest, report: RunReport, rules = de
     .filter((p): p is ImprovementProposal => p !== null);
 }
 
-/** True if a proposal should be applied (guardrail: never on no-op changes). */
+/** Automatic improvement changes execution policy, never acceptance policy.
+ * A persisted `approved` boolean is not operator authorization to rewrite a
+ * contract. Even direct callers of applyProposal must pass this allowlist.
+ */
 export function shouldApply(m: HarnessManifest, p: ImprovementProposal): boolean {
-  if (p.approved) return true;
-  // Conservative: apply only known safe knobs, and never allow unbounded growth.
-  if (p.changes["config.maxParallel"] && (p.changes["config.maxParallel"] as number) > 4) return false;
-  return true;
+  if (!p?.changes || typeof p.changes !== "object" || Array.isArray(p.changes)) return false;
+  const entries = Object.entries(p.changes);
+  if (!entries.length) return false;
+  let changed = false;
+  for (const [path, value] of entries) {
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) return false;
+    let current: number;
+    if (path === "config.maxParallel") {
+      if (value > 4) return false;
+      current = m.config.maxParallel;
+    } else if (path === "config.contextBudget") {
+      if (value > 8) return false;
+      current = m.config.contextBudget;
+    } else if (path.startsWith("tools.") && path.endsWith(".timeoutMs")) {
+      const id = path.slice("tools.".length, -".timeoutMs".length);
+      const tools = m.tools.filter(t => t.id === id);
+      if (tools.length !== 1 || value > 600_000) return false;
+      current = tools[0]!.timeoutMs ?? 60_000;
+    } else return false; // Gates, SLOs, commands and unknown paths are immutable here.
+    changed ||= value !== current;
+  }
+  return changed;
 }
 
-/** Apply a proposal's changes to a manifest and mark it approved+applied. */
+/** Validate the entire proposal before any mutation; mixed unsafe proposals
+ * cannot partially apply. Contract changes require a separately reviewed,
+ * versioned manifest, not a self-improvement shortcut.
+ */
 export function applyProposal(m: HarnessManifest, p: ImprovementProposal): HarnessManifest {
-  for (const [path, value] of Object.entries(p.changes ?? {})) {
+  if (!shouldApply(m, p)) throw new Error("Proposal rejected: immutable acceptance policy, invalid knob, or no-op");
+  for (const [path, value] of Object.entries(p.changes)) {
     if (path === "config.maxParallel") m.config.maxParallel = value as number;
     else if (path === "config.contextBudget") m.config.contextBudget = value as number;
-    else if (path.startsWith("tools.") && path.endsWith(".timeoutMs")) {
-      // Widen (or narrow) a tool timeout: tools.<id>.timeoutMs = <ms>
-      const toolId = path.slice("tools.".length, -".timeoutMs".length);
-      const tool = m.tools.find((t) => t.id === toolId);
-      if (tool) tool.timeoutMs = value as number;
-    }
-    else if (path.startsWith("gates.") && path.endsWith(".required")) {
-      // Quarantine/promote a gate: gates.<id>.required = false|true
-      const gateId = path.slice("gates.".length, -".required".length);
-      const gate = m.gates.find((g) => g.id === gateId);
-      if (gate) gate.required = Boolean(value);
-    }
-    else if (path.startsWith("slos.") && path.endsWith(".threshold")) {
-      // Align an SLO threshold: slos.<id>.threshold = <value>
-      const sloId = path.slice("slos.".length, -".threshold".length);
-      const slo = m.slos.find((s) => s.id === sloId);
-      if (slo) slo.threshold = value as number;
+    else {
+      const id = path.slice("tools.".length, -".timeoutMs".length);
+      m.tools.find(t => t.id === id)!.timeoutMs = value as number;
     }
   }
   p.approved = true;
   p.appliedAt = new Date().toISOString();
-  m.improvementHistory = m.improvementHistory ?? [];
-  m.improvementHistory.push(p);
-  // Keep the audit trail bounded — the same policy as runHistory: the most
-  // recent decisions are what the improver and humans inspect; an unbounded
-  // trail would bloat the manifest without adding signal.
-  if (m.improvementHistory.length > 100) m.improvementHistory = m.improvementHistory.slice(-100);
+  // Keep an immutable value snapshot: later caller edits must not rewrite history.
+  m.improvementHistory = [...(m.improvementHistory ?? []), structuredClone(p)].slice(-100);
   return m;
 }
 

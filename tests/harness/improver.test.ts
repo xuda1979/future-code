@@ -9,7 +9,7 @@ import { build } from "../../src/harness/builder/index.ts";
 import { loadManifest } from "../../src/harness/registry.ts";
 import { improve, applyProposal, shouldApply, defaultRules, widenContextOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow, widenTimeoutOnHang } from "../../src/harness/improver/index.ts";
 import { annotate } from "../../src/harness/monitor/index.ts";
-import type { RunReport, HarnessManifest, HarnessRunRecord } from "../../src/harness/types.ts";
+import type { RunReport, HarnessManifest, HarnessRunRecord, ImprovementProposal } from "../../src/harness/types.ts";
 
 function tempProject(files: Record<string, string>): string {
   const dir = mkdtempSync(join(tmpdir(), "harness-imp-"));
@@ -27,7 +27,10 @@ function makeReport(passed: boolean, durationMs: number, passRate?: number): Run
     startedAt: new Date().toISOString(),
     durationMs,
     gates: [{ toolId: "test-tool", passed, exitCode: passed ? 0 : 1, durationMs }],
-    metrics: { pass_rate: pr, required_pass_rate: pr, runtime_ms: durationMs, gate_count: 1 },
+    // Mirrors the production metric set (harness/runtime): context_utilization
+    // is a measured zero, not an absent metric — evaluateSLOs/healthy are
+    // fail-closed, so a fixture that omits it is never genuinely healthy.
+    metrics: { pass_rate: pr, required_pass_rate: pr, timeout_count: 0, runtime_ms: durationMs, gate_count: 1, context_budget: 4096, context_used: 0, context_utilization: 0 },
     sloResults: [],
   };
 }
@@ -404,16 +407,14 @@ test("widenTimeoutOnHang is included in defaultRules", () => {
   expect(defaultRules).toContain(widenTimeoutOnHang);
 });
 
-// --- SLO/threshold co-alignment when widening timeouts ---
+// --- Acceptance thresholds stay frozen while execution timeouts adapt ---
 
-test("widenTimeoutOnHang co-aligns the bounded-runtime SLO when the new timeout exceeds it", () => {
+test("widenTimeoutOnHang preserves bounded-runtime SLO when the new timeout exceeds it", () => {
   const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}", "bunfig.toml": "" });
   build(dir, { harnessId: "hang-slo" });
   const m = loadManifest(dir);
-  // A gate killed at the implicit 60s escalates to 120s — beyond the
-  // bounded-runtime SLO threshold (60_000), so the proposal must raise both
-  // the tool timeout and the SLO threshold so the config never permits what
-  // the SLO forbids.
+  // A longer execution timeout may help diagnosis, but it cannot change
+  // the latency promised by the original acceptance contract.
   const report: RunReport = {
     runId: crypto.randomUUID(),
     task: "hang-slo",
@@ -426,35 +427,36 @@ test("widenTimeoutOnHang co-aligns the bounded-runtime SLO when the new timeout 
   const proposal = widenTimeoutOnHang({ manifest: m, report });
   expect(proposal).not.toBeNull();
   expect(proposal!.changes["tools.bun-test.timeoutMs"]).toBe(120_000);
-  expect(proposal!.changes["slos.bounded-runtime.threshold"]).toBe(120_000);
-  expect(proposal!.rationale).toContain("co-aligned");
+  expect(proposal!.changes["slos.bounded-runtime.threshold"]).toBeUndefined();
+  expect(proposal!.rationale).toContain("acceptance thresholds unchanged");
 
-  // Applying must actually raise both.
+  // Only the execution timeout changes.
   const m3 = applyProposal(m, proposal!);
   expect(m3.tools.find((t) => t.id === "bun-test")!.timeoutMs).toBe(120_000);
-  expect(m3.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(120_000);
+  expect(m3.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(60_000);
 });
 
-test("applyProposal handles slos.<id>.threshold changes", () => {
+test("applyProposal rejects slos.<id>.threshold changes", () => {
   const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
   build(dir, { harnessId: "slo-apply" });
   const m = loadManifest(dir);
   const before = m.slos.find((s) => s.id === "bounded-runtime")!.threshold;
   expect(before).toBe(60_000);
-  const m2 = applyProposal(m, {
+  expect(() => applyProposal(m, {
     id: "imp-slo-1",
     description: "raise runtime SLO",
     changes: { "slos.bounded-runtime.threshold": 90_000 },
     rationale: "test",
     approved: false,
-  });
-  expect(m2.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(90_000);
+  })).toThrow(/immutable acceptance policy/);
+  expect(m.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(before);
 });
 
 test("applyProposal caps the improvement history at 100 entries", () => {
   const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
   build(dir, { harnessId: "cap-hist" });
   const m = loadManifest(dir);
+  m.config.maxParallel = 4; // every tested proposal must be an effective change
   for (let i = 0; i < 130; i++) {
     applyProposal(m, {
       id: `imp-cap-${i}`,

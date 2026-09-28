@@ -1,0 +1,1143 @@
+diff --git a/docs/agent-platform/CORRECTNESS_GUARDRAILS.md b/docs/agent-platform/CORRECTNESS_GUARDRAILS.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c0e780cc3dc2706323fd557d9908d40ea41e047
+--- /dev/null
++++ b/docs/agent-platform/CORRECTNESS_GUARDRAILS.md
+@@ -0,0 +1,117 @@
++# Acceptance and recovery guardrails
++
++Base revision: `895dfbad639be09a111cbbf4fe3ea71ccee7b263`.
++
++## Guarantees introduced by this patch
++
++### Acceptance policy is not an optimization knob
++
++`shouldApply` admits only positive, integral, bounded execution-policy changes:
++parallelism (at most 4), context multiplier (at most 8), and existing tool timeouts
++(at most 600,000 ms). Empty/no-op proposals and unknown paths are rejected.
++`applyProposal` repeats the complete validation before any write. A mixed
++proposal is rejected atomically. `approved: true` is not an authorization bypass.
++
++Gate requiredness, SLO thresholds, and command definitions cannot be changed by
++this improver. A timeout increase does not relax the promised runtime threshold.
++Legacy quarantine/promotion rules remain inspectable as diagnostic proposals;
++both automatic and direct application are denied. Gate-policy changes require a
++separately reviewed/versioned manifest, not another self-improvement iteration.
++
++An already weakened manifest is not silently repaired by this patch. Before
++resuming unattended work, compare existing gate/SLO definitions and improvement
++history with the intended acceptance baseline. Restore or replace the manifest
++through an explicit review; do not compare results across changed contracts.
++
++### Measurements and health fail closed
++
++A missing, nonnumeric, or nonfinite SLO observation is represented as
++`observed: null`, `status: "UNKNOWN"`, `met: false`. Measured zero remains zero.
++Health requires at least one required gate, all required gates passing without a
++timeout, and valid passing SLO observations. A fabricated pass-rate of 1 cannot
++make an empty or wholly advisory run healthy.
++
++### Committed model responses are recovered before diagnostics
++
++The provider-response transaction can complete before the thread checkpoint.
++Recovery first checks for a committed reply at the current logical step, derives
++the original provider request using the same context projection, and verifies
++its request hash. It then consumes/checkpoints the reply before adding recovery
++instructions or periodic-check feedback. A final assistant reply is converted to
++a worker artifact before diagnostics can turn it into a new model request.
++
++Replay preserves lease fencing, response validation, truncation rejection,
++request accounting, thread turn counts, and independent verification. It issues
++no new RPC or reservation. A model's final text still does not accept the task.
++No database migration or reset is required.
++
++### Queued startup is reconciled without replaying uncertain execution
++
++Both `ensure` and `inspect` reconcile a job still durably `QUEUED`. Startup state
++is inspected/updated under `worker.lock`, inside the existing registry lock.
++Retries are spaced by five seconds and capped at three persisted launch
++attempts. Every runner reacquires the worker lock and publishes `RUNNING` before
++invoking the trusted command. A delayed runner cannot execute a terminal job.
++
++When all startup attempts are exhausted and the record remains `QUEUED` without
++a worker lock, the endpoint returns `FAILED` with an explicit startup error. The
++host can then release the remote-capacity reservation. A transient spawn error
++preserves the stable job ID instead of producing an unreconcilable submission.
++
++`RUNNING` without ownership remains `UNKNOWN`. It is never automatically
++resubmitted. A lost connection does not establish that a research job stopped.
++Corrupt state is preserved for reconciliation, never erased to force progress.
++
++## Regression gate
++
++From the repository root on Linux/macOS/WSL, with Node >=22.13, Python 3, and Git:
++
++```sh
++node scripts/test-correctness.mjs
++```
++
++The gate runs 24 new TypeScript tests, 8 new Python tests, and the 7 existing
++Python remote-job tests. It installs nothing and invokes no real model endpoint
++or accelerator. The replay tests exit a real child process immediately before
++`model.reply` is checkpointed, reopen the SQLite store, and recover the saved
++response. Another test applies a replayed write in an actual Git worktree and
++runs independent patch verification. Request tampering, stale fences, and
++truncated responses remain negative controls.
++
++Legacy Bun tests that expected automatic gate demotion or SLO relaxation have
++been updated to assert rejection and preservation of the original contract.
++Run these, then the repository's complete test/build gates, in the deployment
++environment:
++
++```sh
++bun test tests/harness/improver.test.ts tests/harness/multilang.test.ts
++```
++
++The focused gate does not replace the full suite, compiled CLI boot checks,
++live-provider canaries, or target remote-compute validation.
++
++## Deliberate scope boundaries
++
++This patch fixes acceptance weakening, missing-measurement success, committed
++reply recovery, and abandoned queued startup. It does not implement the following
++larger review recommendations:
++
++- automatic candidate-code/data staging and remote experiment attestation;
++- autonomous, versioned repair-plan admission after integration failure;
++- multi-host scheduling, KV-cache sharing, or learned concurrency control;
++- correction of the legacy `progressDensity` denominator or clean-build packaging.
++
++Remote wrappers must still authenticate the exact candidate tree/patch, data
++manifest, environment, checkpoint, and evaluation contract before expensive
++execution. A successful process exit is not scientific acceptance. An objective
++in `NEEDS_ATTENTION` still requires intervention where no admitted repair plan
++exists. Do not present this patch as removing those limitations.
++
++## Applying and reverting
++
++Use a clean branch from the base revision and run `git apply --check` before
++applying the supplied patch. Run the focused gate before committing. Reverting
++with `git apply -R --check` followed by `git apply -R` is appropriate only before
++further edits to the affected files; otherwise revert the committed change.
++Persistent job records contain additive startup bookkeeping. Removing the patch
++does not delete records, experiments, checkpoints, or branches.
+diff --git a/scripts/research-job-agent.py b/scripts/research-job-agent.py
+index 9be3d65fb9f3b5e84b27b2a2111bff643aff0182..4b2e5e1bf80a4a7906a5b52668a2385d8a6600eb 100644
+--- a/scripts/research-job-agent.py
++++ b/scripts/research-job-agent.py
+@@ -11,6 +11,7 @@ import argparse
+ import fcntl
+ import hashlib
+ import json
++import math
+ import os
+ from pathlib import Path
+ import re
+@@ -22,6 +23,10 @@ import time
+ from typing import Any
+ 
+ MAX_REQUEST = 1024 * 1024
++# Startup is replayable only while the durable state is QUEUED. A runner
++# publishes RUNNING under worker.lock before invoking any user command.
++STARTUP_RETRY_SECONDS = 5.0
++MAX_STARTUP_ATTEMPTS = 3
+ 
+ 
+ def encoded(value: Any) -> bytes:
+@@ -101,6 +106,47 @@ def observation(directory: Path, key: str) -> dict[str, Any]:
+     return reply
+ 
+ 
++def reconcile_startup(directory: Path) -> None:
++    """Called under registry.lock by ensure AND inspect.
++
++    Recover a runner lost before RUNNING, never a possibly executed job. Read
++    and update QUEUED under worker.lock so startup bookkeeping cannot overwrite
++    a concurrent RUNNING publication. Release it before spawning the runner.
++    """
++    with open(directory / "worker.lock", "a+b") as guard:
++        try:
++            fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
++        except BlockingIOError:
++            return
++        state = read(directory / "state.json")
++        if state["status"] != "QUEUED":
++            return
++        attempts = state.get("launchAttempts", 0)
++        last = state.get("launchRequestedAt")
++        if type(attempts) is not int or not 0 <= attempts <= MAX_STARTUP_ATTEMPTS:
++            raise ValueError("invalid durable startup counter")
++        if last is not None and (type(last) not in (int, float) or not math.isfinite(last)):
++            raise ValueError("invalid durable startup timestamp")
++        now = time.time()
++        if last is not None and 0 <= now - last < STARTUP_RETRY_SECONDS:
++            return
++        if attempts >= MAX_STARTUP_ATTEMPTS:
++            atomic(directory / "state.json", {**state, "status": "FAILED", "result": {
++                "exitCode": None, "error": "startup retry budget exhausted before command execution; inspect runner infrastructure"}})
++            return
++        atomic(directory / "state.json", {**state, "launchAttempts": attempts + 1, "launchRequestedAt": now})
++    # A delayed older runner can win the lock. Every runner rechecks QUEUED;
++    # exactly one can publish RUNNING, including after concurrent inspections.
++    try:
++        subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--worker", str(directory)],
++                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
++                         stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
++    except OSError:
++        # Keep the stable job ID and retryable QUEUED record. Returning a fatal
++        # adapter error here would strand the host's remote-capacity reservation.
++        pass
++
++
+ def endpoint(root: Path, config: Path, request: Any) -> dict[str, Any]:
+     if not isinstance(request, dict) or request.get("schema") != 1:
+         raise ValueError("invalid request")
+@@ -130,13 +176,7 @@ def endpoint(root: Path, config: Path, request: Any) -> dict[str, Any]:
+             # State loss or corruption requires reconciliation; do not erase it.
+             if read(directory / "request.json")["identity"] != identity:
+                 raise ValueError("job input/template drift")
+-        state = read(directory / "state.json")
+-        if request["operation"] == "ensure" and state["status"] == "QUEUED":
+-            # Competing runners acquire worker.lock, then check QUEUED again.
+-            # Publishing RUNNING happens before executing the user's command.
+-            subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--worker", str(directory)],
+-                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+-                             stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
++        reconcile_startup(directory)
+         return observation(directory, key)
+ 
+ 
+diff --git a/scripts/test-correctness.mjs b/scripts/test-correctness.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..c79e0355091b06646864b83315a0a2ecdc58faf5
+--- /dev/null
++++ b/scripts/test-correctness.mjs
+@@ -0,0 +1,25 @@
++#!/usr/bin/env node
++/** Offline correctness regression gate; no package install or paid API calls. */
++import { spawnSync } from "node:child_process";
++import { dirname, resolve } from "node:path";
++import { fileURLToPath } from "node:url";
++const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
++const [major, minor] = process.versions.node.split(".").map(Number);
++if (major < 22 || (major === 22 && minor < 13) || process.platform === "win32") {
++  console.error("Use Node >=22.13 on Linux/macOS/WSL (node:sqlite and POSIX process groups required).");
++  process.exit(1);
++}
++function gate(command, args, timeout) {
++  console.error(`\nGATE ${command} ${args.join(" ")}`);
++  const result = spawnSync(command, args, { cwd: root, stdio: "inherit", timeout, env: process.env });
++  if (result.error || result.signal || result.status !== 0) {
++    console.error(result.error?.message ?? `Gate failed: status=${result.status}, signal=${result.signal ?? "none"}`);
++    process.exit(result.status && result.status > 0 ? result.status : 1);
++  }
++}
++gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurrency=1",
++  "tests/correctness/acceptance.test.ts", "tests/correctness/replay.test.ts"], 120000);
++const python = process.env.PYTHON ?? "python3";
++gate(python, ["-m", "unittest", "discover", "-s", "tests/correctness", "-p", "test_*.py", "-v"], 60000);
++gate(python, ["-m", "unittest", "discover", "-s", "tests/research-jobs", "-p", "test_*.py", "-v"], 120000);
++console.error("\nCorrectness gates passed. This is not a full Bun/CLI or live-provider certification.");
+diff --git a/src/harness/foundry/swarm/driver.ts b/src/harness/foundry/swarm/driver.ts
+index 5cfdd49d8d00297d13711290d99d22e62d847421..abb4fd408719296ef9143989ac1da27b8a70cd98 100644
+--- a/src/harness/foundry/swarm/driver.ts
++++ b/src/harness/foundry/swarm/driver.ts
+@@ -131,6 +131,22 @@ export class SwarmDriver implements Driver {
+           }
+           continue;
+         }
++        // The provider response and thread checkpoint are separate commits.
++        // After a crash, consume the saved reply under its ORIGINAL request hash
++        // before adding recovery notes or periodic-check feedback.
++        const replay = this.brain.replay(c, profile, t.state.history, budget, limit, t.state.turns);
++        if (replay) {
++          t.state.history = [...replay.history, replay.turn.message]; t.state.turns++;
++          this.journal.checkpoint(t, "model.reply", replay.turn.message);
++          control?.activity?.("model:replay"); continue;
++        }
++        // A persisted model reply without tools represents a final answer.
++        const last = t.state.history.at(-1)!;
++        if (last.role === "assistant" && !last.calls?.length) {
++          const patchHash = t.state.patchHash ?? this.store.artifact("");
++          t.state.output = { schema: 1, patchHash, summary: last.content.slice(0, 4096) };
++          this.journal.checkpoint(t, "worker.output", t.state.output); continue;
++        }
+         if (t.state.recoveryNote) {
+           t.state.history.push({ role: "user", content: t.state.recoveryNote }); delete t.state.recoveryNote;
+           this.journal.checkpoint(t, "episode.recovery", { fence: c.fence });
+@@ -149,13 +165,6 @@ export class SwarmDriver implements Driver {
+           t.state.history.push({ role: "user", content: canonical({ checkpointCheck: inlineReceipt(receipt, check), instruction: "Use this diagnostic to choose a smaller next step. This is not final acceptance." }) });
+           this.journal.checkpoint(t, "checkpoint.checked", { receipt, patchHash: t.state.patchHash });
+         }
+-        // A persisted model reply without tools represents a final answer.
+-        const last = t.state.history.at(-1)!;
+-        if (last.role === "assistant" && !last.calls?.length) {
+-          const patchHash = t.state.patchHash ?? this.store.artifact("");
+-          t.state.output = { schema: 1, patchHash, summary: last.content.slice(0, 4096) };
+-          this.journal.checkpoint(t, "worker.output", t.state.output); continue;
+-        }
+         if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
+         this.journal.checkpoint(t, "model.intent", { step: t.state.turns });
+         control?.activity?.("model:request");
+diff --git a/src/harness/foundry/swarm/model.ts b/src/harness/foundry/swarm/model.ts
+index 54086cd6005fe6c40066fb2cf1c92cc3c029eb24..5c58ba9e28715e87cbdfda8d590782a867356220 100644
+--- a/src/harness/foundry/swarm/model.ts
++++ b/src/harness/foundry/swarm/model.ts
+@@ -110,7 +110,7 @@ export async function boundedJson(response: Response, maxBytes: number): Promise
+ export class HttpBrain {
+   readonly journal: SessionJournal; readonly fetcher: typeof fetch;
+   constructor(journal: SessionJournal, fetcher: typeof fetch = fetch) { this.journal = journal; this.fetcher = fetcher; }
+-  async next(c: Capsule, profile: AgentProfile, history: Message[], budget: SwarmBudget, contextBytes: number, signal: AbortSignal, step = 0): Promise<{ turn: Turn; history: Message[] }> {
++  private project(profile: AgentProfile, history: Message[], budget: SwarmBudget, contextBytes: number): { projection: Message[]; body: Json } {
+     let projection = history;
+     let body = requestBody(profile, projection, budget);
+     // Enforce the actual provider input, including system and tool definitions.
+@@ -120,12 +120,26 @@ export class HttpBrain {
+       body = requestBody(profile, projection, budget);
+     }
+     if (bytes(body) > contextBytes) throw new FatalAttemptError("CONTEXT_OVERFLOW: encoded provider request exceeds admitted context");
+-    const cached = this.journal.cached(c, step, body);
+-    if (cached) {
+-      const turn = decodeTurn(profile.protocol, cached);
+-      if (turn.truncated) throw new FatalAttemptError("Model output truncated");
+-      return { turn, history: projection };
+-    }
++    return { projection, body };
++  }
++  private readReply(c: Capsule, profile: AgentProfile, projection: Message[], body: Json, step: number): { turn: Turn; history: Message[] } | null {
++    const raw = this.journal.cached(c, step, body);
++    if (raw === null) return null;
++    const turn = decodeTurn(profile.protocol, raw);
++    if (turn.truncated) throw new FatalAttemptError("Model output truncated");
++    return { turn, history: projection };
++  }
++  /** Consume a durable reply before recovery/checkpoint diagnostics mutate its
++   * original input. No RPC, reservation, or spend is generated by replay. */
++  replay(c: Capsule, profile: AgentProfile, history: Message[], budget: SwarmBudget, contextBytes: number, step: number): { turn: Turn; history: Message[] } | null {
++    if (!this.journal.hasReply(c, step)) return null;
++    const { projection, body } = this.project(profile, history, budget, contextBytes);
++    return this.readReply(c, profile, projection, body, step);
++  }
++  async next(c: Capsule, profile: AgentProfile, history: Message[], budget: SwarmBudget, contextBytes: number, signal: AbortSignal, step = 0): Promise<{ turn: Turn; history: Message[] }> {
++    const { projection, body } = this.project(profile, history, budget, contextBytes);
++    const replay = this.readReply(c, profile, projection, body, step);
++    if (replay) return replay;
+     const headers: Record<string, string> = { "content-type": "application/json" };
+     if (profile.protocol === "anthropic") headers["anthropic-version"] = "2023-06-01";
+     if (profile.keyEnv) {
+diff --git a/src/harness/foundry/swarm/session.ts b/src/harness/foundry/swarm/session.ts
+index 71dfbe7875dfaa7726bd67c929a070deace2a202..27fb963690d8f7c890dd30ed7145a1a4a1f68960 100644
+--- a/src/harness/foundry/swarm/session.ts
++++ b/src/harness/foundry/swarm/session.ts
+@@ -145,6 +145,12 @@ export class SessionJournal {
+       await delay(50, undefined, { signal });
+     }
+   }
++  hasReply(c: Capsule, step: number): boolean {
++    this.assertLease(c);
++    invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");
++    return !!this.store.db.prepare("SELECT 1 FROM agent_replies WHERE run=? AND task=? AND step=?")
++      .get(c.runId, c.task.id, step);
++  }
+   cached(c: Capsule, step: number, body: Json): Json | null {
+     this.assertLease(c);
+     const row = this.store.db.prepare("SELECT body,response FROM agent_replies WHERE run=? AND task=? AND step=?").get(c.runId, c.task.id, step);
+diff --git a/src/harness/improver/index.ts b/src/harness/improver/index.ts
+index c376389b2845a1e48b951250ccf176e5d967a3f7..d26c2fb89c7faf531f62d0000f2772fbf3d0e853 100644
+--- a/src/harness/improver/index.ts
++++ b/src/harness/improver/index.ts
+@@ -195,21 +195,14 @@ export const widenTimeoutOnHang: ImprovementRule = ({ manifest, report }) => {
+       ? policyTarget
+       : Math.min(current * 2, 600_000);
+     if (target <= current) continue; // already at the 10-minute cap
+-    // Keep config and SLOs coherent: if the new timeout ceiling exceeds the
+-    // bounded-runtime SLO threshold, raise the threshold too — otherwise the
+-    // config would permit (and the widened timeout encourage) runs the SLO
+-    // permanently fails, and healthy() would never recover.
++    // Execution patience is not an acceptance threshold. Keep the original
++    // runtime SLO fixed so a slower run remains visible as a regression.
+     const changes: Record<string, unknown> = { [`tools.${tool.id}.timeoutMs`]: target };
+-    const runtimeSlo = manifest.slos.find((s) => s.id === "bounded-runtime");
+-    if (runtimeSlo && runtimeSlo.threshold < target) {
+-      changes["slos.bounded-runtime.threshold"] = target;
+-    }
+     const proposal: ImprovementProposal = {
+       id: nextId(manifest),
+       description: `Gate "${g.gateId}" hung and was killed at its ${current}ms timeout; widening tool "${tool.id}" timeout to ${target}ms.`,
+       changes,
+-      rationale: `timedOut[${g.gateId}]=true (killed at ${current}ms); slow_gate_seconds=${slowGateSeconds}; timeoutMs=${current}→${target}` +
+-        (runtimeSlo && runtimeSlo.threshold < target ? `; slos.bounded-runtime.threshold=${runtimeSlo.threshold}→${target} (co-aligned)` : ""),
++      rationale: `timedOut[${g.gateId}]=true (killed at ${current}ms); slow_gate_seconds=${slowGateSeconds}; timeoutMs=${current}→${target}; acceptance thresholds unchanged`,
+       approved: false,
+     };
+     return proposal;
+@@ -218,10 +211,10 @@ export const widenTimeoutOnHang: ImprovementRule = ({ manifest, report }) => {
+ };
+ 
+ /**
+- * Built-in rule: quarantine a gate that keeps failing across consecutive
+- * runs. A gate failing N times in a row (default 3) is likely broken at the
+- * project level (env drift, missing dependency) rather than flaky — demote
+- * it to advisory so it stops blocking the harness while still surfacing.
++ * Legacy diagnostic proposal retained for API compatibility. Repeated failure
++ * does not prove that a gate is invalid. shouldApply/applyProposal reject this
++ * acceptance change; the operator must diagnose and repair the failure or
++ * explicitly create a separately reviewed acceptance-contract version.
+  */
+ export const quarantineRepeatFailure: ImprovementRule = ({ manifest, report, history }) => {
+   const runs = history ?? [];
+@@ -319,7 +312,7 @@ export const promoteStableAdvisoryGate: ImprovementRule = ({ manifest, report, h
+   return null;
+ };
+ 
+-/** Default set of rules, in priority order. */
++/** Default proposals, including diagnostic-only gate proposals vetoed at application. */
+ export const defaultRules: ImprovementRule[] = [widenContextOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow, widenTimeoutOnHang, quarantineRepeatFailure, promoteStableAdvisoryGate];
+ 
+ /**
+@@ -339,46 +332,53 @@ export function improve(manifest: HarnessManifest, report: RunReport, rules = de
+     .filter((p): p is ImprovementProposal => p !== null);
+ }
+ 
+-/** True if a proposal should be applied (guardrail: never on no-op changes). */
++/** Automatic improvement changes execution policy, never acceptance policy.
++ * A persisted `approved` boolean is not operator authorization to rewrite a
++ * contract. Even direct callers of applyProposal must pass this allowlist.
++ */
+ export function shouldApply(m: HarnessManifest, p: ImprovementProposal): boolean {
+-  if (p.approved) return true;
+-  // Conservative: apply only known safe knobs, and never allow unbounded growth.
+-  if (p.changes["config.maxParallel"] && (p.changes["config.maxParallel"] as number) > 4) return false;
+-  return true;
++  if (!p?.changes || typeof p.changes !== "object" || Array.isArray(p.changes)) return false;
++  const entries = Object.entries(p.changes);
++  if (!entries.length) return false;
++  let changed = false;
++  for (const [path, value] of entries) {
++    if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) return false;
++    let current: number;
++    if (path === "config.maxParallel") {
++      if (value > 4) return false;
++      current = m.config.maxParallel;
++    } else if (path === "config.contextBudget") {
++      if (value > 8) return false;
++      current = m.config.contextBudget;
++    } else if (path.startsWith("tools.") && path.endsWith(".timeoutMs")) {
++      const id = path.slice("tools.".length, -".timeoutMs".length);
++      const tools = m.tools.filter(t => t.id === id);
++      if (tools.length !== 1 || value > 600_000) return false;
++      current = tools[0]!.timeoutMs ?? 60_000;
++    } else return false; // Gates, SLOs, commands and unknown paths are immutable here.
++    changed ||= value !== current;
++  }
++  return changed;
+ }
+ 
+-/** Apply a proposal's changes to a manifest and mark it approved+applied. */
++/** Validate the entire proposal before any mutation; mixed unsafe proposals
++ * cannot partially apply. Contract changes require a separately reviewed,
++ * versioned manifest, not a self-improvement shortcut.
++ */
+ export function applyProposal(m: HarnessManifest, p: ImprovementProposal): HarnessManifest {
+-  for (const [path, value] of Object.entries(p.changes ?? {})) {
++  if (!shouldApply(m, p)) throw new Error("Proposal rejected: immutable acceptance policy, invalid knob, or no-op");
++  for (const [path, value] of Object.entries(p.changes)) {
+     if (path === "config.maxParallel") m.config.maxParallel = value as number;
+     else if (path === "config.contextBudget") m.config.contextBudget = value as number;
+-    else if (path.startsWith("tools.") && path.endsWith(".timeoutMs")) {
+-      // Widen (or narrow) a tool timeout: tools.<id>.timeoutMs = <ms>
+-      const toolId = path.slice("tools.".length, -".timeoutMs".length);
+-      const tool = m.tools.find((t) => t.id === toolId);
+-      if (tool) tool.timeoutMs = value as number;
+-    }
+-    else if (path.startsWith("gates.") && path.endsWith(".required")) {
+-      // Quarantine/promote a gate: gates.<id>.required = false|true
+-      const gateId = path.slice("gates.".length, -".required".length);
+-      const gate = m.gates.find((g) => g.id === gateId);
+-      if (gate) gate.required = Boolean(value);
+-    }
+-    else if (path.startsWith("slos.") && path.endsWith(".threshold")) {
+-      // Align an SLO threshold: slos.<id>.threshold = <value>
+-      const sloId = path.slice("slos.".length, -".threshold".length);
+-      const slo = m.slos.find((s) => s.id === sloId);
+-      if (slo) slo.threshold = value as number;
++    else {
++      const id = path.slice("tools.".length, -".timeoutMs".length);
++      m.tools.find(t => t.id === id)!.timeoutMs = value as number;
+     }
+   }
+   p.approved = true;
+   p.appliedAt = new Date().toISOString();
+-  m.improvementHistory = m.improvementHistory ?? [];
+-  m.improvementHistory.push(p);
+-  // Keep the audit trail bounded — the same policy as runHistory: the most
+-  // recent decisions are what the improver and humans inspect; an unbounded
+-  // trail would bloat the manifest without adding signal.
+-  if (m.improvementHistory.length > 100) m.improvementHistory = m.improvementHistory.slice(-100);
++  // Keep an immutable value snapshot: later caller edits must not rewrite history.
++  m.improvementHistory = [...(m.improvementHistory ?? []), structuredClone(p)].slice(-100);
+   return m;
+ }
+ 
+diff --git a/src/harness/monitor/index.ts b/src/harness/monitor/index.ts
+index 545391b36088a329744f6f94e170968605b619d3..8d98e06258a8fafe7f7773deb1f703d6a5b164f4 100644
+--- a/src/harness/monitor/index.ts
++++ b/src/harness/monitor/index.ts
+@@ -12,7 +12,11 @@ import { resolveBudget, boundedMonitorContext, compactRunReport, compactRunHisto
+ /** Evaluate every SLO in the manifest against a run report. */
+ export function evaluateSLOs(manifest: HarnessManifest, report: RunReport): SloResult[] {
+   return manifest.slos.map((slo) => {
+-    const observed = report.metrics[slo.metric] ?? 0;
++    const raw = Object.hasOwn(report.metrics, slo.metric) ? report.metrics[slo.metric] : undefined;
++    const observed = typeof raw === "number" && Number.isFinite(raw) ? raw : null;
++    if (observed === null || !Number.isFinite(slo.threshold)) {
++      return { sloId: slo.id, met: false, observed, threshold: slo.threshold, op: slo.op, status: "UNKNOWN" as const };
++    }
+     let met = false;
+     switch (slo.op) {
+       case "gte": met = observed >= slo.threshold; break;
+@@ -20,7 +24,7 @@ export function evaluateSLOs(manifest: HarnessManifest, report: RunReport): SloR
+       case "lt": met = observed < slo.threshold; break;
+       case "gt": met = observed > slo.threshold; break;
+     }
+-    return { sloId: slo.id, met, observed, threshold: slo.threshold, op: slo.op };
++    return { sloId: slo.id, met, observed, threshold: slo.threshold, op: slo.op, status: met ? "PASS" as const : "FAIL" as const };
+   });
+ }
+ 
+@@ -30,9 +34,11 @@ export function annotate(manifest: HarnessManifest, report: RunReport): RunRepor
+   return report;
+ }
+ 
+-/** True if every SLO is met (no unresolved failures). */
++/** At least one required gate must pass; absent evidence is never healthy. */
+ export function healthy(report: RunReport): boolean {
+-  return report.sloResults.every((s) => s.met);
++  const required = report.gates.filter(g => g.required !== false);
++  return required.length > 0 && required.every(g => g.passed === true && !g.timedOut) &&
++    report.sloResults.every(s => s.met === true && typeof s.observed === "number" && Number.isFinite(s.observed));
+ }
+ 
+ /** Produce a compact health summary string for logging. */
+@@ -54,9 +60,11 @@ export function summary(report: RunReport): {
+ 
+ /** Compute a health score (0–1) from a run report. */
+ export function healthScore(report: RunReport): number {
++  const required = report.gates.filter(g => g.required !== false);
++  if (!required.length || required.some(g => g.passed !== true || g.timedOut)) return 0;
+   const slos = report.sloResults;
+   if (!slos.length) return 1;
+-  return slos.filter((s) => s.met).length / slos.length;
++  return slos.filter(s => s.met === true && typeof s.observed === "number" && Number.isFinite(s.observed)).length / slos.length;
+ }
+ 
+ /** Detect degradation: compare recent pass-rate trend against a threshold. */
+diff --git a/src/harness/types.ts b/src/harness/types.ts
+index 7904a3470b4703e9e39c176e999c691dbfcb6a96..8d3595178065c9eb6272ba690dce41fa2834d093 100644
+--- a/src/harness/types.ts
++++ b/src/harness/types.ts
+@@ -84,7 +84,9 @@ export interface RunReport {
+ export interface SloResult {
+   sloId: string;
+   met: boolean;
+-  observed: number;
++  /** Missing or invalid measurements remain unknown, never an invented zero. */
++  observed: number | null;
++  status?: "PASS" | "FAIL" | "UNKNOWN";
+   threshold: number;
+   op: MonitorSlo["op"];
+ }
+diff --git a/tests/correctness/acceptance.test.ts b/tests/correctness/acceptance.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..d68f3e0b1708656d6c91d660a36b9c2bef3d4ef7
+--- /dev/null
++++ b/tests/correctness/acceptance.test.ts
+@@ -0,0 +1,91 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { improve, shouldApply, applyProposal, widenTimeoutOnHang } from "../../src/harness/improver/index.ts";
++import { annotate, evaluateSLOs, healthy, healthScore } from "../../src/harness/monitor/index.ts";
++
++function manifest(): any {
++  return { schema: 1, harnessId: "regression", project: ".", createdAt: "2026-09-28",
++    tools: [{ id: "unit", command: "test", description: "unit", timeoutMs: 60000 }],
++    gates: [{ id: "unit", toolId: "unit", required: true, description: "correctness" }],
++    slos: [{ id: "quality", metric: "required_pass_rate", op: "gte", threshold: 1 },
++      { id: "bounded-runtime", metric: "runtime_ms", op: "lte", threshold: 60000 }],
++    config: { maxParallel: 1, contextBudget: 1, improvementPolicy: {} },
++    improvementHistory: [], runHistory: [] };
++}
++function report(m: any, i = 0, passed = false): any {
++  return { runId: `run-${i}`, task: "broken implementation", startedAt: "2026-09-28", durationMs: 100,
++    gates: [{ gateId: "unit", toolId: "unit", required: m.gates[0].required, passed, exitCode: passed ? 0 : 1, durationMs: 100 }],
++    metrics: { required_pass_rate: m.gates[0].required && !passed ? 0 : 1, runtime_ms: 100 }, sloResults: [] };
++}
++function proposal(changes: Record<string, unknown>, approved = false): any {
++  return { id: "injected", description: "test proposal", rationale: "test", changes, approved };
++}
++
++test("repeated self-apply decisions cannot turn a broken required check green", () => {
++  const m = manifest(); const original = JSON.stringify({ gates: m.gates, slos: m.slos });
++  for (let i = 0; i < 8; i++) {
++    const r = annotate(m, report(m, i));
++    assert.equal(healthy(r), false, `broken code must stay unhealthy on iteration ${i}`);
++    m.runHistory.push({ runId: r.runId, gateResults: { unit: false } });
++    for (const p of improve(m, r)) if (shouldApply(m, p)) applyProposal(m, p);
++    assert.equal(JSON.stringify({ gates: m.gates, slos: m.slos }), original);
++  }
++});
++
++for (const approved of [false, true]) {
++  for (const changes of [{ "gates.unit.required": false }, { "slos.quality.threshold": 0 },
++    { "config.maxParallel": 2, "gates.unit.required": false }]) {
++    test(`acceptance changes are rejected atomically (approved=${approved}, ${JSON.stringify(changes)})`, () => {
++      const m = manifest(); const before = JSON.stringify(m); const p = proposal(changes, approved);
++      assert.equal(shouldApply(m, p), false);
++      assert.throws(() => applyProposal(m, p), /proposal|acceptance|policy/i);
++      assert.equal(JSON.stringify(m), before);
++      assert.equal(p.appliedAt, undefined);
++    });
++  }
++}
++
++test("safe execution knobs remain tunable and no-op changes do not count as progress", () => {
++  const m = manifest(); const p = proposal({ "config.maxParallel": 2, "config.contextBudget": 4 });
++  assert.equal(shouldApply(m, p), true); applyProposal(m, p);
++  assert.equal(m.config.maxParallel, 2); assert.equal(m.config.contextBudget, 4);
++  assert.equal(shouldApply(m, p), false);
++  for (const changes of [{}, { "config.maxParallel": 0 }, { "config.maxParallel": 257 },
++    { "config.contextBudget": Infinity }, { "config.contextBudget": "4" }, { "config.surprise": 1 },
++    { "tools.missing.timeoutMs": 1000 }]) assert.equal(shouldApply(m, proposal(changes)), false);
++});
++
++test("timeout repair leaves the runtime acceptance threshold frozen", () => {
++  const m = manifest(); const r = report(m); r.gates[0].timedOut = true;
++  const p = widenTimeoutOnHang({ manifest: m, report: r })!;
++  assert.equal(p.changes["tools.unit.timeoutMs"], 120000);
++  assert.equal(Object.keys(p.changes).some(k => k.startsWith("slos.")), false);
++  assert.equal(shouldApply(m, p), true); applyProposal(m, p);
++  assert.equal(m.slos[1].threshold, 60000);
++});
++
++for (const value of [undefined, null, NaN, Infinity, -Infinity, "0"]) {
++  test(`missing/non-finite/wrong-type measurements cannot satisfy an upper bound: ${String(value)}`, () => {
++    const m = manifest(); m.slos = [{ id: "latency", metric: "latency", op: "lte", threshold: 10 }];
++    const r = report(m, 0, true); r.metrics = value === undefined ? {} : { latency: value };
++    const s = evaluateSLOs(m, r)[0];
++    assert.equal(s.met, false); assert.equal(s.observed, null);
++    assert.equal((s as any).status, "UNKNOWN");
++    annotate(m, r); assert.equal(healthy(r), false);
++    assert.equal(JSON.parse(JSON.stringify(s)).observed, null);
++  });
++}
++
++test("a measured zero is not confused with a missing measurement", () => {
++  const m = manifest(); const r = report(m, 0, true);
++  m.slos = [{ id: "latency", metric: "latency", op: "lte", threshold: 0 }]; r.metrics = { latency: 0 };
++  annotate(m, r); assert.equal(r.sloResults[0].observed, 0); assert.equal(healthy(r), true);
++});
++
++test("no required gates and failed required gates are not healthy, even with green SLOs", () => {
++  const m = manifest(); const r = annotate(m, report(m, 0, true));
++  r.gates = []; assert.equal(healthy(r), false); assert.equal(healthScore(r), 0);
++  r.gates = [{ toolId: "unit", exitCode: 0, durationMs: 1, required: false, passed: true }]; assert.equal(healthy(r), false);
++  r.gates = [{ toolId: "unit", exitCode: 1, durationMs: 1, required: true, passed: false }]; assert.equal(healthy(r), false);
++  r.sloResults = []; assert.equal(healthy(r), false);
++});
+diff --git a/tests/correctness/replay-crash-child.ts b/tests/correctness/replay-crash-child.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..f859dcd5fe92cdd0adb0e986c678846a51675f2e
+--- /dev/null
++++ b/tests/correctness/replay-crash-child.ts
+@@ -0,0 +1,14 @@
++// An actual process exit at the durable-response/thread-checkpoint boundary.
++import { readFileSync } from "node:fs";
++import { Store } from "../../src/harness/foundry/store.ts";
++import { SwarmDriver } from "../../src/harness/foundry/swarm/driver.ts";
++const { root, cfg, capsule, response } = JSON.parse(readFileSync(process.argv[2], "utf8"));
++const store = await Store.open(root);
++const driver = new SwarmDriver(store, cfg, (async () => Response.json(response)) as typeof fetch);
++const checkpoint = driver.journal.checkpoint.bind(driver.journal);
++driver.journal.checkpoint = (thread, kind, payload) => {
++  if (kind === "model.reply") process.exit(73);
++  checkpoint(thread, kind, payload);
++};
++await driver.execute(capsule, AbortSignal.timeout(15000));
++throw new Error("fault injection did not reach the production checkpoint");
+diff --git a/tests/correctness/replay-fixture.ts b/tests/correctness/replay-fixture.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..2a83fbe6ad9fda5d707ef0bc3b4ca8cb5f625e02
+--- /dev/null
++++ b/tests/correctness/replay-fixture.ts
+@@ -0,0 +1,52 @@
++import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
++import { join } from "node:path";
++import { tmpdir } from "node:os";
++import { execFileSync } from "node:child_process";
++import { Store } from "../../src/harness/foundry/store.ts";
++import { digest } from "../../src/harness/foundry/kernel.ts";
++import { pinCommand } from "../../src/harness/foundry/commands.ts";
++import { executable, type PinnedSwarm } from "../../src/harness/foundry/swarm/config.ts";
++import { workerIdentity, verifierIdentity } from "../../src/harness/foundry/swarm/driver.ts";
++import type { Capsule } from "../../src/harness/foundry/types.ts";
++
++export const reply = (content = "finished", calls: any[] = []) => ({ choices: [{ finish_reason: calls.length ? "tool_calls" : "stop",
++  message: { role: "assistant", content, ...(calls.length ? { tool_calls: calls.map((c, i) => ({ id: c.id ?? `call-${i}`, type: "function",
++    function: { name: c.name, arguments: JSON.stringify(c.arguments) } })) } : {}) } }], usage: { prompt_tokens: 11, completion_tokens: 7 } });
++export const writeReply = () => reply("", [{ id: "write", name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]);
++export async function fixture() {
++  const root = mkdtempSync(join(tmpdir(), "future-replay-regression-")); const project = join(root, "project");
++  mkdirSync(join(project, "src"), { recursive: true }); writeFileSync(join(project, "src/a.txt"), "0\n");
++  const git = (args: string[]) => execFileSync("git", ["-C", project, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
++    env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" } }).trim();
++  git(["init"]); git(["add", "."]); git(["-c", "user.name=Test", "-c", "user.email=test@localhost", "commit", "-m", "fixture"]);
++  const check = { argv: [process.execPath, "-e", "if(require('node:fs').readFileSync('src/a.txt','utf8').trim()!=='42')process.exit(1)"], replaySafe: true };
++  const cfg: PinnedSwarm = { version: 1, handsId: "local-git-posix-v1", baseCommit: git(["rev-parse", "HEAD"]),
++    git: pinCommand({ argv: [executable("git")] }, project), checks: { unit: pinCommand(check, project) },
++    spec: { schema: 1, name: "replay-regression", project, baseRef: "HEAD", defaultAgent: "coder",
++      agents: { coder: { protocol: "chat-completions", url: "https://example.invalid/v1/chat/completions", model: "fixture", system: "Implement the scoped task.",
++        tools: ["write_file", "read_file", "run_check"], checks: ["unit"] } }, checks: { unit: check }, integrationChecks: ["unit"], protectedPaths: [],
++      limits: { parallelism: 2, attempts: 5, contextBytes: 32000, outputBytes: 100000, timeoutMs: 60000, tasks: 10 },
++      recipe: { parallelism: 1, attempts: 3, contextBytes: 16000, timeoutMs: 30000 },
++      supervision: { reportEveryMs: 1000, checkpointEveryMs: 10000 },
++      budget: { maxRequests: 100, maxRequestBytes: 1000000, maxTurns: 10, maxToolCalls: 30, modelConcurrency: 2,
++        requestTimeoutMs: 10000, toolTimeoutMs: 10000, maxOutputTokens: 1000, maxToolOutputBytes: 100000, maxPatchBytes: 100000 } } };
++  const store = await Store.open(join(root, "store"));
++  const contract = { schema: 1 as const, name: "replay-regression", workerId: workerIdentity(cfg), verifierId: verifierIdentity(cfg), environmentId: "local-fixture",
++    requiredChecks: ["scope", "behavior"], slos: [], limits: cfg.spec.limits };
++  const recipeHash = store.initialize(contract, cfg.spec.recipe);
++  const task = { id: "a", goal: "Write 42", acceptance: ["a.txt contains 42"], dependencies: [], writeScope: ["src/a.txt"], input: null };
++  const capsule: Capsule = { schema: 1, runId: "regression", task, contractHash: digest(contract), recipeHash, fence: 1, dependencies: [] };
++  store.db.prepare("INSERT INTO runs(id,recipe,contract,started,status) VALUES(?,?,?,?, 'RUNNING')").run(capsule.runId, recipeHash, capsule.contractHash, Date.now());
++  store.db.prepare("INSERT INTO tasks(run,id,spec,status,fence,owner,deadline) VALUES(?,?,?,'RUNNING',1,'first',?)")
++    .run(capsule.runId, task.id, JSON.stringify(task), Date.now() + 30000);
++  store.db.prepare("INSERT INTO attempts(run,task,fence,started,status) VALUES(?,?,1,?,'RUNNING')").run(capsule.runId, task.id, Date.now());
++  return { root, store, cfg, capsule, cleanup: () => rmSync(root, { recursive: true, force: true }) };
++}
++export function reclaim(store: Store, capsule: Capsule, previous = "EXPIRED"): Capsule {
++  store.transaction(() => {
++    store.db.prepare("UPDATE attempts SET status=?,ended=? WHERE run=? AND task=? AND fence=?").run(previous, Date.now(), capsule.runId, capsule.task.id, capsule.fence);
++    store.db.prepare("UPDATE tasks SET fence=fence+1,owner='recovery',deadline=? WHERE run=? AND id=?").run(Date.now() + 30000, capsule.runId, capsule.task.id);
++    store.db.prepare("INSERT INTO attempts(run,task,fence,started,status) VALUES(?,?,?,?,'RUNNING')").run(capsule.runId, capsule.task.id, capsule.fence + 1, Date.now());
++  });
++  return { ...capsule, fence: capsule.fence + 1 };
++}
+diff --git a/tests/correctness/replay.test.ts b/tests/correctness/replay.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..5e2e882e48029d7d97a526f1b972cbfce673461a
+--- /dev/null
++++ b/tests/correctness/replay.test.ts
+@@ -0,0 +1,93 @@
++import { test } from "node:test";
++import assert from "node:assert/strict";
++import { writeFileSync } from "node:fs";
++import { join } from "node:path";
++import { fileURLToPath } from "node:url";
++import { spawnSync } from "node:child_process";
++import { fixture, reclaim, reply, writeReply } from "./replay-fixture.ts";
++import { Store } from "../../src/harness/foundry/store.ts";
++import { SwarmDriver } from "../../src/harness/foundry/swarm/driver.ts";
++import { HttpBrain } from "../../src/harness/foundry/swarm/model.ts";
++
++async function crashed(response: unknown) {
++  const f = await fixture(); const file = join(f.root, "crash.json");
++  writeFileSync(file, JSON.stringify({ root: f.store.root, cfg: f.cfg, capsule: f.capsule, response })); f.store.close();
++  const child = spawnSync(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("./replay-crash-child.ts", import.meta.url)), file],
++    { encoding: "utf8", timeout: 20000 });
++  assert.equal(child.status, 73, child.stderr || String(child.error));
++  f.store = await Store.open(join(f.root, "store"));
++  assert.equal(f.store.db.prepare("SELECT COUNT(*) AS n FROM agent_replies").get()!.n, 1);
++  assert.equal(f.store.db.prepare("SELECT COUNT(*) AS n FROM agent_events WHERE kind='model.reply'").get()!.n, 0);
++  return f;
++}
++function state(f: Awaited<ReturnType<typeof fixture>>): any {
++  return f.store.readArtifact(f.store.db.prepare("SELECT state FROM agent_threads").get()!.state);
++}
++for (const previous of ["EXPIRED", "FAIL", "DEFERRED"]) {
++  test(`committed final reply survives process death and ${previous} with no new request`, async () => {
++    const f = await crashed(reply());
++    try {
++      const c = reclaim(f.store, f.capsule, previous);
++      const old = state(f); old.lastCheckAt = 0; // a due checkpoint must not mutate the old request
++      f.store.db.prepare("UPDATE agent_threads SET state=?").run(f.store.artifact(old));
++      let calls = 0;
++      const driver = new SwarmDriver(f.store, f.cfg, (async () => { calls++; throw new Error("duplicate provider call"); }) as typeof fetch);
++      const result: any = await driver.execute(c, AbortSignal.timeout(15000));
++      assert.equal(result.artifact.summary, "finished"); assert.equal(calls, 0);
++      assert.equal(state(f).turns, 1); assert.equal(driver.journal.usage(c.runId).requests, 1);
++      assert.equal(driver.journal.usage(c.runId).knownTokens, 18);
++      assert.equal(f.store.db.prepare("SELECT COUNT(*) AS n FROM agent_events WHERE kind='checkpoint.checked'").get()!.n, 0);
++      // A final model reply is not task acceptance.
++      assert.equal(f.store.db.prepare("SELECT status FROM tasks").get()!.status, "RUNNING");
++    } finally { f.store.close(); f.cleanup(); }
++  });
++}
++
++test("committed tool call replays once, repairs real worktree, and passes independent verification", async () => {
++  const f = await crashed(writeReply());
++  try {
++    const c = reclaim(f.store, f.capsule); let calls = 0;
++    const driver = new SwarmDriver(f.store, f.cfg, (async (_url, init) => {
++      calls++; const body = JSON.parse(init!.body as string);
++      assert.equal(body.messages.filter((m: any) => m.role === "tool" && m.tool_call_id === "write").length, 1);
++      assert.ok(body.messages.some((m: any) => typeof m.content === "string" && m.content.includes("previous episode failed")));
++      return Response.json(reply());
++    }) as typeof fetch);
++    const result = await driver.execute(c, AbortSignal.timeout(15000));
++    const verification = await driver.verify(c, result, AbortSignal.timeout(15000));
++    assert.ok(verification.checks.length >= 2); assert.ok(verification.checks.every(x => x.verdict === "PASS"));
++    assert.equal(calls, 1); assert.equal(driver.journal.usage(c.runId).requests, 2);
++    assert.equal(state(f).turns, 2); assert.equal(state(f).toolCalls, 1);
++    assert.equal(f.store.db.prepare("SELECT COUNT(*) AS n FROM agent_events WHERE kind='tool.result'").get()!.n, 1);
++  } finally { f.store.close(); f.cleanup(); }
++});
++
++test("replay still rejects a modified request binding and never calls the model", async () => {
++  const f = await crashed(reply());
++  try {
++    const c = reclaim(f.store, f.capsule); const old = state(f); old.history[0].content += " altered task";
++    f.store.db.prepare("UPDATE agent_threads SET state=?").run(f.store.artifact(old));
++    let calls = 0; const driver = new SwarmDriver(f.store, f.cfg, (async () => { calls++; return Response.json(reply()); }) as typeof fetch);
++    await assert.rejects(driver.execute(c, AbortSignal.timeout(15000)), /model replay input drift/); assert.equal(calls, 0);
++  } finally { f.store.close(); f.cleanup(); }
++});
++
++test("a stale lease cannot consume a cached response", async () => {
++  const f = await crashed(reply());
++  try {
++    reclaim(f.store, f.capsule); let calls = 0;
++    const driver = new SwarmDriver(f.store, f.cfg, (async () => { calls++; return Response.json(reply()); }) as typeof fetch);
++    await assert.rejects(driver.execute(f.capsule, AbortSignal.timeout(15000)), /stale agent lease/); assert.equal(calls, 0);
++  } finally { f.store.close(); f.cleanup(); }
++});
++
++test("cached truncated output remains fatal and cannot be converted into completion", async () => {
++  const f = await crashed(reply());
++  try {
++    const c = reclaim(f.store, f.capsule); const raw = reply(); raw.choices[0].finish_reason = "length";
++    f.store.db.prepare("UPDATE agent_replies SET response=?").run(f.store.artifact(raw));
++    const d = new SwarmDriver(f.store, f.cfg, (async () => { throw new Error("unexpected model call"); }) as typeof fetch);
++    await assert.rejects(d.execute(c, AbortSignal.timeout(15000)), /truncated/);
++    assert.equal(state(f).output, null);
++  } finally { f.store.close(); f.cleanup(); }
++});
+diff --git a/tests/correctness/test_research_startup.py b/tests/correctness/test_research_startup.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..eb6377e8bd0ece29bfc6bfb663740019c5e0500a
+--- /dev/null
++++ b/tests/correctness/test_research_startup.py
+@@ -0,0 +1,136 @@
++"""Regression tests import the production POSIX endpoint; no model/remote spend."""
++import concurrent.futures
++import fcntl
++import importlib.util
++import json
++import sys
++import tempfile
++import time
++import unittest
++from pathlib import Path
++from unittest.mock import patch
++
++SOURCE = Path(__file__).resolve().parents[2] / "scripts" / "research-job-agent.py"
++spec = importlib.util.spec_from_file_location("research_startup_endpoint", SOURCE)
++agent = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(agent)
++
++class StartupRecovery(unittest.TestCase):
++    def setUp(self):
++        self.temp = tempfile.TemporaryDirectory()
++        self.addCleanup(self.temp.cleanup)
++        self.base = Path(self.temp.name)
++        self.root = self.base / "jobs"
++        self.config = self.base / "template.json"
++        self.counter = self.base / "executions"
++        code = f"from pathlib import Path;p=Path({str(self.counter)!r});p.write_text(p.read_text()+'x' if p.exists() else 'x')"
++        self.config.write_text(json.dumps({"argv": [sys.executable, "-c", code], "timeoutMs": 2000}))
++        self.request = {"schema": 1, "key": "a" * 64, "operation": "ensure", "jobId": None,
++                        "input": {"seed": 7}, "inputHash": "bound-input"}
++        self.directory = self.root / self.request["key"]
++
++    def ensure(self):
++        return agent.endpoint(self.root, self.config, dict(self.request))
++
++    def inspect(self):
++        return agent.endpoint(self.root, self.config,
++                              {**self.request, "operation": "inspect", "jobId": self.request["key"]})
++
++    def age_launch(self):
++        state = agent.read(self.directory / "state.json")
++        state.update(created=time.time() - 1000, launchRequestedAt=time.time() - 1000)
++        agent.atomic(self.directory / "state.json", state)
++
++    def terminal(self):
++        deadline = time.monotonic() + 4
++        while time.monotonic() < deadline:
++            reply = self.inspect()
++            if reply["status"] in ("SUCCEEDED", "FAILED", "CANCELLED"):
++                return reply
++            time.sleep(0.025)
++        self.fail(f"endpoint did not reconcile startup: {reply}")
++
++    def test_inspect_recovers_lost_spawn_without_another_ensure(self):
++        with patch.object(agent.subprocess, "Popen") as launch:
++            self.assertEqual(self.ensure()["status"], "QUEUED")
++            self.assertEqual(launch.call_count, 1)
++        self.age_launch()
++        result = self.terminal()
++        self.assertEqual(result["status"], "SUCCEEDED")
++        self.assertEqual(self.counter.read_text(), "x")
++        self.assertEqual(self.ensure()["jobId"], result["jobId"])
++        self.assertEqual(self.counter.read_text(), "x")
++
++    def test_transient_spawn_error_keeps_a_reconcilable_job(self):
++        with patch.object(agent.subprocess, "Popen", side_effect=OSError("temporary capacity failure")):
++            self.assertEqual(self.ensure()["status"], "QUEUED")
++        self.age_launch()
++        self.assertEqual(self.terminal()["status"], "SUCCEEDED")
++        self.assertEqual(self.counter.read_text(), "x")
++
++    def test_lost_startup_is_bounded_and_cannot_stall_capacity_forever(self):
++        with patch.object(agent.subprocess, "Popen") as launch:
++            self.ensure()
++            for _ in range(5):
++                self.age_launch()
++                reply = self.inspect()
++                if reply["status"] == "FAILED":
++                    break
++            self.assertEqual(reply["status"], "FAILED")
++            self.assertEqual(launch.call_count, 3)
++            self.assertIn("startup", reply["result"]["error"].lower())
++            self.assertFalse(self.counter.exists())
++            # Even a delayed runner from an earlier launch cannot execute FAILED.
++            agent.worker(self.directory)
++            self.assertFalse(self.counter.exists())
++
++    def test_inspection_does_not_relaunch_while_worker_owns_queued_record(self):
++        with patch.object(agent.subprocess, "Popen"):
++            self.ensure()
++        self.age_launch()
++        before = (self.directory / "state.json").read_bytes()
++        with open(self.directory / "worker.lock", "a+b") as guard:
++            fcntl.flock(guard, fcntl.LOCK_EX)
++            with patch.object(agent.subprocess, "Popen") as launch:
++                self.assertEqual(self.inspect()["status"], "QUEUED")
++                launch.assert_not_called()
++                self.assertEqual((self.directory / "state.json").read_bytes(), before)
++
++    def test_running_without_ownership_is_unknown_never_resubmitted(self):
++        with patch.object(agent.subprocess, "Popen"):
++            self.ensure()
++        state = agent.read(self.directory / "state.json")
++        agent.atomic(self.directory / "state.json", {**state, "status": "RUNNING"})
++        with patch.object(agent.subprocess, "Popen") as launch:
++            self.assertEqual(self.inspect()["status"], "UNKNOWN")
++            self.assertEqual(self.ensure()["status"], "UNKNOWN")
++            launch.assert_not_called()
++
++    def test_concurrent_inspect_and_ensure_still_execute_once(self):
++        with patch.object(agent.subprocess, "Popen"):
++            self.ensure()
++        self.age_launch()
++        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
++            futures = [pool.submit(self.inspect if i % 2 else self.ensure) for i in range(16)]
++            for future in futures:
++                self.assertEqual(future.result()["jobId"], self.request["key"])
++        self.assertEqual(self.terminal()["status"], "SUCCEEDED")
++        self.assertEqual(self.counter.read_text(), "x")
++
++    def test_polling_does_not_spawn_a_worker_per_poll(self):
++        with patch.object(agent.subprocess, "Popen") as launch:
++            self.ensure()
++            for _ in range(20): self.inspect()
++            self.assertEqual(launch.call_count, 1)
++
++    def test_corrupt_state_is_not_erased_to_force_progress(self):
++        with patch.object(agent.subprocess, "Popen"):
++            self.ensure()
++        (self.directory / "state.json").write_text("corrupt")
++        with patch.object(agent.subprocess, "Popen") as launch:
++            with self.assertRaises(ValueError): self.inspect()
++            launch.assert_not_called()
++        self.assertEqual((self.directory / "state.json").read_text(), "corrupt")
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/harness/improver.test.ts b/tests/harness/improver.test.ts
+index a62eeca0aeb7348c713fc224df0dc671e647999c..d74c62593b8cab1edbb7d82e0b6e22f418824200 100644
+--- a/tests/harness/improver.test.ts
++++ b/tests/harness/improver.test.ts
+@@ -9,7 +9,7 @@ import { build } from "../../src/harness/builder/index.ts";
+ import { loadManifest } from "../../src/harness/registry.ts";
+ import { improve, applyProposal, shouldApply, defaultRules, widenContextOnFailure, adaptParallelism, reduceParallelism, detectFlakiness, expandContextOnOverflow, widenTimeoutOnHang } from "../../src/harness/improver/index.ts";
+ import { annotate } from "../../src/harness/monitor/index.ts";
+-import type { RunReport, HarnessManifest, HarnessRunRecord } from "../../src/harness/types.ts";
++import type { RunReport, HarnessManifest, HarnessRunRecord, ImprovementProposal } from "../../src/harness/types.ts";
+ 
+ function tempProject(files: Record<string, string>): string {
+   const dir = mkdtempSync(join(tmpdir(), "harness-imp-"));
+@@ -404,16 +404,14 @@ test("widenTimeoutOnHang is included in defaultRules", () => {
+   expect(defaultRules).toContain(widenTimeoutOnHang);
+ });
+ 
+-// --- SLO/threshold co-alignment when widening timeouts ---
++// --- Acceptance thresholds stay frozen while execution timeouts adapt ---
+ 
+-test("widenTimeoutOnHang co-aligns the bounded-runtime SLO when the new timeout exceeds it", () => {
++test("widenTimeoutOnHang preserves bounded-runtime SLO when the new timeout exceeds it", () => {
+   const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}", "bunfig.toml": "" });
+   build(dir, { harnessId: "hang-slo" });
+   const m = loadManifest(dir);
+-  // A gate killed at the implicit 60s escalates to 120s — beyond the
+-  // bounded-runtime SLO threshold (60_000), so the proposal must raise both
+-  // the tool timeout and the SLO threshold so the config never permits what
+-  // the SLO forbids.
++  // A longer execution timeout may help diagnosis, but it cannot change
++  // the latency promised by the original acceptance contract.
+   const report: RunReport = {
+     runId: crypto.randomUUID(),
+     task: "hang-slo",
+@@ -426,35 +424,36 @@ test("widenTimeoutOnHang co-aligns the bounded-runtime SLO when the new timeout
+   const proposal = widenTimeoutOnHang({ manifest: m, report });
+   expect(proposal).not.toBeNull();
+   expect(proposal!.changes["tools.bun-test.timeoutMs"]).toBe(120_000);
+-  expect(proposal!.changes["slos.bounded-runtime.threshold"]).toBe(120_000);
+-  expect(proposal!.rationale).toContain("co-aligned");
++  expect(proposal!.changes["slos.bounded-runtime.threshold"]).toBeUndefined();
++  expect(proposal!.rationale).toContain("acceptance thresholds unchanged");
+ 
+-  // Applying must actually raise both.
++  // Only the execution timeout changes.
+   const m3 = applyProposal(m, proposal!);
+   expect(m3.tools.find((t) => t.id === "bun-test")!.timeoutMs).toBe(120_000);
+-  expect(m3.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(120_000);
++  expect(m3.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(60_000);
+ });
+ 
+-test("applyProposal handles slos.<id>.threshold changes", () => {
++test("applyProposal rejects slos.<id>.threshold changes", () => {
+   const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
+   build(dir, { harnessId: "slo-apply" });
+   const m = loadManifest(dir);
+   const before = m.slos.find((s) => s.id === "bounded-runtime")!.threshold;
+   expect(before).toBe(60_000);
+-  const m2 = applyProposal(m, {
++  expect(() => applyProposal(m, {
+     id: "imp-slo-1",
+     description: "raise runtime SLO",
+     changes: { "slos.bounded-runtime.threshold": 90_000 },
+     rationale: "test",
+     approved: false,
+-  });
+-  expect(m2.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(90_000);
++  })).toThrow(/immutable acceptance policy/);
++  expect(m.slos.find((s) => s.id === "bounded-runtime")!.threshold).toBe(before);
+ });
+ 
+ test("applyProposal caps the improvement history at 100 entries", () => {
+   const dir = tempProject({ "package.json": "{}", "tsconfig.json": "{}" });
+   build(dir, { harnessId: "cap-hist" });
+   const m = loadManifest(dir);
++  m.config.maxParallel = 4; // every tested proposal must be an effective change
+   for (let i = 0; i < 130; i++) {
+     applyProposal(m, {
+       id: `imp-cap-${i}`,
+diff --git a/tests/harness/multilang.test.ts b/tests/harness/multilang.test.ts
+index d83e578d7fd280d5b4c459eeb82e0e7a9b486294..89b7d22f7c00eba82a899fc70b1a8b5131e809f2 100644
+--- a/tests/harness/multilang.test.ts
++++ b/tests/harness/multilang.test.ts
+@@ -14,6 +14,7 @@ import { run } from "../../src/harness/runtime/index.ts";
+ import {
+   improve,
+   applyProposal,
++  shouldApply,
+   quarantineRepeatFailure,
+ } from "../../src/harness/improver/index.ts";
+ import { annotate } from "../../src/harness/monitor/index.ts";
+@@ -194,10 +195,11 @@ test("quarantineRepeatFailure fires after 3 consecutive required-gate failures",
+   expect(q).toBeDefined();
+   expect(q!.changes["gates.unit.required"]).toBe(false);
+ 
+-  // Apply and verify the gate is now advisory.
+-  applyProposal(m, q!);
++  // The diagnostic proposal is not authority to weaken acceptance.
++  expect(shouldApply(m, q!)).toBe(false);
++  expect(() => applyProposal(m, q!)).toThrow(/immutable acceptance policy/);
+   const unit = m.gates.find((g) => g.id === "unit")!;
+-  expect(unit.required).toBe(false);
++  expect(unit.required).toBe(true);
+ });
+ 
+ test("quarantineRepeatFailure does not fire before the streak threshold", () => {
+@@ -253,35 +255,20 @@ test("quarantineRepeatFailure ignores advisory gates", () => {
+ 
+ // --- applyProposal gate-path handling ---
+ 
+-test("applyProposal handles gate quarantine and promote round-trip", () => {
++test("applyProposal cannot mutate requiredness, including approved proposals", () => {
+   const dir = tempProject({
+     "package.json": JSON.stringify({ name: "rt" }),
+     "tsconfig.json": "{}",
+   });
+   build(dir, { harnessId: "rt-gate" });
+   const m = loadManifest(dir);
+-  const unit = m.gates.find((g) => g.id === "unit")!;
+-  expect(unit.required).toBe(true);
+-
+-  // Quarantine.
+-  applyProposal(m, {
+-    id: "imp-x1",
+-    description: "quarantine unit",
+-    changes: { "gates.unit.required": false },
+-    rationale: "test",
+-    approved: false,
+-  });
+-  expect(m.gates.find((g) => g.id === "unit")!.required).toBe(false);
+-
+-  // Promote back.
+-  applyProposal(m, {
+-    id: "imp-x2",
+-    description: "promote unit",
+-    changes: { "gates.unit.required": true },
+-    rationale: "test",
+-    approved: false,
+-  });
+-  expect(m.gates.find((g) => g.id === "unit")!.required).toBe(true);
++  const before = JSON.stringify(m);
++  for (const required of [false, true]) {
++    const proposal = { id: "imp-x", description: "change gate", changes: { "gates.unit.required": required }, rationale: "test", approved: true };
++    expect(shouldApply(m, proposal)).toBe(false);
++    expect(() => applyProposal(m, proposal)).toThrow(/immutable acceptance policy/);
++    expect(JSON.stringify(m)).toBe(before);
++  }
+ });
+ 
+ // --- end-to-end: real Go project runs through the harness ---
+@@ -379,9 +366,10 @@ test("promoteStableAdvisoryGate fires after 5 consecutive advisory passes", () =
+   expect(promo!.changes["gates.typecheck.required"]).toBe(true);
+   expect(promo!.rationale).toContain("consecutive_passes[typecheck]=5");
+ 
+-  // Apply and verify the gate is required again.
+-  applyProposal(m, promo!);
+-  expect(m.gates.find((g) => g.id === "typecheck")!.required).toBe(true);
++  // Promotion also changes the evaluation contract and requires review.
++  expect(shouldApply(m, promo!)).toBe(false);
++  expect(() => applyProposal(m, promo!)).toThrow(/immutable acceptance policy/);
++  expect(m.gates.find((g) => g.id === "typecheck")!.required).toBe(false);
+ });
+ 
+ test("promoteStableAdvisoryGate does not fire before the pass threshold", () => {
+@@ -531,11 +519,12 @@ test("quarantineRepeatFailure defers to timeout widening while escalation headro
+   expect((w!.changes["tools.node-test.timeoutMs"] as number)).toBeGreaterThan(60_000);
+ 
+   // Once escalation is exhausted (timeout at the 10-min cap), a still-hung
+-  // gate counts as a genuine failure and quarantine may proceed.
++  // gate may trigger a diagnostic proposal, but must remain required.
+   const tool = m.tools.find((t) => t.id === "node-test")!;
+   tool.timeoutMs = 600_000;
+   const r2: RunReport = { ...r, runId: randomUUID() };
+   const q2 = quarantineRepeatFailure({ manifest: m, report: r2, history: m.runHistory });
+   expect(q2).not.toBeNull();
+   expect(q2!.changes["gates.unit.required"]).toBe(false);
++  expect(shouldApply(m, q2!)).toBe(false);
+ });

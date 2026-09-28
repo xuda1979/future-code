@@ -121,24 +121,28 @@ test("cli improve on a healthy project applies no changes", async () => {
   expect(m.improvementHistory ?? []).toEqual([]);
 });
 
-test("cli selfapply on a failing project converges via quarantine", async () => {
+test("cli selfapply on a failing project never converges by rewriting gate requiredness", async () => {
   const dir = tempProject({
     "package.json": JSON.stringify({ name: "cli-self", scripts: { test: "exit 1" } }),
   });
   const r = await cli(["selfapply", "--project", dir]);
   expect(r.exitCode).toBe(0);
-  // The loop iterates to convergence: the broken gate fails 3 consecutive
-  // runs, quarantine demotes it to advisory, and the harness reaches a
-  // self-consistent healthy state (no required gate failing).
-  expect(r.json.converged).toBe(true);
-  expect(r.json.iterations).toBeGreaterThanOrEqual(3);
+  // Since the correctness guardrails patch, gate requiredness is acceptance
+  // policy: quarantine/promotion proposals remain inspectable diagnostics but
+  // both automatic and direct application are denied. A deterministically
+  // broken required gate is therefore never silently demoted to manufacture
+  // convergence — the loop stops at its bounds with the harness still
+  // unhealthy, and the failure stays visible.
+  expect(r.json.converged).toBe(false);
+  expect(r.json.healthy).toBe(false);
   const m = readManifest(dir);
   const unit = m.gates.find((g) => g.id === "unit")!;
-  expect(unit.required).toBe(false); // quarantined
-  expect((m.improvementHistory ?? []).length).toBeGreaterThan(0);
-  const quarantine = (m.improvementHistory ?? []).find((p) =>
-    Object.keys(p.changes).some((k) => k === "gates.unit.required"));
-  expect(quarantine).toBeDefined();
+  expect(unit.required).toBe(true); // never quarantined by self-improvement
+  // No applied proposal may touch gate policy: the improvement history
+  // records no gate-rewrite.
+  const gateRewrites = (m.improvementHistory ?? []).filter((p) =>
+    Object.keys(p.changes).some((k) => k.startsWith("gates.")));
+  expect(gateRewrites).toEqual([]);
 });
 
 test("cli log exposes history and improvement decisions", async () => {

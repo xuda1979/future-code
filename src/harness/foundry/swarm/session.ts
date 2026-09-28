@@ -145,6 +145,12 @@ export class SessionJournal {
       await delay(50, undefined, { signal });
     }
   }
+  hasReply(c: Capsule, step: number): boolean {
+    this.assertLease(c);
+    invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");
+    return !!this.store.db.prepare("SELECT 1 FROM agent_replies WHERE run=? AND task=? AND step=?")
+      .get(c.runId, c.task.id, step);
+  }
   cached(c: Capsule, step: number, body: Json): Json | null {
     this.assertLease(c);
     const row = this.store.db.prepare("SELECT body,response FROM agent_replies WHERE run=? AND task=? AND step=?").get(c.runId, c.task.id, step);

@@ -131,6 +131,22 @@ export class SwarmDriver implements Driver {
           }
           continue;
         }
+        // The provider response and thread checkpoint are separate commits.
+        // After a crash, consume the saved reply under its ORIGINAL request hash
+        // before adding recovery notes or periodic-check feedback.
+        const replay = this.brain.replay(c, profile, t.state.history, budget, limit, t.state.turns);
+        if (replay) {
+          t.state.history = [...replay.history, replay.turn.message]; t.state.turns++;
+          this.journal.checkpoint(t, "model.reply", replay.turn.message);
+          control?.activity?.("model:replay"); continue;
+        }
+        // A persisted model reply without tools represents a final answer.
+        const last = t.state.history.at(-1)!;
+        if (last.role === "assistant" && !last.calls?.length) {
+          const patchHash = t.state.patchHash ?? this.store.artifact("");
+          t.state.output = { schema: 1, patchHash, summary: last.content.slice(0, 4096) };
+          this.journal.checkpoint(t, "worker.output", t.state.output); continue;
+        }
         if (t.state.recoveryNote) {
           t.state.history.push({ role: "user", content: t.state.recoveryNote }); delete t.state.recoveryNote;
           this.journal.checkpoint(t, "episode.recovery", { fence: c.fence });
@@ -148,13 +164,6 @@ export class SwarmDriver implements Driver {
           const receipt = this.journal.receipt(c, check); t.state.lastCheckAt = Date.now(); control?.checked?.();
           t.state.history.push({ role: "user", content: canonical({ checkpointCheck: inlineReceipt(receipt, check), instruction: "Use this diagnostic to choose a smaller next step. This is not final acceptance." }) });
           this.journal.checkpoint(t, "checkpoint.checked", { receipt, patchHash: t.state.patchHash });
-        }
-        // A persisted model reply without tools represents a final answer.
-        const last = t.state.history.at(-1)!;
-        if (last.role === "assistant" && !last.calls?.length) {
-          const patchHash = t.state.patchHash ?? this.store.artifact("");
-          t.state.output = { schema: 1, patchHash, summary: last.content.slice(0, 4096) };
-          this.journal.checkpoint(t, "worker.output", t.state.output); continue;
         }
         if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
         this.journal.checkpoint(t, "model.intent", { step: t.state.turns });

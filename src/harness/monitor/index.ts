@@ -12,7 +12,11 @@ import { resolveBudget, boundedMonitorContext, compactRunReport, compactRunHisto
 /** Evaluate every SLO in the manifest against a run report. */
 export function evaluateSLOs(manifest: HarnessManifest, report: RunReport): SloResult[] {
   return manifest.slos.map((slo) => {
-    const observed = report.metrics[slo.metric] ?? 0;
+    const raw = Object.hasOwn(report.metrics, slo.metric) ? report.metrics[slo.metric] : undefined;
+    const observed = typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+    if (observed === null || !Number.isFinite(slo.threshold)) {
+      return { sloId: slo.id, met: false, observed, threshold: slo.threshold, op: slo.op, status: "UNKNOWN" as const };
+    }
     let met = false;
     switch (slo.op) {
       case "gte": met = observed >= slo.threshold; break;
@@ -20,7 +24,7 @@ export function evaluateSLOs(manifest: HarnessManifest, report: RunReport): SloR
       case "lt": met = observed < slo.threshold; break;
       case "gt": met = observed > slo.threshold; break;
     }
-    return { sloId: slo.id, met, observed, threshold: slo.threshold, op: slo.op };
+    return { sloId: slo.id, met, observed, threshold: slo.threshold, op: slo.op, status: met ? "PASS" as const : "FAIL" as const };
   });
 }
 
@@ -30,9 +34,11 @@ export function annotate(manifest: HarnessManifest, report: RunReport): RunRepor
   return report;
 }
 
-/** True if every SLO is met (no unresolved failures). */
+/** At least one required gate must pass; absent evidence is never healthy. */
 export function healthy(report: RunReport): boolean {
-  return report.sloResults.every((s) => s.met);
+  const required = report.gates.filter(g => g.required !== false);
+  return required.length > 0 && required.every(g => g.passed === true && !g.timedOut) &&
+    report.sloResults.every(s => s.met === true && typeof s.observed === "number" && Number.isFinite(s.observed));
 }
 
 /** Produce a compact health summary string for logging. */
@@ -54,9 +60,11 @@ export function summary(report: RunReport): {
 
 /** Compute a health score (0–1) from a run report. */
 export function healthScore(report: RunReport): number {
+  const required = report.gates.filter(g => g.required !== false);
+  if (!required.length || required.some(g => g.passed !== true || g.timedOut)) return 0;
   const slos = report.sloResults;
   if (!slos.length) return 1;
-  return slos.filter((s) => s.met).length / slos.length;
+  return slos.filter(s => s.met === true && typeof s.observed === "number" && Number.isFinite(s.observed)).length / slos.length;
 }
 
 /** Detect degradation: compare recent pass-rate trend against a threshold. */

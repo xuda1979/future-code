@@ -14,6 +14,7 @@ import { run } from "../../src/harness/runtime/index.ts";
 import {
   improve,
   applyProposal,
+  shouldApply,
   quarantineRepeatFailure,
 } from "../../src/harness/improver/index.ts";
 import { annotate } from "../../src/harness/monitor/index.ts";
@@ -194,10 +195,11 @@ test("quarantineRepeatFailure fires after 3 consecutive required-gate failures",
   expect(q).toBeDefined();
   expect(q!.changes["gates.unit.required"]).toBe(false);
 
-  // Apply and verify the gate is now advisory.
-  applyProposal(m, q!);
+  // The diagnostic proposal is not authority to weaken acceptance.
+  expect(shouldApply(m, q!)).toBe(false);
+  expect(() => applyProposal(m, q!)).toThrow(/immutable acceptance policy/);
   const unit = m.gates.find((g) => g.id === "unit")!;
-  expect(unit.required).toBe(false);
+  expect(unit.required).toBe(true);
 });
 
 test("quarantineRepeatFailure does not fire before the streak threshold", () => {
@@ -253,35 +255,20 @@ test("quarantineRepeatFailure ignores advisory gates", () => {
 
 // --- applyProposal gate-path handling ---
 
-test("applyProposal handles gate quarantine and promote round-trip", () => {
+test("applyProposal cannot mutate requiredness, including approved proposals", () => {
   const dir = tempProject({
     "package.json": JSON.stringify({ name: "rt" }),
     "tsconfig.json": "{}",
   });
   build(dir, { harnessId: "rt-gate" });
   const m = loadManifest(dir);
-  const unit = m.gates.find((g) => g.id === "unit")!;
-  expect(unit.required).toBe(true);
-
-  // Quarantine.
-  applyProposal(m, {
-    id: "imp-x1",
-    description: "quarantine unit",
-    changes: { "gates.unit.required": false },
-    rationale: "test",
-    approved: false,
-  });
-  expect(m.gates.find((g) => g.id === "unit")!.required).toBe(false);
-
-  // Promote back.
-  applyProposal(m, {
-    id: "imp-x2",
-    description: "promote unit",
-    changes: { "gates.unit.required": true },
-    rationale: "test",
-    approved: false,
-  });
-  expect(m.gates.find((g) => g.id === "unit")!.required).toBe(true);
+  const before = JSON.stringify(m);
+  for (const required of [false, true]) {
+    const proposal = { id: "imp-x", description: "change gate", changes: { "gates.unit.required": required }, rationale: "test", approved: true };
+    expect(shouldApply(m, proposal)).toBe(false);
+    expect(() => applyProposal(m, proposal)).toThrow(/immutable acceptance policy/);
+    expect(JSON.stringify(m)).toBe(before);
+  }
 });
 
 // --- end-to-end: real Go project runs through the harness ---
@@ -379,9 +366,10 @@ test("promoteStableAdvisoryGate fires after 5 consecutive advisory passes", () =
   expect(promo!.changes["gates.typecheck.required"]).toBe(true);
   expect(promo!.rationale).toContain("consecutive_passes[typecheck]=5");
 
-  // Apply and verify the gate is required again.
-  applyProposal(m, promo!);
-  expect(m.gates.find((g) => g.id === "typecheck")!.required).toBe(true);
+  // Promotion also changes the evaluation contract and requires review.
+  expect(shouldApply(m, promo!)).toBe(false);
+  expect(() => applyProposal(m, promo!)).toThrow(/immutable acceptance policy/);
+  expect(m.gates.find((g) => g.id === "typecheck")!.required).toBe(false);
 });
 
 test("promoteStableAdvisoryGate does not fire before the pass threshold", () => {
@@ -531,11 +519,12 @@ test("quarantineRepeatFailure defers to timeout widening while escalation headro
   expect((w!.changes["tools.node-test.timeoutMs"] as number)).toBeGreaterThan(60_000);
 
   // Once escalation is exhausted (timeout at the 10-min cap), a still-hung
-  // gate counts as a genuine failure and quarantine may proceed.
+  // gate may trigger a diagnostic proposal, but must remain required.
   const tool = m.tools.find((t) => t.id === "node-test")!;
   tool.timeoutMs = 600_000;
   const r2: RunReport = { ...r, runId: randomUUID() };
   const q2 = quarantineRepeatFailure({ manifest: m, report: r2, history: m.runHistory });
   expect(q2).not.toBeNull();
   expect(q2!.changes["gates.unit.required"]).toBe(false);
+  expect(shouldApply(m, q2!)).toBe(false);
 });

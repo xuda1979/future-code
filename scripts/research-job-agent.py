@@ -11,6 +11,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -22,6 +23,10 @@ import time
 from typing import Any
 
 MAX_REQUEST = 1024 * 1024
+# Startup is replayable only while the durable state is QUEUED. A runner
+# publishes RUNNING under worker.lock before invoking any user command.
+STARTUP_RETRY_SECONDS = 5.0
+MAX_STARTUP_ATTEMPTS = 3
 
 
 def encoded(value: Any) -> bytes:
@@ -101,6 +106,47 @@ def observation(directory: Path, key: str) -> dict[str, Any]:
     return reply
 
 
+def reconcile_startup(directory: Path) -> None:
+    """Called under registry.lock by ensure AND inspect.
+
+    Recover a runner lost before RUNNING, never a possibly executed job. Read
+    and update QUEUED under worker.lock so startup bookkeeping cannot overwrite
+    a concurrent RUNNING publication. Release it before spawning the runner.
+    """
+    with open(directory / "worker.lock", "a+b") as guard:
+        try:
+            fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        state = read(directory / "state.json")
+        if state["status"] != "QUEUED":
+            return
+        attempts = state.get("launchAttempts", 0)
+        last = state.get("launchRequestedAt")
+        if type(attempts) is not int or not 0 <= attempts <= MAX_STARTUP_ATTEMPTS:
+            raise ValueError("invalid durable startup counter")
+        if last is not None and (type(last) not in (int, float) or not math.isfinite(last)):
+            raise ValueError("invalid durable startup timestamp")
+        now = time.time()
+        if last is not None and 0 <= now - last < STARTUP_RETRY_SECONDS:
+            return
+        if attempts >= MAX_STARTUP_ATTEMPTS:
+            atomic(directory / "state.json", {**state, "status": "FAILED", "result": {
+                "exitCode": None, "error": "startup retry budget exhausted before command execution; inspect runner infrastructure"}})
+            return
+        atomic(directory / "state.json", {**state, "launchAttempts": attempts + 1, "launchRequestedAt": now})
+    # A delayed older runner can win the lock. Every runner rechecks QUEUED;
+    # exactly one can publish RUNNING, including after concurrent inspections.
+    try:
+        subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--worker", str(directory)],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
+    except OSError:
+        # Keep the stable job ID and retryable QUEUED record. Returning a fatal
+        # adapter error here would strand the host's remote-capacity reservation.
+        pass
+
+
 def endpoint(root: Path, config: Path, request: Any) -> dict[str, Any]:
     if not isinstance(request, dict) or request.get("schema") != 1:
         raise ValueError("invalid request")
@@ -130,13 +176,7 @@ def endpoint(root: Path, config: Path, request: Any) -> dict[str, Any]:
             # State loss or corruption requires reconciliation; do not erase it.
             if read(directory / "request.json")["identity"] != identity:
                 raise ValueError("job input/template drift")
-        state = read(directory / "state.json")
-        if request["operation"] == "ensure" and state["status"] == "QUEUED":
-            # Competing runners acquire worker.lock, then check QUEUED again.
-            # Publishing RUNNING happens before executing the user's command.
-            subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--worker", str(directory)],
-                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
+        reconcile_startup(directory)
         return observation(directory, key)
 
 
