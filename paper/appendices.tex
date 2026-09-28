@@ -89,7 +89,7 @@ Assume a frozen catalogue, a fixed exogenous sequence of full-information loss
 vectors, spread at most $R$, and $M_{ij}\le M$. For any comparator path $u_{1:T}$
 with $s$ changes and $0<\alpha<1$, the coupled policy satisfies
 \begin{equation}\E[L_T]-\sum_t\ell_t(u_t)\le
-R\left(\frac{\log K+s\log(K/\alpha)+(T-1-s)\log(1/(1-\alpha))}{\eta}+\frac{\eta T}{8}\right)
+R\!\left(\frac{\log K+s\log(K/\alpha)+(T-1-s)\log(1/(1-\alpha))}{\eta}+\frac{\eta T}{8}\right)
 +M(T-1)(\eta+\alpha).\label{eq:tracking}\end{equation}
 For $\alpha=0$ the stationary-comparator bound has numerator $\log K$ and applies
 only to $s=0$.
@@ -341,6 +341,28 @@ pre-data engine verification; all obligation flows are now covered by
 the test suite (\texttt{tests/retirement}), which also pins
 determinism, the closure outcomes, and the per-family evidence
 directions.
+\item \textbf{Post-publication correction (v7.1, 2026-09-28;
+disclosed).} The v7.0 manuscript stated that the 20\% promotion gate
+was ``already satisfied at $c=0$'' because $B_f<B_m$ (with
+$c_{0.8}=0$ pooled and per family), and
+Proposition~\ref{prop:breakeven} carried a transposed monotonicity
+direction. Both were sign errors in the \emph{break-even algebra},
+not in the cohort: a byte advantage of $B_f<B_m$ with $R(0)=0.920$
+does not clear a $\rho=0.8$ gate. The corrected thresholds are
+$c_{0.8}\approx1{,}364$\,B pooled ($\approx1{,}047$\,B clustered,
+$\approx191$\,B independent, never in global), $c_{0.85}\approx658$\,B
+pooled, and $c_{0.75}\approx2{,}443$\,B pooled. No confirmatory
+result changes: the frozen null closure's comparator, threshold, and
+observed 29.6\% regime-O reduction at the 4{,}096\,B price are
+unchanged, as are all sign tests, exposure fractions, and the
+long-horizon table. What changes is the deployment advice: a pilot
+must measure its round-trip price rather than assume the byte
+direction clears the gate. The same error existed in the
+\texttt{breakEven} helper of \texttt{exploratory.ts} (its
+``\texttt{num <= 0: gate already met''} branch) and in the E1 text of
+the pre-specified exploratory protocol; all three are corrected
+together, and regression tests now pin the corrected semantics
+against the frozen pooled means.
 \end{enumerate}
 
 No amendment was written after the final cohort was generated. The

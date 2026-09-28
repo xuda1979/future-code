@@ -126,15 +126,16 @@ older than the working window, and obligations crossing a reset
 boundary survive only through a lossy summary. Every policy that
 converts before retiring---frontier, and at higher cost the verified
 board and full replay---accepts 84/84 with zero staleness and zero
-loss. Bounded pages accept 84/84 but pay $1{,}211$ ops/run in the
-steady phase; masking accepts 84/84 and pays $1{,}875$.
+loss. Bounded pages accept 84/84 but pay $1{,}211$ ops/run
+($896$ in the steady phase); masking accepts 84/84 and pays $1{,}875$
+ops/run ($1{,}436$ steady).
 
 \paragraph{The null closure passes in the round-trip regime, not the
 byte regime---exactly as pre-registered.} Frontier retirement reduces
 regime-O cost per accepted run by \RetwoNullReduction{} versus masking
 (gate $\ge$\RetwoNullThreshold{}), with \emph{no} family stratum
 regressing (worst stratum: \RetwoWorstFamily). In the bandwidth regime
-the same comparison is only \RetwoBytesDelta{}---we repeat v1's honest
+the same comparison is only \RetwoBytesWin{}---we repeat v1's honest
 negative and claim no byte-cost win. The two regimes separate because
 frontier's advantage is \emph{operations}: \RetwoOpsReduction{} fewer
 retrieval round trips per accepted run pooled
@@ -198,9 +199,12 @@ horizon.} In the long-horizon sub-cohort ($n=1{,}024$, 160 episodes),
 frontier cuts retrieval operations by \RetwoLongOpsReduction{} and
 regime-O cost by \RetwoLongCostOReduction{} versus masking at equal
 acceptance (63/63), while regime-B bytes remain within a few percent.
-The advantage does not decay with horizon; if anything the clustered
-stratum widens (66.5\%$\to$61.9\% operations cut at the pooled gate,
-but 42.5\% regime-O reduction versus 39.8\% at the short horizon).
+The advantage does not decay with horizon. The clustered stratum's
+regime-O reduction widens (39.8\% at the short horizon to 42.5\% at
+the long horizon) even though its raw operations cut narrows
+(66.5\% to 61.9\%): at the longer horizon a larger share of
+frontier's savings sits in avoided bytes per fetch, and the
+pooled cut widens to \RetwoLongOpsReduction{}.
 
 \begin{table}[t]\centering\small
 \caption{Long-horizon sub-cohort ($n=1{,}024$, 160 episodes, seven
@@ -225,7 +229,7 @@ rule that costs nothing.} The evidence-layout ablation (held-out half,
 order learned on the training half, flat steel-man at identical record
 cost) reproduces v1's shape at the new scale: the learned tree wins
 the dense global stratum (169{,}408 vs 1{,}936{,}704 held-out B/cell,
-an 87.1\% cut) and loses the sparse strata. The frozen density
+a 91.3\% cut) and loses the sparse strata. The frozen density
 rule---select the tree iff measured training-half update density
 $\ge$0.5---matches the per-cell oracle on every one of the 84 cells
 (\RetwoDensityRegret{} regret). HACT therefore stays what v1's closure
@@ -260,18 +264,24 @@ document and summarized here.
 Proposition~\ref{prop:breakeven} (Section~\ref{sec:sufficiency})
 replaces the three-point sensitivity with a closed-form break-even:
 with per-accepted means $(B_f,B_m,o_f,o_m)$, frontier satisfies the
-20\% gate at round-trip price $c$ iff
-$c\ge c_{0.8}=(0.8B_m-B_f)/(o_f-0.8o_m)$. On the frozen cohort
-$B_f<B_m$ in every stratum, so $c_{0.8}=0$ pooled and per family:
-frontier's byte advantage alone meets a 15\% gate before any
-round-trip pricing, and every unit of price widens it
-(pooled ratio $0.920\to0.588$ as $c$ goes $0\to32{,}768$\,B). The
-gate is \emph{already satisfied at $c=0$}, which sharpens---and
-honestifies---the earlier ``no byte win claimed'' phrasing: frontier
-beats masking on bytes too, by 8.0\% pooled, just below the frozen
-20\% byte threshold that the v1 protocol used. The 20\% byte gate
-never fired in v2 because v2's null closure was pre-registered on
-regime O, not regime B.
+20\% gate at round-trip price $c$ iff $c\ge c_{0.8}$, where
+$c_{0.8}=(0.8B_m-B_f)/(o_f-0.8o_m)$ whenever the ratio is decreasing
+and the gate is not already met at $c=0$. On the frozen cohort the
+byte direction alone does \emph{not} clear the gate: frontier is
+8.0\% cheaper on bytes pooled ($R(0)=0.920$), so
+$c_{0.85}\approx658$\,B and $c_{0.8}\approx1{,}364$\,B pooled, with
+every additional unit of round-trip price widening the advantage
+(pooled ratio $0.920\to0.588$ as $c$ goes $0\to32{,}768$\,B). Per
+family the thresholds are sharper where reads cross the frontier
+often: $c_{0.8}\approx1{,}048$\,B on clustered, $\approx191$\,B on
+independent, and no finite price clears the gate in the global
+family, where both policies are fetch-free and the ratio is constant
+at $0.924$. The frozen 4{,}096\,B price sits above every pooled and
+per-family threshold it can clear, which is why the frozen null
+closure fired on regime O; the v1 20\% byte gate never fired in v2
+because v2's null closure was pre-registered on regime O, not regime
+B. A deployment pilot therefore measures its own $c$ rather than
+assuming the byte direction carries the claim.
 
 \paragraph{E2: distributional robustness.} Paired over the 84 cells
 at $S=\mathrm{fixed}$: frontier's regime-O cost is below masking's in
@@ -307,8 +317,11 @@ the bounded window; the conversion rule remains the boundary of what
 is safe without it.
 
 \paragraph{E3: a real trace, replayed.} This repository's own git
-history (\ExpTraceCommits{} non-merge commits; registry of
-\ExpTraceRegistry{} file paths) is replayed through the same engine.
+history, pinned at the pre-analysis commit \texttt{2c928d1}
+(\ExpTraceCommits{} non-merge commits; registry of
+\ExpTraceRegistry{} file paths), is replayed through the same engine;
+a replay of the current repository head will differ because the trace
+grows with the project.
 E3a (evidence layouts, real change sets only): the trace's
 train-half density is \ExpTraceDensity{}, the density rule selects
 the flat ledger, and the oracle agrees---\ExpTraceRuleRegret{} (the

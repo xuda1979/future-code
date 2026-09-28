@@ -170,3 +170,53 @@ test("frontier eviction is use-clock driven for adaptive, set-driven for base", 
   assert.equal(base.stalenessDefects, ad.stalenessDefects);
   assert.equal(base.obligationLoss, ad.obligationLoss);
 });
+
+// ─── Break-even regression tests (Prop.~breakeven; E1) ─────────────────────
+// Guards against the sign error in which "num <= 0 => gate met at c=0"
+// inverted the semantics: a negative numerator means R(0) > rho, i.e. the
+// gate is NOT met at c = 0.
+import { breakEven, costRatio, stratumMeans, type StratumMeans } from "../../src/harness/retirement/exploratory.ts";
+
+test("break-even: gate met at c=0 returns zero, not the flipped case", T, () => {
+  // Bf/Bm = 0.5 <= 0.8: gate met before any round-trip pricing.
+  const m: StratumMeans = { Bf: 5, Bm: 10, of: 1, om: 4 };
+  assert.equal(breakEven(m, 0.8), 0);
+  // Bf/Bm = 0.92 > 0.8 and of/om = 0.56 < 0.8: crossover at c_rho > 0.
+  const f: StratumMeans = { Bf: 0.92, Bm: 1, of: 0.56, om: 1 };
+  const c08 = breakEven(f, 0.8);
+  assert.ok(c08 !== null && c08 > 0, `expected positive threshold, got ${c08}`);
+  // Sanity: at c_rho the cost ratio equals rho exactly.
+  assert.ok(Math.abs(costRatio(f, c08) - 0.8) < 1e-12);
+  // Below the threshold the gate fails; above it, holds.
+  assert.ok(costRatio(f, c08 - 0.01) > 0.8);
+  assert.ok(costRatio(f, c08 + 0.01) < 0.8);
+});
+
+test("break-even: unreachable and degenerate cases", T, () => {
+  // of/om >= rho: ratio never drops to rho; never met.
+  const never: StratumMeans = { Bf: 0.92, Bm: 1, of: 0.9, om: 1 };
+  assert.equal(breakEven(never, 0.8), null);
+  // om = 0 forces constant ratio 0.92 > 0.8: never met.
+  const flat: StratumMeans = { Bf: 0.92, Bm: 1, of: 0, om: 0 };
+  assert.equal(breakEven(flat, 0.8), null);
+  // Monotone-increasing case (Bf/Bm < of/om): gate met at c=0 only if rho >= Bf/Bm.
+  const inc: StratumMeans = { Bf: 0.5, Bm: 1, of: 2, om: 1 };
+  assert.equal(breakEven(inc, 0.8), 0);
+  assert.equal(breakEven(inc, 0.4), null);
+});
+
+test("break-even on the frozen pooled means matches the closed form", T, () => {
+  // Frozen v2 pooled per-accepted means (S=fixed): from the published table.
+  // Bf=4,698,273 B, Bm=5,107,068 B, of=1,051, om=1,875.
+  const m: StratumMeans = { Bf: 4698273, Bm: 5107068, of: 1051, om: 1875 };
+  const c08 = breakEven(m, 0.8);
+  assert.ok(c08 !== null);
+  assert.ok(Math.abs(c08 - 1364.28) < 1, `c_{0.8}=${c08}`);
+  // The frozen 4,096 B price clears the 20% gate (reduction 29.6%).
+  const r4096 = costRatio(m, 4096);
+  assert.ok(r4096 <= 0.8, `R(4096)=${r4096}`);
+  // The 1,024 B price does not (reduction 17.8%), which the old
+  // "gate already met at c=0" claim contradicted.
+  const r1024 = costRatio(m, 1024);
+  assert.ok(r1024 > 0.8, `R(1024)=${r1024}`);
+});

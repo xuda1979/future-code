@@ -97,6 +97,32 @@ const mB = costB(cohort.runs, "masking")!;
 const fOps = opsMean(cohort.runs, "frontier")!;
 const mOps = opsMean(cohort.runs, "masking")!;
 
+// ─── Break-even thresholds (E1; Proposition~breakeven semantics) ──────────
+// R(c) = (Bf + c*of)/(Bm + c*om) is decreasing iff Bf/Bm > of/om.
+// Gate rho: met at c=0 iff Bf/Bm <= rho; never met iff of/om >= rho;
+// otherwise met iff c >= c_rho = (rho*Bm - Bf)/(of - rho*om) > 0.
+function breakEvenThreshold(Bf: number, Bm: number, of: number, om: number, rho: number): number | null {
+  const r0 = Bm > 0 ? Bf / Bm : Infinity;
+  const rInf = om > 0 ? of / om : r0;
+  if (r0 <= rho) return 0;
+  if (rInf >= rho) return null;
+  return (rho * Bm - Bf) / (of - rho * om);
+}
+function fmtB(x: number): string {
+  return `${Math.round(x).toLocaleString("en-US").replace(/,/g, "{,}")}\\,B`;
+}
+const be08Pooled = breakEvenThreshold(fB, mB, fOps, mOps, 0.8);
+const be085Pooled = breakEvenThreshold(fB, mB, fOps, mOps, 0.85);
+const beFam = fams.map(fam => ({
+  fam,
+  Bf: costB(cohort.runs, "frontier", fam)!,
+  Bm: costB(cohort.runs, "masking", fam)!,
+  of: opsMean(cohort.runs, "frontier", fam)!,
+  om: opsMean(cohort.runs, "masking", fam)!,
+}));
+const be08ByFam = new Map(beFam.map(e => [e.fam, breakEvenThreshold(e.Bf, e.Bm, e.of, e.om, 0.8)]));
+const globalRatio = beFam.find(e => e.fam === "global")!.Bf / beFam.find(e => e.fam === "global")!.Bm;
+
 // Makespan pooled.
 const mkFixed = cohort.runs.filter(r => r.scheduler === "fixed").reduce((s, r) => s + r.makespanRounds, 0)
   / cohort.runs.filter(r => r.scheduler === "fixed").length;
@@ -150,6 +176,13 @@ const macros = `% Auto-generated from the frozen v2 cohort (do not edit).
 \\newcommand{\\RetwoAdaptiveReduction}{${closures.adaptiveClosure.reductionPct.toFixed(1)}\\%}
 \\newcommand{\\RetwoWorstFamily}{${closures.nullClosure.worstFamily === "none" ? "none" : closures.nullClosure.worstFamily}}
 \\newcommand{\\RetwoFrontierAccepted}{${cohort.runs.filter(r => r.policy === "frontier" && r.scheduler === "fixed" && r.accepted).length}/${cohort.runs.filter(r => r.policy === "frontier" && r.scheduler === "fixed").length}}
+\\newcommand{\\RetwoBytesWin}{${(100 * (1 - fB / mB)).toFixed(1)}\\%}
+\\newcommand{\\RetwoCOEightPooled}{${be08Pooled === null ? "never" : fmtB(be08Pooled)}}
+\\newcommand{\\RetwoCOEightFivePooled}{${be085Pooled === null ? "never" : fmtB(be085Pooled)}}
+\\newcommand{\\RetwoCOEightClustered}{${be08ByFam.get("clustered") === null || be08ByFam.get("clustered") === undefined ? "never" : fmtB(be08ByFam.get("clustered")!)}}
+\\newcommand{\\RetwoCOEightIndependent}{${be08ByFam.get("independent") === null || be08ByFam.get("independent") === undefined ? "never" : fmtB(be08ByFam.get("independent")!)}}
+\\newcommand{\\RetwoCOEightGlobal}{${be08ByFam.get("global") === null || be08ByFam.get("global") === undefined ? "never" : fmtB(be08ByFam.get("global")!)}}
+\\newcommand{\\RetwoGlobalRatio}{${globalRatio.toFixed(3)}}
 `;
 
 const outDir = "paper/generated";

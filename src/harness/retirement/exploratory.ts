@@ -37,13 +37,22 @@ export function costRatio(m: StratumMeans, c: number): number {
   return (m.Bf + c * m.of) / (m.Bm + c * m.om);
 }
 
-/** Closed-form break-even price: frontier meets gate rho iff c >= c_rho (E5). */
+/**
+ * Closed-form break-even price (E1/E5): the cost ratio R(c) = (Bf + c*of)/(Bm + c*om)
+ * is monotone in c (decreasing iff Bf/Bm > of/om). The gate R(c) <= rho is:
+ *  - met at c = 0 (return 0)     iff Bf/Bm <= rho;
+ *  - never met   (return null)   iff of/om >= rho (when om > 0), or om == 0 and Bf/Bm > rho;
+ *  - met iff c >= c_rho otherwise, with c_rho = (rho*Bm - Bf)/(of - rho*om) > 0.
+ */
 export function breakEven(m: StratumMeans, rho: number): number | null {
-  if (m.of >= m.om) return null;             // no crossing possible
-  const num = rho * m.Bm - m.Bf;
-  const den = m.of - rho * m.om;
-  if (num <= 0) return 0;                    // gate already met at c=0
-  if (den <= 0) return null;                 // gate unreachable
+  const r0 = m.Bm > 0 ? m.Bf / m.Bm : (m.Bf > 0 ? Infinity : 0); // R(0)
+  const rInf = m.om > 0 ? m.of / m.om : r0;                       // R(inf)
+  if (r0 <= rho) return 0;                   // gate already met at c=0
+  if (rInf >= rho) return null;              // monotone-decreasing case unreachable, or constant above rho
+  const num = rho * m.Bm - m.Bf;             // > 0 because r0 > rho
+  const den = m.of - rho * m.om;             // < 0 because rInf < rho < r0 requires of/om < rho... see below
+  // In the reachable case (r0 > rho > rInf) with om > 0: den < 0 iff of < rho*om,
+  // and rInf = of/om < rho gives exactly that; c_rho = num/(-den) > 0.
   return num / den;
 }
 
