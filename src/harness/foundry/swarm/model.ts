@@ -16,7 +16,8 @@ export const definitions: ToolDefinition[] = [
   def("spawn_tasks", "Split this task into independently verifiable child tasks when parallel work will reduce the decision scope. The host validates scope, depth, count, dependencies and agent roster, releases this parent while children run, then resumes this exact tool call with verified child outputs.", {
     children: { type: "array", minItems: 1, maxItems: 32, items: { type: "object", additionalProperties: false,
       properties: { id: string, goal: string, acceptance: { type: "array", minItems: 1, items: string }, input: {},
-        writeScope: { type: "array", items: string }, readScope: { type: "array", items: string }, agent: string,
+        writeScope: { type: "array", items: string }, readScope: { type: "array", items: string },
+        dependsOn: { type: "array", maxItems: 32, items: string }, agent: string,
         priority: { type: "number" }, estimatedDurationMs: { type: "integer", minimum: 1 },
         contextBudget: { type: "integer", minimum: 1 } },
       required: ["id", "goal", "acceptance", "input", "writeScope", "readScope"] } },

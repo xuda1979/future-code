@@ -182,8 +182,9 @@ export function useRemoteSession({
           return
         }
 
-        // Only messages that demonstrate foreground agent work refresh the
-        // watchdog. Reconnect/init chatter must not reset the bounded retry.
+        // Only messages that demonstrate foreground answer work refresh the
+        // watchdog. Background task/status chatter is handled separately and
+        // must not keep a silent foreground turn alive forever.
         if (isRemoteResponseProgress(sdkMessage)) {
           responseWatchdogRef.current?.progress()
         }
@@ -223,13 +224,23 @@ export function useRemoteSession({
           // (keep-alive ticks) update the ref but don't append to messages.
           if (sdkMessage.subtype === 'status') {
             const wasCompacting = isCompactingRef.current
-            isCompactingRef.current = sdkMessage.status === 'compacting'
-            if (wasCompacting && isCompactingRef.current) {
+            const isCompacting = sdkMessage.status === 'compacting'
+            isCompactingRef.current = isCompacting
+            // Entering/leaving compaction changes the legitimate silence
+            // window. Repeated compacting heartbeats are transport chatter and
+            // must not renew foreground liveness.
+            if (wasCompacting !== isCompacting) {
+              responseWatchdogRef.current?.modeChanged()
+            }
+            if (wasCompacting && isCompacting) {
               return
             }
           }
           if (sdkMessage.subtype === 'compact_boundary') {
-            isCompactingRef.current = false
+            if (isCompactingRef.current) {
+              isCompactingRef.current = false
+              responseWatchdogRef.current?.modeChanged()
+            }
           }
         }
 
@@ -522,6 +533,20 @@ export function useRemoteSession({
       const manager = managerRef.current
       if (!manager) {
         logForDebugging('[useRemoteSession] Cannot send - no manager')
+        return false
+      }
+      // Do not accept a foreground turn while its response subscription is
+      // disconnected/reconnecting. The HTTP POST can succeed independently of
+      // the WebSocket; accepting it here could create a turn whose reply the UI
+      // never observes and appears permanently stuck.
+      if (!manager.isConnected()) {
+        logForDebugging('[useRemoteSession] Cannot send - response WebSocket is not connected')
+        const warningMessage = createSystemMessage(
+          'Remote session is reconnecting. Please retry your message after the connection is restored.',
+          'warning',
+        )
+        setMessages(prev => [...prev, warningMessage])
+        setIsLoading(false)
         return false
       }
 

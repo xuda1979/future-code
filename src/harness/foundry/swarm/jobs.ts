@@ -41,7 +41,10 @@ export class ResearchJobs {
       progress_token TEXT, poll_at REAL NOT NULL, failures INTEGER NOT NULL DEFAULT 0,
       job_id TEXT, status TEXT NOT NULL, result_hash TEXT, updated REAL NOT NULL,
       reconciliation_hash TEXT);
-      CREATE INDEX IF NOT EXISTS research_jobs_run ON research_jobs(run,task);`);
+      CREATE INDEX IF NOT EXISTS research_jobs_run ON research_jobs(run,task);
+      CREATE TABLE IF NOT EXISTS research_job_progress(
+        key TEXT NOT NULL, token TEXT NOT NULL, observed REAL NOT NULL,
+        PRIMARY KEY(key,token));`);
     const columns = new Set(journal.store.db.prepare("PRAGMA table_info(research_jobs)").all().map(r => String(r.name)));
     if (!columns.has("reconciliation_hash"))
       journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN reconciliation_hash TEXT");
@@ -113,12 +116,21 @@ export class ResearchJobs {
     }) : null;
     store.transaction(() => {
       this.journal.assertLease(c); const now = Date.now();
-      const changed = v.progressToken !== undefined && v.progressToken !== row.progress_token;
+      let changed = false;
+      if (v.progressToken !== undefined) {
+        // A semantic milestone renews liveness only once. Alternating or replayed
+        // old tokens (A -> B -> A -> B) must not keep a stalled remote job alive.
+        const inserted = store.db.prepare(
+          "INSERT OR IGNORE INTO research_job_progress(key,token,observed) VALUES(?,?,?)"
+        ).run(key, v.progressToken, now);
+        changed = v.progressToken !== row.progress_token && inserted.changes > 0;
+      }
       store.db.prepare(`UPDATE research_jobs SET job_id=?,status=?,progress_at=?,progress_token=?,poll_at=?,failures=0,
         result_hash=?,updated=?,reconciliation_hash=? WHERE key=?`)
         .run(v.jobId, v.status, changed ? now : row.progress_at, v.progressToken ?? row.progress_token,
           now + template.pollMs, terminal ? receipt : null, now, reconciliationHash, key);
-      // Store only meaningful changes; polling does not manufacture progress.
+      // Store only meaningful changes; polling/replayed milestones do not
+      // manufacture progress.
       if (changed || row.status !== v.status || row.job_id !== v.jobId) store.event("job.observed",
         { key, jobId: v.jobId, status: v.status, progress: changed, receipt }, c.runId, c.task.id);
     });

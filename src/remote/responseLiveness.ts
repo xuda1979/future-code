@@ -86,6 +86,16 @@ export class RemoteResponseWatchdog {
     this.arm(this.currentTimeout())
   }
 
+  /**
+   * Re-arm the watchdog after a foreground execution-mode transition such as
+   * entering or leaving compaction. The caller must update its compaction state
+   * before invoking this method. Repeated status heartbeats should not call it.
+   */
+  modeChanged(): void {
+    if (!this.waiting) return
+    this.arm(this.currentTimeout())
+  }
+
   complete(): void {
     this.waiting = false
     this.reconnectAttempts = 0
@@ -132,7 +142,10 @@ export class RemoteResponseWatchdog {
 
 /**
  * Return true only for messages that demonstrate work on the foreground turn.
- * Connection/init chatter must not reset the reconnect budget.
+ * Connection/init chatter, background-task lifecycle updates and compaction
+ * heartbeats must not reset the reconnect budget. Compaction is handled as an
+ * explicit mode transition by the hook so repeated status ticks cannot mask a
+ * stalled foreground answer.
  */
 export function isRemoteResponseProgress(message: SDKMessage): boolean {
   if (message.type === "assistant" || message.type === "stream_event") return true;
@@ -141,10 +154,5 @@ export function isRemoteResponseProgress(message: SDKMessage): boolean {
     return Array.isArray(content) && content.some(block => block.type === "tool_result");
   }
   if (message.type !== "system") return false;
-  return message.subtype === "task_started" ||
-    message.subtype === "task_progress" ||
-    message.subtype === "task_notification" ||
-    message.subtype === "status" ||
-    message.subtype === "compact_boundary" ||
-    message.subtype === "tool_use_summary";
+  return message.subtype === "tool_use_summary";
 }

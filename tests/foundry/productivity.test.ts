@@ -125,6 +125,24 @@ test("read/write exclusion is symmetric; read/read and sibling paths are indepen
   assert.equal(accessConflicts(reader, reader), false);
   assert.equal(accessConflicts(reader, task("other", { writeScope: ["src/shared2"] })), false);
 });
+test("paged ready scan reaches feasible work beyond an inadmissible ranked prefix", async () => {
+  await fixture(s => {
+    const q = new Scheduler(s);
+    const blocked = Array.from({ length: 5000 }, (_, i) => task(`blocked-${String(i).padStart(4, "0")}`, {
+      priority: 100,
+      readScope: ["src/shared"],
+      writeScope: [],
+    }));
+    const blocker = task("blocker", { priority: 1000, writeScope: ["src/shared"] });
+    const tail = task("tail-feasible", { priority: 0, writeScope: ["src/tail-feasible"] });
+    const run = q.start([blocker, ...blocked, tail]);
+    const first = q.claim(run, "blocker-owner")!;
+    assert.equal(first.taskId, "blocker");
+    const next = q.claimMany(run, "other-owner", 1);
+    assert.deepEqual(names(next), ["tail-feasible"]);
+  }, { ...recipe, parallelism: 2 });
+});
+
 test("separate connections respect the aggregate context ceiling and intra-batch scopes", async () => {
   await fixture(async s => {
     const other = await Store.open(s.root);

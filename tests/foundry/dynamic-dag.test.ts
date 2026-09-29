@@ -156,6 +156,31 @@ test("nested dynamic DAG failure propagates through runtime spawn edges", async 
   });
 });
 
+test("dynamic DAG admits ordered sibling dependencies and serializes conflicting scopes", async () => {
+  await coreFixture(store => {
+    const q = new Scheduler(store);
+    const run = q.start([coreTask("root", { writeScope: ["src"], readScope: ["src"] })]);
+    const lease = q.claim(run, "parent")!; const capsule = q.capsule(lease);
+    const first = coreTask("root.first", { writeScope: ["src/shared"], readScope: ["src"] });
+    const second = coreTask("root.second", {
+      dependencies: ["root.first"], writeScope: ["src/shared"], readScope: ["src"],
+    });
+    const spawned = spawnTasks(store, capsule, "ordered", digest({ children: ["first", "second"] }),
+      [first, second], policy, Date.now(), {
+        reason: "waiting for ordered children", wakeAt: Date.now(), measurement: zero,
+      });
+    assert.equal(spawned.parentDeferred, true);
+    const firstLease = q.claim(run, "first")!;
+    assert.equal(firstLease.taskId, "root.first");
+    assert.equal(q.claim(run, "blocked"), null, "dependent sibling must not run early");
+    assert.equal(accept(q, firstLease, { stage: 1 }), true);
+    const secondLease = q.claim(run, "second")!;
+    assert.equal(secondLease.taskId, "root.second");
+    assert.equal(accept(q, secondLease, { stage: 2 }), true);
+    assert.equal(q.claim(run, "parent-resume")!.taskId, "root");
+  });
+});
+
 test("dynamic DAG admission rejects authority expansion and sibling conflicts", async () => {
   await coreFixture(store => {
     const q = new Scheduler(store);
@@ -195,21 +220,28 @@ test("external HTTP agent can fan out a child and resume after verified completi
       if (id === "root") {
         if (hasToolResult) return reply("root integrated verified child");
         return reply("", [{ name: "spawn_tasks", arguments: { children: [{
-          id: "leaf", goal: "Write the verified fixture value",
+          id: "prep", goal: "Write the verified fixture value",
           acceptance: ["behavior check passes"], input: { value: 42 },
           writeScope: ["src/a.txt"], readScope: ["src"]
+        }, {
+          id: "leaf", goal: "Verify the prepared value in an ordered sibling",
+          acceptance: ["behavior check passes"], input: { value: 42 },
+          writeScope: ["src/a.txt"], readScope: ["src"], dependsOn: ["prep"]
         }] } }]);
       }
+      if (id === "root.prep") {
+        if (hasToolResult) return reply("prep complete");
+        return reply("", [{ name: "write_file",
+          arguments: { path: "src/a.txt", content: "42\n" } }]);
+      }
       assert.equal(id, "root.leaf");
-      if (hasToolResult) return reply("child complete");
-      return reply("", [{ name: "write_file",
-        arguments: { path: "src/a.txt", content: "42\n" } }]);
+      return reply("leaf verified inherited prep output");
     }) as typeof fetch;
 
     const result: any = await runSwarm(store, [root], signal(), undefined, fetcher);
-    assert.equal(result.status, "PASS"); assert.equal(result.accepted, 2); assert.equal(calls, 4);
+    assert.equal(result.status, "PASS"); assert.equal(result.accepted, 3); assert.equal(calls, 5);
     assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM spawn_edges WHERE run=?")
-      .get(result.id)!.n, 1);
+      .get(result.id)!.n, 2);
     const integrated = await integrateSwarm(store, result.id, signal());
     assert.equal(execFileSync("git", ["-C", project, "show",
       `${integrated.commit}:src/a.txt`], { encoding: "utf8" }), "42\n");

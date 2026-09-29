@@ -193,6 +193,26 @@ test("unchanged remote milestone becomes visibly stalled then requires reconcili
     assert.ok(e instanceof FatalAttemptError); assert.match(e.message, /RECONCILIATION_REQUIRED/); return true;
   });
 }, s => { jobSpec(s); s.jobs!.train.staleMs = 200; s.jobs!.train.reconcileAfterMs = 1000; }));
+test("alternating old remote milestones cannot mask a stalled job", async () => swarmFixture(async (s, cfg) => {
+  const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
+  const tokens = ["A", "B", "A"];
+  const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => ({
+    schema: 1, key: (request as any).key, jobId: "train", status: "RUNNING", progressToken: tokens.shift(),
+  }));
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), DeferredAttemptError);
+  s.db.prepare("UPDATE research_jobs SET poll_at=0").run();
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), DeferredAttemptError);
+
+  const staleAt = Date.now() - 300;
+  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(staleAt);
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => {
+    assert.ok(e instanceof DeferredAttemptError); assert.equal(e.kind, "remote-stalled"); return true;
+  });
+  const row = s.db.prepare("SELECT progress_at FROM research_jobs WHERE run=?").get(run)!;
+  assert.equal(row.progress_at, staleAt, "replayed milestone must not renew liveness");
+  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM research_job_progress").get()!.n, 2);
+}, s => { jobSpec(s); s.jobs!.train.staleMs = 200; s.jobs!.train.reconcileAfterMs = 1000; }));
+
 test("operator reconciliation records a terminal remote outcome without resubmission", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   let rpcCalls = 0;

@@ -22,6 +22,18 @@ function within(path: string, scopes: readonly string[]): boolean {
 function same(a: unknown, b: unknown): boolean {
   return canonical(a ?? null) === canonical(b ?? null);
 }
+function dependencyOrders(a: Task, b: Task, byId: Map<string, Task>): boolean {
+  const reaches = (from: Task, target: string): boolean => {
+    const todo = [...from.dependencies]; const seen = new Set<string>();
+    for (let i = 0; i < todo.length; i++) {
+      const id = todo[i]!; if (id === target) return true;
+      if (seen.has(id)) continue; seen.add(id);
+      const dependency = byId.get(id); if (dependency) todo.push(...dependency.dependencies);
+    }
+    return false;
+  };
+  return reaches(a, b.id) || reaches(b, a.id);
+}
 
 function validatePolicy(store: Store, policy: SpawnPolicy): void {
   const limit = store.contract().limits.tasks;
@@ -125,8 +137,14 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
       childIds.add(child.id);
       invariant(!store.db.prepare("SELECT 1 FROM tasks WHERE run=? AND id=?")
         .get(c.runId, child.id), "spawned child id already exists");
-      invariant(same(child.dependencies, parent.dependencies),
-        "spawned child dependencies must match parent inputs");
+    }
+    for (const child of children) {
+      const inherited = child.dependencies.filter(id => parent.dependencies.includes(id));
+      const siblingDependencies = child.dependencies.filter(id => !parent.dependencies.includes(id));
+      invariant(same(inherited, parent.dependencies),
+        "spawned child must preserve parent dependencies");
+      invariant(siblingDependencies.every(id => childIds.has(id) && id !== child.id),
+        "spawned child dependency must name a sibling in this batch");
       invariant(same(child.dependencyViews, parent.dependencyViews),
         "spawned child dependency views must match parent inputs");
       for (const path of child.writeScope)
@@ -144,9 +162,10 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
       return JSON.parse(row.spec) as Task;
     });
     const peers = [...priorTasks, ...children];
+    const peerById = new Map(peers.map(task => [task.id, task]));
     for (let i = 0; i < peers.length; i++) for (let j = i + 1; j < peers.length; j++) {
-      invariant(!accessConflicts(peers[i], peers[j]),
-        "spawned sibling access conflict; use a dependency or narrower scopes");
+      invariant(!accessConflicts(peers[i], peers[j]) || dependencyOrders(peers[i], peers[j], peerById),
+        "spawned sibling access conflict; order conflicting work with dependsOn or use narrower scopes");
     }
 
     const graph: Task[] = store.db.prepare("SELECT spec FROM tasks WHERE run=?")

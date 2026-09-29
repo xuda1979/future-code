@@ -134,14 +134,15 @@ export function schedulerNode(store: Store, runId: string, task: string):
     rank: Number(row.rank), budget: Number(row.budget) } : null;
 }
 
-export function readyCandidates(store: Store, runId: string, now: number, limit: number):
+export function readyCandidates(store: Store, runId: string, now: number, limit: number, offset = 0):
   { id: string; spec: string; fence: number; priority: number; rank: number; budget: number }[] {
   invariant(Number.isSafeInteger(limit) && limit > 0 && limit <= 4096, "invalid candidate window");
+  invariant(Number.isSafeInteger(offset) && offset >= 0, "invalid candidate offset");
   return store.db.prepare(`SELECT t.id,t.spec,t.fence,n.priority,n.rank,n.budget
     FROM scheduler_nodes n JOIN tasks t ON t.run=n.run AND t.id=n.task
     LEFT JOIN task_waits w ON w.run=t.run AND w.task=t.id
     WHERE n.run=? AND n.remaining=0 AND t.status='READY' AND (w.wake IS NULL OR w.wake<=?)
-    ORDER BY n.priority DESC,n.rank DESC,t.id LIMIT ?`).all(runId, now, limit)
+    ORDER BY n.priority DESC,n.rank DESC,t.id LIMIT ? OFFSET ?`).all(runId, now, limit, offset)
     .map(row => ({ id: String(row.id), spec: String(row.spec), fence: Number(row.fence),
       priority: Number(row.priority), rank: Number(row.rank), budget: Number(row.budget) }));
 }
