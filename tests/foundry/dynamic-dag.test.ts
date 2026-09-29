@@ -82,8 +82,11 @@ test("dynamic DAG batches are durable, replay-safe, and use measured progress de
     const bytes = measured.reduce((n, row) => n + row.context_bytes, 0);
     const summary = q.summary(run);
     assert.equal(summary.status, "PASS"); assert.equal(summary.accepted, 2);
-    assert.equal(summary.progressDensity, 2 / bytes);
-    assert.notEqual(summary.progressDensity, 2 / (2 * recipe.contextBytes));
+    // The dynamic child is real accepted work and remains visible in accepted,
+    // but it must not manufacture extra objective progress by changing task granularity.
+    assert.equal(summary.progressDensity, 1 / bytes);
+    assert.notEqual(summary.progressDensity, 2 / bytes);
+    assert.notEqual(summary.progressDensity, 1 / (2 * recipe.contextBytes));
   });
 });
 
