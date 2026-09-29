@@ -6,7 +6,7 @@ import { Scheduler } from "../scheduler.ts";
 import type { Store } from "../store.ts";
 import type { Json, Task } from "../types.ts";
 import { integrateSwarm, loadSwarm, runSwarm } from "./host.ts";
-import { validateSwarmTasks } from "./config.ts";
+import { inScope, validateSwarmTasks } from "./config.ts";
 import { createApiRecoveryPlanner } from "./recovery.ts";
 
 export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
@@ -64,7 +64,8 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     }
   });
   const configuredReplans = cfg.spec.supervision?.maxReplans ?? 0;
-  const planner = recoveryPlanner ?? (configuredReplans > 0 ? createApiRecoveryPlanner(store, cfg, fetcher ?? fetch) : undefined);
+  const planner = recoveryPlanner ?? (configuredReplans > 0 && cfg.spec.supervision?.recoveryAgent
+    ? createApiRecoveryPlanner(store, cfg, fetcher ?? fetch) : undefined);
   const controller = new AbortController(); const stop = () => controller.abort(signal.reason ?? new Error("operator paused"));
   signal.addEventListener("abort", stop, { once: true }); if (signal.aborted) stop();
   const assertOwner = () => {
@@ -151,6 +152,14 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       }
       invariant(typeof proposal.reason === "string" && proposal.reason.trim().length > 0 && Buffer.byteLength(proposal.reason) <= 4096, "invalid recovery reason");
       validateTasks(store.contract(), proposal.tasks); validateSwarmTasks(cfg.spec, proposal.tasks);
+      const writeAuthority = tasks.flatMap(task => task.writeScope);
+      const readAuthority = [...writeAuthority, ...tasks.flatMap(task => task.readScope ?? [])];
+      for (const task of proposal.tasks) {
+        for (const path of task.writeScope)
+          invariant(inScope(path, writeAuthority), "recovery plan widens write authority");
+        for (const path of task.readScope ?? [])
+          invariant(inScope(path, readAuthority), "recovery plan widens read authority");
+      }
       invariant(digest(proposal.tasks) !== digest(tasks), "recovery plan must materially change execution structure");
       const newPlan = store.artifact(JSON.parse(canonical(proposal.tasks)));
       const newRun = randomUUID();
