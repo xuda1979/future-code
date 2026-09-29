@@ -167,14 +167,26 @@ export class SwarmDriver implements Driver {
                 invariant(policy, "dynamic DAG spawning is not configured");
                 const a = call.arguments; keys(a, ["children"]);
                 invariant(Array.isArray(a.children) && a.children.length > 0, "spawn_tasks requires children");
-                const children: Task[] = (a.children as unknown[]).map(item => {
+                const rawChildren = (a.children as unknown[]).map(item => {
                   invariant(item && typeof item === "object" && !Array.isArray(item), "invalid spawned child");
                   const raw = item as Record<string, any>;
                   keys(raw, ["id", "goal", "acceptance", "input", "writeScope", "readScope"],
-                    ["agent", "priority", "estimatedDurationMs", "contextBudget"]);
+                    ["dependsOn", "agent", "priority", "estimatedDurationMs", "contextBudget"]);
                   invariant(typeof raw.id === "string" && raw.id.length > 0, "invalid child id");
+                  return raw;
+                });
+                const localIds = new Set(rawChildren.map(raw => raw.id as string));
+                invariant(localIds.size === rawChildren.length, "duplicate spawned child id");
+                const children: Task[] = rawChildren.map(raw => {
+                  const dependsOn = raw.dependsOn ?? [];
+                  invariant(Array.isArray(dependsOn) && dependsOn.length <= policy.maxChildrenPerTask &&
+                    dependsOn.every((id: unknown) => typeof id === "string") &&
+                    new Set(dependsOn).size === dependsOn.length, "invalid spawned child dependencies");
+                  for (const id of dependsOn as string[]) invariant(localIds.has(id) && id !== raw.id,
+                    "spawned child dependency must name another child in this batch");
                   const child: Task = { id: `${c.task.id}.${raw.id}`, goal: raw.goal, acceptance: raw.acceptance,
-                    dependencies: [...c.task.dependencies], writeScope: raw.writeScope, readScope: raw.readScope, input: raw.input };
+                    dependencies: [...c.task.dependencies, ...(dependsOn as string[]).map(id => `${c.task.id}.${id}`)],
+                    writeScope: raw.writeScope, readScope: raw.readScope, input: raw.input };
                   const agent = raw.agent ?? c.task.agent;
                   if (agent !== undefined) child.agent = agent;
                   if (raw.priority !== undefined) child.priority = raw.priority;
