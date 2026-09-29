@@ -48,6 +48,7 @@ export class SwarmDriver implements Driver {
       task: c.task, dependencies: c.dependencies,
       contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. " +
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
+        (profile.tools.includes("run_job") ? "For independent experiments, issue every ready run_job call in one assistant turn so the host can launch them concurrently; do not wait for one experiment before proposing another independent one. " : "") +
         "Do not edit harness infrastructure outside the declared task scope." }) }],
       turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null,
       contextLimit: admittedContext });
