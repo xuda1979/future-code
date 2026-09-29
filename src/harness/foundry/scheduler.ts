@@ -274,14 +274,35 @@ export class Scheduler {
     const attempts = this.store.db.prepare("SELECT tokens,cost FROM attempts WHERE run=?").all(id);
     const sum = (key: string): number | null => attempts.length && attempts.every(a => a[key] !== null && Number.isFinite(a[key])) ? attempts.reduce((n, a) => n + a[key], 0) : null;
     const accepted = tasks.filter(t => t.status === "PASS").length;
-    const recipe = this.store.recipe(r.recipe);
-    // Progress density: verified accepted tasks per total context budget allocated.
-    const totalContext = tasks.length * recipe.contextBytes;
-    const pd = progressDensity(accepted, totalContext);
+    let basis: RunSummary["progressDensityBasis"] = null;
+    let decisionInput: number | null = null;
+    let cacheReuseRatio: number | null = null;
+    const hasRequests = !!this.store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_requests'").get();
+    const hasUsage = !!this.store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_request_usage'").get();
+    if (hasRequests) {
+      const requests = this.store.db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM agent_requests WHERE run=?").get(id)!;
+      if (requests.n > 0 && hasUsage) {
+        const usage = this.store.db.prepare(`SELECT COUNT(*) AS n,COALESCE(SUM(u.input_tokens),0) AS input_tokens,
+          COALESCE(SUM(u.cached_input_tokens),0) AS cached_tokens FROM agent_requests r
+          JOIN agent_request_usage u ON r.id=u.id WHERE r.run=?`).get(id)!;
+        if (usage.n === requests.n) {
+          const uncached = usage.input_tokens - usage.cached_tokens;
+          invariant(uncached >= 0, "cached input exceeds provider input");
+          basis = "uncachedInputTokens"; decisionInput = uncached;
+          cacheReuseRatio = usage.input_tokens > 0 ? usage.cached_tokens / usage.input_tokens : null;
+        }
+      }
+      if (basis === null) { basis = "providerRequestBytes"; decisionInput = requests.bytes; }
+    }
+    if (basis === null) {
+      const telemetry = this.store.db.prepare("SELECT COUNT(context_bytes) AS n,COALESCE(SUM(context_bytes),0) AS bytes FROM attempt_telemetry WHERE run=?").get(id)!;
+      if (telemetry.n > 0) { basis = "capsuleBytes"; decisionInput = telemetry.bytes; }
+    }
+    const pd = decisionInput === null ? null : progressDensity(accepted, decisionInput);
     return { id, recipeHash: r.recipe, contractHash: r.contract, status: r.status,
       accepted, failed: tasks.filter(t => t.status === "FAIL").length,
       blocked: tasks.filter(t => t.status === "BLOCKED").length, attempts: attempts.length,
       durationMs: Math.max(0, (r.ended ?? now) - r.started), tokens: sum("tokens"), costUsd: sum("cost"),
-      progressDensity: pd };
+      progressDensity: pd, progressDensityBasis: basis, decisionInput, cacheReuseRatio };
   }
 }
