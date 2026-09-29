@@ -140,15 +140,15 @@ test("unchanged remote milestone becomes visibly stalled then requires reconcili
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => ({ schema: 1, key: (request as any).key, jobId: "train", status: "RUNNING", progressToken: "step-10" }));
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), DeferredAttemptError);
-  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 25);
+  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 300);
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => {
     assert.ok(e instanceof DeferredAttemptError); assert.equal(e.kind, "remote-stalled"); return true;
   });
-  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 50);
+  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 1500);
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => {
     assert.ok(e instanceof FatalAttemptError); assert.match(e.message, /RECONCILIATION_REQUIRED/); return true;
   });
-}, s => { jobSpec(s); s.jobs!.train.staleMs = 20; s.jobs!.train.reconcileAfterMs = 40; }));
+}, s => { jobSpec(s); s.jobs!.train.staleMs = 200; s.jobs!.train.reconcileAfterMs = 1000; }));
 test("operator reconciliation records a terminal remote outcome without resubmission", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   let rpcCalls = 0;
