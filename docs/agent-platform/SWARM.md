@@ -9,7 +9,11 @@ in `src/commands.ts`; the same host facade is callable from Node without the UI.
 ## 1. The execution contract
 
 The current interactive agent plans work with `/swarm-plan`. A reviewed Task[]
-becomes the fixed DAG for a run. `runTasks` and `Scheduler` own dependencies,
+is the admitted root DAG for a run. By default it remains fixed. If an agent is
+explicitly granted `spawn_tasks` and `supervision.dynamicDAG` is configured,
+the same scheduler may add bounded child tasks at runtime. The parent task contract
+and durable model-thread binding remain immutable; spawn edges are stored separately.
+`runTasks` and `Scheduler` own dependencies,
 leases, attempts, logical read/write reservations, critical-path ordering and
 acceptance. `SwarmDriver` supplies the missing model/tool loop and an independent
 verifier. Agents do not get Store authority and cannot alter the DAG or spawn
@@ -223,6 +227,15 @@ private, backed up as a consistent SQLite/artifact pair, and out of source contr
 Logs and source content are not automatically secret-redacted.
 
 ## 6. Concurrency, budgets and measurements
+
+Dynamic spawning is provider-neutral. Future Code sends ordinary Anthropic or
+OpenAI-compatible HTTP requests and does not require control of provider inference
+engines, KV caches, prefix trees, or batching. A parent releases its local slot
+while spawned children run. Child IDs are namespaced under the parent; their
+read/write scopes must stay within parent authority, sibling access conflicts are
+rejected, and depth/child/total-task limits are host-enforced. Children are
+independently verified before the parent resumes. Crash replay reuses the original
+tool-call ID and cannot duplicate an admitted child batch.
 
 Foundry's existing task concurrency and logical read/write reservations remain
 in force. Separate worktrees do not justify ignoring declared interface conflicts.
