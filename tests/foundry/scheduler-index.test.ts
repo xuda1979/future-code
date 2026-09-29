@@ -66,7 +66,8 @@ test("large ready sets claim from the durable index and rebuild after index loss
 test("stale scheduler fingerprint is rebuilt before another claim", async () => fixture(store => {
   const q = new Scheduler(store); const run = q.start([task("a"), task("b")]);
   const before = schedulerIndexStats(store, run)!;
-  store.db.prepare("UPDATE scheduler_index_meta SET source_hash=? WHERE run=?").run("0".repeat(64), run);
+  store.db.prepare("UPDATE scheduler_index_meta SET source_version=source_version-1,source_hash=? WHERE run=?")
+    .run("0".repeat(64), run);
   const lease = q.claim(run, "worker")!;
   assert.ok(lease);
   const after = schedulerIndexStats(store, run)!;
