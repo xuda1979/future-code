@@ -299,15 +299,20 @@ test("unresolved remote outcome suppresses autonomous replacement planning", asy
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run("unresolved-job", old.run, "a", "train", "binding", now, now, now, 0, "remote-1", "UNKNOWN", null, now);
   s.db.prepare("UPDATE swarm_objectives SET owner=NULL,lease=NULL,state='NEEDS_ATTENTION' WHERE id='remote-reconcile'").run();
-  let plannerCalls = 0; const second = new AbortController();
+  let plannerCalls = 0; let blockedReason = ""; const second = new AbortController();
   const result: any = await superviseSwarm(
     s, { id: "remote-reconcile" }, second.signal,
-    r => { if (r.status === "NEEDS_ATTENTION") second.abort(); },
+    r => {
+      if (r.status === "NEEDS_ATTENTION") {
+        blockedReason = String((objectiveStatus(s, "remote-reconcile") as any).reason ?? "");
+        second.abort();
+      }
+    },
     undefined,
     async () => { plannerCalls++; return { reason: "unsafe replacement", tasks: [{ ...swarmTask("replacement") }] }; },
   );
   assert.equal(result.status, "PAUSED"); assert.equal(plannerCalls, 0);
-  assert.match((objectiveStatus(s, "remote-reconcile") as any).reason, /Remote outcome requires reconciliation/);
+  assert.match(blockedReason, /Remote outcome requires reconciliation/);
 }, s => {
   jobSpec(s); s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
