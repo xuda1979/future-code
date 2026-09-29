@@ -31,6 +31,14 @@ export class Store {
       CREATE TABLE IF NOT EXISTS attempt_telemetry(run TEXT NOT NULL, task TEXT NOT NULL, fence INTEGER NOT NULL,
         context_bytes INTEGER, progress_count INTEGER NOT NULL DEFAULT 0, last_progress_at REAL, failure_fingerprint TEXT,
         PRIMARY KEY(run,task,fence));
+      CREATE TABLE IF NOT EXISTS spawn_requests(
+        run TEXT NOT NULL, parent TEXT NOT NULL, request_key TEXT NOT NULL, request_hash TEXT NOT NULL,
+        children TEXT NOT NULL, depth INTEGER NOT NULL, created REAL NOT NULL,
+        PRIMARY KEY(run,parent,request_key));
+      CREATE TABLE IF NOT EXISTS spawn_edges(
+        run TEXT NOT NULL, parent TEXT NOT NULL, child TEXT NOT NULL, request_key TEXT NOT NULL,
+        depth INTEGER NOT NULL, created REAL NOT NULL, PRIMARY KEY(run,child));
+      CREATE INDEX IF NOT EXISTS spawn_edges_parent ON spawn_edges(run,parent);
       CREATE TABLE IF NOT EXISTS evaluations(id TEXT PRIMARY KEY, json TEXT NOT NULL, hash TEXT NOT NULL, promoted INTEGER NOT NULL DEFAULT 0);`);
     const store = new Store(root, db); installContinuationTables(store); return store;
   }
