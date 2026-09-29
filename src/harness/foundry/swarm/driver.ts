@@ -29,7 +29,7 @@ export class SwarmDriver implements Driver {
   readonly workerId: string; readonly verifierId: string;
   readonly journal: SessionJournal; readonly brain: HttpBrain;
   readonly store: Store; readonly cfg: PinnedSwarm; readonly backend: HandsBackend;
-  private contextPlan?: { run: string; recipe: string; budgets: Map<string, number> };
+  private contextPlan?: { run: string; recipe: string; taskCount: number; budgets: Map<string, number> };
   constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend) {
     invariant(backend.id === cfg.handsId, "execution backend identity mismatch");
     this.store = store; this.cfg = cfg; this.backend = backend;
@@ -73,12 +73,14 @@ export class SwarmDriver implements Driver {
     const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg) : null;
     const delegation = this.cfg.spec.delegation ? new DynamicDelegation(this.store, this.cfg) : null;
     t.state.lastCheckAt ??= Date.now();
-    if (this.contextPlan?.run !== c.runId || this.contextPlan.recipe !== c.recipeHash) {
+    const taskCount = this.store.db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE run=?").get(c.runId)!.n;
+    if (this.contextPlan?.run !== c.runId || this.contextPlan.recipe !== c.recipeHash || this.contextPlan.taskCount !== taskCount) {
       const allTasks: Task[] = this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(c.runId).map(r => JSON.parse(r.spec));
-      this.contextPlan = { run: c.runId, recipe: c.recipeHash,
+      this.contextPlan = { run: c.runId, recipe: c.recipeHash, taskCount: allTasks.length,
         budgets: allocateContext(allTasks, this.store.recipe(c.recipeHash), this.store.contract().limits.contextBytes) };
     }
-    const limit = this.contextPlan.budgets.get(c.task.id)!;
+    const limit = this.contextPlan.budgets.get(c.task.id);
+    invariant(Number.isSafeInteger(limit) && limit! > 0, "missing admitted context budget for task");
     try {
       if (t.state.pending?.name === "run_check") {
         const name = t.state.pending.arguments.name as string;
