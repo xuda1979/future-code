@@ -107,7 +107,10 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     invariant(url.protocol === "https:" || (url.protocol === "http:" && (loopback || a.allowHttp === true)), "HTTPS required; private HTTP must be explicit");
     invariant(!url.username && !url.password && !url.search && !url.hash, "credentials/query must not be in provider URL");
     invariant(typeof a.model === "string" && !!a.model.trim() && typeof a.system === "string" && !!a.system.trim(), "missing model/system");
-    if (a.keyEnv !== undefined) invariant(/^[A-Z_][A-Z0-9_]*$/.test(a.keyEnv), "invalid keyEnv");
+    if (a.keyEnv !== undefined) {
+      invariant(/^[A-Z_][A-Z0-9_]*$/.test(a.keyEnv), "invalid keyEnv");
+      invariant(url.protocol === "https:" || loopback, "credentials require HTTPS unless the provider is loopback");
+    }
     for (const x of [a.promptCache, a.allowHttp]) invariant(x === undefined || typeof x === "boolean", "invalid provider flag");
     if (a.jobs !== undefined) names(a.jobs, Object.keys(s.jobs ?? {}), "agent jobs");
     if (a.tools.includes("run_job")) invariant(a.jobs && a.jobs.length > 0, "run_job requires named job capabilities");
