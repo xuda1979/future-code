@@ -246,10 +246,11 @@ export class SessionJournal {
     invariant(row.body === digest(body), "model replay input drift");
     return this.store.readArtifact(row.response);
   }
-  complete(id: string, tokens: number | null, response: Json | null, step?: number): void {
+  complete(id: string, tokens: number | null, response: Json | null, step?: number,
+    competing = false): boolean {
     invariant(tokens === null || (Number.isSafeInteger(tokens) && tokens >= 0), "invalid provider usage");
     const hash = response === null ? null : this.store.artifact(response);
-    this.store.transaction(() => {
+    return this.store.transaction(() => {
       const row = this.store.db.prepare("SELECT * FROM agent_requests WHERE id=?").get(id);
       invariant(row && row.status !== "DONE", "unknown/already completed request");
       this.store.db.prepare("UPDATE agent_requests SET status=?,tokens=?,response=? WHERE id=?")
@@ -258,12 +259,17 @@ export class SessionJournal {
       const task = this.store.db.prepare("SELECT status,fence,deadline FROM tasks WHERE run=? AND id=?").get(row.run, row.task);
       // Record late spend, but a superseded RPC must never publish a replayable reply.
       const current = task?.status === "RUNNING" && task.fence === row.fence && task.deadline > Date.now();
-      if (step !== undefined && hash && current) {
-        invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");
-        const old = this.store.db.prepare("SELECT body,response FROM agent_replies WHERE run=? AND task=? AND step=?").get(row.run, row.task, step);
-        invariant(!old || (old.body === row.request && old.response === hash), "model reply already committed");
-        this.store.db.prepare("INSERT OR IGNORE INTO agent_replies VALUES(?,?,?,?,?)").run(row.run, row.task, step, row.request, hash);
+      if (step === undefined || !hash || !current) return false;
+      invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");
+      const old = this.store.db.prepare("SELECT body,response FROM agent_replies WHERE run=? AND task=? AND step=?").get(row.run, row.task, step);
+      if (old) {
+        invariant(old.body === row.request, "model replay input drift");
+        if (!competing) invariant(old.response === hash, "model reply already committed");
+        return old.response === hash;
       }
+      this.store.db.prepare("INSERT INTO agent_replies VALUES(?,?,?,?,?)")
+        .run(row.run, row.task, step, row.request, hash);
+      return true;
     });
   }
   cooldown(provider: string, ms: number): void {
