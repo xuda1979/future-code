@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { setTimeout as delay } from "node:timers/promises";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { FatalAttemptError } from "../errors.ts";
 import { Store } from "../store.ts";
@@ -22,6 +21,32 @@ export interface ThreadState {
 }
 export interface Thread { capsule: Capsule; seq: number; state: ThreadState }
 const json = (value: unknown): Json => JSON.parse(canonical(value));
+
+const permitWaiters = new Map<string, Set<() => void>>();
+function notifyPermit(provider: string): void {
+  const waiters = permitWaiters.get(provider);
+  if (!waiters) return;
+  permitWaiters.delete(provider);
+  for (const wake of waiters) wake();
+}
+function waitPermit(provider: string, signal: AbortSignal, maxMs = 250): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => {
+      if (done) return; done = true; clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      const set = permitWaiters.get(provider); set?.delete(finish);
+      if (set && set.size === 0) permitWaiters.delete(provider);
+      resolve();
+    };
+    const timer = setTimeout(finish, maxMs);
+    const set = permitWaiters.get(provider) ?? new Set<() => void>();
+    set.add(finish); permitWaiters.set(provider, set);
+    signal.addEventListener("abort", finish, { once: true });
+    if (signal.aborted) finish();
+  });
+}
 
 /** Same Foundry database and artifact store, not a second scheduler. */
 export class SessionJournal {
@@ -142,7 +167,9 @@ export class SessionJournal {
         return id;
       });
       if (id) return id;
-      await delay(50, undefined, { signal });
+      // Same-process releases wake waiters immediately; the timeout is only a
+      // bounded fallback for another process sharing the SQLite store.
+      await waitPermit(provider, signal);
     }
   }
   /** Reserve a provider request for host control-plane work such as bounded
@@ -170,7 +197,9 @@ export class SessionJournal {
         return id;
       });
       if (id) return id;
-      await delay(50, undefined, { signal });
+      // Same-process releases wake waiters immediately; the timeout is only a
+      // bounded fallback for another process sharing the SQLite store.
+      await waitPermit(provider, signal);
     }
   }
   hasReply(c: Capsule, step: number): boolean {
@@ -194,6 +223,7 @@ export class SessionJournal {
       invariant(row && row.status !== "DONE", "unknown/already completed request");
       this.store.db.prepare("UPDATE agent_requests SET status=?,tokens=?,response=? WHERE id=?")
         .run(response === null ? "UNKNOWN" : "DONE", tokens, hash, id);
+      notifyPermit(String(row.provider));
       const task = this.store.db.prepare("SELECT status,fence,deadline FROM tasks WHERE run=? AND id=?").get(row.run, row.task);
       // Record late spend, but a superseded RPC must never publish a replayable reply.
       const current = task?.status === "RUNNING" && task.fence === row.fence && task.deadline > Date.now();
@@ -209,6 +239,9 @@ export class SessionJournal {
     invariant(Number.isFinite(ms) && ms >= 0 && ms <= 60000, "invalid provider cooldown");
     this.store.db.prepare("INSERT INTO agent_cooldowns VALUES(?,?) ON CONFLICT(provider) DO UPDATE SET until_ms=MAX(until_ms,excluded.until_ms)")
       .run(provider, Date.now() + ms);
+    // Wake local waiters so they can observe the updated cooldown and choose
+    // the bounded fallback interval instead of spinning.
+    notifyPermit(provider);
   }
   usage(run: string, task?: string, fence?: number): { requests: number; requestBytes: number; knownTokens: number; unknownRequests: number; tokens: number | null } {
     const where = task === undefined ? "run=?" : fence === undefined ? "run=? AND task=?" : "run=? AND task=? AND fence=?";
