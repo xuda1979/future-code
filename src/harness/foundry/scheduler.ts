@@ -29,6 +29,7 @@ export class Scheduler {
       this.store.db.prepare("INSERT INTO runs(id,recipe,contract,started,status) VALUES(?,?,?,?, 'RUNNING')").run(id, recipeHash, digest(contract), now);
       const insert = this.store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')");
       for (const task of tasks) insert.run(id, task.id, JSON.stringify(task));
+      rebuildSchedulerIndex(this.store, id, this.store.recipe(recipeHash), now);
       this.store.event("run.started", { recipeHash, contractHash: digest(contract), taskCount: tasks.length, taskHash: digest(tasks) }, id);
       return id;
     });
@@ -37,8 +38,9 @@ export class Scheduler {
   claim(runId: string, owner: string, now = Date.now()): Lease | null {
     return this.claimMany(runId, owner, 1, now)[0] ?? null;
   }
-  /** One durable transaction per refill, not one DAG parse/commit per agent.
-   *  There are no wave barriers: a finishing agent immediately frees a slot. */
+  /** One durable transaction per refill. Readiness and ordering come from the
+   * durable scheduler index, so the hot path scales with running/candidate work
+   * instead of reparsing the entire DAG. */
   claimMany(runId: string, owner: string, limit: number, now = Date.now()): Lease[] {
     invariant(typeof owner === "string" && owner.length > 0, "missing owner");
     invariant(Number.isSafeInteger(limit) && limit > 0 && limit <= 256, "invalid claim batch size");
@@ -47,77 +49,76 @@ export class Scheduler {
       if (run.status !== "RUNNING") return [];
       invariant(run.contract === digest(this.store.contract()), "run contract drift");
       const recipe = this.store.recipe(run.recipe);
-      const rows = this.store.db.prepare("SELECT * FROM tasks WHERE run=?").all(runId);
-      const plan = this.plan(runId, run.recipe, recipe, rows);
-      const byId = new Map(rows.map(t => [t.id as string, t]));
-      const waits = new Map(this.store.db.prepare("SELECT task,wake FROM task_waits WHERE run=?").all(runId).map(t => [t.task, t.wake]));
-      for (const t of rows.filter(t => t.status === "RUNNING" && t.deadline <= now)) {
-        const attempt = this.store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(runId, t.id, t.fence)!;
-        this.store.db.prepare("UPDATE attempts SET status='EXPIRED',ended=?,duration=? WHERE run=? AND task=? AND fence=? AND status='RUNNING'").run(now, Math.max(0, now - attempt.started), runId, t.id, t.fence);
-        t.status = this.failureCount(runId, t.id) >= recipe.attempts ? "FAIL" : "READY";
-        this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error='lease expired' WHERE run=? AND id=?").run(t.status, runId, t.id);
-        this.store.event("lease.expired", { fence: t.fence }, runId, t.id);
+      if (!hasSchedulerIndex(this.store, runId)) rebuildSchedulerIndex(this.store, runId, recipe, now);
+
+      // Reclaim only actually expired leases; do not scan unrelated tasks.
+      const expired = this.store.db.prepare(
+        "SELECT id,fence,deadline FROM tasks WHERE run=? AND status='RUNNING' AND deadline<=? ORDER BY deadline LIMIT 256"
+      ).all(runId, now);
+      for (const t of expired) {
+        const attempt = this.store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?")
+          .get(runId, t.id, t.fence);
+        if (!attempt) continue;
+        this.store.db.prepare(`UPDATE attempts SET status='EXPIRED',ended=?,duration=?
+          WHERE run=? AND task=? AND fence=? AND status='RUNNING'`)
+          .run(now, Math.max(0, now - attempt.started), runId, t.id, t.fence);
+        const status = this.failureCount(runId, t.id) >= recipe.attempts ? "FAIL" : "READY";
+        this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error='lease expired' WHERE run=? AND id=?")
+          .run(status, runId, t.id);
+        this.store.event("lease.expired", { fence: t.fence, retry: status === "READY" }, runId, t.id);
+        if (status === "FAIL") blockDependents(this.store, runId, String(t.id));
       }
-      // Runtime-spawned children are scheduler dependencies without mutating the
-      // parent's immutable task/thread binding. A failed child blocks its parent;
-      // an incomplete child set keeps the parent unclaimable.
-      const spawned = new Map<string, string[]>();
-      for (const edge of this.store.db.prepare(
-        "SELECT parent,child FROM spawn_edges WHERE run=? ORDER BY parent,child"
-      ).all(runId)) {
-        const list = spawned.get(edge.parent) ?? [];
-        list.push(edge.child); spawned.set(edge.parent, list);
-      }
-      // Linear failure propagation, rather than repeated full SQL rescans for
-      // each level of a deep failed dependency chain.
-      const failed = rows.filter(t => t.status === "FAIL" || t.status === "BLOCKED").map(t => t.id as string);
-      for (const [parentId, children] of spawned) {
-        const parent = byId.get(parentId);
-        if (!parent || parent.status !== "READY") continue;
-        if (!children.some(id => ["FAIL", "BLOCKED"].includes(byId.get(id)?.status as string))) continue;
-        parent.status = "BLOCKED"; failed.push(parentId);
-        this.store.db.prepare(
-          "UPDATE tasks SET status='BLOCKED',error='spawned child failed' WHERE run=? AND id=?"
-        ).run(runId, parentId);
-        this.store.event("task.blocked", { reason: "spawned child failed" }, runId, parentId);
-      }
-      for (let i = 0; i < failed.length; i++) for (const id of plan.children.get(failed[i]) ?? []) {
-        const child = byId.get(id)!;
-        if (child.status !== "READY") continue;
-        child.status = "BLOCKED"; failed.push(id);
-        this.store.db.prepare("UPDATE tasks SET status='BLOCKED',error='dependency failed' WHERE run=? AND id=?").run(runId, id);
-        this.store.event("task.blocked", { reason: "dependency failed" }, runId, id);
-      }
-      if (rows.every(t => ["PASS", "FAIL", "BLOCKED"].includes(t.status))) {
-        const status = rows.length > 0 && rows.every(t => t.status === "PASS") ? "PASS" : "FAIL";
+
+      const unfinished = this.store.db.prepare(
+        "SELECT COUNT(*) AS n FROM tasks WHERE run=? AND status NOT IN ('PASS','FAIL','BLOCKED')"
+      ).get(runId)!.n as number;
+      if (unfinished === 0) {
+        const failed = this.store.db.prepare(
+          "SELECT COUNT(*) AS n FROM tasks WHERE run=? AND status IN ('FAIL','BLOCKED')"
+        ).get(runId)!.n as number;
+        const status = failed === 0 ? "PASS" : "FAIL";
         this.store.db.prepare("UPDATE runs SET status=?,ended=? WHERE id=?").run(status, now, runId);
-        this.store.event("run.finished", { status }, runId); return [];
+        this.store.event("run.finished", { status }, runId);
+        return [];
       }
-      const running = rows.filter(t => t.status === "RUNNING");
-      const capacity = Math.min(limit, recipe.parallelism - running.length);
+
+      const runningRows = this.store.db.prepare(
+        "SELECT id,spec FROM tasks WHERE run=? AND status='RUNNING' ORDER BY id"
+      ).all(runId);
+      const capacity = Math.min(limit, recipe.parallelism - runningRows.length);
       if (capacity <= 0) return [];
-      const active = running.map(t => plan.byId.get(t.id)!);
-      let reserved = active.reduce((n, task) => n + plan.budgets.get(task.id)!, 0);
-      const leases: Lease[] = [];
+      const active = runningRows.map(row => JSON.parse(row.spec) as Task);
+      let reserved = runningRows.reduce((sum, row) =>
+        sum + (schedulerNode(this.store, runId, String(row.id))?.budget ?? recipe.contextBytes), 0);
       const snapshotReads = this.store.contract().readIsolation === "snapshot";
-      for (const task of plan.order) {
-        const row = byId.get(task.id)!;
-        if (row.status !== "READY" || (waits.get(task.id) ?? 0) > now ||
-            !task.dependencies.every(d => byId.get(d)!.status === "PASS") ||
-            !(spawned.get(task.id) ?? []).every(d => byId.get(d)?.status === "PASS") ||
-            active.some(other => snapshotReads
-              ? conflicts(task.writeScope, other.writeScope) : accessConflicts(task, other))) continue;
-        const budget = plan.budgets.get(task.id)!;
-        if (recipe.maxInFlightContextBytes !== undefined && reserved + budget > recipe.maxInFlightContextBytes) continue;
-        const fence = row.fence + 1; const deadline = now + recipe.timeoutMs;
-        this.store.db.prepare("UPDATE tasks SET status='RUNNING',fence=?,owner=?,deadline=?,error=NULL WHERE run=? AND id=?").run(fence, owner, deadline, runId, task.id);
-        this.store.db.prepare("INSERT INTO attempts(run,task,fence,started,status) VALUES(?,?,?,?,'RUNNING')").run(runId, task.id, fence, now);
-        this.store.event("task.claimed", { owner, fence, deadline, reservedContextBytes: budget,
-          criticalPathEstimate: plan.ranks.get(task.id) ?? null }, runId, task.id);
-        leases.push({ runId, taskId: task.id, owner, fence, deadline, recipeHash: run.recipe, contractHash: run.contract });
-        this.store.db.prepare("DELETE FROM task_waits WHERE run=? AND task=?").run(runId, task.id);
-        this.store.db.prepare("INSERT INTO attempt_health VALUES(?,?,?,?,?,NULL,NULL)").run(runId, task.id, fence, "prepare", now);
-        active.push(task); reserved += budget; row.status = "RUNNING";
+      const leases: Lease[] = [];
+
+      // A bounded overscan lets scope/context conflicts skip candidates without
+      // turning a large ready set into a full-run scan.
+      const window = Math.min(4096, Math.max(64, capacity * 16));
+      for (const candidate of readyCandidates(this.store, runId, now, window)) {
+        const task = JSON.parse(candidate.spec) as Task;
+        if (active.some(other => snapshotReads
+          ? conflicts(task.writeScope, other.writeScope)
+          : accessConflicts(task, other))) continue;
+        if (recipe.maxInFlightContextBytes !== undefined &&
+            reserved + candidate.budget > recipe.maxInFlightContextBytes) continue;
+
+        const fence = candidate.fence + 1; const deadline = now + recipe.timeoutMs;
+        const updated = this.store.db.prepare(`UPDATE tasks SET status='RUNNING',fence=?,owner=?,deadline=?,error=NULL
+          WHERE run=? AND id=? AND status='READY' AND fence=?`)
+          .run(fence, owner, deadline, runId, candidate.id, candidate.fence);
+        if (!updated.changes) continue;
+        this.store.db.prepare("INSERT INTO attempts(run,task,fence,started,status) VALUES(?,?,?,?,'RUNNING')")
+          .run(runId, candidate.id, fence, now);
+        this.store.db.prepare("DELETE FROM task_waits WHERE run=? AND task=?").run(runId, candidate.id);
+        this.store.db.prepare("INSERT INTO attempt_health VALUES(?,?,?,?,?,NULL,NULL)")
+          .run(runId, candidate.id, fence, "prepare", now);
+        this.store.event("task.claimed", { owner, fence, deadline, reservedContextBytes: candidate.budget,
+          criticalPathEstimate: candidate.rank }, runId, candidate.id);
+        leases.push({ runId, taskId: candidate.id, owner, fence, deadline,
+          recipeHash: run.recipe, contractHash: run.contract });
+        active.push(task); reserved += candidate.budget;
         if (leases.length >= capacity) break;
       }
       return leases;
