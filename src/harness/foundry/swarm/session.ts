@@ -16,6 +16,8 @@ export interface ThreadState {
   toolCalls: number;
   patchHash: string | null;
   pending: Call | null;
+  /** Durable IDs for a concurrently launched tool batch that may span resumes. */
+  pendingBatch?: string[];
   output: PatchArtifact | null;
   feedbackHash: string | null;
   /** Immutable admitted provider-input envelope for this durable thread. */
