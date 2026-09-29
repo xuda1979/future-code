@@ -1,51 +1,22 @@
-import { invariant } from "./kernel.ts";
+import { canonical, digest, invariant } from "./kernel.ts";
 import { compilePlan } from "./productivity.ts";
 import type { Store } from "./store.ts";
 import type { Recipe, Task } from "./types.ts";
 
 export interface SchedulerIndexStats {
-  indexedTasks: number;
-  edges: number;
-  runnable: number;
-  dependencyBlocked: number;
-  delayed: number;
-  rebuilds: number;
-  builtAt: number;
+  indexedTasks: number; edges: number; runnable: number; dependencyBlocked: number;
+  delayed: number; rebuilds: number; builtAt: number; sourceHash: string;
 }
 
-/** Durable acceleration index derived entirely from tasks + spawn_edges.
- * Those source tables remain authoritative; this index may be deleted and rebuilt. */
-export function installSchedulerIndex(store: Store): void {
-  store.db.exec(`CREATE TABLE IF NOT EXISTS scheduler_nodes(
-    run TEXT NOT NULL, task TEXT NOT NULL, remaining INTEGER NOT NULL,
-    priority REAL NOT NULL, rank REAL NOT NULL, budget INTEGER NOT NULL,
-    PRIMARY KEY(run,task));
-    CREATE INDEX IF NOT EXISTS scheduler_nodes_ready
-      ON scheduler_nodes(run,remaining,priority DESC,rank DESC,task);
-    CREATE TABLE IF NOT EXISTS scheduler_edges(
-      run TEXT NOT NULL, prerequisite TEXT NOT NULL, dependent TEXT NOT NULL,
-      kind TEXT NOT NULL, PRIMARY KEY(run,prerequisite,dependent,kind));
-    CREATE INDEX IF NOT EXISTS scheduler_edges_dependent
-      ON scheduler_edges(run,dependent,prerequisite);
-    CREATE TABLE IF NOT EXISTS scheduler_index_meta(
-      run TEXT PRIMARY KEY, task_count INTEGER NOT NULL, edge_count INTEGER NOT NULL,
-      rebuilds INTEGER NOT NULL, built_at REAL NOT NULL);`);
-}
-
-function source(store: Store, runId: string): {
-  tasks: Task[];
-  status: Map<string, string>;
-  runtime: Task[];
-  edges: { prerequisite: string; dependent: string; kind: "static" | "spawn" }[];
-} {
+function source(store: Store, runId: string) {
   const rows = store.db.prepare("SELECT id,spec,status FROM tasks WHERE run=? ORDER BY id").all(runId);
   invariant(rows.length > 0, "cannot index an empty or unknown run");
   const tasks = rows.map(row => JSON.parse(row.spec) as Task);
   const status = new Map(rows.map(row => [String(row.id), String(row.status)]));
-  const spawned = new Map<string, string[]>();
   const spawnRows = store.db.prepare(
-    "SELECT parent,child FROM spawn_edges WHERE run=? ORDER BY parent,child"
+    "SELECT parent,child,request_key,depth FROM spawn_edges WHERE run=? ORDER BY parent,child"
   ).all(runId);
+  const spawned = new Map<string, string[]>();
   for (const edge of spawnRows) {
     const parent = String(edge.parent); const child = String(edge.child);
     const list = spawned.get(parent) ?? []; list.push(child); spawned.set(parent, list);
@@ -59,13 +30,19 @@ function source(store: Store, runId: string): {
     edges.push({ prerequisite: dependency, dependent: task.id, kind: "static" });
   for (const edge of spawnRows)
     edges.push({ prerequisite: String(edge.child), dependent: String(edge.parent), kind: "spawn" });
-  return { tasks, status, runtime, edges };
+  const sourceHash = digest({
+    tasks: rows.map(row => ({ id: String(row.id), spec: JSON.parse(row.spec) })),
+    spawnEdges: spawnRows.map(edge => ({
+      parent: String(edge.parent), child: String(edge.child),
+      requestKey: String(edge.request_key), depth: Number(edge.depth),
+    })),
+  });
+  return { status, runtime, edges, sourceHash };
 }
 
-/** Caller owns the surrounding transaction. */
 export function rebuildSchedulerIndex(store: Store, runId: string, recipe: Recipe,
   now = Date.now()): void {
-  const { status, runtime, edges } = source(store, runId);
+  const { status, runtime, edges, sourceHash } = source(store, runId);
   const plan = compilePlan(runtime, recipe, store.contract().limits.contextBytes);
   const previous = store.db.prepare("SELECT rebuilds FROM scheduler_index_meta WHERE run=?").get(runId);
   store.db.prepare("DELETE FROM scheduler_edges WHERE run=?").run(runId);
@@ -88,44 +65,48 @@ export function rebuildSchedulerIndex(store: Store, runId: string, recipe: Recip
     nodeInsert.run(runId, task.id, remaining, task.priority ?? 0,
       plan.ranks.get(task.id) ?? 0, plan.budgets.get(task.id)!);
   }
-  store.db.prepare(`INSERT INTO scheduler_index_meta(run,task_count,edge_count,rebuilds,built_at)
-    VALUES(?,?,?,?,?)
+  store.db.prepare(`INSERT INTO scheduler_index_meta(run,task_count,edge_count,rebuilds,built_at,source_hash)
+    VALUES(?,?,?,?,?,?)
     ON CONFLICT(run) DO UPDATE SET task_count=excluded.task_count,edge_count=excluded.edge_count,
-      rebuilds=excluded.rebuilds,built_at=excluded.built_at`)
-    .run(runId, runtime.length, edges.length, (previous?.rebuilds ?? 0) + 1, now);
+      rebuilds=excluded.rebuilds,built_at=excluded.built_at,source_hash=excluded.source_hash`)
+    .run(runId, runtime.length, edges.length, (previous?.rebuilds ?? 0) + 1, now, sourceHash);
   store.event("scheduler.index.rebuilt",
-    { tasks: runtime.length, edges: edges.length, rebuild: (previous?.rebuilds ?? 0) + 1 },
+    { tasks: runtime.length, edges: edges.length, rebuild: (previous?.rebuilds ?? 0) + 1, sourceHash },
     runId);
 }
 
-export function hasSchedulerIndex(store: Store, runId: string): boolean {
-  return !!store.db.prepare("SELECT 1 FROM scheduler_index_meta WHERE run=?").get(runId);
+export function schedulerIndexCurrent(store: Store, runId: string): boolean {
+  const meta = store.db.prepare("SELECT source_hash FROM scheduler_index_meta WHERE run=?").get(runId);
+  if (!meta?.source_hash) return false;
+  return String(meta.source_hash) === source(store, runId).sourceHash;
+}
+
+export function ensureSchedulerIndex(store: Store, runId: string, recipe: Recipe, now = Date.now()): void {
+  const meta = store.db.prepare("SELECT source_hash FROM scheduler_index_meta WHERE run=?").get(runId);
+  if (!meta?.source_hash) {
+    rebuildSchedulerIndex(store, runId, recipe, now); return;
+  }
+  const actual = source(store, runId).sourceHash;
+  if (String(meta.source_hash) !== actual) {
+    store.event("scheduler.index.drift", { expected: String(meta.source_hash), actual }, runId);
+    rebuildSchedulerIndex(store, runId, recipe, now);
+  }
 }
 
 export function releaseDependents(store: Store, runId: string, prerequisite: string): void {
   store.db.prepare(`UPDATE scheduler_nodes SET remaining=CASE WHEN remaining>0 THEN remaining-1 ELSE 0 END
-    WHERE run=? AND task IN (
-      SELECT dependent FROM scheduler_edges WHERE run=? AND prerequisite=?
-    )`).run(runId, runId, prerequisite);
+    WHERE run=? AND task IN (SELECT dependent FROM scheduler_edges WHERE run=? AND prerequisite=?)`)
+    .run(runId, runId, prerequisite);
 }
 
-export function hasFailedPrerequisite(store: Store, runId: string, task: string): boolean {
-  return !!store.db.prepare(`SELECT 1 FROM scheduler_edges e
-    JOIN tasks t ON t.run=e.run AND t.id=e.prerequisite
-    WHERE e.run=? AND e.dependent=? AND t.status IN ('FAIL','BLOCKED') LIMIT 1`)
-    .get(runId, task);
-}
-
-/** Caller owns the transaction. Propagation is O(reachable outgoing edges). */
 export function blockDependents(store: Store, runId: string, prerequisite: string,
   reason = "dependency failed"): void {
   const queue = [prerequisite]; const seen = new Set<string>();
   while (queue.length) {
     const failed = queue.shift()!; if (seen.has(failed)) continue; seen.add(failed);
-    const dependents = store.db.prepare(
+    for (const edge of store.db.prepare(
       "SELECT dependent,kind FROM scheduler_edges WHERE run=? AND prerequisite=?"
-    ).all(runId, failed);
-    for (const edge of dependents) {
+    ).all(runId, failed)) {
       const id = String(edge.dependent);
       const row = store.db.prepare("SELECT status FROM tasks WHERE run=? AND id=?").get(runId, id);
       if (!row || row.status !== "READY") {
@@ -165,7 +146,7 @@ export function readyCandidates(store: Store, runId: string, now: number, limit:
 
 export function schedulerIndexStats(store: Store, runId: string, now = Date.now()): SchedulerIndexStats | null {
   const meta = store.db.prepare(
-    "SELECT task_count,edge_count,rebuilds,built_at FROM scheduler_index_meta WHERE run=?"
+    "SELECT task_count,edge_count,rebuilds,built_at,source_hash FROM scheduler_index_meta WHERE run=?"
   ).get(runId);
   if (!meta) return null;
   const runnable = store.db.prepare(`SELECT COUNT(*) AS n FROM scheduler_nodes n
@@ -181,5 +162,5 @@ export function schedulerIndexStats(store: Store, runId: string, now = Date.now(
     WHERE w.run=? AND t.status='READY' AND w.wake>?`).get(runId, now)!.n;
   return { indexedTasks: Number(meta.task_count), edges: Number(meta.edge_count),
     runnable: Number(runnable), dependencyBlocked: Number(dependencyBlocked), delayed: Number(delayed),
-    rebuilds: Number(meta.rebuilds), builtAt: Number(meta.built_at) };
+    rebuilds: Number(meta.rebuilds), builtAt: Number(meta.built_at), sourceHash: String(meta.source_hash ?? "") };
 }
