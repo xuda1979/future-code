@@ -128,8 +128,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"],
       ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs"]);
     invariant(["anthropic", "chat-completions"].includes(a.protocol), "unsupported provider protocol");
-    const validateRoute = (route: ProviderRoute, label: string) => {
-      keys(route, ["url", "model"], ["keyEnv", "allowHttp", "quotaPool"]);
+    const validateRoute = (route: ProviderRoute, label: string, strictShape = true) => {
+      if (strictShape) keys(route, ["url", "model"], ["keyEnv", "allowHttp", "quotaPool"]);
       const url = new URL(route.url);
       const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
       invariant(url.protocol === "https:" || (url.protocol === "http:" && (loopback || route.allowHttp === true)),
@@ -144,7 +144,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       if (route.quotaPool !== undefined)
         invariant(/^[A-Za-z0-9._:-]{1,128}$/.test(route.quotaPool), `invalid ${label} quotaPool`);
     };
-    validateRoute(a, "primary provider");
+    validateRoute(a, "primary provider", false);
     invariant(typeof a.system === "string" && !!a.system.trim(), "missing system");
     invariant(a.promptCache === undefined || typeof a.promptCache === "boolean", "invalid provider flag");
     if (a.fallbacks !== undefined) {
