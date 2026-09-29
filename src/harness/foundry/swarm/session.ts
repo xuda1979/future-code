@@ -223,6 +223,16 @@ export class SessionJournal {
       await waitPermit(provider, signal);
     }
   }
+  /** Replay a completed host control-plane API response by exact request body.
+   * Used for crash-safe recovery planning; replay consumes no new request budget. */
+  cachedRun(run: string, task: string, body: Json): Json | null {
+    const request = digest(body);
+    const row = this.store.db.prepare(`SELECT response FROM agent_requests
+      WHERE run=? AND task=? AND request=? AND status='DONE' AND response IS NOT NULL
+      ORDER BY started DESC LIMIT 1`).get(run, task, request);
+    return row?.response ? this.store.readArtifact(String(row.response)) : null;
+  }
+
   hasReply(c: Capsule, step: number): boolean {
     this.assertLease(c);
     invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");
