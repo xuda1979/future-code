@@ -31,7 +31,10 @@ export function installObjectives(store: Store): void {
 export function objectiveStatus(store: Store, id: string): Json {
   installObjectives(store); identifier(id);
   const r = store.db.prepare("SELECT id,goal,run,state,reason,updated,lease FROM swarm_objectives WHERE id=?").get(id);
-  invariant(r, "unknown objective"); return r as Json;
+  invariant(r, "unknown objective");
+  const revision = store.db.prepare("SELECT MAX(revision) AS n FROM swarm_objective_revisions WHERE objective=?").get(id)?.n ?? 0;
+  const recovery = store.db.prepare("SELECT state,detail,new_run,updated FROM swarm_recovery_attempts WHERE objective=? ORDER BY revision DESC LIMIT 1").get(id);
+  return { ...(r as Record<string, Json>), revision, recovery: (recovery ?? null) as Json };
 }
 
 /** Persistent, single-host objective control on the SAME Foundry scheduler.
