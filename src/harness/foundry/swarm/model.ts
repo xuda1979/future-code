@@ -26,6 +26,7 @@ export const definitions: ToolDefinition[] = [
     { receipt: string, offset: integer, length: { type: "integer", minimum: 1, maximum: 8192 }, historyAfter: integer, limit: { type: "integer", minimum: 1, maximum: 10 } }, []),
 ];
 const asJson = (x: unknown): Json => JSON.parse(canonical(x));
+export const HARNESS_PREFIX = "Future-Code Foundry worker contract: obey the admitted task and scopes; use only declared tools; acceptance is decided by the independent host verifier; never claim PASS; receipts are durable; dynamic delegation, when enabled, must stay within delegateScope and be awaited before use.";
 function measured(raw: any, protocol: Protocol): { tokens: number; usage: ProviderUsage } | null {
   const u = raw?.usage;
   if (!u || typeof u !== "object") return null;
@@ -83,7 +84,7 @@ export function requestBody(profile: AgentProfile, history: Message[], budget: S
   const tools = definitions.filter(x => profile.tools.includes(x.name)).sort((a, b) => a.name.localeCompare(b.name));
   if (profile.protocol === "chat-completions") return asJson({
     model: profile.model, max_tokens: budget.maxOutputTokens, stream: false,
-    messages: [{ role: "system", content: profile.system }, ...history.map(m => m.role === "tool"
+    messages: [{ role: "system", content: `${profile.system}\n\n${HARNESS_PREFIX}` }, ...history.map(m => m.role === "tool"
       ? { role: "tool", tool_call_id: m.callId, content: m.content }
       : { role: m.role, content: m.content, ...(m.calls?.length ? { tool_calls: m.calls.map(c =>
           ({ id: c.id, type: "function", function: { name: c.name, arguments: canonical(c.arguments) } })) } : {}) })],
@@ -102,7 +103,7 @@ export function requestBody(profile: AgentProfile, history: Message[], budget: S
     } else messages.push({ role: "user", content: [{ type: "text", text: m.content }] });
   }
   return asJson({ model: profile.model, max_tokens: budget.maxOutputTokens, stream: false,
-    system: [{ type: "text", text: profile.system, ...(profile.promptCache ? { cache_control: { type: "ephemeral" } } : {}) }],
+    system: [{ type: "text", text: `${profile.system}\n\n${HARNESS_PREFIX}`, ...(profile.promptCache ? { cache_control: { type: "ephemeral" } } : {}) }],
     messages, tools: tools.map(t => ({ name: t.name, description: t.description, input_schema: t.schema })) });
 }
 export async function boundedJson(response: Response, maxBytes: number): Promise<Json> {
