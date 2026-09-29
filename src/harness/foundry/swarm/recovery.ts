@@ -1,6 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { FatalAttemptError } from "../errors.ts";
+import { DeferredAttemptError } from "../continuation.ts";
 import type { Store } from "../store.ts";
 import type { Json, Task } from "../types.ts";
 import type { AgentProfile, PinnedSwarm, Protocol } from "./config.ts";
@@ -163,7 +164,7 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
     const encoded = canonical(body);
     invariant(Buffer.byteLength(encoded) <= cfg.spec.budget.maxRequestBytes,
       "recovery planner request exceeds configured request-byte budget");
-    const provider = digest({ url: profile.url });
+    const provider = digest({ quotaPool: profile.quotaPool ?? `${profile.url}#${profile.model}` });
     for (let attempt = 0; attempt < 2; attempt++) {
       signal.throwIfAborted();
       const requestId = await journal.reserveRun(context.runId, "__recovery__", provider, body, cfg.spec.budget, signal);
@@ -186,6 +187,9 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
             await delay(250, undefined, { signal });
             continue;
           }
+          if (TRANSIENT.has(response.status))
+            throw new DeferredAttemptError("provider", Date.now() + 2000,
+              `Recovery model HTTP ${response.status}; retry scheduled`);
           throw new FatalAttemptError(`Recovery model HTTP ${response.status}; provider/configuration requires attention`);
         }
         const raw = await boundedJson(response, cfg.spec.budget.maxToolOutputBytes);
@@ -205,6 +209,9 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
           await delay(250, undefined, { signal });
           continue;
         }
+        if (isTransportFailure(error))
+          throw new DeferredAttemptError("provider", Date.now() + 2000,
+            "Recovery provider transport unavailable; retry scheduled");
         throw error;
       }
     }

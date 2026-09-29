@@ -140,15 +140,15 @@ test("unchanged remote milestone becomes visibly stalled then requires reconcili
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => ({ schema: 1, key: (request as any).key, jobId: "train", status: "RUNNING", progressToken: "step-10" }));
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), DeferredAttemptError);
-  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 25);
+  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 300);
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => {
     assert.ok(e instanceof DeferredAttemptError); assert.equal(e.kind, "remote-stalled"); return true;
   });
-  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 50);
+  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 1500);
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => {
     assert.ok(e instanceof FatalAttemptError); assert.match(e.message, /RECONCILIATION_REQUIRED/); return true;
   });
-}, s => { jobSpec(s); s.jobs!.train.staleMs = 20; s.jobs!.train.reconcileAfterMs = 40; }));
+}, s => { jobSpec(s); s.jobs!.train.staleMs = 200; s.jobs!.train.reconcileAfterMs = 1000; }));
 test("operator reconciliation records a terminal remote outcome without resubmission", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   let rpcCalls = 0;
@@ -196,6 +196,23 @@ test("transient provider responses yield without resetting the run request ledge
   const good = await brain.next(q.capsule(l), cfg.spec.agents.coder, [{ role: "user", content: "task" }], cfg.spec.budget, 32768, signal());
   assert.equal(good.turn.tokens, 15); assert.equal(j.usage(run).requests, 6); assert.equal(j.usage(run).unknownRequests, 5);
 }, s => { s.recipe.attempts = 1; }));
+test("provider concurrency waiters wake on local request completion", async () => swarmFixture(async (s, cfg) => {
+  cfg.spec.budget.modelConcurrency = 1;
+  const aTask = { ...swarmTask("a"), readScope: [] };
+  const bTask = { ...swarmTask("b"), readScope: [] };
+  const q = new Scheduler(s); const run = q.start([aTask, bTask]);
+  const a = q.capsule(q.claim(run, "a")!); const b = q.capsule(q.claim(run, "b")!);
+  const journal = new SessionJournal(s); const provider = "shared-test-pool";
+  const first = await journal.reserve(a, provider, { request: "a" }, cfg.spec.budget, signal());
+  const started = Date.now();
+  const secondPromise = journal.reserve(b, provider, { request: "b" }, cfg.spec.budget, signal());
+  await delay(20);
+  journal.complete(first, 1, { ok: true });
+  const second = await secondPromise;
+  assert.ok(Date.now() - started < 200, "same-process permit should wake before cross-process fallback");
+  journal.complete(second, 1, { ok: true });
+}));
+
 test("authentication errors are not retried as transient outages", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!); const j = new SessionJournal(s);
   const brain = new HttpBrain(j, (async () => new Response(null, { status: 401 })) as typeof fetch);
@@ -285,6 +302,39 @@ test("supervision uses the configured external API for bounded recovery by defau
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1, recoveryAgent: "coder" };
 }));
 
+test("transient recovery failure is durably retried without consuming a new revision", async () => swarmFixture(async s => {
+  const script = scripted([
+    () => reply("finished without a patch"),
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+    () => reply(),
+  ]);
+  let plannerCalls = 0;
+  const repaired = { ...swarmTask("repair"), goal: "Focused retry recovery", writeScope: ["src/a.txt"] };
+  const result: any = await superviseSwarm(
+    s,
+    { id: "deferred-recovery", goal: "Implement 42 and verify it", tasks: [swarmTask()] },
+    signal(),
+    undefined,
+    script.fetcher,
+    async () => {
+      plannerCalls++;
+      if (plannerCalls === 1) throw new DeferredAttemptError("provider", Date.now() + 20, "temporary planner outage");
+      return { reason: "Retry with focused repair", tasks: [repaired] };
+    },
+  );
+  assert.equal(result.status, "PASS");
+  assert.equal(plannerCalls, 2);
+  assert.equal(s.db.prepare(
+    "SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective='deferred-recovery' AND revision>0"
+  ).get()!.n, 1);
+  assert.equal(s.db.prepare(
+    "SELECT state FROM swarm_recovery_attempts WHERE objective='deferred-recovery'"
+  ).get()!.state, "PLANNED");
+}, s => {
+  s.recipe.attempts = 1;
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
+}));
+
 test("prepared recovery is adopted after a supervisor crash without another planner call", async () => swarmFixture(async s => {
   const ctl = new AbortController();
   await superviseSwarm(
@@ -301,7 +351,9 @@ test("prepared recovery is adopted after a supervisor crash without another plan
   const now = Date.now();
   s.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
     .run("prepared-recovery", 1, plan, newRun, "prepared before crash", now);
-  s.db.prepare("INSERT INTO swarm_recovery_attempts VALUES(?,?,?,?,?,?,?,?)")
+  s.db.prepare(`INSERT INTO swarm_recovery_attempts
+    (objective,run,revision,state,detail,new_run,retry_at,created,updated)
+    VALUES(?,?,?,?,?,?,NULL,?,?)`)
     .run("prepared-recovery", old.run, 1, "PREPARED", "prepared before crash", newRun, now, now);
   const sourceRecipe = s.db.prepare("SELECT recipe FROM runs WHERE id=?").get(old.run)!.recipe as string;
   new Scheduler(s).start([repaired], sourceRecipe, now, newRun); // crash after run creation, before objective binding

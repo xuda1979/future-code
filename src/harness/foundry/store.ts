@@ -26,6 +26,21 @@ export class Store {
       CREATE TABLE IF NOT EXISTS runs(id TEXT PRIMARY KEY, recipe TEXT NOT NULL, contract TEXT NOT NULL, started REAL NOT NULL, ended REAL, status TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS tasks(run TEXT NOT NULL, id TEXT NOT NULL, spec TEXT NOT NULL, status TEXT NOT NULL, fence INTEGER NOT NULL DEFAULT 0, owner TEXT, deadline REAL, artifact TEXT, evidence TEXT, error TEXT, PRIMARY KEY(run,id));
       CREATE INDEX IF NOT EXISTS tasks_status ON tasks(run,status);
+      CREATE INDEX IF NOT EXISTS tasks_deadline ON tasks(run,status,deadline);
+      CREATE TABLE IF NOT EXISTS scheduler_nodes(
+        run TEXT NOT NULL, task TEXT NOT NULL, remaining INTEGER NOT NULL,
+        priority REAL NOT NULL, rank REAL NOT NULL, budget INTEGER NOT NULL,
+        PRIMARY KEY(run,task));
+      CREATE INDEX IF NOT EXISTS scheduler_nodes_ready
+        ON scheduler_nodes(run,remaining,priority DESC,rank DESC,task);
+      CREATE TABLE IF NOT EXISTS scheduler_edges(
+        run TEXT NOT NULL, prerequisite TEXT NOT NULL, dependent TEXT NOT NULL,
+        kind TEXT NOT NULL, PRIMARY KEY(run,prerequisite,dependent,kind));
+      CREATE INDEX IF NOT EXISTS scheduler_edges_dependent
+        ON scheduler_edges(run,dependent,prerequisite);
+      CREATE TABLE IF NOT EXISTS scheduler_index_meta(
+        run TEXT PRIMARY KEY, task_count INTEGER NOT NULL, edge_count INTEGER NOT NULL,
+        rebuilds INTEGER NOT NULL, built_at REAL NOT NULL);
       CREATE TABLE IF NOT EXISTS attempts(run TEXT NOT NULL, task TEXT NOT NULL, fence INTEGER NOT NULL, started REAL NOT NULL, ended REAL, status TEXT NOT NULL, tokens REAL, cost REAL, duration REAL, PRIMARY KEY(run,task,fence));
       CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL, kind TEXT NOT NULL, run TEXT, task TEXT, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS attempt_telemetry(run TEXT NOT NULL, task TEXT NOT NULL, fence INTEGER NOT NULL,

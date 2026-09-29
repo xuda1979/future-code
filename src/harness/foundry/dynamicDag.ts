@@ -1,5 +1,6 @@
 import { canonical, digest, identifier, invariant, validateTasks } from "./kernel.ts";
 import { accessConflicts, compilePlan } from "./productivity.ts";
+import { rebuildSchedulerIndex } from "./schedulerIndex.ts";
 import type { Store } from "./store.ts";
 import type { Capsule, Json, SpawnPolicy, Task } from "./types.ts";
 
@@ -133,6 +134,9 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
     const edgeInsert = store.db.prepare("INSERT INTO spawn_edges VALUES(?,?,?,?,?,?)");
     for (const child of children)
       edgeInsert.run(c.runId, c.task.id, child.id, requestKey, depth, now);
+    // Dynamic expansion is the uncommon structural operation. Pay O(V+E) here
+    // once so subsequent claims remain bounded to ready/running work.
+    rebuildSchedulerIndex(store, c.runId, store.recipe(c.recipeHash), now);
     store.event("task.expanded",
       { parent: c.task.id, requestKey, depth, children: ids }, c.runId, c.task.id);
     return { childIds: ids, complete: false, refs: [] as { id: string; hash: string }[] };
