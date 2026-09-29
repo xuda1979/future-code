@@ -255,10 +255,12 @@ provider metadata tokens, `knownTokens`, `unknownRequests`, and reservations.
 Missing usage is null rather than zero. Anthropic cache read/creation tokens are
 included in total input accounting. Model JSON that claims its own cost is ignored.
 There is no trusted currency price meter, so costUsd is unknown. Foundry
-`progressDensity` is verified accepted tasks per measured encoded capsule byte
-across prepared attempts; it is not billed-token or KV-cache efficiency. Planning
-calls made in the interactive UI are not included in the worker-run ledger; include
-them in a real end-to-end evaluation.
+`progressDensity` is verified initially admitted tasks per measured encoded
+capsule byte across all prepared attempts. Spawned children are charged in the
+denominator but do not count as additional objective progress, so decomposition
+alone cannot improve the score. It is not billed-token or KV-cache efficiency.
+Planning calls made in the interactive UI are not included in the worker-run ledger;
+include them in a real end-to-end evaluation.
 
 The implementation accepts bounded plans up to the existing contract ceilings,
 not an empirically validated 30,000-agent cluster. SQLite is a local single-host
