@@ -145,6 +145,34 @@ export class SessionJournal {
       await delay(50, undefined, { signal });
     }
   }
+  /** Reserve a provider request for host control-plane work such as bounded
+   * objective replanning. It shares the run's request/byte budget and provider
+   * concurrency pool but does not require a live worker lease. */
+  async reserveRun(run: string, task: string, provider: string, body: Json,
+    budget: SwarmBudget, signal: AbortSignal): Promise<string> {
+    invariant(typeof task === "string" && task.length > 0 && task.length <= 128, "invalid control-plane task");
+    const count = Buffer.byteLength(canonical(body)); const request = this.store.artifact(body);
+    for (;;) {
+      signal.throwIfAborted();
+      const id = this.store.transaction(() => {
+        invariant(this.store.db.prepare("SELECT 1 FROM runs WHERE id=?").get(run), "unknown run");
+        const now = Date.now();
+        this.store.db.prepare("UPDATE agent_requests SET status='UNKNOWN' WHERE status='ACTIVE' AND deadline<=?").run(now);
+        const used = this.store.db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM agent_requests WHERE run=?").get(run)!;
+        if (used.n >= budget.maxRequests || used.bytes + count > budget.maxRequestBytes)
+          throw new FatalAttemptError("RUN_REQUEST_BUDGET_EXHAUSTED");
+        const cooldown = this.store.db.prepare("SELECT until_ms FROM agent_cooldowns WHERE provider=?").get(provider)?.until_ms ?? 0;
+        const live = this.store.db.prepare("SELECT COUNT(*) AS n FROM agent_requests WHERE provider=? AND status='ACTIVE'").get(provider)!.n;
+        if (cooldown > now || live >= budget.modelConcurrency) return null;
+        const id = randomUUID();
+        this.store.db.prepare("INSERT INTO agent_requests VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',NULL,NULL)")
+          .run(id, run, task, 0, provider, count, request, now, now + budget.requestTimeoutMs);
+        return id;
+      });
+      if (id) return id;
+      await delay(50, undefined, { signal });
+    }
+  }
   hasReply(c: Capsule, step: number): boolean {
     this.assertLease(c);
     invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");
