@@ -265,6 +265,8 @@ test("prepared recovery is adopted after a supervisor crash without another plan
     .run("prepared-recovery", 1, plan, newRun, "prepared before crash", now);
   s.db.prepare("INSERT INTO swarm_recovery_attempts VALUES(?,?,?,?,?,?,?,?)")
     .run("prepared-recovery", old.run, 1, "PREPARED", "prepared before crash", newRun, now, now);
+  const sourceRecipe = s.db.prepare("SELECT recipe FROM runs WHERE id=?").get(old.run)!.recipe as string;
+  new Scheduler(s).start([repaired], sourceRecipe, now, newRun); // crash after run creation, before objective binding
   s.db.prepare("UPDATE swarm_objectives SET owner=NULL,lease=NULL,state='NEEDS_ATTENTION' WHERE id='prepared-recovery'").run();
   const script = scripted([
     () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
