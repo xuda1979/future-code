@@ -136,7 +136,8 @@ export class SwarmDriver implements Driver {
               t.state.history.push({ role: "tool", callId: call.id, content: inlineReceipt(receipt, result) });
               this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
             }
-            t.state.pendingBatch = stillPending.length ? stillPending : undefined;
+            if (stillPending.length) t.state.pendingBatch = stillPending;
+            else delete t.state.pendingBatch;
             this.journal.checkpoint(t, "tool.batch.result", {
               completed: remoteBatch.length - stillPending.length,
               pending: stillPending,
