@@ -29,6 +29,7 @@ export class Scheduler {
       this.store.db.prepare("INSERT INTO runs(id,recipe,contract,started,status) VALUES(?,?,?,?, 'RUNNING')").run(id, recipeHash, digest(contract), now);
       const insert = this.store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')");
       for (const task of tasks) insert.run(id, task.id, JSON.stringify(task));
+      this.store.db.prepare("UPDATE runs SET graph_version=1 WHERE id=?").run(id);
       rebuildSchedulerIndex(this.store, id, this.store.recipe(recipeHash), now);
       this.store.event("run.started", { recipeHash, contractHash: digest(contract), taskCount: tasks.length, taskHash: digest(tasks) }, id);
       return id;
