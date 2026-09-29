@@ -32,7 +32,10 @@ import {
 import { generateSessionTitle } from '../utils/sessionTitle.js'
 import type { RemoteMessageContent } from '../utils/teleport/api.js'
 import { updateSessionTitle } from '../utils/teleport/api.js'
-import { RemoteResponseWatchdog } from '../remote/responseLiveness.js'
+import {
+  isRemoteResponseProgress,
+  RemoteResponseWatchdog,
+} from '../remote/responseLiveness.js'
 
 type UseRemoteSessionProps = {
   config: RemoteSessionConfig | undefined
@@ -179,9 +182,11 @@ export function useRemoteSession({
           return
         }
 
-        // Any non-echo message from the remote worker counts as semantic
-        // progress for the foreground turn and refreshes the watchdog.
-        responseWatchdogRef.current?.progress()
+        // Only messages that demonstrate foreground agent work refresh the
+        // watchdog. Reconnect/init chatter must not reset the bounded retry.
+        if (isRemoteResponseProgress(sdkMessage)) {
+          responseWatchdogRef.current?.progress()
+        }
         // Handle init message - extract available slash commands
         if (
           sdkMessage.type === 'system' &&
@@ -367,6 +372,7 @@ export function useRemoteSession({
               queue.filter(item => item.toolUseID !== request.tool_use_id),
             )
             responseWatchdogRef.current?.resume()
+            setIsLoading(true)
           },
           onAllow(updatedInput, _permissionUpdates, _feedback) {
             const response: RemotePermissionResponse = {
@@ -390,6 +396,8 @@ export function useRemoteSession({
             setToolUseConfirmQueue(queue =>
               queue.filter(item => item.toolUseID !== request.tool_use_id),
             )
+            responseWatchdogRef.current?.resume()
+            setIsLoading(true)
           },
           async recheckPermission() {
             // No-op for remote — permission state is on the container
