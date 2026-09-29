@@ -37,7 +37,7 @@ export interface JobTemplate {
   idempotentEnsure: true;
   pollMs: number; staleMs: number; maxJobs: number; maxConcurrent: number;
 }
-export interface SupervisionPolicy { reportEveryMs: number; checkpointEveryMs: number; snapshotReads?: boolean }
+export interface SupervisionPolicy { reportEveryMs: number; checkpointEveryMs: number; snapshotReads?: boolean; maxReplans?: number }
 export interface SwarmSpec {
   jobs?: Record<string, JobTemplate>;
   supervision?: SupervisionPolicy;
@@ -116,11 +116,12 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     invariant(a.checks.every(n => s.checks[n].replaySafe), "independent verification checks must be replay-safe");
   }
   if (s.supervision) {
-    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["snapshotReads"]);
+    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["snapshotReads", "maxReplans"]);
     positive(s.supervision.reportEveryMs, 3600000, "reportEveryMs");
     invariant(s.supervision.reportEveryMs >= 10, "report interval too small");
     positive(s.supervision.checkpointEveryMs, 3600000, "checkpointEveryMs");
     invariant(s.supervision.snapshotReads === undefined || typeof s.supervision.snapshotReads === "boolean", "invalid snapshotReads");
+    invariant(s.supervision.maxReplans === undefined || (Number.isSafeInteger(s.supervision.maxReplans) && s.supervision.maxReplans >= 0 && s.supervision.maxReplans <= 8), "invalid maxReplans");
   }
   if (s.jobs) {
     keys(s.jobs, [], Object.keys(s.jobs)); positive(Object.keys(s.jobs).length, 32, "job templates");

@@ -121,11 +121,27 @@ modify main, checkout, force-update or push. Cached evidence is revalidated.
 
 `NEEDS_ATTENTION` explains exhausted budgets, unrecoverable protocol/configuration
 problems or failed final integration. It does not silently drop the objective or
-run identical failed checks forever. A revised plan, new credentials, additional
-budget or reconciliation is an operator decision. Model-driven automatic
-replanning after these boundaries is not implemented. Explicitly running a
-successful `integrate` can resolve the final integration gate; the supervisor
-revalidates the resulting receipt before accepting completion.
+run identical failed checks forever.
+
+Supervision may now opt into bounded execution replanning with
+`supervision.maxReplans` (0..8) plus a host-supplied `RecoveryPlanner`.
+The supervisor records one durable recovery attempt per failed run, gives the
+planner the frozen objective, previous task graph and bounded failure evidence,
+validates any replacement task graph against the unchanged Foundry contract and
+Swarm configuration, and starts a new versioned run only when the proposed plan
+materially changes execution structure. The original plan/run stays in
+`swarm_objective_revisions`; `objective` status reports the latest revision
+and recovery state. Acceptance checks, protected paths and provider configuration
+are not writable through the planner interface.
+
+This mechanism is deliberately opt-in: without both a planner and
+`maxReplans > 0`, the prior operator-driven `NEEDS_ATTENTION` behavior remains.
+Each new run has its own per-run attempt/request ledger, so `maxReplans` is also
+a hard multiplier on possible recovery spend rather than permission to retry
+forever. Credential/configuration failures should normally return no recovery
+plan and wait for operator repair. Explicitly running a successful `integrate`
+can still resolve the final integration gate; the supervisor revalidates the
+resulting receipt before accepting completion.
 
 ## External jobs: provider-neutral protocol
 

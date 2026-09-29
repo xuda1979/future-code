@@ -1,0 +1,36 @@
+name: core-offline-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Toolchain versions
+        run: |
+          node --version
+          python3 --version
+          git --version
+      - name: Correctness guardrails
+        run: node scripts/test-correctness.mjs
+      - name: Resilience and remote-job recovery
+        run: node scripts/test-resilience.mjs
+      - name: Foundry kernel
+        run: node scripts/test-foundry.mjs
+      - name: Swarm execution
+        run: node scripts/test-swarm.mjs

@@ -41,14 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--upstream-url", required=True)
-    parser.add_argument("--upstream-token", required=True)
     parser.add_argument("--model-name", required=True)
-    parser.add_argument(
-        "--appcode",
-        default="",
-        help="Optional API-gateway appcode (JWT) sent as the X-Ca-Key header. "
-        "Some Huanxin subscriptions (e.g. deepseekv4_master) require it.",
-    )
     parser.add_argument(
         "--max-input-chars",
         type=int,
@@ -60,7 +53,13 @@ def parse_args() -> argparse.Namespace:
         default=os.environ.get("HUANXIN_PROXY_INSECURE", "").strip().lower() in _TRUTHY,
         help="Skip upstream TLS certificate verification (also via HUANXIN_PROXY_INSECURE=1).",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    # Credentials are environment-only so they cannot leak through process argv.
+    args.upstream_token = os.environ.get("HUANXIN_PROXY_UPSTREAM_TOKEN", "").strip()
+    args.appcode = os.environ.get("HUANXIN_PROXY_APPCODE", "").strip()
+    if not args.upstream_token:
+        parser.error("upstream token is required via HUANXIN_PROXY_UPSTREAM_TOKEN")
+    return args
 
 
 def write_json(handler: BaseHTTPRequestHandler, status: int, payload: dict[str, Any]) -> None:
