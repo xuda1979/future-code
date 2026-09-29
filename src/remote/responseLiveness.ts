@@ -42,12 +42,14 @@ export class RemoteResponseWatchdog {
   private timer: ReturnType<typeof setTimeout> | null = null
   private waiting = false
   private reconnectAttempts = 0
+  private readonly callbacks: RemoteResponseWatchdogCallbacks
   private readonly options: RemoteResponseWatchdogOptions
 
   constructor(
-    private readonly callbacks: RemoteResponseWatchdogCallbacks,
+    callbacks: RemoteResponseWatchdogCallbacks,
     options: Partial<RemoteResponseWatchdogOptions> = {},
   ) {
+    this.callbacks = callbacks
     this.options = { ...DEFAULTS, ...options }
   }
 
