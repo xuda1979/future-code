@@ -179,35 +179,34 @@ test("runTasks summary includes progressDensity", async () => {
   });
 });
 
-test("progressDensity is higher with smaller context budget", async () => {
+test("progressDensity cannot be gamed by changing an unused context budget", async () => {
   await fixture(async (s, d) => {
-    // Same tasks, smaller contextBytes -> higher density
     const r1 = await runTasks(s, [fixtureTask("a"), fixtureTask("b")], d);
     const smallBudget = s.propose({ contextBytes: 5000 });
     s.setMeta("active", smallBudget);
     const r2 = await runTasks(s, [fixtureTask("a"), fixtureTask("b")], d, { recipeHash: smallBudget });
-    assert.ok(r2.progressDensity! > r1.progressDensity!, `r2 ${r2.progressDensity} should exceed r1 ${r1.progressDensity}`);
+    assert.equal(r2.progressDensity, r1.progressDensity);
   });
 });
 
 // == Evolution with progressDensity objective ==
 
-test("evaluate ADMITS candidate with higher progressDensity", async () => {
+test("evaluate rejects a context-budget-only candidate as a progressDensity gain", async () => {
   await fixture(async (s, d, baseline) => {
     const candidate = s.propose({ contextBytes: 5000 });
     const e = await evaluate(s, candidate, protocol("progressDensity", 0.1), d);
-    assert.equal(e.decision, "ADMIT");
-    assert.ok(e.relativeGain! >= 0.1);
+    assert.equal(e.decision, "REJECT");
+    assert.equal(e.relativeGain, 0);
     assert.equal(s.active(), baseline);
   });
 });
 
-test("evaluate REJECTS candidate with lower progressDensity", async () => {
-  await fixture(async (s, d, baseline) => {
+test("evaluate also rejects a larger unused context budget as a progressDensity gain", async () => {
+  await fixture(async (s, d) => {
     const candidate = s.propose({ contextBytes: 20000 });
     const e = await evaluate(s, candidate, protocol("progressDensity", 0.1), d);
     assert.equal(e.decision, "REJECT");
-    assert.ok(e.relativeGain! < 0);
+    assert.equal(e.relativeGain, 0);
   });
 });
 
