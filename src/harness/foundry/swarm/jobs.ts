@@ -125,6 +125,27 @@ export class ResearchJobs {
     return new DeferredAttemptError(stale ? "remote-stalled" : "remote-job", Math.max(Date.now() + 10, row.poll_at),
       `job ${row.key.slice(0, 12)} ${row.status}${stale ? "; no new milestone: inspect remote worker/queue" : "; durable poll scheduled"}`);
   }
+  reconcile(run: string, key: string, reply: JobReply): Json {
+    const store = this.journal.store;
+    const row = store.db.prepare("SELECT * FROM research_jobs WHERE run=? AND key=?").get(run, key);
+    invariant(row, "unknown research job");
+    keys(reply, ["schema", "key", "jobId", "status"], ["progressToken", "result"]);
+    invariant(reply.schema === 1 && reply.key === key && typeof reply.jobId === "string" && reply.jobId.length > 0 && reply.jobId.length <= 512, "invalid job identity");
+    invariant(!row.job_id || reply.jobId === row.job_id, "remote job identity changed");
+    invariant(["SUCCEEDED", "FAILED", "CANCELLED"].includes(reply.status), "reconciliation must provide a terminal remote status");
+    invariant(reply.status !== "SUCCEEDED" || Object.hasOwn(reply, "result"), "successful job needs a result");
+    invariant(Buffer.byteLength(canonical(reply)) <= this.cfg.spec.budget.maxToolOutputBytes, "job response too large");
+    const receipt = store.artifact(reply as unknown as Json); const now = Date.now();
+    store.transaction(() => {
+      const current = store.db.prepare("SELECT job_id,result_hash FROM research_jobs WHERE run=? AND key=?").get(run, key);
+      invariant(current && !current.result_hash, "research job already reconciled");
+      invariant(!current.job_id || current.job_id === reply.jobId, "remote job identity changed");
+      store.db.prepare("UPDATE research_jobs SET job_id=?,status=?,result_hash=?,poll_at=?,updated=? WHERE run=? AND key=?")
+        .run(reply.jobId, reply.status, receipt, now, now, run, key);
+      store.event("job.reconciled", { key, jobId: reply.jobId, status: reply.status, receipt }, run, row.task);
+    });
+    return reply as unknown as Json;
+  }
   list(run: string): Json {
     const rows = this.journal.store.db.prepare(`SELECT key,task,template,job_id,status,progress_at,poll_at,failures,result_hash,updated
       FROM research_jobs WHERE run=? ORDER BY created LIMIT 201`).all(run);
