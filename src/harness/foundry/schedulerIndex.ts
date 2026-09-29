@@ -164,5 +164,6 @@ export function schedulerIndexStats(store: Store, runId: string, now = Date.now(
     WHERE w.run=? AND t.status='READY' AND w.wake>?`).get(runId, now)!.n;
   return { indexedTasks: Number(meta.task_count), edges: Number(meta.edge_count),
     runnable: Number(runnable), dependencyBlocked: Number(dependencyBlocked), delayed: Number(delayed),
-    rebuilds: Number(meta.rebuilds), builtAt: Number(meta.built_at), sourceHash: String(meta.source_hash ?? ""),\n    sourceVersion: Number(meta.source_version ?? -1) };
+    rebuilds: Number(meta.rebuilds), builtAt: Number(meta.built_at), sourceHash: String(meta.source_hash ?? ""),
+    sourceVersion: Number(meta.source_version ?? -1) };
 }
