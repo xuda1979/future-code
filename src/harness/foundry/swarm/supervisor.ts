@@ -116,11 +116,11 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     return true;
   };
   const attemptRecovery = async (reason: string): Promise<boolean> => {
-    const maxReplans = cfg.spec.supervision?.maxReplans ?? 0;
-    if (!recoveryPlanner || maxReplans <= 0) return false;
     const row = assertOwner(); if (!row.run) return false;
     const existing = store.db.prepare("SELECT * FROM swarm_recovery_attempts WHERE objective=? AND run=?").get(input.id, row.run);
     if (existing?.state === "PREPARED") return adoptPreparedRecovery(row, existing);
+    const maxReplans = cfg.spec.supervision?.maxReplans ?? 0;
+    if (!recoveryPlanner || maxReplans <= 0) return false;
     if (existing && existing.state !== "STARTED") return false; // terminal planner decision is durable
     const used = store.db.prepare("SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective=? AND revision>0").get(input.id)!.n;
     if (!existing && used >= maxReplans) return false;
