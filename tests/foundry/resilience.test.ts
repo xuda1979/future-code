@@ -198,7 +198,9 @@ test("transient provider responses yield without resetting the run request ledge
 }, s => { s.recipe.attempts = 1; }));
 test("provider concurrency waiters wake on local request completion", async () => swarmFixture(async (s, cfg) => {
   cfg.spec.budget.modelConcurrency = 1;
-  const q = new Scheduler(s); const run = q.start([swarmTask("a"), swarmTask("b")]);
+  const aTask = { ...swarmTask("a"), readScope: [] };
+  const bTask = { ...swarmTask("b"), readScope: [] };
+  const q = new Scheduler(s); const run = q.start([aTask, bTask]);
   const a = q.capsule(q.claim(run, "a")!); const b = q.capsule(q.claim(run, "b")!);
   const journal = new SessionJournal(s); const provider = "shared-test-pool";
   const first = await journal.reserve(a, provider, { request: "a" }, cfg.spec.budget, signal());
