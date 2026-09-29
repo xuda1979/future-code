@@ -3,7 +3,7 @@ import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { identifier, invariant, positive, validateContract, validateRecipe } from "../kernel.ts";
 import type { CommandSpec, Contract, PinnedCommand, Recipe, Task } from "../types.ts";
 
-export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "run_job"] as const;
+export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "run_job", "spawn_tasks", "await_tasks"] as const;
 export type ToolName = typeof TOOLS[number];
 export type Protocol = "anthropic" | "chat-completions";
 export interface AgentProfile {
@@ -41,9 +41,15 @@ export interface JobTemplate {
   reconcileAfterMs?: number;
 }
 export interface SupervisionPolicy { reportEveryMs: number; checkpointEveryMs: number; snapshotReads?: boolean; maxReplans?: number }
+export interface DelegationPolicy {
+  maxDepth: number;
+  maxChildrenPerExpansion: number;
+  maxChildrenPerTask: number;
+}
 export interface SwarmSpec {
   jobs?: Record<string, JobTemplate>;
   supervision?: SupervisionPolicy;
+  delegation?: DelegationPolicy;
   schema: 1;
   name: string;
   project: string;
@@ -82,7 +88,7 @@ function names(names: string[], known: string[], label: string): void {
   invariant(Array.isArray(names) && names.length > 0 && new Set(names).size === names.length && names.every(n => known.includes(n)), `invalid ${label}`);
 }
 export function validateSwarmSpec(s: SwarmSpec): void {
-  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "supervision"]);
+  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "supervision", "delegation"]);
   invariant(s.schema === 1 && typeof s.name === "string" && !!s.name.trim(), "invalid swarm identity");
   invariant(typeof s.project === "string" && s.project.length > 0, "missing project");
   invariant(typeof s.baseRef === "string" && s.baseRef.length > 0 && !s.baseRef.startsWith("-") && !s.baseRef.includes("\0"), "invalid baseRef");
@@ -117,6 +123,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     for (const x of [a.promptCache, a.allowHttp]) invariant(x === undefined || typeof x === "boolean", "invalid provider flag");
     if (a.jobs !== undefined) names(a.jobs, Object.keys(s.jobs ?? {}), "agent jobs");
     if (a.tools.includes("run_job")) invariant(a.jobs && a.jobs.length > 0, "run_job requires named job capabilities");
+    if (a.tools.includes("spawn_tasks") || a.tools.includes("await_tasks")) invariant(s.delegation, "delegation tools require a delegation policy");
+    invariant(a.tools.includes("spawn_tasks") === a.tools.includes("await_tasks"), "spawn_tasks and await_tasks must be enabled together");
     if (s.supervision) invariant(a.tools.includes("run_check"), "supervision requires a permitted checkpoint check");
     names(a.tools, [...TOOLS], "tools"); names(a.checks, checks, "agent checks");
     invariant(a.checks.every(n => s.checks[n].replaySafe), "independent verification checks must be replay-safe");
@@ -128,6 +136,14 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     positive(s.supervision.checkpointEveryMs, 3600000, "checkpointEveryMs");
     invariant(s.supervision.snapshotReads === undefined || typeof s.supervision.snapshotReads === "boolean", "invalid snapshotReads");
     invariant(s.supervision.maxReplans === undefined || (Number.isSafeInteger(s.supervision.maxReplans) && s.supervision.maxReplans >= 0 && s.supervision.maxReplans <= 8), "invalid maxReplans");
+  }
+  if (s.delegation) {
+    keys(s.delegation, ["maxDepth", "maxChildrenPerExpansion", "maxChildrenPerTask"]);
+    positive(s.delegation.maxDepth, 16, "delegation depth");
+    positive(s.delegation.maxChildrenPerExpansion, 64, "children per expansion");
+    positive(s.delegation.maxChildrenPerTask, 256, "children per task");
+    invariant(s.delegation.maxChildrenPerExpansion <= s.delegation.maxChildrenPerTask, "expansion child limit exceeds per-task limit");
+    invariant(s.delegation.maxChildrenPerTask < s.limits.tasks, "delegation must leave room for the root graph");
   }
   if (s.jobs) {
     keys(s.jobs, [], Object.keys(s.jobs)); positive(Object.keys(s.jobs).length, 32, "job templates");
