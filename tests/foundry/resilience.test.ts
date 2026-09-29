@@ -233,6 +233,41 @@ test("bounded recovery planner versions the task graph and resumes the objective
   s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
 }));
+test("prepared recovery is adopted after a supervisor crash without another planner call", async () => swarmFixture(async s => {
+  const ctl = new AbortController();
+  await superviseSwarm(
+    s,
+    { id: "prepared-recovery", goal: "Implement 42 and verify it", tasks: [swarmTask()] },
+    ctl.signal,
+    r => { if (r.status === "NEEDS_ATTENTION") ctl.abort(); },
+    (async () => new Response(null, { status: 401 })) as typeof fetch,
+  );
+  const old: any = objectiveStatus(s, "prepared-recovery");
+  const repaired = { ...swarmTask("repair"), goal: "Focused recovery task", writeScope: ["src/a.txt"] };
+  const plan = s.artifact(JSON.parse(JSON.stringify([repaired])));
+  const newRun = "reserved-recovery-run";
+  const now = Date.now();
+  s.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
+    .run("prepared-recovery", 1, plan, newRun, "prepared before crash", now);
+  s.db.prepare("INSERT INTO swarm_recovery_attempts VALUES(?,?,?,?,?,?,?,?)")
+    .run("prepared-recovery", old.run, 1, "PREPARED", "prepared before crash", newRun, now, now);
+  s.db.prepare("UPDATE swarm_objectives SET owner=NULL,lease=NULL,state='NEEDS_ATTENTION' WHERE id='prepared-recovery'").run();
+  const script = scripted([
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+    () => reply(),
+  ]);
+  let plannerCalls = 0;
+  const result: any = await superviseSwarm(
+    s, { id: "prepared-recovery" }, signal(), undefined, script.fetcher,
+    async () => { plannerCalls++; throw new Error("prepared recovery must not re-plan"); },
+  );
+  assert.equal(result.status, "PASS"); assert.equal(result.objective.run, newRun); assert.equal(plannerCalls, 0);
+  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM runs WHERE id=?").get(newRun)!.n, 1);
+  assert.equal(s.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective='prepared-recovery'").get()!.state, "PLANNED");
+}, s => {
+  s.recipe.attempts = 1;
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
+}));
 test("permanent failure stays visible, does not spin models, and honors operator pause", async () => swarmFixture(async s => {
   let requests = 0; const ctl = new AbortController(); const phases: string[] = [];
   const result: any = await superviseSwarm(s, { id: "needs-config", goal: "Correct implementation", tasks: [swarmTask()] }, ctl.signal,
