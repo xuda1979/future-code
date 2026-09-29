@@ -15,6 +15,7 @@ import {
   SessionsWebSocket,
   type SessionsWebSocketCallbacks,
 } from './SessionsWebSocket.js'
+import { PermissionResponseDeliveryQueue } from './permissionDelivery.js'
 
 /**
  * Type guard to check if a message is an SDKMessage (not a control message)
@@ -96,6 +97,8 @@ export class RemoteSessionManager {
   private websocket: SessionsWebSocket | null = null
   private pendingPermissionRequests: Map<string, SDKControlPermissionRequest> =
     new Map()
+  private permissionResponses =
+    new PermissionResponseDeliveryQueue<SDKControlResponse>()
 
   constructor(
     private readonly config: RemoteSessionConfig,
@@ -114,6 +117,7 @@ export class RemoteSessionManager {
       onMessage: message => this.handleMessage(message),
       onConnected: () => {
         logForDebugging('[RemoteSessionManager] Connected')
+        this.flushPermissionResponses()
         this.callbacks.onConnected?.()
       },
       onClose: () => {
@@ -164,6 +168,7 @@ export class RemoteSessionManager {
         `[RemoteSessionManager] Permission request cancelled: ${request_id}`,
       )
       this.pendingPermissionRequests.delete(request_id)
+      this.permissionResponses.cancel(request_id)
       this.callbacks.onPermissionCancelled?.(
         request_id,
         pendingRequest?.tool_use_id,
@@ -241,6 +246,20 @@ export class RemoteSessionManager {
     return success
   }
 
+  private flushPermissionResponses(): void {
+    const socket = this.websocket
+    if (!socket) return
+
+    const result = this.permissionResponses.flush(response =>
+      socket.sendControlResponse(response),
+    )
+    if (result.delivered.length > 0) {
+      logForDebugging(
+        `[RemoteSessionManager] Delivered ${result.delivered.length} retained permission response(s)`,
+      )
+    }
+  }
+
   /**
    * Respond to a permission request from CCR
    */
@@ -257,8 +276,6 @@ export class RemoteSessionManager {
       )
       return
     }
-
-    this.pendingPermissionRequests.delete(requestId)
 
     const response: SDKControlResponse = {
       type: 'control_response',
@@ -278,7 +295,8 @@ export class RemoteSessionManager {
       `[RemoteSessionManager] Sending permission response: ${result.behavior}`,
     )
 
-    this.websocket?.sendControlResponse(response)
+    this.permissionResponses.enqueue(requestId, response)
+    this.flushPermissionResponses()
   }
 
   /**
@@ -311,6 +329,7 @@ export class RemoteSessionManager {
     this.websocket?.close()
     this.websocket = null
     this.pendingPermissionRequests.clear()
+    this.permissionResponses.clear()
   }
 
   /**
