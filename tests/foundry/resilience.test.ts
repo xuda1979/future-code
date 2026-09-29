@@ -136,14 +136,19 @@ test("remote capacity waits before submitting another costly job", async () => s
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, { ...jobCall, id: "another-job" }, signal()), /capacity/);
   assert.equal(calls, 1); assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM research_jobs").get()!.n, 1);
 }, s => { jobSpec(s); s.jobs!.train.maxConcurrent = 1; }));
-test("unchanged remote milestone becomes visibly stalled instead of fake progress", async () => swarmFixture(async (s, cfg) => {
+test("unchanged remote milestone becomes visibly stalled then requires reconciliation", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => ({ schema: 1, key: (request as any).key, jobId: "train", status: "RUNNING", progressToken: "step-10" }));
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), DeferredAttemptError);
-  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=0").run();
-  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => { assert.equal((e as DeferredAttemptError).kind, "remote-stalled"); return true; });
-  assert.equal(s.db.prepare("SELECT progress_at FROM research_jobs").get()!.progress_at, 0);
-}, jobSpec));
+  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 25);
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => {
+    assert.ok(e instanceof DeferredAttemptError); assert.equal(e.kind, "remote-stalled"); return true;
+  });
+  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 50);
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => {
+    assert.ok(e instanceof FatalAttemptError); assert.match(e.message, /RECONCILIATION_REQUIRED/); return true;
+  });
+}, s => { jobSpec(s); s.jobs!.train.staleMs = 20; s.jobs!.train.reconcileAfterMs = 40; }));
 test("successful external job requires a bounded result and permitted template", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => ({ schema: 1, key: (request as any).key, jobId: "train", status: "SUCCEEDED" }));
@@ -155,6 +160,8 @@ test("job and supervision configuration reject unsafe bounds/capabilities", () =
   s.jobs!.train.idempotentEnsure = true; s.jobs!.train.maxConcurrent = 0; assert.throws(() => validateSwarmSpec(s), /concurrency/);
   const supervised = spec("x"); supervised.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 9 };
   assert.throws(() => validateSwarmSpec(supervised), /maxReplans/);
+  const reconcile = spec("x"); jobSpec(reconcile); reconcile.jobs!.train.reconcileAfterMs = reconcile.jobs!.train.staleMs - 1;
+  assert.throws(() => validateSwarmSpec(reconcile), /reconciliation interval/);
   const insecure = spec("x"); insecure.agents.coder.url = "http://10.0.0.5:8000/v1/chat/completions"; insecure.agents.coder.allowHttp = true;
   insecure.agents.coder.keyEnv = "MODEL_API_KEY";
   assert.throws(() => validateSwarmSpec(insecure), /credentials require HTTPS/);
