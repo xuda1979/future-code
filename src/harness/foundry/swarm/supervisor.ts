@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { DeferredAttemptError } from "../continuation.ts";
 import { setTimeout as delay } from "node:timers/promises";
 import { canonical, digest, identifier, invariant, validateTasks } from "../kernel.ts";
 import { runHealth, type HealthObserver } from "../health.ts";
@@ -26,8 +27,11 @@ export function installObjectives(store: Store): void {
       reason TEXT NOT NULL, created REAL NOT NULL, PRIMARY KEY(objective,revision));
     CREATE TABLE IF NOT EXISTS swarm_recovery_attempts(
       objective TEXT NOT NULL, run TEXT NOT NULL, revision INTEGER NOT NULL,
-      state TEXT NOT NULL, detail TEXT NOT NULL, new_run TEXT, created REAL NOT NULL,
-      updated REAL NOT NULL, PRIMARY KEY(objective,run));`);
+      state TEXT NOT NULL, detail TEXT NOT NULL, new_run TEXT, retry_at REAL,
+      created REAL NOT NULL, updated REAL NOT NULL, PRIMARY KEY(objective,run));`);
+  const recoveryColumns = new Set(store.db.prepare("PRAGMA table_info(swarm_recovery_attempts)").all().map(r => String(r.name)));
+  if (!recoveryColumns.has("retry_at"))
+    store.db.exec("ALTER TABLE swarm_recovery_attempts ADD COLUMN retry_at REAL");
 }
 export function objectiveStatus(store: Store, id: string): Json {
   installObjectives(store); identifier(id);
@@ -112,7 +116,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       const now = Date.now();
       store.db.prepare("UPDATE swarm_objectives SET plan=?,run=?,state='RUNNING',reason=NULL,updated=? WHERE id=?")
         .run(revision.plan, recovery.new_run, now, input.id);
-      store.db.prepare("UPDATE swarm_recovery_attempts SET state='PLANNED',detail=?,updated=? WHERE objective=? AND run=?")
+      store.db.prepare("UPDATE swarm_recovery_attempts SET state='PLANNED',detail=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
         .run(String(revision.reason).slice(0, 2048), now, input.id, row.run);
       store.event("objective.replanned", { id: input.id, fromRun: row.run, toRun: recovery.new_run,
         revision: recovery.revision, plan: revision.plan }, recovery.new_run);
@@ -123,6 +127,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     const row = assertOwner(); if (!row.run) return false;
     const existing = store.db.prepare("SELECT * FROM swarm_recovery_attempts WHERE objective=? AND run=?").get(input.id, row.run);
     if (existing?.state === "PREPARED") return adoptPreparedRecovery(row, existing);
+    if (existing?.state === "STARTED" && existing.retry_at != null && existing.retry_at > Date.now()) return false;
     const maxReplans = configuredReplans;
     if (!planner || maxReplans <= 0) return false;
     if (existing && existing.state !== "STARTED") return false; // terminal planner decision is durable
@@ -134,7 +139,9 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       .map(r => ({ id: String(r.id), status: String(r.status), error: r.error == null ? null : String(r.error).slice(0, 1024) }));
     if (!existing) store.transaction(() => {
       assertOwner(); const now = Date.now();
-      store.db.prepare("INSERT INTO swarm_recovery_attempts VALUES(?,?,?,?,?,NULL,?,?)")
+      store.db.prepare(`INSERT INTO swarm_recovery_attempts
+        (objective,run,revision,state,detail,new_run,retry_at,created,updated)
+        VALUES(?,?,?,?,?,NULL,NULL,?,?)`)
         .run(input.id, row.run, revision, "STARTED", reason.slice(0, 2048), now, now);
       store.event("objective.recovery.started", { id: input.id, run: row.run, revision, reason: reason.slice(0, 1024) }, row.run);
     });
@@ -146,7 +153,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       proposal = await planner({ objectiveId: input.id, goal: row.goal, runId: row.run, reason, revision, tasks, failures }, controller.signal);
       controller.signal.throwIfAborted();
       if (!proposal) {
-        store.db.prepare("UPDATE swarm_recovery_attempts SET state='DECLINED',detail=?,updated=? WHERE objective=? AND run=?")
+        store.db.prepare("UPDATE swarm_recovery_attempts SET state='DECLINED',detail=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
           .run("planner returned no safe recovery plan", Date.now(), input.id, row.run);
         return false;
       }
@@ -172,7 +179,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         const now = Date.now();
         store.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
           .run(input.id, revision, newPlan, newRun, proposal!.reason.slice(0, 2048), now);
-        store.db.prepare("UPDATE swarm_recovery_attempts SET state='PREPARED',detail=?,new_run=?,updated=? WHERE objective=? AND run=?")
+        store.db.prepare("UPDATE swarm_recovery_attempts SET state='PREPARED',detail=?,new_run=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
           .run(proposal!.reason.slice(0, 2048), newRun, now, input.id, row.run);
         store.event("objective.recovery.prepared", { id: input.id, fromRun: row.run, toRun: newRun, revision, plan: newPlan }, row.run);
       });
@@ -187,7 +194,15 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         throw e; // preserve PREPARED for deterministic adoption on process restart
       }
       const detail = e instanceof Error ? e.message.slice(0, 2048) : "recovery planner failed";
-      store.db.prepare("UPDATE swarm_recovery_attempts SET state='FAILED',detail=?,updated=? WHERE objective=? AND run=?")
+      if (e instanceof DeferredAttemptError) {
+        const retryAt = Math.max(Date.now() + 100, e.wakeAt);
+        store.db.prepare("UPDATE swarm_recovery_attempts SET state='STARTED',detail=?,retry_at=?,updated=? WHERE objective=? AND run=?")
+          .run(detail, retryAt, Date.now(), input.id, row.run);
+        store.event("objective.recovery.deferred",
+          { id: input.id, run: row.run, revision, retryAt, detail }, row.run);
+        return false;
+      }
+      store.db.prepare("UPDATE swarm_recovery_attempts SET state='FAILED',detail=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
         .run(detail, Date.now(), input.id, row.run);
       store.event("objective.recovery.failed", { id: input.id, run: row.run, revision, detail }, row.run);
       return false;
