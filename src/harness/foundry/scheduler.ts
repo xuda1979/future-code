@@ -20,18 +20,25 @@ export class Scheduler {
     const plan = compilePlan(tasks, recipe, this.store.contract().limits.contextBytes);
     this.cachedPlan = { runId, recipeHash, plan }; return plan;
   }
-  start(tasks: Task[], recipeHash = this.store.active(), now = Date.now()): string {
+  start(tasks: Task[], recipeHash = this.store.active(), now = Date.now(), id = randomUUID()): string {
     const contract = this.store.contract(); validateTasks(contract, tasks);
     // Reject an impossible reservation before creating a permanently idle run.
     compilePlan(tasks, this.store.recipe(recipeHash), contract.limits.contextBytes);
-    const id = randomUUID();
-    this.store.transaction(() => {
+    return this.store.transaction(() => {
+      const existing = this.store.db.prepare("SELECT recipe,contract FROM runs WHERE id=?").get(id);
+      if (existing) {
+        invariant(existing.recipe === recipeHash && existing.contract === digest(contract), "run id binding drift");
+        const actual = this.store.db.prepare("SELECT spec FROM tasks WHERE run=? ORDER BY id").all(id).map(t => JSON.parse(t.spec));
+        const expected = [...tasks].sort((a, b) => a.id.localeCompare(b.id));
+        invariant(digest(actual) === digest(expected), "run id task graph drift");
+        return id;
+      }
       this.store.db.prepare("INSERT INTO runs(id,recipe,contract,started,status) VALUES(?,?,?,?, 'RUNNING')").run(id, recipeHash, digest(contract), now);
       const insert = this.store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')");
       for (const task of tasks) insert.run(id, task.id, JSON.stringify(task));
       this.store.event("run.started", { recipeHash, contractHash: digest(contract), taskCount: tasks.length, taskHash: digest(tasks) }, id);
+      return id;
     });
-    return id;
   }
   /** Backward-compatible single claim; all reservations share the batch path. */
   claim(runId: string, owner: string, now = Date.now()): Lease | null {
