@@ -19,7 +19,8 @@ function gate(command, args, timeout) {
 }
 gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurrency=1",
   "tests/correctness/acceptance.test.ts", "tests/correctness/replay.test.ts",
-  "tests/correctness/response-liveness.test.ts"], 900000);
+  "tests/correctness/response-liveness.test.ts",
+  "tests/correctness/remote-response-liveness.test.ts"], 900000);
 const python = process.env.PYTHON ?? "python3";
 gate(python, ["-m", "unittest", "discover", "-s", "tests/correctness", "-p", "test_*.py", "-v"], 60000);
 gate(python, ["-m", "unittest", "discover", "-s", "tests/research-jobs", "-p", "test_*.py", "-v"], 120000);
