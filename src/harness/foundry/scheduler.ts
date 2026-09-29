@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Store } from "./store.ts";
 import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
 import { accessConflicts, compilePlan, projectDependency } from "./productivity.ts";
-import { blockDependents, hasSchedulerIndex, readyCandidates, rebuildSchedulerIndex,
+import { blockDependents, ensureSchedulerIndex, readyCandidates, rebuildSchedulerIndex,
   releaseDependents, schedulerNode } from "./schedulerIndex.ts";
 import type { Capsule, FailureOptions, Json, Lease, Measurement, Recipe, RunSummary, Task } from "./types.ts";
 
@@ -49,7 +49,7 @@ export class Scheduler {
       if (run.status !== "RUNNING") return [];
       invariant(run.contract === digest(this.store.contract()), "run contract drift");
       const recipe = this.store.recipe(run.recipe);
-      if (!hasSchedulerIndex(this.store, runId)) rebuildSchedulerIndex(this.store, runId, recipe, now);
+      ensureSchedulerIndex(this.store, runId, recipe, now);
 
       // Reclaim only actually expired leases; do not scan unrelated tasks.
       const expired = this.store.db.prepare(
