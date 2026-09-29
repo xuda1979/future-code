@@ -473,7 +473,14 @@ export function useRemoteSession({
         )
         setMessages(prev => [...prev, errorMessage])
         if (!config.viewerOnly) manager.cancelSession()
-        setConnStatus('disconnected')
+        // The foreground turn is stale, but the transport may have recovered.
+        // Clear only a stale reconnecting banner; a real socket close remains
+        // authoritative via onDisconnected.
+        setAppState(prev =>
+          prev.remoteConnectionStatus === 'reconnecting'
+            ? { ...prev, remoteConnectionStatus: 'connected' }
+            : prev,
+        )
         setIsLoading(false)
         runningTaskIdsRef.current.clear()
         writeTaskCount()
