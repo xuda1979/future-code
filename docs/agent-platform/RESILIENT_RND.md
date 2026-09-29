@@ -127,11 +127,16 @@ Supervision may now opt into bounded execution replanning with
 `supervision.maxReplans` (0..8) plus a host-supplied `RecoveryPlanner`.
 The supervisor records one durable recovery attempt per failed run, gives the
 planner the frozen objective, previous task graph and bounded failure evidence,
-validates any replacement task graph against the unchanged Foundry contract and
-Swarm configuration, and starts a new versioned run only when the proposed plan
-materially changes execution structure. The original plan/run stays in
-`swarm_objective_revisions`; `objective` status reports the latest revision
-and recovery state. Acceptance checks, protected paths and provider configuration
+and validates any replacement task graph against the unchanged Foundry contract
+and Swarm configuration. Recovery admission is crash-reconcilable:
+`STARTED -> PREPARED -> PLANNED`. The exact replacement plan and deterministic
+run ID are persisted in `PREPARED` before the run is created. A restarted
+supervisor can therefore create-or-adopt that same run and finish binding it
+without calling the planner again. A crash while the planner is still only
+`STARTED` may repeat planning under the same bounded revision, but no execution
+authority or replacement run has been admitted at that point. The original
+plan/run stays in `swarm_objective_revisions`; `objective` status reports the
+latest revision and recovery state. Acceptance checks, protected paths and provider configuration
 are not writable through the planner interface.
 
 This mechanism is deliberately opt-in: without both a planner and
@@ -158,6 +163,7 @@ Add a named job template to the spec, then grant it to the agent:
       "idempotentEnsure": true,
       "pollMs": 30000,
       "staleMs": 900000,
+      "reconcileAfterMs": 2700000,
       "maxJobs": 4,
       "maxConcurrent": 1
     }
@@ -186,8 +192,13 @@ with durable records, atomic writes and a per-job execution lock.
 
 A queued/running job saves the pending tool call and releases the local task slot.
 Other independent agents can proceed. Polling is deterministic code, not model
-reasoning, and does not repeatedly charge tool/model turns. On a terminal reply,
-the original worker resumes with the result receipt. A successful process exit is
+reasoning, and does not repeatedly charge tool/model turns. `staleMs` marks a
+job visibly stalled; `reconcileAfterMs` (default: three times `staleMs`, capped
+at seven days) stops indefinite automatic polling and requires explicit operator
+reconciliation. While a job has an unresolved remote outcome, objective-level
+replacement planning is suppressed so a new run cannot accidentally duplicate
+expensive external work. On a terminal reply, the original worker resumes with
+the result receipt. A successful process exit is
 not proof of a valid scientific result: task/final checks must validate metric,
 configuration, dataset, checkpoint and artifact identities appropriate to the
 experiment. The baseline artifact type is still a code patch plus receipts, not a
@@ -212,6 +223,19 @@ shell command. The remote executable receives input via stdin and the path in
 `FUTURE_JOB_INPUT_PATH`. It can atomically write `{"sequence": <step>}` to
 `FUTURE_JOB_PROGRESS_PATH`; use a real completed stage/step, not wall-clock time.
 The job key is available as `FUTURE_JOB_KEY`.
+
+To resolve an UNKNOWN/stalled job after inspecting the remote scheduler, provide
+a terminal adapter-shaped reply and bind it explicitly:
+
+```sh
+node --experimental-strip-types src/harness/foundry/swarm/cli.ts job-reconcile \
+  --root .future-code/rnd --run RUN_ID --job-key JOB_KEY \
+  --resolution /absolute/path/reconciled-job.json --allow-exec
+```
+
+The resolution must preserve the immutable job key and job ID and use
+`SUCCEEDED`, `FAILED`, or `CANCELLED`; successful reconciliation must include
+the result payload. This operation records evidence and never submits remote work.
 
 The endpoint preserves only bounded stdout/stderr tails. Large logs, checkpoints
 and datasets belong in your own artifact storage. They are not automatically
