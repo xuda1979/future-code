@@ -149,6 +149,20 @@ test("unchanged remote milestone becomes visibly stalled then requires reconcili
     assert.ok(e instanceof FatalAttemptError); assert.match(e.message, /RECONCILIATION_REQUIRED/); return true;
   });
 }, s => { jobSpec(s); s.jobs!.train.staleMs = 20; s.jobs!.train.reconcileAfterMs = 40; }));
+test("operator reconciliation records a terminal remote outcome without resubmission", async () => swarmFixture(async (s, cfg) => {
+  const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
+  let rpcCalls = 0;
+  const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => {
+    rpcCalls++; return { schema: 1, key: (request as any).key, jobId: "train", status: "RUNNING" };
+  });
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), DeferredAttemptError);
+  const key = s.db.prepare("SELECT key FROM research_jobs WHERE run=?").get(run)!.key as string;
+  const reconciled: any = jobs.reconcile(run, key, { schema: 1, key, jobId: "train", status: "FAILED" });
+  assert.equal(reconciled.status, "FAILED");
+  const replayed: any = await jobs.execute(c, cfg.spec.agents.coder, jobCall, signal());
+  assert.equal(replayed.status, "FAILED"); assert.equal(rpcCalls, 1);
+  assert.throws(() => jobs.reconcile(run, key, { schema: 1, key, jobId: "train", status: "CANCELLED" }), /already reconciled/);
+}, jobSpec));
 test("successful external job requires a bounded result and permitted template", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => ({ schema: 1, key: (request as any).key, jobId: "train", status: "SUCCEEDED" }));
