@@ -86,6 +86,11 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       [{ id: "objective", status: row.state, stage: "integration", activityAgeMs: null, progressAgeMs: null, checkAgeMs: null, deadline: null, wakeAt: null, reason: row.reason }] : [] }); }
     catch { store.event("observer.error", { reason: "objective observer threw" }, row.run); }
   };
+  const unresolvedRemoteJobs = (run: string): number => {
+    const exists = store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='research_jobs'").get();
+    if (!exists) return 0;
+    return store.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE run=? AND result_hash IS NULL").get(run)!.n;
+  };
   const adoptPreparedRecovery = (row: any, recovery: any): boolean => {
     invariant(recovery?.state === "PREPARED" && typeof recovery.new_run === "string", "invalid prepared recovery");
     const revision = store.db.prepare("SELECT plan,run,reason FROM swarm_objective_revisions WHERE objective=? AND revision=?")
@@ -214,9 +219,12 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
           if (await attemptRecovery(reason)) { report(); continue; }
         }
       } else if (runStatus === "FAIL") {
-        const reason = "Repair attempts or resource bounds exhausted. Saved checkpoints and diagnostics remain available; a revised execution plan is required. Acceptance checks remain immutable.";
+        const unresolved = unresolvedRemoteJobs(row.run);
+        const reason = unresolved
+          ? `Remote outcome requires reconciliation for ${unresolved} job(s). Inspect/adopt/cancel those jobs before replanning; replacement runs are suppressed to avoid duplicate external work.`
+          : "Repair attempts or resource bounds exhausted. Saved checkpoints and diagnostics remain available; a revised execution plan is required. Acceptance checks remain immutable.";
         transition("NEEDS_ATTENTION", reason);
-        if (await attemptRecovery(reason)) { report(); continue; }
+        if (!unresolved && await attemptRecovery(reason)) { report(); continue; }
       }
       report();
       // No model polling and no repeated failed verification. An explicit integrate
