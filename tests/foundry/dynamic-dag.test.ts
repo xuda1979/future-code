@@ -11,7 +11,8 @@ import { spawnTasks } from "../../src/harness/foundry/dynamicDag.ts";
 import { digest } from "../../src/harness/foundry/kernel.ts";
 import { validateSwarmSpec } from "../../src/harness/foundry/swarm/config.ts";
 import { integrateSwarm, runSwarm } from "../../src/harness/foundry/swarm/host.ts";
-import type { Contract, Json, Lease, Recipe, SpawnPolicy, Task } from "../../src/harness/foundry/types.ts";
+import type { Contract, Driver, Json, Lease, Recipe, SpawnPolicy, Task } from "../../src/harness/foundry/types.ts";
+import { runTasks } from "../../src/harness/foundry/runtime.ts";
 import { fixture, reply, signal, spec, task as swarmTask } from "./swarm-fixtures.ts";
 
 const contract: Contract = {
@@ -46,6 +47,29 @@ async function coreFixture(fn: (store: Store) => Promise<void> | void) {
   try { store.initialize(contract, recipe); await fn(store); }
   finally { store.close(); rmSync(root, { recursive: true, force: true }); }
 }
+
+test("resume with the admitted root DAG remains valid after runtime expansion", async () => {
+  await coreFixture(async store => {
+    const root = coreTask("root");
+    const q = new Scheduler(store); const run = q.start([root]);
+    const parent = q.claim(run, "parent")!; const capsule = q.capsule(parent);
+    const child = coreTask("root.leaf", { writeScope: ["src/leaf"], readScope: ["src"] });
+    spawnTasks(store, capsule, "spawn-1", digest({ children: ["leaf"] }), [child], policy);
+    q.defer(parent, new DeferredAttemptError("spawn", Date.now(), "waiting for child"));
+
+    const d: Driver = {
+      workerId: contract.workerId, verifierId: contract.verifierId,
+      async execute(capsule) { return { artifact: { task: capsule.task.id }, measurement: zero }; },
+      async verify(_capsule, result) {
+        return { artifactHash: digest(result.artifact), checks: [{ id: "correct", verdict: "PASS" }], measurement: zero };
+      },
+    };
+    const result = await runTasks(store, [root], d, { resumeRun: run });
+    assert.equal(result.status, "PASS");
+    assert.equal(result.accepted, 2);
+    assert.equal(result.id, run);
+  });
+});
 
 test("dynamic DAG batches are durable, replay-safe, and use measured progress density", async () => {
   await coreFixture(store => {

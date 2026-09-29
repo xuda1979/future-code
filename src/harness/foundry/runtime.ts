@@ -108,7 +108,13 @@ export async function runTasks(store: Store, tasks: Task[], driver: Driver,
   const pinned = scheduler.summary(runId).recipeHash;
   invariant(!options.recipeHash || options.recipeHash === pinned, "resume recipe mismatch");
   if (options.resumeRun && tasks.length) {
-    const actual = store.db.prepare("SELECT spec FROM tasks WHERE run=? ORDER BY id").all(runId).map(t => JSON.parse(t.spec));
+    // Resume binds to the initially admitted objective graph. Runtime-spawned
+    // children are execution detail and must not make the original graph appear
+    // to have drifted after a valid dynamic expansion.
+    const actual = store.db.prepare(`SELECT t.spec FROM tasks t
+      WHERE t.run=? AND NOT EXISTS (
+        SELECT 1 FROM spawn_edges e WHERE e.run=t.run AND e.child=t.id
+      ) ORDER BY t.id`).all(runId).map(t => JSON.parse(t.spec));
     const expected = [...tasks].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
     invariant(digest(actual) === digest(expected), "resume task graph mismatch");
   }

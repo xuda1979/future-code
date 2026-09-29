@@ -45,6 +45,8 @@ export interface SupervisionPolicy {
   checkpointEveryMs: number;
   snapshotReads?: boolean;
   maxReplans?: number;
+  /** Existing external-API agent used only to propose bounded recovery DAGs. */
+  recoveryAgent?: string;
   /** Provider-neutral runtime DAG expansion, enforced by the host scheduler. */
   dynamicDAG?: SpawnPolicy;
 }
@@ -131,12 +133,14 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     invariant(a.checks.every(n => s.checks[n].replaySafe), "independent verification checks must be replay-safe");
   }
   if (s.supervision) {
-    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["snapshotReads", "maxReplans", "dynamicDAG"]);
+    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["snapshotReads", "maxReplans", "recoveryAgent", "dynamicDAG"]);
     positive(s.supervision.reportEveryMs, 3600000, "reportEveryMs");
     invariant(s.supervision.reportEveryMs >= 10, "report interval too small");
     positive(s.supervision.checkpointEveryMs, 3600000, "checkpointEveryMs");
     invariant(s.supervision.snapshotReads === undefined || typeof s.supervision.snapshotReads === "boolean", "invalid snapshotReads");
     invariant(s.supervision.maxReplans === undefined || (Number.isSafeInteger(s.supervision.maxReplans) && s.supervision.maxReplans >= 0 && s.supervision.maxReplans <= 8), "invalid maxReplans");
+    if (s.supervision.recoveryAgent !== undefined)
+      invariant(Object.hasOwn(s.agents, s.supervision.recoveryAgent), "unknown recoveryAgent");
     if (s.supervision.dynamicDAG) {
       const d = s.supervision.dynamicDAG;
       keys(d, ["maxChildrenPerTask", "maxDepth", "maxSpawnedTasks"]);

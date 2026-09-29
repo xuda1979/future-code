@@ -247,6 +247,44 @@ test("bounded recovery planner versions the task graph and resumes the objective
   s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
 }));
+test("supervision uses the configured external API for bounded recovery by default", async () => swarmFixture(async s => {
+  const repaired = { ...swarmTask("repair"), goal: "Repair the failed objective with a smaller task", writeScope: ["src/a.txt"] };
+  const script = scripted([
+    () => reply("finished without a patch"),
+    body => {
+      assert.ok(Array.isArray(body.tools));
+      assert.equal(body.tool_choice?.function?.name, "propose_recovery_plan");
+      return reply("", [{ name: "propose_recovery_plan", arguments: {
+        decision: "replan", reason: "Replace the failed broad attempt with focused repair work", tasks: [repaired],
+      } }]);
+    },
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+    () => reply(),
+  ]);
+  const result: any = await superviseSwarm(
+    s,
+    { id: "api-auto-recover", goal: "Implement 42 and verify it", tasks: [swarmTask()] },
+    signal(),
+    undefined,
+    script.fetcher,
+  );
+  assert.equal(result.status, "PASS");
+  assert.equal(result.objective.state, "COMPLETE");
+  assert.equal(script.bodies.length, 4);
+  const revisions = s.db.prepare(
+    "SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective='api-auto-recover' AND revision>0"
+  ).get()!.n;
+  assert.equal(revisions, 1);
+  const runs = s.db.prepare(
+    "SELECT run FROM swarm_recovery_attempts WHERE objective='api-auto-recover'"
+  ).get()!;
+  const usage = new SessionJournal(s).usage(runs.run);
+  assert.equal(usage.requests, 2, "failed worker call and recovery planner share the old run budget");
+}, s => {
+  s.recipe.attempts = 1;
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1, recoveryAgent: "coder" };
+}));
+
 test("prepared recovery is adopted after a supervisor crash without another planner call", async () => swarmFixture(async s => {
   const ctl = new AbortController();
   await superviseSwarm(

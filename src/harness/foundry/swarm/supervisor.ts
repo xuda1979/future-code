@@ -6,7 +6,8 @@ import { Scheduler } from "../scheduler.ts";
 import type { Store } from "../store.ts";
 import type { Json, Task } from "../types.ts";
 import { integrateSwarm, loadSwarm, runSwarm } from "./host.ts";
-import { validateSwarmTasks } from "./config.ts";
+import { inScope, validateSwarmTasks } from "./config.ts";
+import { createApiRecoveryPlanner } from "./recovery.ts";
 
 export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
 export interface RecoveryContext {
@@ -62,6 +63,9 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         .run(input.id, input.goal, plan, digest(cfg), owner, now + ttl, now);
     }
   });
+  const configuredReplans = cfg.spec.supervision?.maxReplans ?? 0;
+  const planner = recoveryPlanner ?? (configuredReplans > 0 && cfg.spec.supervision?.recoveryAgent
+    ? createApiRecoveryPlanner(store, cfg, fetcher ?? fetch) : undefined);
   const controller = new AbortController(); const stop = () => controller.abort(signal.reason ?? new Error("operator paused"));
   signal.addEventListener("abort", stop, { once: true }); if (signal.aborted) stop();
   const assertOwner = () => {
@@ -119,8 +123,8 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     const row = assertOwner(); if (!row.run) return false;
     const existing = store.db.prepare("SELECT * FROM swarm_recovery_attempts WHERE objective=? AND run=?").get(input.id, row.run);
     if (existing?.state === "PREPARED") return adoptPreparedRecovery(row, existing);
-    const maxReplans = cfg.spec.supervision?.maxReplans ?? 0;
-    if (!recoveryPlanner || maxReplans <= 0) return false;
+    const maxReplans = configuredReplans;
+    if (!planner || maxReplans <= 0) return false;
     if (existing && existing.state !== "STARTED") return false; // terminal planner decision is durable
     const used = store.db.prepare("SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective=? AND revision>0").get(input.id)!.n;
     if (!existing && used >= maxReplans) return false;
@@ -139,7 +143,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       // STARTED is deliberately replayable: the planner has no execution authority
       // and no replacement run has been admitted yet. A controller crash can safely
       // repeat planning under the same bounded revision.
-      proposal = await recoveryPlanner({ objectiveId: input.id, goal: row.goal, runId: row.run, reason, revision, tasks, failures }, controller.signal);
+      proposal = await planner({ objectiveId: input.id, goal: row.goal, runId: row.run, reason, revision, tasks, failures }, controller.signal);
       controller.signal.throwIfAborted();
       if (!proposal) {
         store.db.prepare("UPDATE swarm_recovery_attempts SET state='DECLINED',detail=?,updated=? WHERE objective=? AND run=?")
@@ -148,6 +152,14 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       }
       invariant(typeof proposal.reason === "string" && proposal.reason.trim().length > 0 && Buffer.byteLength(proposal.reason) <= 4096, "invalid recovery reason");
       validateTasks(store.contract(), proposal.tasks); validateSwarmTasks(cfg.spec, proposal.tasks);
+      const writeAuthority = tasks.flatMap(task => task.writeScope);
+      const readAuthority = [...writeAuthority, ...tasks.flatMap(task => task.readScope ?? [])];
+      for (const task of proposal.tasks) {
+        for (const path of task.writeScope)
+          invariant(inScope(path, writeAuthority), "recovery plan widens write authority");
+        for (const path of task.readScope ?? [])
+          invariant(inScope(path, readAuthority), "recovery plan widens read authority");
+      }
       invariant(digest(proposal.tasks) !== digest(tasks), "recovery plan must materially change execution structure");
       const newPlan = store.artifact(JSON.parse(canonical(proposal.tasks)));
       const newRun = randomUUID();

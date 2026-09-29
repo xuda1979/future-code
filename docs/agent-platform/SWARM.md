@@ -197,8 +197,16 @@ node --experimental-strip-types src/harness/foundry/swarm/cli.ts resume \
 
 When a process dies completely, the existing lease deadline must expire before a
 replacement can reclaim it. This release does not shorten deadlines by guessing
-that another process is dead. Exhausted tasks are terminal; new scopes/acceptance
-or a different decomposition need a new reviewed run, not a hidden contract edit.
+that another process is dead. Exhausted tasks remain visible and are never converted into success. When
+`supervision.maxReplans` is positive and `supervision.recoveryAgent` names an
+existing roster profile, the attached supervisor may make a bounded ordinary API
+call to that external model for a replacement Task[] proposal. The proposal has
+no execution authority: the host rejects widened read/write authority, unknown
+agents, protected paths, invalid dependencies, unchanged plans, and any contract
+or task-limit violation before creating a replacement run. Without
+`recoveryAgent`, recovery remains operator/injected-planner driven and no extra
+model call is introduced. Acceptance checks, provider settings, model deployment,
+credentials, and global ceilings are not mutable recovery output.
 
 The model sees the immutable task capsule and recent **complete** tool exchanges.
 Older material is retained, not erased. `recall` retrieves bounded thread-local
@@ -228,9 +236,10 @@ Logs and source content are not automatically secret-redacted.
 
 ## 6. Concurrency, budgets and measurements
 
-Dynamic spawning is provider-neutral. Future Code sends ordinary Anthropic or
-OpenAI-compatible HTTP requests and does not require control of provider inference
-engines, KV caches, prefix trees, or batching. A parent releases its local slot
+Dynamic spawning and recovery planning are provider-neutral. Future Code sends
+ordinary Anthropic or OpenAI-compatible HTTP requests and does not require or
+attempt control of provider inference engines, KV caches, prefix trees, model
+placement, or batching. A parent releases its local slot
 while spawned children run. Child IDs are namespaced under the parent; their
 read/write scopes must stay within parent authority, sibling access conflicts are
 rejected, and depth/child/total-task limits are host-enforced. Children are
@@ -248,7 +257,9 @@ one run and Store**. Multiple processes sharing that Store honor the same limit.
 It is not an account-wide or cross-run rate limiter. HTTP 429/503/529 cooldowns
 are shared within that ledger; request attempts still consume durable budgets.
 The number of calls and aggregate serialized request bytes have run-level caps.
-Per-thread turn/tool caps and per-RPC/tool deadlines give additional limits.
+Recovery-planner requests use the same durable run request/byte ledger and provider
+concurrency pool, so replanning cannot create an unmetered API path. Per-thread
+turn/tool caps and per-RPC/tool deadlines give additional limits.
 
 These byte limits are not token limits or dollar caps. `providerUsage` records
 provider metadata tokens, `knownTokens`, `unknownRequests`, and reservations.
