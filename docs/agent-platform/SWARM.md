@@ -130,7 +130,9 @@ For an Anthropic profile, keep the tools/checks from the example and change:
 
 This is a fragment, not a complete spec. A chat subscription is not assumed to
 supply API credentials. HTTPS is required except loopback or explicit operator
-`allowHttp` for a trusted private service. URL credentials/query strings and HTTP
+`allowHttp` for a trusted private service. Credentialed profiles are stricter:
+`keyEnv` is rejected on non-loopback HTTP even when `allowHttp` is true, so
+secrets cannot be sent over plaintext remote transport. URL credentials/query strings and HTTP
 redirects are rejected to avoid leaking authorization. No real provider account
 was called during patch verification.
 

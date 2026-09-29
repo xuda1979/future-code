@@ -136,13 +136,32 @@ test("remote capacity waits before submitting another costly job", async () => s
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, { ...jobCall, id: "another-job" }, signal()), /capacity/);
   assert.equal(calls, 1); assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM research_jobs").get()!.n, 1);
 }, s => { jobSpec(s); s.jobs!.train.maxConcurrent = 1; }));
-test("unchanged remote milestone becomes visibly stalled instead of fake progress", async () => swarmFixture(async (s, cfg) => {
+test("unchanged remote milestone becomes visibly stalled then requires reconciliation", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => ({ schema: 1, key: (request as any).key, jobId: "train", status: "RUNNING", progressToken: "step-10" }));
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), DeferredAttemptError);
-  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=0").run();
-  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => { assert.equal((e as DeferredAttemptError).kind, "remote-stalled"); return true; });
-  assert.equal(s.db.prepare("SELECT progress_at FROM research_jobs").get()!.progress_at, 0);
+  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 25);
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => {
+    assert.ok(e instanceof DeferredAttemptError); assert.equal(e.kind, "remote-stalled"); return true;
+  });
+  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?").run(Date.now() - 50);
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => {
+    assert.ok(e instanceof FatalAttemptError); assert.match(e.message, /RECONCILIATION_REQUIRED/); return true;
+  });
+}, s => { jobSpec(s); s.jobs!.train.staleMs = 20; s.jobs!.train.reconcileAfterMs = 40; }));
+test("operator reconciliation records a terminal remote outcome without resubmission", async () => swarmFixture(async (s, cfg) => {
+  const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
+  let rpcCalls = 0;
+  const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => {
+    rpcCalls++; return { schema: 1, key: (request as any).key, jobId: "train", status: "RUNNING" };
+  });
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), DeferredAttemptError);
+  const key = s.db.prepare("SELECT key FROM research_jobs WHERE run=?").get(run)!.key as string;
+  const reconciled: any = jobs.reconcile(run, key, { schema: 1, key, jobId: "train", status: "FAILED" });
+  assert.equal(reconciled.status, "FAILED");
+  const replayed: any = await jobs.execute(c, cfg.spec.agents.coder, jobCall, signal());
+  assert.equal(replayed.status, "FAILED"); assert.equal(rpcCalls, 1);
+  assert.throws(() => jobs.reconcile(run, key, { schema: 1, key, jobId: "train", status: "CANCELLED" }), /already reconciled/);
 }, jobSpec));
 test("successful external job requires a bounded result and permitted template", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
@@ -155,6 +174,15 @@ test("job and supervision configuration reject unsafe bounds/capabilities", () =
   s.jobs!.train.idempotentEnsure = true; s.jobs!.train.maxConcurrent = 0; assert.throws(() => validateSwarmSpec(s), /concurrency/);
   const supervised = spec("x"); supervised.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 9 };
   assert.throws(() => validateSwarmSpec(supervised), /maxReplans/);
+  const reconcile = spec("x"); jobSpec(reconcile); reconcile.jobs!.train.reconcileAfterMs = reconcile.jobs!.train.staleMs - 1;
+  assert.throws(() => validateSwarmSpec(reconcile), /reconciliation interval/);
+  const insecure = spec("x"); insecure.agents.coder.url = "http://10.0.0.5:8000/v1/chat/completions"; insecure.agents.coder.allowHttp = true;
+  insecure.agents.coder.keyEnv = "MODEL_API_KEY";
+  assert.throws(() => validateSwarmSpec(insecure), /credentials require HTTPS/);
+  insecure.agents.coder.keyEnv = undefined;
+  assert.doesNotThrow(() => validateSwarmSpec(insecure));
+  insecure.agents.coder.url = "http://127.0.0.1:8000/v1/chat/completions"; insecure.agents.coder.keyEnv = "MODEL_API_KEY";
+  assert.doesNotThrow(() => validateSwarmSpec(insecure));
 });
 test("transient provider responses yield without resetting the run request ledger", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); let l = q.claim(run, "w")!; const j = new SessionJournal(s);
@@ -217,6 +245,76 @@ test("bounded recovery planner versions the task graph and resumes the objective
   assert.equal(s.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective='auto-recover'").get()!.state, "PLANNED");
 }, s => {
   s.recipe.attempts = 1;
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
+}));
+test("prepared recovery is adopted after a supervisor crash without another planner call", async () => swarmFixture(async s => {
+  const ctl = new AbortController();
+  await superviseSwarm(
+    s,
+    { id: "prepared-recovery", goal: "Implement 42 and verify it", tasks: [swarmTask()] },
+    ctl.signal,
+    r => { if (r.status === "NEEDS_ATTENTION") ctl.abort(); },
+    (async () => new Response(null, { status: 401 })) as typeof fetch,
+  );
+  const old: any = objectiveStatus(s, "prepared-recovery");
+  const repaired = { ...swarmTask("repair"), goal: "Focused recovery task", writeScope: ["src/a.txt"] };
+  const plan = s.artifact(JSON.parse(JSON.stringify([repaired])));
+  const newRun = "reserved-recovery-run";
+  const now = Date.now();
+  s.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
+    .run("prepared-recovery", 1, plan, newRun, "prepared before crash", now);
+  s.db.prepare("INSERT INTO swarm_recovery_attempts VALUES(?,?,?,?,?,?,?,?)")
+    .run("prepared-recovery", old.run, 1, "PREPARED", "prepared before crash", newRun, now, now);
+  const sourceRecipe = s.db.prepare("SELECT recipe FROM runs WHERE id=?").get(old.run)!.recipe as string;
+  new Scheduler(s).start([repaired], sourceRecipe, now, newRun); // crash after run creation, before objective binding
+  s.db.prepare("UPDATE swarm_objectives SET owner=NULL,lease=NULL,state='NEEDS_ATTENTION' WHERE id='prepared-recovery'").run();
+  const script = scripted([
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+    () => reply(),
+  ]);
+  const result: any = await superviseSwarm(
+    s, { id: "prepared-recovery" }, signal(), undefined, script.fetcher,
+  );
+  assert.equal(result.status, "PASS"); assert.equal(result.objective.run, newRun);
+  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM runs WHERE id=?").get(newRun)!.n, 1);
+  assert.equal(s.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective='prepared-recovery'").get()!.state, "PLANNED");
+}, s => {
+  s.recipe.attempts = 1;
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
+}));
+test("unresolved remote outcome suppresses autonomous replacement planning", async () => swarmFixture(async (s, cfg) => {
+  const first = new AbortController();
+  await superviseSwarm(
+    s,
+    { id: "remote-reconcile", goal: "Finish without duplicating external compute", tasks: [swarmTask()] },
+    first.signal,
+    r => { if (r.status === "NEEDS_ATTENTION") first.abort(); },
+    (async () => new Response(null, { status: 401 })) as typeof fetch,
+  );
+  const old: any = objectiveStatus(s, "remote-reconcile");
+  new ResearchJobs(new SessionJournal(s), cfg);
+  const now = Date.now();
+  s.db.prepare(`INSERT INTO research_jobs
+    (key,run,task,template,input_hash,created,progress_at,poll_at,failures,job_id,status,result_hash,updated)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run("unresolved-job", old.run, "a", "train", "binding", now, now, now, 0, "remote-1", "UNKNOWN", null, now);
+  s.db.prepare("UPDATE swarm_objectives SET owner=NULL,lease=NULL,state='NEEDS_ATTENTION' WHERE id='remote-reconcile'").run();
+  let plannerCalls = 0; let blockedReason = ""; const second = new AbortController();
+  const result: any = await superviseSwarm(
+    s, { id: "remote-reconcile" }, second.signal,
+    r => {
+      if (r.status === "NEEDS_ATTENTION") {
+        blockedReason = String((objectiveStatus(s, "remote-reconcile") as any).reason ?? "");
+        second.abort();
+      }
+    },
+    undefined,
+    async () => { plannerCalls++; return { reason: "unsafe replacement", tasks: [{ ...swarmTask("replacement") }] }; },
+  );
+  assert.equal(result.status, "PAUSED"); assert.equal(plannerCalls, 0);
+  assert.match(blockedReason, /Remote outcome requires reconciliation/);
+}, s => {
+  jobSpec(s); s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
 }));
 test("permanent failure stays visible, does not spin models, and honors operator pause", async () => swarmFixture(async s => {

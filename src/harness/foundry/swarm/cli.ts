@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import { invariant, canonical } from "../kernel.ts";
 import { Store } from "../store.ts";
 import type { Json, Task } from "../types.ts";
-import { initializeSwarm, integrateSwarm, runSwarm, swarmStatus } from "./host.ts";
+import { initializeSwarm, integrateSwarm, loadSwarm, runSwarm, swarmStatus } from "./host.ts";
+import { ResearchJobs, type JobReply } from "./jobs.ts";
 import { SessionJournal } from "./session.ts";
 export const help = `Foundry Swarm: durable coding agents on the existing Foundry kernel
   init --spec FILE --allow-exec
@@ -17,6 +18,7 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   status [--run ID] [--task-after TASK_ID]
   receipt --hash HASH [--offset N] [--length N]
   events --run ID --task ID [--after N]
+  job-reconcile --run ID --job-key KEY --resolution FILE --allow-exec
   integrate --run ID --allow-exec
 All accept --root DIR (default .future-code/swarm).
 Local worktrees isolate edits, NOT hostile processes. Use only trusted code/checks.
@@ -36,15 +38,15 @@ export function tokenize(text: string): string[] {
 function file(path: string): any { invariant(statSync(path).size <= 32 * 1024 * 1024, "JSON input exceeds 32 MiB"); return JSON.parse(readFileSync(path, "utf8")); }
 export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal, onProgress: HealthObserver = r => console.error(formatHealth(r))): Promise<Json> {
   const cmd = argv[0] ?? "help"; if (cmd === "help") return { help };
-  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--allow-exec"]);
+  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec"]);
   for (let i = 1; i < argv.length; i++) {
     const k = argv[i]; invariant(allowed.has(k) && !opts.has(k), `unknown/duplicate option ${k}`);
     if (k === "--allow-exec") opts.set(k, "true");
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "supervise", "objective", "status", "receipt", "events", "integrate"].includes(cmd), "unknown swarm command");
-  if (["init", "run", "resume", "supervise", "integrate"].includes(cmd)) need("--allow-exec");
+  invariant(["init", "run", "resume", "supervise", "objective", "status", "receipt", "events", "job-reconcile", "integrate"].includes(cmd), "unknown swarm command");
+  if (["init", "run", "resume", "supervise", "job-reconcile", "integrate"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
     switch (cmd) {
@@ -67,6 +69,10 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
         return { hash: need("--hash"), totalBytes: text.length, offset, content: text.subarray(offset, offset + length).toString("utf8"), nextOffset: offset + length < text.length ? offset + length : null };
       }
       case "events": { const items = new SessionJournal(store).page(need("--run"), need("--task"), Number(opts.get("--after") ?? 0)); return { items }; }
+      case "job-reconcile": {
+        const jobs = new ResearchJobs(new SessionJournal(store), loadSwarm(store));
+        return jobs.reconcile(need("--run"), need("--job-key"), file(need("--resolution")) as JobReply);
+      }
       case "integrate": return JSON.parse(JSON.stringify(await integrateSwarm(store, need("--run"), signal)));
       default: throw new Error("unreachable");
     }
