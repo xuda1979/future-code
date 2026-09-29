@@ -43,6 +43,7 @@ function source(store: Store, runId: string) {
 export function rebuildSchedulerIndex(store: Store, runId: string, recipe: Recipe,
   now = Date.now()): void {
   const { status, runtime, edges, sourceHash } = source(store, runId);
+  const graphVersion = Number(store.db.prepare("SELECT graph_version FROM runs WHERE id=?").get(runId)?.graph_version ?? 0);
   const plan = compilePlan(runtime, recipe, store.contract().limits.contextBytes);
   const previous = store.db.prepare("SELECT rebuilds FROM scheduler_index_meta WHERE run=?").get(runId);
   store.db.prepare("DELETE FROM scheduler_edges WHERE run=?").run(runId);
@@ -65,30 +66,31 @@ export function rebuildSchedulerIndex(store: Store, runId: string, recipe: Recip
     nodeInsert.run(runId, task.id, remaining, task.priority ?? 0,
       plan.ranks.get(task.id) ?? 0, plan.budgets.get(task.id)!);
   }
-  store.db.prepare(`INSERT INTO scheduler_index_meta(run,task_count,edge_count,rebuilds,built_at,source_hash)
-    VALUES(?,?,?,?,?,?)
+  store.db.prepare(`INSERT INTO scheduler_index_meta(run,task_count,edge_count,rebuilds,built_at,source_hash,source_version)
+    VALUES(?,?,?,?,?,?,?)
     ON CONFLICT(run) DO UPDATE SET task_count=excluded.task_count,edge_count=excluded.edge_count,
-      rebuilds=excluded.rebuilds,built_at=excluded.built_at,source_hash=excluded.source_hash`)
-    .run(runId, runtime.length, edges.length, (previous?.rebuilds ?? 0) + 1, now, sourceHash);
+      rebuilds=excluded.rebuilds,built_at=excluded.built_at,source_hash=excluded.source_hash,source_version=excluded.source_version`)
+    .run(runId, runtime.length, edges.length, (previous?.rebuilds ?? 0) + 1, now, sourceHash, graphVersion);
   store.event("scheduler.index.rebuilt",
-    { tasks: runtime.length, edges: edges.length, rebuild: (previous?.rebuilds ?? 0) + 1, sourceHash },
+    { tasks: runtime.length, edges: edges.length, rebuild: (previous?.rebuilds ?? 0) + 1, sourceHash, graphVersion },
     runId);
 }
 
 export function schedulerIndexCurrent(store: Store, runId: string): boolean {
-  const meta = store.db.prepare("SELECT source_hash FROM scheduler_index_meta WHERE run=?").get(runId);
-  if (!meta?.source_hash) return false;
-  return String(meta.source_hash) === source(store, runId).sourceHash;
+  const meta = store.db.prepare("SELECT source_version FROM scheduler_index_meta WHERE run=?").get(runId);
+  const run = store.db.prepare("SELECT graph_version FROM runs WHERE id=?").get(runId);
+  return !!meta && !!run && Number(meta.source_version) === Number(run.graph_version);
 }
 
 export function ensureSchedulerIndex(store: Store, runId: string, recipe: Recipe, now = Date.now()): void {
-  const meta = store.db.prepare("SELECT source_hash FROM scheduler_index_meta WHERE run=?").get(runId);
-  if (!meta?.source_hash) {
-    rebuildSchedulerIndex(store, runId, recipe, now); return;
-  }
-  const actual = source(store, runId).sourceHash;
-  if (String(meta.source_hash) !== actual) {
-    store.event("scheduler.index.drift", { expected: String(meta.source_hash), actual }, runId);
+  const meta = store.db.prepare("SELECT source_version,source_hash FROM scheduler_index_meta WHERE run=?").get(runId);
+  const run = store.db.prepare("SELECT graph_version FROM runs WHERE id=?").get(runId);
+  invariant(run, "unknown run");
+  if (!meta || Number(meta.source_version) !== Number(run.graph_version)) {
+    store.event("scheduler.index.drift", {
+      indexedVersion: meta?.source_version ?? null, graphVersion: Number(run.graph_version),
+      sourceHash: meta?.source_hash ?? null,
+    }, runId);
     rebuildSchedulerIndex(store, runId, recipe, now);
   }
 }
@@ -146,7 +148,7 @@ export function readyCandidates(store: Store, runId: string, now: number, limit:
 
 export function schedulerIndexStats(store: Store, runId: string, now = Date.now()): SchedulerIndexStats | null {
   const meta = store.db.prepare(
-    "SELECT task_count,edge_count,rebuilds,built_at,source_hash FROM scheduler_index_meta WHERE run=?"
+    "SELECT task_count,edge_count,rebuilds,built_at,source_hash,source_version FROM scheduler_index_meta WHERE run=?"
   ).get(runId);
   if (!meta) return null;
   const runnable = store.db.prepare(`SELECT COUNT(*) AS n FROM scheduler_nodes n
