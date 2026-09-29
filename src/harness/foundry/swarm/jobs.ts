@@ -39,8 +39,12 @@ export class ResearchJobs {
       key TEXT PRIMARY KEY, run TEXT NOT NULL, task TEXT NOT NULL, template TEXT NOT NULL,
       input_hash TEXT NOT NULL, created REAL NOT NULL, progress_at REAL NOT NULL,
       progress_token TEXT, poll_at REAL NOT NULL, failures INTEGER NOT NULL DEFAULT 0,
-      job_id TEXT, status TEXT NOT NULL, result_hash TEXT, updated REAL NOT NULL);
+      job_id TEXT, status TEXT NOT NULL, result_hash TEXT, updated REAL NOT NULL,
+      reconciliation_hash TEXT);
       CREATE INDEX IF NOT EXISTS research_jobs_run ON research_jobs(run,task);`);
+    const columns = new Set(journal.store.db.prepare("PRAGMA table_info(research_jobs)").all().map(r => String(r.name)));
+    if (!columns.has("reconciliation_hash"))
+      journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN reconciliation_hash TEXT");
   }
   async execute(c: Capsule, profile: AgentProfile, call: Call, signal: AbortSignal): Promise<Json> {
     this.journal.assertLease(c); signal.throwIfAborted();
@@ -63,7 +67,9 @@ export class ResearchJobs {
       const live = store.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE template=? AND result_hash IS NULL").get(name)!.n;
       if (live >= template.maxConcurrent) throw new DeferredAttemptError("remote-job", Date.now() + template.pollMs, `Remote capacity busy for ${name}; no new job submitted`);
       const now = Date.now();
-      store.db.prepare("INSERT INTO research_jobs VALUES(?,?,?,?,?,?,?,NULL,0,0,NULL,'UNKNOWN',NULL,?)")
+      store.db.prepare(`INSERT INTO research_jobs
+        (key,run,task,template,input_hash,created,progress_at,progress_token,poll_at,failures,job_id,status,result_hash,updated,reconciliation_hash)
+        VALUES(?,?,?,?,?,?,?,NULL,0,0,NULL,'UNKNOWN',NULL,?,NULL)`)
         .run(key, c.runId, c.task.id, name, binding, now, now, now);
       store.event("job.intent", { key, template: name, inputHash: binding }, c.runId, c.task.id);
       return store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
@@ -101,12 +107,17 @@ export class ResearchJobs {
     } catch { throw new FatalAttemptError("INVALID_JOB_REPLY: check adapter schema and immutable identity"); }
     const receipt = store.artifact(v as unknown as Json);
     const terminal = ["SUCCEEDED", "FAILED", "CANCELLED"].includes(v.status);
+    const reconciliationHash = terminal ? store.artifact({
+      schema: 1, key, jobId: v.jobId, status: v.status, template: name,
+      inputHash: binding, baseCommit: this.cfg.baseCommit, replyHash: receipt,
+    }) : null;
     store.transaction(() => {
       this.journal.assertLease(c); const now = Date.now();
       const changed = v.progressToken !== undefined && v.progressToken !== row.progress_token;
-      store.db.prepare(`UPDATE research_jobs SET job_id=?,status=?,progress_at=?,progress_token=?,poll_at=?,failures=0,result_hash=?,updated=? WHERE key=?`)
+      store.db.prepare(`UPDATE research_jobs SET job_id=?,status=?,progress_at=?,progress_token=?,poll_at=?,failures=0,
+        result_hash=?,updated=?,reconciliation_hash=? WHERE key=?`)
         .run(v.jobId, v.status, changed ? now : row.progress_at, v.progressToken ?? row.progress_token,
-          now + template.pollMs, terminal ? receipt : null, now, key);
+          now + template.pollMs, terminal ? receipt : null, now, reconciliationHash, key);
       // Store only meaningful changes; polling does not manufacture progress.
       if (changed || row.status !== v.status || row.job_id !== v.jobId) store.event("job.observed",
         { key, jobId: v.jobId, status: v.status, progress: changed, receipt }, c.runId, c.task.id);
@@ -135,19 +146,26 @@ export class ResearchJobs {
     invariant(["SUCCEEDED", "FAILED", "CANCELLED"].includes(reply.status), "reconciliation must provide a terminal remote status");
     invariant(reply.status !== "SUCCEEDED" || Object.hasOwn(reply, "result"), "successful job needs a result");
     invariant(Buffer.byteLength(canonical(reply)) <= this.cfg.spec.budget.maxToolOutputBytes, "job response too large");
-    const receipt = store.artifact(reply as unknown as Json); const now = Date.now();
+    const receipt = store.artifact(reply as unknown as Json);
+    const reconciliationHash = store.artifact({
+      schema: 1, key, jobId: reply.jobId, status: reply.status, template: row.template,
+      inputHash: row.input_hash, baseCommit: this.cfg.baseCommit, replyHash: receipt,
+      mode: "operator-reconcile",
+    });
+    const now = Date.now();
     store.transaction(() => {
       const current = store.db.prepare("SELECT job_id,result_hash FROM research_jobs WHERE run=? AND key=?").get(run, key);
       invariant(current && !current.result_hash, "research job already reconciled");
       invariant(!current.job_id || current.job_id === reply.jobId, "remote job identity changed");
-      store.db.prepare("UPDATE research_jobs SET job_id=?,status=?,result_hash=?,poll_at=?,updated=? WHERE run=? AND key=?")
-        .run(reply.jobId, reply.status, receipt, now, now, run, key);
-      store.event("job.reconciled", { key, jobId: reply.jobId, status: reply.status, receipt }, run, row.task);
+      store.db.prepare("UPDATE research_jobs SET job_id=?,status=?,result_hash=?,poll_at=?,updated=?,reconciliation_hash=? WHERE run=? AND key=?")
+        .run(reply.jobId, reply.status, receipt, now, now, reconciliationHash, run, key);
+      store.event("job.reconciled", { key, jobId: reply.jobId, status: reply.status,
+        receipt, reconciliationHash }, run, row.task);
     });
     return reply as unknown as Json;
   }
   list(run: string): Json {
-    const rows = this.journal.store.db.prepare(`SELECT key,task,template,job_id,status,progress_at,poll_at,failures,result_hash,updated
+    const rows = this.journal.store.db.prepare(`SELECT key,task,template,job_id,status,progress_at,poll_at,failures,result_hash,reconciliation_hash,updated
       FROM research_jobs WHERE run=? ORDER BY created LIMIT 201`).all(run);
     return { items: rows.slice(0, 200) as Json[], truncated: rows.length > 200 };
   }
