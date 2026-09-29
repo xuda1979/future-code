@@ -253,9 +253,12 @@ provider tokens, cached-input tokens and cache-creation tokens when reported.
 Missing usage is null rather than zero. Model-authored JSON cannot claim usage.
 There is no trusted currency price meter, so costUsd is unknown.
 
-`RunSummary.progressDensity` now has an explicit measurement contract. For model
-runs with complete detailed usage, its denominator is **uncached provider input
-tokens**; `cacheReuseRatio` separately reports cached/input tokens. If detailed
+`RunSummary.progressDensity` now has an explicit measurement contract. Its
+numerator is `verifiedProgress`: successful **root objective tasks only**.
+Dynamically spawned support tasks still add input/cost to the denominator but
+cannot inflate the numerator by over-splitting work. For model runs with complete
+detailed usage, the denominator is **uncached provider input tokens**;
+`cacheReuseRatio` separately reports cached/input tokens. If detailed
 provider token usage is unavailable, the denominator falls back to measured
 serialized provider request bytes. Generic Foundry workers use the actual encoded
 capsule bytes recorded per attempt. `progressDensityBasis` and `decisionInput`
