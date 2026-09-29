@@ -155,6 +155,13 @@ test("job and supervision configuration reject unsafe bounds/capabilities", () =
   s.jobs!.train.idempotentEnsure = true; s.jobs!.train.maxConcurrent = 0; assert.throws(() => validateSwarmSpec(s), /concurrency/);
   const supervised = spec("x"); supervised.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 9 };
   assert.throws(() => validateSwarmSpec(supervised), /maxReplans/);
+  const insecure = spec("x"); insecure.agents.coder.url = "http://10.0.0.5:8000/v1/chat/completions"; insecure.agents.coder.allowHttp = true;
+  insecure.agents.coder.keyEnv = "MODEL_API_KEY";
+  assert.throws(() => validateSwarmSpec(insecure), /credentials require HTTPS/);
+  insecure.agents.coder.keyEnv = undefined;
+  assert.doesNotThrow(() => validateSwarmSpec(insecure));
+  insecure.agents.coder.url = "http://127.0.0.1:8000/v1/chat/completions"; insecure.agents.coder.keyEnv = "MODEL_API_KEY";
+  assert.doesNotThrow(() => validateSwarmSpec(insecure));
 });
 test("transient provider responses yield without resetting the run request ledger", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); let l = q.claim(run, "w")!; const j = new SessionJournal(s);
