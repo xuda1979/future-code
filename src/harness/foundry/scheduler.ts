@@ -3,42 +3,13 @@ import { randomUUID } from "node:crypto";
 import { Store } from "./store.ts";
 import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
 import { accessConflicts, compilePlan, projectDependency } from "./productivity.ts";
+import { blockDependents, hasSchedulerIndex, readyCandidates, rebuildSchedulerIndex,
+  releaseDependents, schedulerNode } from "./schedulerIndex.ts";
 import type { Capsule, FailureOptions, Json, Lease, Measurement, Recipe, RunSummary, Task } from "./types.ts";
 
 export class Scheduler {
   readonly store: Store;
-  // Only immutable task specifications are cached. Lease/status state is always
-  // re-read inside BEGIN IMMEDIATE, including when another process claims work.
-  private cachedPlan?: { runId: string; recipeHash: string; taskCount: number; plan: ReturnType<typeof compilePlan> };
   constructor(store: Store) { this.store = store; }
-  private plan(runId: string, recipeHash: string, recipe: Recipe, rows?: Record<string, unknown>[]) {
-    const source = rows ?? this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(runId);
-    const taskCount = source.length;
-    if (this.cachedPlan?.runId === runId && this.cachedPlan.recipeHash === recipeHash &&
-        this.cachedPlan.taskCount === taskCount) return this.cachedPlan.plan;
-    const tasks: Task[] = source.map(t => {
-      invariant(typeof t.spec === "string", "missing persisted task specification");
-      return JSON.parse(t.spec) as Task;
-    });
-    // Runtime-spawned children are first-class scheduling dependencies even
-    // though the persisted parent Task remains immutable for thread binding.
-    // Overlay spawn edges only for planning/ranking; readiness is still checked
-    // against durable task and spawn state below.
-    const spawned = new Map<string, string[]>();
-    for (const edge of this.store.db.prepare(
-      "SELECT parent,child FROM spawn_edges WHERE run=? ORDER BY parent,child"
-    ).all(runId)) {
-      const list = spawned.get(String(edge.parent)) ?? [];
-      list.push(String(edge.child)); spawned.set(String(edge.parent), list);
-    }
-    const runtimeTasks = tasks.map(task => {
-      const extra = spawned.get(task.id) ?? [];
-      if (!extra.length) return task;
-      return { ...task, dependencies: [...new Set([...task.dependencies, ...extra])] };
-    });
-    const plan = compilePlan(runtimeTasks, recipe, this.store.contract().limits.contextBytes);
-    this.cachedPlan = { runId, recipeHash, taskCount, plan }; return plan;
-  }
   start(tasks: Task[], recipeHash = this.store.active(), now = Date.now(), id = randomUUID()): string {
     const contract = this.store.contract(); validateTasks(contract, tasks);
     // Reject an impossible reservation before creating a permanently idle run.
