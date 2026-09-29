@@ -16,8 +16,11 @@ test("dynamic delegation admits bounded children and parent can yield its slot",
   const child = { ...task("child"), writeScope: ["src/b.txt"], readScope: ["src"], dependencies: [], input: { value: 42 } };
   const spawned: any = d.spawn(capsule, cfg.spec.agents.coder, { id: "spawn-1", name: "spawn_tasks", arguments: { tasks: [child] } });
   assert.deepEqual(spawned.added, ["child"]);
-  assert.throws(() => d.await(capsule, cfg.spec.agents.coder, { id: "wait", name: "await_tasks", arguments: { ids: ["child"] } }), DeferredAttemptError);
-  q.defer(lease, new DeferredAttemptError("subagents", Date.now(), "waiting"));
+  let wait!: DeferredAttemptError;
+  try { d.await(capsule, cfg.spec.agents.coder, { id: "wait", name: "await_tasks", arguments: { ids: ["child"] } }); }
+  catch (e) { assert.ok(e instanceof DeferredAttemptError); wait = e; }
+  assert.ok(wait);
+  q.defer(lease, wait);
   const childLease = q.claim(run, "child-worker")!;
   assert.equal(childLease.taskId, "child");
   assert.equal(s.db.prepare("SELECT parent FROM task_expansions WHERE run=? AND task='child'").get(run)!.parent, "parent");
