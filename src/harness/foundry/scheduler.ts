@@ -271,10 +271,13 @@ export class Scheduler {
   }
   summary(id: string, now = Date.now()): RunSummary {
     const r = this.store.db.prepare("SELECT * FROM runs WHERE id=?").get(id); invariant(r, "unknown run");
-    const tasks = this.store.db.prepare("SELECT status FROM tasks WHERE run=?").all(id);
+    const tasks = this.store.db.prepare("SELECT id,status FROM tasks WHERE run=?").all(id);
     const attempts = this.store.db.prepare("SELECT tokens,cost FROM attempts WHERE run=?").all(id);
     const sum = (key: string): number | null => attempts.length && attempts.every(a => a[key] !== null && Number.isFinite(a[key])) ? attempts.reduce((n, a) => n + a[key], 0) : null;
     const accepted = tasks.filter(t => t.status === "PASS").length;
+    const hasExpansions = !!this.store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='task_expansions'").get();
+    const spawned = hasExpansions ? new Set(this.store.db.prepare("SELECT DISTINCT task FROM task_expansions WHERE run=?").all(id).map(r => String(r.task))) : new Set<string>();
+    const verifiedProgress = tasks.filter(t => t.status === "PASS" && !spawned.has(String(t.id))).length;
     let basis: RunSummary["progressDensityBasis"] = null;
     let decisionInput: number | null = null;
     let cacheReuseRatio: number | null = null;
@@ -299,9 +302,9 @@ export class Scheduler {
       const telemetry = this.store.db.prepare("SELECT COUNT(context_bytes) AS n,COALESCE(SUM(context_bytes),0) AS bytes FROM attempt_telemetry WHERE run=?").get(id)!;
       if (telemetry.n > 0) { basis = "capsuleBytes"; decisionInput = telemetry.bytes; }
     }
-    const pd = decisionInput === null ? null : progressDensity(accepted, decisionInput);
+    const pd = decisionInput === null ? null : progressDensity(verifiedProgress, decisionInput);
     return { id, recipeHash: r.recipe, contractHash: r.contract, status: r.status,
-      accepted, failed: tasks.filter(t => t.status === "FAIL").length,
+      accepted, verifiedProgress, failed: tasks.filter(t => t.status === "FAIL").length,
       blocked: tasks.filter(t => t.status === "BLOCKED").length, attempts: attempts.length,
       durationMs: Math.max(0, (r.ended ?? now) - r.started), tokens: sum("tokens"), costUsd: sum("cost"),
       progressDensity: pd, progressDensityBasis: basis, decisionInput, cacheReuseRatio };
