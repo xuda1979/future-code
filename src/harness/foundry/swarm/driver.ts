@@ -1,5 +1,5 @@
 import { DeferredAttemptError, PersistedDeferredAttemptError } from "../continuation.ts";
-import { ResearchJobs } from "./jobs.ts";
+import { ResearchJobs, type JobRPC } from "./jobs.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { schedulerNode } from "../schedulerIndex.ts";
 import { FatalAttemptError } from "../errors.ts";
@@ -29,10 +29,11 @@ function outstanding(t: Thread): Call[] {
 export class SwarmDriver implements Driver {
   readonly workerId: string; readonly verifierId: string;
   readonly journal: SessionJournal; readonly brain: HttpBrain;
-  readonly store: Store; readonly cfg: PinnedSwarm; readonly backend: HandsBackend;
-  constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend) {
+  readonly store: Store; readonly cfg: PinnedSwarm; readonly backend: HandsBackend; readonly jobRpc?: JobRPC;
+  constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend,
+    jobRpc?: JobRPC) {
     invariant(backend.id === cfg.handsId, "execution backend identity mismatch");
-    this.store = store; this.cfg = cfg; this.backend = backend;
+    this.store = store; this.cfg = cfg; this.backend = backend; this.jobRpc = jobRpc;
     this.workerId = workerIdentity(cfg); this.verifierId = verifierIdentity(cfg);
     this.journal = new SessionJournal(store); this.brain = new HttpBrain(this.journal, fetcher);
   }
@@ -76,7 +77,7 @@ export class SwarmDriver implements Driver {
     }
     const hands = this.backend.open(this.store, this.cfg, c, profile, signal, t.state.patchHash);
     const budget = this.cfg.spec.budget;
-    const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg) : null;
+    const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg, this.jobRpc) : null;
     t.state.lastCheckAt ??= Date.now();
     const limit = t.state.contextLimit!;
     invariant(Number.isSafeInteger(limit) && limit > 0 &&
