@@ -26,6 +26,10 @@ export function score(e: Evaluation): Pick<Evaluation, "decision" | "reasons" | 
       const n = r[e.protocol.objective];
       if (n === null || !Number.isFinite(n) || n < 0) return { decision: "UNKNOWN", reasons: ["missing or invalid complete cost measurement"], relativeGain: null };
     }
+    if (e.protocol.objective === "progressDensity" &&
+        pair.baseline.progressDensityBasis !== pair.candidate.progressDensityBasis) {
+      return { decision: "UNKNOWN", reasons: ["progressDensity denominator basis differs between evaluation arms"], relativeGain: null };
+    }
     baseline += pair.baseline[e.protocol.objective]!;
     candidate += pair.candidate[e.protocol.objective]!;
   }
