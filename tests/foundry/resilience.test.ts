@@ -196,6 +196,21 @@ test("transient provider responses yield without resetting the run request ledge
   const good = await brain.next(q.capsule(l), cfg.spec.agents.coder, [{ role: "user", content: "task" }], cfg.spec.budget, 32768, signal());
   assert.equal(good.turn.tokens, 15); assert.equal(j.usage(run).requests, 6); assert.equal(j.usage(run).unknownRequests, 5);
 }, s => { s.recipe.attempts = 1; }));
+test("provider concurrency waiters wake on local request completion", async () => swarmFixture(async (s, cfg) => {
+  cfg.spec.budget.modelConcurrency = 1;
+  const q = new Scheduler(s); const run = q.start([swarmTask("a"), swarmTask("b")]);
+  const a = q.capsule(q.claim(run, "a")!); const b = q.capsule(q.claim(run, "b")!);
+  const journal = new SessionJournal(s); const provider = "shared-test-pool";
+  const first = await journal.reserve(a, provider, { request: "a" }, cfg.spec.budget, signal());
+  const started = Date.now();
+  const secondPromise = journal.reserve(b, provider, { request: "b" }, cfg.spec.budget, signal());
+  await delay(20);
+  journal.complete(first, 1, { ok: true });
+  const second = await secondPromise;
+  assert.ok(Date.now() - started < 200, "same-process permit should wake before cross-process fallback");
+  journal.complete(second, 1, { ok: true });
+}));
+
 test("authentication errors are not retried as transient outages", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!); const j = new SessionJournal(s);
   const brain = new HttpBrain(j, (async () => new Response(null, { status: 401 })) as typeof fetch);
