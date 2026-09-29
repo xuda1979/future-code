@@ -141,7 +141,8 @@ export interface RunSummary {
   durationMs: number;
   tokens: number | null;
   costUsd: number | null;
-  /** Verified accepted tasks per measured encoded capsule bytes across attempts.
+  /** Verified initially admitted tasks per measured encoded capsule bytes across all attempts.
+   *  Runtime-spawned children add measured work to the denominator but not extra objective progress.
    *  This is host-side input telemetry, not provider tokens, KV-cache hits, or billed bytes. */
   progressDensity: number | null;
 }
