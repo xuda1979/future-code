@@ -1,4 +1,4 @@
-import { DeferredAttemptError } from "./continuation.ts";
+import { DeferredAttemptError, PersistedDeferredAttemptError } from "./continuation.ts";
 import { runHealth, type HealthObserver } from "./health.ts";
 import { FatalAttemptError } from "./errors.ts";
 import { randomUUID } from "node:crypto";
@@ -80,6 +80,7 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
   catch (e) {
     controller.abort(e);
     if (driver.measurement) measured = validMeasurement(driver.measurement(lease));
+    if (e instanceof PersistedDeferredAttemptError) return;
     if (e instanceof DeferredAttemptError || outer?.aborted) {
       scheduler.defer(lease, e instanceof DeferredAttemptError ? e : new DeferredAttemptError("cancelled", Date.now(), "caller paused; checkpoint retained"), measured);
       return;
