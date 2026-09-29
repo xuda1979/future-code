@@ -166,10 +166,12 @@ export class Scheduler {
       return { taskId: id, artifactHash: dep.artifact as string, artifact, view: { pointers, hash: digest(artifact) } };
     });
     const capsule: Capsule = { schema: 1, runId: lease.runId, task, contractHash: lease.contractHash, recipeHash: lease.recipeHash, fence: lease.fence, dependencies };
-    // Use per-task context budget when available, falling back to recipe default.
+    // Context allocation is persisted in the scheduler index at admission or
+    // DAG expansion, avoiding a full graph compile on every capsule.
     const recipe = this.store.recipe(lease.recipeHash);
-    const budgets = this.plan(lease.runId, lease.recipeHash, recipe).budgets;
-    const taskBudget = budgets.get(lease.taskId) ?? recipe.contextBytes;
+    const node = schedulerNode(this.store, lease.runId, lease.taskId);
+    if (!node) this.store.transaction(() => rebuildSchedulerIndex(this.store, lease.runId, recipe));
+    const taskBudget = schedulerNode(this.store, lease.runId, lease.taskId)?.budget ?? recipe.contextBytes;
     const text = encodeCapsule(capsule, Math.min(taskBudget, this.store.contract().limits.contextBytes));
     this.store.transaction(() => {
       invariant(this.current(lease, Date.now()), "stale lease");
@@ -207,6 +209,7 @@ export class Scheduler {
       const a = this.store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(lease.runId, lease.taskId, lease.fence)!;
       this.store.db.prepare("UPDATE attempts SET status='PASS',ended=?,duration=?,tokens=?,cost=? WHERE run=? AND task=? AND fence=?").run(now, Math.max(0, now - a.started), measurement.tokens, measurement.costUsd, lease.runId, lease.taskId, lease.fence);
       this.store.db.prepare("UPDATE tasks SET status='PASS',artifact=?,evidence=?,owner=NULL,deadline=NULL WHERE run=? AND id=?").run(artifactHash, evidenceHash, lease.runId, lease.taskId);
+      releaseDependents(this.store, lease.runId, lease.taskId);
       this.store.event("task.accepted", { fence: lease.fence, artifactHash, evidenceHash }, lease.runId, lease.taskId); return true;
     });
   }
@@ -230,6 +233,7 @@ export class Scheduler {
       const status = options.retryable === false || exhausted || this.failureCount(lease.runId, lease.taskId) + 1 >= recipe.attempts ? "FAIL" : "READY";
       this.store.db.prepare("UPDATE attempts SET status='FAIL',ended=?,duration=?,tokens=?,cost=? WHERE run=? AND task=? AND fence=?").run(now, Math.max(0, now - a.started), measurement.tokens, measurement.costUsd, lease.runId, lease.taskId, lease.fence);
       this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error=? WHERE run=? AND id=?").run(status, reason.slice(0, 4096), lease.runId, lease.taskId);
+      if (status === "FAIL") blockDependents(this.store, lease.runId, lease.taskId);
       this.store.event("task.failed", { fence: lease.fence, reason: reason.slice(0, 4096), retry: status === "READY", repeated, fingerprint }, lease.runId, lease.taskId); return true;
     });
   }
