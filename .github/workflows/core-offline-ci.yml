@@ -34,3 +34,7 @@ jobs:
         run: node scripts/test-foundry.mjs
       - name: Swarm execution
         run: node scripts/test-swarm.mjs
+      - name: Command regression suite
+        run: node scripts/test-commands.mjs
+      - name: API retry resilience
+        run: node --experimental-strip-types --test tests/api/retry-resilience.test.ts
