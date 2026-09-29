@@ -63,6 +63,20 @@ test("large ready sets claim from the durable index and rebuild after index loss
   assert.ok(stats.rebuilds >= 1);
 }));
 
+test("stale scheduler fingerprint is rebuilt before another claim", async () => fixture(store => {
+  const q = new Scheduler(store); const run = q.start([task("a"), task("b")]);
+  const before = schedulerIndexStats(store, run)!;
+  store.db.prepare("UPDATE scheduler_index_meta SET source_version=source_version-1,source_hash=? WHERE run=?")
+    .run("0".repeat(64), run);
+  const lease = q.claim(run, "worker")!;
+  assert.ok(lease);
+  const after = schedulerIndexStats(store, run)!;
+  assert.ok(after.rebuilds > before.rebuilds);
+  assert.notEqual(after.sourceHash, "0".repeat(64));
+  const drift = store.db.prepare("SELECT COUNT(*) AS n FROM events WHERE run=? AND kind='scheduler.index.drift'").get(run)!.n;
+  assert.equal(drift, 1);
+}));
+
 test("acceptance releases only indexed dependents and terminal failure blocks descendants", async () => fixture(store => {
   const q = new Scheduler(store);
   const run = q.start([task("a"), task("b", ["a"]), task("c", ["b"]), task("side")]);
@@ -74,6 +88,27 @@ test("acceptance releases only indexed dependents and terminal failure blocks de
   q.fail(b, "terminal", zero, Date.now(), { retryable: false });
   q.claim(run, "finalize");
   assert.equal(store.db.prepare("SELECT status FROM tasks WHERE run=? AND id='c'").get(run)!.status, "BLOCKED");
+}));
+
+test("corrupt low remaining count cannot bypass authoritative dependencies", async () => fixture(store => {
+  const q = new Scheduler(store); const run = q.start([task("a"), task("b", ["a"])]);
+  store.db.prepare("UPDATE scheduler_nodes SET remaining=0 WHERE run=? AND task='b'").run(run);
+  const leases = q.claimMany(run, "w", 8);
+  assert.deepEqual(leases.map(x => x.taskId), ["a"]);
+  assert.equal(store.db.prepare("SELECT status FROM tasks WHERE run=? AND id='b'").get(run)!.status, "READY");
+  assert.equal(store.db.prepare(
+    "SELECT COUNT(*) AS n FROM events WHERE run=? AND kind='scheduler.index.unsafe_candidate'"
+  ).get(run)!.n, 1);
+}));
+
+test("corrupt high remaining count self-heals starvation without granting unsafe work", async () => fixture(store => {
+  const q = new Scheduler(store); const run = q.start([task("root")]);
+  store.db.prepare("UPDATE scheduler_nodes SET remaining=1 WHERE run=? AND task='root'").run(run);
+  assert.equal(q.claim(run, "first"), null);
+  assert.equal(store.db.prepare(
+    "SELECT COUNT(*) AS n FROM events WHERE run=? AND kind='scheduler.index.starvation'"
+  ).get(run)!.n, 1);
+  assert.equal(q.claim(run, "second")!.taskId, "root");
 }));
 
 test("health-grade index stats distinguish runnable dependency-blocked and delayed work", async () => fixture(store => {

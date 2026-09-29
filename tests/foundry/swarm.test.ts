@@ -16,7 +16,8 @@ import { runSwarm, loadSwarm, integrateSwarm } from "../../src/harness/foundry/s
 import { handleSwarm, tokenize } from "../../src/harness/foundry/swarm/cli.ts";
 import { SwarmDriver } from "../../src/harness/foundry/swarm/driver.ts";
 import { fixture, spec, task, signal, scripted, reply } from "./swarm-fixtures.ts";
-const initial = (): ThreadState => ({ history: [{ role: "user", content: "task" }], turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null });
+const initial = (contextLimit = 8192): ThreadState => ({ history: [{ role: "user", content: "task" }],
+  turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null, contextLimit });
 function lease(store: Store, id = "a") { const q = new Scheduler(store); const run = q.start([task(id)]); const l = q.claim(run, "test")!; return { q, run, l, c: q.capsule(l) }; }
 
 test("schema accepts a bounded pinned plan and rejects unknown authorities", () => {
@@ -82,6 +83,14 @@ test("thread checkpoints persist across handles; events cannot be rewritten", as
   assert.throws(() => s.db.exec("UPDATE agent_events SET kind='fake'"), /append-only/);
   assert.throws(() => s.db.exec("DELETE FROM agent_events"), /append-only/);
 }));
+test("thread context envelope remains pinned across reopen", async () => fixture(async s => {
+  const { c } = lease(s); const j = new SessionJournal(s);
+  const first = j.open(c, initial(4096));
+  assert.equal(first.state.contextLimit, 4096);
+  const restored = j.open(c, initial(8192));
+  assert.equal(restored.state.contextLimit, 4096, "existing thread must keep its admitted envelope");
+}));
+
 test("stale fences cannot append a checkpoint or access a new model request", async () => fixture(async s => {
   const { c, q, l, run } = lease(s); const j = new SessionJournal(s); const t = j.open(c, initial());
   q.fail(l, "retry"); q.claim(run, "replacement");

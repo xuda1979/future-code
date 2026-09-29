@@ -71,6 +71,24 @@ test("resume with the admitted root DAG remains valid after runtime expansion", 
   });
 });
 
+test("spawn admission and parent yield commit atomically", async () => {
+  await coreFixture(store => {
+    const q = new Scheduler(store); const run = q.start([coreTask("root")]);
+    const lease = q.claim(run, "parent")!; const capsule = q.capsule(lease);
+    const child = coreTask("root.leaf", { writeScope: ["src/leaf"], readScope: ["src"] });
+    const result = spawnTasks(store, capsule, "atomic-spawn", digest({ child: "leaf" }), [child], policy,
+      Date.now(), { reason: "waiting for verified child", wakeAt: Date.now(), measurement: zero });
+    assert.equal(result.parentDeferred, true);
+    assert.equal(store.db.prepare("SELECT status FROM tasks WHERE run=? AND id='root'").get(run)!.status, "READY");
+    assert.equal(store.db.prepare("SELECT status FROM attempts WHERE run=? AND task='root' AND fence=?")
+      .get(run, lease.fence)!.status, "DEFERRED");
+    assert.equal(store.db.prepare("SELECT status FROM tasks WHERE run=? AND id='root.leaf'").get(run)!.status, "READY");
+    assert.equal(store.db.prepare("SELECT kind FROM task_waits WHERE run=? AND task='root'").get(run)!.kind, "spawn");
+    const next = q.claim(run, "child")!;
+    assert.equal(next.taskId, "root.leaf");
+  });
+});
+
 test("dynamic DAG batches are durable, replay-safe, and use measured progress density", async () => {
   await coreFixture(store => {
     const q = new Scheduler(store); const run = q.start([coreTask("root")]);

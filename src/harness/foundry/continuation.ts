@@ -14,6 +14,13 @@ export class DeferredAttemptError extends Error {
   }
 }
 
+export class PersistedDeferredAttemptError extends DeferredAttemptError {
+  constructor(kind: "provider" | "remote-job" | "remote-stalled" | "checkpoint" | "spawn" | "cancelled",
+    wakeAt: number, reason: string) {
+    super(kind, wakeAt, reason); this.name = "PersistedDeferredAttemptError";
+  }
+}
+
 export function installContinuationTables(store: Store): void {
   store.db.exec(`CREATE TABLE IF NOT EXISTS task_waits(
     run TEXT NOT NULL, task TEXT NOT NULL, wake REAL NOT NULL, kind TEXT NOT NULL,

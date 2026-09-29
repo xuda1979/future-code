@@ -14,6 +14,7 @@ import type { Driver, Task, Recipe, Contract, Lease } from "../../src/harness/fo
 import { ResearchJobs, type JobRPC } from "../../src/harness/foundry/swarm/jobs.ts";
 import { SessionJournal } from "../../src/harness/foundry/swarm/session.ts";
 import { HttpBrain, isTransportFailure } from "../../src/harness/foundry/swarm/model.ts";
+import { createApiRecoveryPlanner } from "../../src/harness/foundry/swarm/recovery.ts";
 import { FatalAttemptError } from "../../src/harness/foundry/errors.ts";
 import { superviseSwarm, objectiveStatus } from "../../src/harness/foundry/swarm/supervisor.ts";
 import { runSwarm } from "../../src/harness/foundry/swarm/host.ts";
@@ -109,6 +110,11 @@ test("remote job resumes by immutable ID and never re-submits after polling fail
   const result: any = await jobs.execute(q.capsule(l), cfg.spec.agents.coder, jobCall, signal());
   assert.equal(result.status, "SUCCEEDED"); assert.deepEqual(requests.map(r => r.operation), ["ensure", "inspect", "inspect"]);
   assert.equal(new Set(requests.map(r => r.key)).size, 1); assert.equal(q.summary(run).accepted, 0, "remote exit is not acceptance");
+  const terminal = s.db.prepare("SELECT reconciliation_hash,input_hash FROM research_jobs WHERE run=?").get(run)!;
+  assert.match(terminal.reconciliation_hash, /^[a-f0-9]{64}$/);
+  const attestation: any = s.readArtifact(terminal.reconciliation_hash);
+  assert.equal(attestation.inputHash, terminal.input_hash); assert.equal(attestation.baseCommit, cfg.baseCommit);
+  assert.equal(attestation.status, "SUCCEEDED");
 }, jobSpec));
 test("lost submit reply reconciles the SAME key without duplicate remote execution", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const l = q.claim(run, "w")!; const c = q.capsule(l);
@@ -333,6 +339,29 @@ test("transient recovery failure is durably retried without consuming a new revi
 }, s => {
   s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
+}));
+
+test("completed recovery API reply replays after crash without another external call", async () => swarmFixture(async (s, cfg) => {
+  const root = swarmTask(); const run = new Scheduler(s).start([root]);
+  const context = { objectiveId: "replay-recovery", goal: "repair safely", runId: run,
+    reason: "failed", revision: 1, tasks: [root], failures: [{ id: root.id, status: "FAIL", error: "x" }] };
+  let calls = 0;
+  const first = createApiRecoveryPlanner(s, cfg, (async () => {
+    calls++;
+    return reply("", [{ name: "propose_recovery_plan", arguments: {
+      decision: "decline", reason: "No safe structural change", tasks: [],
+    } }]);
+  }) as typeof fetch);
+  assert.equal(await first(context, signal()), null);
+  const replayed = createApiRecoveryPlanner(s, cfg, (async () => {
+    throw new Error("completed recovery reply must be replayed");
+  }) as typeof fetch);
+  assert.equal(await replayed(context, signal()), null);
+  assert.equal(calls, 1);
+  assert.equal(new SessionJournal(s).usage(run).requests, 1);
+  assert.equal(s.db.prepare(
+    "SELECT COUNT(*) AS n FROM events WHERE run=? AND kind='objective.recovery.model.replayed'"
+  ).get(run)!.n, 1);
 }));
 
 test("prepared recovery is adopted after a supervisor crash without another planner call", async () => swarmFixture(async s => {

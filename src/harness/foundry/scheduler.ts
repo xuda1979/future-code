@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Store } from "./store.ts";
 import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
 import { accessConflicts, compilePlan, projectDependency } from "./productivity.ts";
-import { blockDependents, hasSchedulerIndex, readyCandidates, rebuildSchedulerIndex,
+import { blockDependents, ensureSchedulerIndex, readyCandidates, rebuildSchedulerIndex,
   releaseDependents, schedulerNode } from "./schedulerIndex.ts";
 import type { Capsule, FailureOptions, Json, Lease, Measurement, Recipe, RunSummary, Task } from "./types.ts";
 
@@ -29,6 +29,7 @@ export class Scheduler {
       this.store.db.prepare("INSERT INTO runs(id,recipe,contract,started,status) VALUES(?,?,?,?, 'RUNNING')").run(id, recipeHash, digest(contract), now);
       const insert = this.store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')");
       for (const task of tasks) insert.run(id, task.id, JSON.stringify(task));
+      this.store.db.prepare("UPDATE runs SET graph_version=1 WHERE id=?").run(id);
       rebuildSchedulerIndex(this.store, id, this.store.recipe(recipeHash), now);
       this.store.event("run.started", { recipeHash, contractHash: digest(contract), taskCount: tasks.length, taskHash: digest(tasks) }, id);
       return id;
@@ -49,7 +50,7 @@ export class Scheduler {
       if (run.status !== "RUNNING") return [];
       invariant(run.contract === digest(this.store.contract()), "run contract drift");
       const recipe = this.store.recipe(run.recipe);
-      if (!hasSchedulerIndex(this.store, runId)) rebuildSchedulerIndex(this.store, runId, recipe, now);
+      ensureSchedulerIndex(this.store, runId, recipe, now);
 
       // Reclaim only actually expired leases; do not scan unrelated tasks.
       const expired = this.store.db.prepare(
@@ -96,12 +97,24 @@ export class Scheduler {
         sum + (schedulerNode(this.store, runId, String(row.id))?.budget ?? recipe.contextBytes), 0);
       const snapshotReads = this.store.contract().readIsolation === "snapshot";
       const leases: Lease[] = [];
+      let derivedDrift = false;
+      const authoritativeReady = (task: Task): boolean => {
+        for (const dependency of task.dependencies) {
+          const row = this.store.db.prepare("SELECT status FROM tasks WHERE run=? AND id=?")
+            .get(runId, dependency);
+          if (row?.status !== "PASS") return false;
+        }
+        return !this.store.db.prepare(`SELECT 1 FROM spawn_edges e
+          JOIN tasks t ON t.run=e.run AND t.id=e.child
+          WHERE e.run=? AND e.parent=? AND t.status<>'PASS' LIMIT 1`).get(runId, task.id);
+      };
 
       // A bounded overscan lets scope/context conflicts skip candidates without
       // turning a large ready set into a full-run scan.
       const window = Math.min(4096, Math.max(64, capacity * 16));
       for (const candidate of readyCandidates(this.store, runId, now, window)) {
         const task = JSON.parse(candidate.spec) as Task;
+        if (!authoritativeReady(task)) { derivedDrift = true; continue; }
         if (active.some(other => snapshotReads
           ? conflicts(task.writeScope, other.writeScope)
           : accessConflicts(task, other))) continue;
@@ -124,6 +137,20 @@ export class Scheduler {
           recipeHash: run.recipe, contractHash: run.contract });
         active.push(task); reserved += candidate.budget;
         if (leases.length >= capacity) break;
+      }
+      if (derivedDrift) {
+        this.store.event("scheduler.index.unsafe_candidate",
+          { reason: "derived readiness disagreed with authoritative dependencies" }, runId);
+        rebuildSchedulerIndex(this.store, runId, recipe, now);
+      } else if (!leases.length && active.length === 0 && hasReady) {
+        const delayed = this.store.db.prepare(`SELECT 1 FROM task_waits w
+          JOIN tasks t ON t.run=w.run AND t.id=w.task
+          WHERE w.run=? AND t.status='READY' AND w.wake>? LIMIT 1`).get(runId, now);
+        if (!delayed) {
+          this.store.event("scheduler.index.starvation",
+            { reason: "READY work exists but no indexed candidate or running/delayed root" }, runId);
+          rebuildSchedulerIndex(this.store, runId, recipe, now);
+        }
       }
       return leases;
     });

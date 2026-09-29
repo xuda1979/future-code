@@ -1,6 +1,7 @@
-import { DeferredAttemptError } from "../continuation.ts";
+import { DeferredAttemptError, PersistedDeferredAttemptError } from "../continuation.ts";
 import { ResearchJobs } from "./jobs.ts";
-import { canonical, digest, invariant, allocateContext } from "../kernel.ts";
+import { canonical, digest, invariant } from "../kernel.ts";
+import { schedulerNode } from "../schedulerIndex.ts";
 import { FatalAttemptError } from "../errors.ts";
 import { spawnTasks } from "../dynamicDag.ts";
 import type { Store } from "../store.ts";
@@ -29,7 +30,6 @@ export class SwarmDriver implements Driver {
   readonly workerId: string; readonly verifierId: string;
   readonly journal: SessionJournal; readonly brain: HttpBrain;
   readonly store: Store; readonly cfg: PinnedSwarm; readonly backend: HandsBackend;
-  private contextPlan?: { run: string; recipe: string; taskCount: number; budgets: Map<string, number> };
   constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend) {
     invariant(backend.id === cfg.handsId, "execution backend identity mismatch");
     this.store = store; this.cfg = cfg; this.backend = backend;
@@ -42,12 +42,14 @@ export class SwarmDriver implements Driver {
   async execute(c: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult> {
     const profile = this.cfg.spec.agents[c.task.agent ?? this.cfg.spec.defaultAgent]; invariant(profile, "unknown agent profile");
     const canSpawn = profile.tools.includes("spawn_tasks") && !!this.cfg.spec.supervision?.dynamicDAG;
+    const admittedContext = schedulerNode(this.store, c.runId, c.task.id)?.budget ?? this.store.recipe(c.recipeHash).contextBytes;
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
       contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. " +
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
         "Do not edit harness infrastructure outside the declared task scope." }) }],
-      turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null });
+      turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null,
+      contextLimit: admittedContext });
     const resumed = c.fence > (t.state.lastFence ?? 0);
     if (resumed) {
       const prior = this.store.db.prepare("SELECT status FROM attempts WHERE run=? AND task=? AND fence<? ORDER BY fence DESC LIMIT 1").get(c.runId, c.task.id, c.fence);
@@ -76,14 +78,9 @@ export class SwarmDriver implements Driver {
     const budget = this.cfg.spec.budget;
     const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg) : null;
     t.state.lastCheckAt ??= Date.now();
-    const taskCount = this.store.db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE run=?").get(c.runId)!.n as number;
-    if (this.contextPlan?.run !== c.runId || this.contextPlan.recipe !== c.recipeHash ||
-        this.contextPlan.taskCount !== taskCount) {
-      const allTasks: Task[] = this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(c.runId).map(r => JSON.parse(r.spec));
-      this.contextPlan = { run: c.runId, recipe: c.recipeHash, taskCount,
-        budgets: allocateContext(allTasks, this.store.recipe(c.recipeHash), this.store.contract().limits.contextBytes) };
-    }
-    const limit = this.contextPlan.budgets.get(c.task.id)!;
+    const limit = t.state.contextLimit!;
+    invariant(Number.isSafeInteger(limit) && limit > 0 &&
+      limit <= this.store.contract().limits.contextBytes, "invalid durable context limit");
     try {
       if (t.state.pending?.name === "run_check") {
         const name = t.state.pending.arguments.name as string;
@@ -128,9 +125,15 @@ export class SwarmDriver implements Driver {
                   return child;
                 });
                 validateSwarmTasks(this.cfg.spec, children);
-                const spawned = spawnTasks(this.store, c, call.id, digest(call.arguments), children, policy);
-                if (!spawned.complete) throw new DeferredAttemptError("spawn", Date.now(),
-                  `Spawned ${spawned.childIds.length} child task(s); parent resumes after independent verification`);
+                const reason = `Spawned ${children.length} child task(s); parent resumes after independent verification`;
+                const spawned = spawnTasks(this.store, c, call.id, digest(call.arguments), children, policy,
+                  Date.now(), { reason, wakeAt: Date.now(), measurement: {
+                    tokens: this.journal.usage(c.runId, c.task.id, c.fence).tokens, costUsd: null,
+                  } });
+                if (!spawned.complete) {
+                  invariant(spawned.parentDeferred, "spawn admission did not durably yield parent");
+                  throw new PersistedDeferredAttemptError("spawn", Date.now(), reason);
+                }
                 result = { childIds: spawned.childIds, verified: spawned.dependencies };
               } else if (call.name === "run_job") {
                 invariant(jobs, "no remote job templates configured");
@@ -146,7 +149,11 @@ export class SwarmDriver implements Driver {
                 }
               } else result = await hands.tool(call);
             } catch (e) {
-              signal.throwIfAborted(); this.journal.assertLease(c);
+              signal.throwIfAborted();
+              // Atomic spawn deferral intentionally invalidates the current lease
+              // in the same transaction that admitted children.
+              if (e instanceof PersistedDeferredAttemptError) throw e;
+              this.journal.assertLease(c);
               if (e instanceof FatalAttemptError || e instanceof DeferredAttemptError) throw e;
               result = { error: e instanceof Error ? e.message.slice(0, 2048) : "tool error" };
             }
