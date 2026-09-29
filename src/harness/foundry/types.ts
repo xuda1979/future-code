@@ -48,6 +48,9 @@ export interface Task {
   dependencies: string[];
   /** Logical write-scope locks, not an OS filesystem sandbox. */
   writeScope: string[];
+  /** Authority that may be delegated to dynamically spawned child tasks.
+   * It does not itself acquire a scheduler read/write lock. */
+  delegateScope?: string[];
   input: Json;
   priority?: number;
   /** Per-task context budget override (bytes). When omitted, the scheduler
@@ -135,9 +138,14 @@ export interface RunSummary {
   durationMs: number;
   tokens: number | null;
   costUsd: number | null;
-  /** Verified accepted tasks per total context bytes consumed.
-   *  Higher is better: measures progress density, not raw activity. */
+  /** Verified accepted tasks per measured decision-input unit. The basis is
+   * explicit so evaluations never compare unlike denominators. */
   progressDensity: number | null;
+  progressDensityBasis: "uncachedInputTokens" | "providerInputTokens" | "providerRequestBytes" | "capsuleBytes" | null;
+  /** Measured denominator used by progressDensity. */
+  decisionInput: number | null;
+  /** Provider-side prefix reuse when the backend reports cached prompt tokens. */
+  cacheReuseRatio: number | null;
 }
 export interface Protocol {
   datasetId: string;
