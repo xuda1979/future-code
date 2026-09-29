@@ -7,6 +7,7 @@ import type { Json, Task } from "../types.ts";
 import type { AgentProfile, PinnedSwarm, Protocol } from "./config.ts";
 import { boundedJson, isTransportFailure } from "./model.ts";
 import { SessionJournal } from "./session.ts";
+import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
 import type { RecoveryContext, RecoveryPlan, RecoveryPlanner } from "./supervisor.ts";
 
 const TRANSIENT = new Set([408, 425, 429, 500, 502, 503, 504, 529]);
@@ -183,11 +184,13 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
         objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
         agent, provider, attempt: attempt + 1, requestBytes: Buffer.byteLength(encoded),
       }, context.runId);
+      const combined = createCombinedAbortSignal(signal, {
+        timeoutMs: cfg.spec.budget.requestTimeoutMs,
+      });
       try {
-        const timeout = AbortSignal.timeout(cfg.spec.budget.requestTimeoutMs);
         const response = await fetcher(profile.url, {
           method: "POST", headers: headers(profile), body: encoded, redirect: "error",
-          signal: AbortSignal.any([signal, timeout]),
+          signal: combined.signal,
         });
         if (!response.ok) {
           await response.body?.cancel();
@@ -223,6 +226,8 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
           throw new DeferredAttemptError("provider", Date.now() + 2000,
             "Recovery provider transport unavailable; retry scheduled");
         throw error;
+      } finally {
+        combined.cleanup();
       }
     }
     throw new Error("recovery planner retry budget exhausted");
