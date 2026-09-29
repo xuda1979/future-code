@@ -163,6 +163,7 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
     const edgeInsert = store.db.prepare("INSERT INTO spawn_edges VALUES(?,?,?,?,?,?)");
     for (const child of children)
       edgeInsert.run(c.runId, c.task.id, child.id, requestKey, depth, now);
+    store.db.prepare("UPDATE runs SET graph_version=graph_version+1 WHERE id=?").run(c.runId);
     // Dynamic expansion is the uncommon structural operation. Pay O(V+E) here
     // once so subsequent claims remain bounded to ready/running work.
     rebuildSchedulerIndex(store, c.runId, store.recipe(c.recipeHash), now);
