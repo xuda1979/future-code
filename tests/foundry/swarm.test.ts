@@ -129,6 +129,45 @@ test("a completed model reply is replayed after a crash without another inferenc
   assert.equal(calls, 1); assert.equal(j.usage(c.runId).requests, 1);
   await assert.rejects(restored.next(c, cfg.spec.agents.coder, [{ role: "user", content: "changed" }], cfg.spec.budget, 32768, signal(), 0), /drift/);
 }));
+test("hedged external routes cut tail latency and commit exactly one replayable reply", async () => fixture(async (s, cfg) => {
+  const { c } = lease(s); const j = new SessionJournal(s);
+  const profile: any = {
+    ...cfg.spec.agents.coder,
+    url: "https://primary.example/v1/chat/completions",
+    fallbacks: [{ url: "https://fallback.example/v1/chat/completions", model: cfg.spec.agents.coder.model }],
+    hedgeAfterMs: 15,
+  };
+  let primaryAborted = false;
+  const fetcher = (async (url: any, init: any) => {
+    if (String(url).includes("fallback")) {
+      await new Promise(resolve => setTimeout(resolve, 5));
+      return reply("fast");
+    }
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, 500);
+      init.signal.addEventListener("abort", () => {
+        primaryAborted = true; clearTimeout(timer); reject(new DOMException("Aborted", "AbortError"));
+      }, { once: true });
+    });
+    return reply("slow");
+  }) as typeof fetch;
+  const brain = new HttpBrain(j, fetcher);
+  const out = await brain.next(c, profile, [{ role: "user", content: "task" }], cfg.spec.budget, 32768, signal(), 0);
+  assert.equal(out.turn.message.content, "fast");
+  assert.equal(primaryAborted, true);
+  assert.equal(j.usage(c.runId).requests, 2);
+  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM agent_replies WHERE run=? AND task=?").get(c.runId, c.task.id)!.n, 1);
+  assert.equal(s.db.prepare("SELECT COUNT(DISTINCT request) AS n FROM agent_requests WHERE run=?").get(c.runId)!.n, 1);
+  const replay = new HttpBrain(j, (async () => { throw new Error("hedged winner must replay"); }) as typeof fetch);
+  assert.equal((await replay.next(c, profile, [{ role: "user", content: "task" }], cfg.spec.budget, 32768, signal(), 0)).turn.message.content, "fast");
+}));
+
+test("fallback routes must preserve the same logical model", () => {
+  const s = spec("x");
+  (s.agents.coder as any).fallbacks = [{ url: "https://fallback.example/v1", model: "different-model" }];
+  assert.throws(() => validateSwarmSpec(s), /same logical model/);
+});
+
 test("HTTP adapter keeps credentials out of persisted requests and honors redirect rejection", async () => fixture(async (s, cfg) => {
   const { c } = lease(s); const j = new SessionJournal(s); process.env.SWARM_FIXTURE_KEY = "test-only-never-real";
   let seen: any;
