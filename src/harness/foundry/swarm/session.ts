@@ -18,6 +18,8 @@ export interface ThreadState {
   pending: Call | null;
   output: PatchArtifact | null;
   feedbackHash: string | null;
+  /** Immutable admitted provider-input envelope for this durable thread. */
+  contextLimit?: number;
 }
 export interface Thread { capsule: Capsule; seq: number; state: ThreadState }
 const json = (value: unknown): Json => JSON.parse(canonical(value));
@@ -78,18 +80,37 @@ export class SessionJournal {
       run?.recipe === c.recipeHash && run?.contract === c.contractHash, "stale agent lease");
   }
   open(c: Capsule, initial: ThreadState): Thread {
-    const binding = digest({ task: c.task, dependencies: c.dependencies, contract: c.contractHash, recipe: c.recipeHash });
+    invariant(initial.contextLimit !== undefined && Number.isSafeInteger(initial.contextLimit) && initial.contextLimit > 0,
+      "missing durable context limit");
+    const legacyBinding = digest({ task: c.task, dependencies: c.dependencies, contract: c.contractHash, recipe: c.recipeHash });
+    const binding = digest({ task: c.task, dependencies: c.dependencies, contract: c.contractHash,
+      recipe: c.recipeHash, contextLimit: initial.contextLimit });
     const hash = this.store.artifact(json(initial));
     return this.store.transaction(() => {
       this.assertLease(c);
       const row = this.store.db.prepare("SELECT * FROM agent_threads WHERE run=? AND task=?").get(c.runId, c.task.id);
       if (row) {
-        invariant(row.binding === binding, "thread input binding changed");
         invariant(row.fence <= c.fence, "thread fence regression");
+        const state = this.store.readArtifact(row.state) as unknown as ThreadState;
+        if (state.contextLimit === undefined) {
+          // One-time migration for threads admitted before context envelopes were
+          // bound durably. Pin the envelope observed at first upgraded resume.
+          invariant(row.binding === legacyBinding, "thread input binding changed");
+          state.contextLimit = initial.contextLimit;
+          const stateHash = this.store.artifact(json(state));
+          this.store.db.prepare("UPDATE agent_threads SET binding=?,fence=?,state=? WHERE run=? AND task=?")
+            .run(binding, c.fence, stateHash, c.runId, c.task.id);
+          this.store.event("thread.context.pinned", { contextLimit: state.contextLimit, migrated: true }, c.runId, c.task.id);
+          return { capsule: c, seq: row.seq, state };
+        }
+        const persistedBinding = digest({ task: c.task, dependencies: c.dependencies, contract: c.contractHash,
+          recipe: c.recipeHash, contextLimit: state.contextLimit });
+        invariant(row.binding === persistedBinding, "thread input binding changed");
         this.store.db.prepare("UPDATE agent_threads SET fence=? WHERE run=? AND task=?").run(c.fence, c.runId, c.task.id);
-        return { capsule: c, seq: row.seq, state: this.store.readArtifact(row.state) as unknown as ThreadState };
+        return { capsule: c, seq: row.seq, state };
       }
       this.store.db.prepare("INSERT INTO agent_threads VALUES(?,?,?,?,0,?)").run(c.runId, c.task.id, binding, c.fence, hash);
+      this.store.event("thread.context.pinned", { contextLimit: initial.contextLimit, migrated: false }, c.runId, c.task.id);
       return { capsule: c, seq: 0, state: initial };
     });
   }
