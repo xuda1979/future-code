@@ -591,11 +591,7 @@ export function useRemoteSession({
 
   // Disconnect from the session
   const disconnect = useCallback(() => {
-    // Clear any pending timeout
-    if (responseTimeoutRef.current) {
-      clearTimeout(responseTimeoutRef.current)
-      responseTimeoutRef.current = null
-    }
+    responseWatchdogRef.current?.dispose()
     managerRef.current?.disconnect()
     managerRef.current = null
   }, [])
