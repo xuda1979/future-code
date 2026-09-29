@@ -226,9 +226,12 @@ model settings and guardrails before deployment.
 `attempt_telemetry.context_bytes` records the prepared capsule bytes per attempt,
 not the number of tokens billed or the total bytes a driver later retrieves.
 `progress_count`, `last_progress_at` and `failure_fingerprint` are diagnostic.
-`RunSummary.progressDensity` now uses these measured encoded capsule bytes across
-prepared attempts as its denominator. It is deliberately separate from provider
-token billing, prompt-cache/KV-cache behavior, and full HTTP request bytes.
+`RunSummary.progressDensity` uses these measured encoded capsule bytes across
+all prepared attempts as its denominator. Its numerator counts only verified tasks
+from the initially admitted graph: runtime-spawned children consume measured work
+but do not create extra objective progress merely by changing task granularity.
+The metric is deliberately separate from provider token billing, prompt-cache/KV-cache
+behavior, and full HTTP request bytes.
 
 ## Boundaries
 
