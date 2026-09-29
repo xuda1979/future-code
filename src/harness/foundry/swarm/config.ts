@@ -36,6 +36,9 @@ export interface JobTemplate {
   /** Adapter ensure(key) must reconcile/deduplicate remotely, not blindly resubmit. */
   idempotentEnsure: true;
   pollMs: number; staleMs: number; maxJobs: number; maxConcurrent: number;
+  /** After this much time without a semantic milestone, stop automatic polling
+   * and require explicit remote reconciliation. Defaults to 3 * staleMs. */
+  reconcileAfterMs?: number;
 }
 export interface SupervisionPolicy { reportEveryMs: number; checkpointEveryMs: number; snapshotReads?: boolean; maxReplans?: number }
 export interface SwarmSpec {
@@ -129,11 +132,15 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   if (s.jobs) {
     keys(s.jobs, [], Object.keys(s.jobs)); positive(Object.keys(s.jobs).length, 32, "job templates");
     for (const [id, job] of Object.entries(s.jobs)) {
-      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"]);
+      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs"]);
       keys(job.adapter, ["argv"], ["envAllow", "files"]);
       invariant(job.idempotentEnsure === true, "remote ensure must be idempotent");
       positive(job.pollMs, 3600000, "job poll interval"); invariant(job.pollMs >= 10, "job poll interval too short");
       positive(job.staleMs, 604800000, "job stale interval"); invariant(job.staleMs >= job.pollMs, "job stale interval too short");
+      if (job.reconcileAfterMs !== undefined) {
+        positive(job.reconcileAfterMs, 604800000, "job reconciliation interval");
+        invariant(job.reconcileAfterMs >= job.staleMs, "job reconciliation interval must be >= stale interval");
+      }
       positive(job.maxJobs, 100000, "job count");
       positive(job.maxConcurrent, Math.min(256, job.maxJobs), "remote concurrency");
     }
