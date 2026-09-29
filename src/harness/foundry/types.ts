@@ -39,6 +39,12 @@ export interface Recipe {
   /** Stop consecutive identical failures; different artifacts remain eligible. */
   maxRepeatedFailures?: number;
 }
+/** Host-enforced bounds for runtime DAG expansion. Provider models never own these limits. */
+export interface SpawnPolicy {
+  maxChildrenPerTask: number;
+  maxDepth: number;
+  maxSpawnedTasks: number;
+}
 export interface Task {
   id: string;
   /** Optional pinned swarm roster member; ignored by generic command drivers. */
@@ -135,8 +141,8 @@ export interface RunSummary {
   durationMs: number;
   tokens: number | null;
   costUsd: number | null;
-  /** Verified accepted tasks per total context bytes consumed.
-   *  Higher is better: measures progress density, not raw activity. */
+  /** Verified accepted tasks per measured encoded capsule bytes across attempts.
+   *  This is host-side input telemetry, not provider tokens, KV-cache hits, or billed bytes. */
   progressDensity: number | null;
 }
 export interface Protocol {

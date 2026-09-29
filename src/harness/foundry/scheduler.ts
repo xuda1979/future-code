@@ -9,16 +9,19 @@ export class Scheduler {
   readonly store: Store;
   // Only immutable task specifications are cached. Lease/status state is always
   // re-read inside BEGIN IMMEDIATE, including when another process claims work.
-  private cachedPlan?: { runId: string; recipeHash: string; plan: ReturnType<typeof compilePlan> };
+  private cachedPlan?: { runId: string; recipeHash: string; taskCount: number; plan: ReturnType<typeof compilePlan> };
   constructor(store: Store) { this.store = store; }
   private plan(runId: string, recipeHash: string, recipe: Recipe, rows?: Record<string, unknown>[]) {
-    if (this.cachedPlan?.runId === runId && this.cachedPlan.recipeHash === recipeHash) return this.cachedPlan.plan;
-    const tasks: Task[] = (rows ?? this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(runId)).map(t => {
+    const source = rows ?? this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(runId);
+    const taskCount = source.length;
+    if (this.cachedPlan?.runId === runId && this.cachedPlan.recipeHash === recipeHash &&
+        this.cachedPlan.taskCount === taskCount) return this.cachedPlan.plan;
+    const tasks: Task[] = source.map(t => {
       invariant(typeof t.spec === "string", "missing persisted task specification");
       return JSON.parse(t.spec) as Task;
     });
     const plan = compilePlan(tasks, recipe, this.store.contract().limits.contextBytes);
-    this.cachedPlan = { runId, recipeHash, plan }; return plan;
+    this.cachedPlan = { runId, recipeHash, taskCount, plan }; return plan;
   }
   start(tasks: Task[], recipeHash = this.store.active(), now = Date.now(), id = randomUUID()): string {
     const contract = this.store.contract(); validateTasks(contract, tasks);
@@ -65,9 +68,29 @@ export class Scheduler {
         this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error='lease expired' WHERE run=? AND id=?").run(t.status, runId, t.id);
         this.store.event("lease.expired", { fence: t.fence }, runId, t.id);
       }
+      // Runtime-spawned children are scheduler dependencies without mutating the
+      // parent's immutable task/thread binding. A failed child blocks its parent;
+      // an incomplete child set keeps the parent unclaimable.
+      const spawned = new Map<string, string[]>();
+      for (const edge of this.store.db.prepare(
+        "SELECT parent,child FROM spawn_edges WHERE run=? ORDER BY parent,child"
+      ).all(runId)) {
+        const list = spawned.get(edge.parent) ?? [];
+        list.push(edge.child); spawned.set(edge.parent, list);
+      }
       // Linear failure propagation, rather than repeated full SQL rescans for
       // each level of a deep failed dependency chain.
       const failed = rows.filter(t => t.status === "FAIL" || t.status === "BLOCKED").map(t => t.id as string);
+      for (const [parentId, children] of spawned) {
+        const parent = byId.get(parentId);
+        if (!parent || parent.status !== "READY") continue;
+        if (!children.some(id => ["FAIL", "BLOCKED"].includes(byId.get(id)?.status as string))) continue;
+        parent.status = "BLOCKED"; failed.push(parentId);
+        this.store.db.prepare(
+          "UPDATE tasks SET status='BLOCKED',error='spawned child failed' WHERE run=? AND id=?"
+        ).run(runId, parentId);
+        this.store.event("task.blocked", { reason: "spawned child failed" }, runId, parentId);
+      }
       for (let i = 0; i < failed.length; i++) for (const id of plan.children.get(failed[i]) ?? []) {
         const child = byId.get(id)!;
         if (child.status !== "READY") continue;
@@ -89,7 +112,9 @@ export class Scheduler {
       const snapshotReads = this.store.contract().readIsolation === "snapshot";
       for (const task of plan.order) {
         const row = byId.get(task.id)!;
-        if (row.status !== "READY" || (waits.get(task.id) ?? 0) > now || !task.dependencies.every(d => byId.get(d)!.status === "PASS") ||
+        if (row.status !== "READY" || (waits.get(task.id) ?? 0) > now ||
+            !task.dependencies.every(d => byId.get(d)!.status === "PASS") ||
+            !(spawned.get(task.id) ?? []).every(d => byId.get(d)?.status === "PASS") ||
             active.some(other => snapshotReads
               ? conflicts(task.writeScope, other.writeScope) : accessConflicts(task, other))) continue;
         const budget = plan.budgets.get(task.id)!;
@@ -223,10 +248,17 @@ export class Scheduler {
     const attempts = this.store.db.prepare("SELECT tokens,cost FROM attempts WHERE run=?").all(id);
     const sum = (key: string): number | null => attempts.length && attempts.every(a => a[key] !== null && Number.isFinite(a[key])) ? attempts.reduce((n, a) => n + a[key], 0) : null;
     const accepted = tasks.filter(t => t.status === "PASS").length;
-    const recipe = this.store.recipe(r.recipe);
-    // Progress density: verified accepted tasks per total context budget allocated.
-    const totalContext = tasks.length * recipe.contextBytes;
-    const pd = progressDensity(accepted, totalContext);
+    // Progress density uses actual encoded capsule bytes recorded by the trusted
+    // host for prepared attempts. It is not a recipe allocation, token bill, or
+    // provider KV/prompt-cache metric.
+    const contexts = this.store.db.prepare(
+      "SELECT context_bytes FROM attempt_telemetry WHERE run=? AND context_bytes IS NOT NULL"
+    ).all(id);
+    const validContexts = contexts.every(x =>
+      Number.isSafeInteger(x.context_bytes) && x.context_bytes > 0);
+    const totalContext = contexts.length && validContexts
+      ? contexts.reduce((n, x) => n + x.context_bytes, 0) : null;
+    const pd = totalContext === null ? null : progressDensity(accepted, totalContext);
     return { id, recipeHash: r.recipe, contractHash: r.contract, status: r.status,
       accepted, failed: tasks.filter(t => t.status === "FAIL").length,
       blocked: tasks.filter(t => t.status === "BLOCKED").length, attempts: attempts.length,

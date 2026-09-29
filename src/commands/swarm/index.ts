@@ -8,7 +8,9 @@ Partition by independently verifiable outputs, not arbitrary line counts. Keep i
 shared-schema changes on an explicit dependency path. Avoid overlapping independent writers.
 Each worker sees only its capsule and verified dependencies, not this conversation: include the
 necessary interfaces, invariants and file paths, but not full histories or logs. Workers can
-read scoped files and run only their configured named checks. There is no recursive delegation.
+read scoped files and run only their configured named checks. There is no recursive delegation by
+default. When a pinned profile explicitly grants spawn_tasks under supervision.dynamicDAG, a worker
+may request bounded child tasks; the host enforces depth/count/scope and independently verifies them.
 Check that existing frozen verifier checks test the intended behavior; report missing coverage
 rather than modifying or weakening trusted checks to get a PASS. Do not put credentials in plans.
 Save the proposed plan in a user-approved JSON file. Do not silently initialize, call paid models,

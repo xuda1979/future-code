@@ -13,6 +13,14 @@ const def = (name: ToolName, description: string, properties: Record<string, Jso
   ({ name, description, schema: { type: "object", properties, required, additionalProperties: false } });
 export const definitions: ToolDefinition[] = [
   def("run_job", "Run a permitted external research job. The host persists its ID, releases this worker while waiting, and resumes with the result. Never launch duplicate work through run_check.", { name: string, input: {} }, ["name", "input"]),
+  def("spawn_tasks", "Split this task into independently verifiable child tasks when parallel work will reduce the decision scope. The host validates scope, depth, count, dependencies and agent roster, releases this parent while children run, then resumes this exact tool call with verified child outputs.", {
+    children: { type: "array", minItems: 1, maxItems: 32, items: { type: "object", additionalProperties: false,
+      properties: { id: string, goal: string, acceptance: { type: "array", minItems: 1, items: string }, input: {},
+        writeScope: { type: "array", items: string }, readScope: { type: "array", items: string }, agent: string,
+        priority: { type: "number" }, estimatedDurationMs: { type: "integer", minimum: 1 },
+        contextBudget: { type: "integer", minimum: 1 } },
+      required: ["id", "goal", "acceptance", "input", "writeScope", "readScope"] } },
+  }, ["children"]),
   def("list_files", "List tracked and new files in the task's readable scopes. Paginated; paths only.", { offset: integer, limit: { type: "integer", minimum: 1, maximum: 200 } }, []),
   def("read_file", "Read a bounded line range of a non-symlink UTF-8 file in readable scopes.", { path: string, start: { type: "integer", minimum: 1 }, lines: { type: "integer", minimum: 1, maximum: 300 } }, ["path"]),
   def("write_file", "Write a UTF-8 file within the task's exclusive write scopes; use edit_file for small changes.", { path: string, content: string }, ["path", "content"]),

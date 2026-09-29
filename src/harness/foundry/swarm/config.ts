@@ -1,9 +1,9 @@
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { identifier, invariant, positive, validateContract, validateRecipe } from "../kernel.ts";
-import type { CommandSpec, Contract, PinnedCommand, Recipe, Task } from "../types.ts";
+import type { CommandSpec, Contract, PinnedCommand, Recipe, SpawnPolicy, Task } from "../types.ts";
 
-export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "run_job"] as const;
+export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "run_job", "spawn_tasks"] as const;
 export type ToolName = typeof TOOLS[number];
 export type Protocol = "anthropic" | "chat-completions";
 export interface AgentProfile {
@@ -40,7 +40,14 @@ export interface JobTemplate {
    * and require explicit remote reconciliation. Defaults to 3 * staleMs. */
   reconcileAfterMs?: number;
 }
-export interface SupervisionPolicy { reportEveryMs: number; checkpointEveryMs: number; snapshotReads?: boolean; maxReplans?: number }
+export interface SupervisionPolicy {
+  reportEveryMs: number;
+  checkpointEveryMs: number;
+  snapshotReads?: boolean;
+  maxReplans?: number;
+  /** Provider-neutral runtime DAG expansion, enforced by the host scheduler. */
+  dynamicDAG?: SpawnPolicy;
+}
 export interface SwarmSpec {
   jobs?: Record<string, JobTemplate>;
   supervision?: SupervisionPolicy;
@@ -119,15 +126,24 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     if (a.tools.includes("run_job")) invariant(a.jobs && a.jobs.length > 0, "run_job requires named job capabilities");
     if (s.supervision) invariant(a.tools.includes("run_check"), "supervision requires a permitted checkpoint check");
     names(a.tools, [...TOOLS], "tools"); names(a.checks, checks, "agent checks");
+    if (a.tools.includes("spawn_tasks"))
+      invariant(s.supervision?.dynamicDAG, "spawn_tasks requires supervision.dynamicDAG");
     invariant(a.checks.every(n => s.checks[n].replaySafe), "independent verification checks must be replay-safe");
   }
   if (s.supervision) {
-    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["snapshotReads", "maxReplans"]);
+    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["snapshotReads", "maxReplans", "dynamicDAG"]);
     positive(s.supervision.reportEveryMs, 3600000, "reportEveryMs");
     invariant(s.supervision.reportEveryMs >= 10, "report interval too small");
     positive(s.supervision.checkpointEveryMs, 3600000, "checkpointEveryMs");
     invariant(s.supervision.snapshotReads === undefined || typeof s.supervision.snapshotReads === "boolean", "invalid snapshotReads");
     invariant(s.supervision.maxReplans === undefined || (Number.isSafeInteger(s.supervision.maxReplans) && s.supervision.maxReplans >= 0 && s.supervision.maxReplans <= 8), "invalid maxReplans");
+    if (s.supervision.dynamicDAG) {
+      const d = s.supervision.dynamicDAG;
+      keys(d, ["maxChildrenPerTask", "maxDepth", "maxSpawnedTasks"]);
+      positive(d.maxChildrenPerTask, 32, "dynamic child limit");
+      positive(d.maxDepth, 32, "dynamic depth limit");
+      positive(d.maxSpawnedTasks, s.limits.tasks, "dynamic task limit");
+    }
   }
   if (s.jobs) {
     keys(s.jobs, [], Object.keys(s.jobs)); positive(Object.keys(s.jobs).length, 32, "job templates");

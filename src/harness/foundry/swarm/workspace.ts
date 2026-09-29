@@ -23,8 +23,19 @@ export async function git(cfg: PinnedSwarm, cwd: string, args: string[], signal:
   invariant(result.code === 0, `git ${args[0]} failed: ${result.stderr.slice(-1000)}`);
   return result.stdout;
 }
+function directSpawned(store: Store, run: string, parent: string): string[] {
+  return store.db.prepare("SELECT child FROM spawn_edges WHERE run=? AND parent=? ORDER BY child")
+    .all(run, parent).map(r => String(r.child));
+}
 export function orderedTasks(store: Store, run: string, roots?: string[]): Task[] {
   if (roots?.length === 0) return [];
+  const spawned = new Map<string, string[]>();
+  for (const edge of store.db.prepare(
+    "SELECT parent,child FROM spawn_edges WHERE run=? ORDER BY parent,child"
+  ).all(run)) {
+    const list = spawned.get(edge.parent) ?? [];
+    list.push(edge.child); spawned.set(edge.parent, list);
+  }
   // Independent workers must not scan a 100k-node graph to discover zero parents.
   // Ancestor queries scale with the needed closure, not the whole run.
   const rows = roots === undefined ? store.db.prepare("SELECT id,spec,status,artifact FROM tasks WHERE run=?").all(run) : [];
@@ -33,12 +44,18 @@ export function orderedTasks(store: Store, run: string, roots?: string[]): Task[
   for (let i = 0; i < todo.length; i++) {
     const id = todo[i]; if (needed.has(id)) continue;
     const row = all.get(id) ?? one.get(run, id); invariant(row?.status === "PASS" && row.artifact, `unverified patch dependency ${id}`);
-    all.set(id, row); needed.add(id); todo.push(...(JSON.parse(row.spec) as Task).dependencies);
+    all.set(id, row); needed.add(id);
+    const task = JSON.parse(row.spec) as Task;
+    todo.push(...task.dependencies, ...(spawned.get(id) ?? []));
   }
   const degrees = new Map<string, number>(); const children = new Map<string, string[]>();
   for (const id of needed) {
-    const task: Task = JSON.parse(all.get(id)!.spec); degrees.set(id, task.dependencies.length);
-    for (const dep of task.dependencies) { const list = children.get(dep) ?? []; list.push(id); children.set(dep, list); }
+    const task: Task = JSON.parse(all.get(id)!.spec);
+    const dependencies = [...task.dependencies, ...(spawned.get(id) ?? [])];
+    degrees.set(id, dependencies.length);
+    for (const dep of dependencies) {
+      const list = children.get(dep) ?? []; list.push(id); children.set(dep, list);
+    }
   }
   const ready = [...needed].filter(id => degrees.get(id) === 0).sort(); const result: Task[] = [];
   for (let i = 0; i < ready.length; i++) {
@@ -77,7 +94,8 @@ export class LocalGitHands implements Hands {
   readonly store: Store; readonly cfg: PinnedSwarm; readonly c: Capsule; readonly profile: AgentProfile;
   readonly signal: AbortSignal; readonly restore: string | null; readonly roots: string[];
   constructor(store: Store, cfg: PinnedSwarm, c: Capsule, profile: AgentProfile,
-    signal: AbortSignal, restore: string | null = null, roots: string[] = c.task.dependencies) {
+    signal: AbortSignal, restore: string | null = null,
+    roots: string[] = [...c.task.dependencies, ...directSpawned(store, c.runId, c.task.id)]) {
     this.store = store; this.cfg = cfg; this.c = c; this.profile = profile; this.signal = signal; this.restore = restore; this.roots = roots;
   }
   async ready(): Promise<string> {
