@@ -6,6 +6,13 @@ import type { CommandSpec, Contract, PinnedCommand, Recipe, SpawnPolicy, Task } 
 export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "run_job", "spawn_tasks"] as const;
 export type ToolName = typeof TOOLS[number];
 export type Protocol = "anthropic" | "chat-completions";
+export interface ProviderRoute {
+  url: string;
+  model: string;
+  keyEnv?: string;
+  allowHttp?: boolean;
+  quotaPool?: string;
+}
 export interface AgentProfile {
   protocol: Protocol;
   url: string;
@@ -19,6 +26,10 @@ export interface AgentProfile {
   allowHttp?: boolean;
   /** Optional shared concurrency/rate-limit pool across model profiles. */
   quotaPool?: string;
+  /** Same wire protocol, same tools/system, alternate external API routes. */
+  fallbacks?: ProviderRoute[];
+  /** Launch configured fallbacks if the primary has not completed by this latency. */
+  hedgeAfterMs?: number;
 }
 export interface CheckSpec extends CommandSpec { replaySafe: boolean }
 export interface SwarmBudget {
@@ -114,20 +125,38 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   names(s.integrationChecks, checks, "integration checks");
   invariant(s.integrationChecks.every(n => s.checks[n].replaySafe), "integration checks must be replay-safe");
   for (const [id, a] of Object.entries(s.agents)) {
-    identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"], ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs"]);
+    identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"],
+      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs"]);
     invariant(["anthropic", "chat-completions"].includes(a.protocol), "unsupported provider protocol");
-    const url = new URL(a.url);
-    const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-    invariant(url.protocol === "https:" || (url.protocol === "http:" && (loopback || a.allowHttp === true)), "HTTPS required; private HTTP must be explicit");
-    invariant(!url.username && !url.password && !url.search && !url.hash, "credentials/query must not be in provider URL");
-    invariant(typeof a.model === "string" && !!a.model.trim() && typeof a.system === "string" && !!a.system.trim(), "missing model/system");
-    if (a.keyEnv !== undefined) {
-      invariant(/^[A-Z_][A-Z0-9_]*$/.test(a.keyEnv), "invalid keyEnv");
-      invariant(url.protocol === "https:" || loopback, "credentials require HTTPS unless the provider is loopback");
+    const validateRoute = (route: ProviderRoute, label: string) => {
+      keys(route, ["url", "model"], ["keyEnv", "allowHttp", "quotaPool"]);
+      const url = new URL(route.url);
+      const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+      invariant(url.protocol === "https:" || (url.protocol === "http:" && (loopback || route.allowHttp === true)),
+        `HTTPS required for ${label}; private HTTP must be explicit`);
+      invariant(!url.username && !url.password && !url.search && !url.hash, `credentials/query must not be in ${label} URL`);
+      invariant(typeof route.model === "string" && !!route.model.trim(), `missing ${label} model`);
+      if (route.keyEnv !== undefined) {
+        invariant(/^[A-Z_][A-Z0-9_]*$/.test(route.keyEnv), `invalid ${label} keyEnv`);
+        invariant(url.protocol === "https:" || loopback, `${label} credentials require HTTPS unless loopback`);
+      }
+      invariant(route.allowHttp === undefined || typeof route.allowHttp === "boolean", `invalid ${label} allowHttp`);
+      if (route.quotaPool !== undefined)
+        invariant(/^[A-Za-z0-9._:-]{1,128}$/.test(route.quotaPool), `invalid ${label} quotaPool`);
+    };
+    validateRoute(a, "primary provider");
+    invariant(typeof a.system === "string" && !!a.system.trim(), "missing system");
+    invariant(a.promptCache === undefined || typeof a.promptCache === "boolean", "invalid provider flag");
+    if (a.fallbacks !== undefined) {
+      invariant(Array.isArray(a.fallbacks) && a.fallbacks.length > 0 && a.fallbacks.length <= 3, "invalid fallback routes");
+      for (let i = 0; i < a.fallbacks.length; i++) validateRoute(a.fallbacks[i], `fallback[${i}]`);
+      const ids = [a, ...a.fallbacks].map(r => `${r.url}#${r.model}`);
+      invariant(new Set(ids).size === ids.length, "duplicate provider route");
     }
-    for (const x of [a.promptCache, a.allowHttp]) invariant(x === undefined || typeof x === "boolean", "invalid provider flag");
-    if (a.quotaPool !== undefined)
-      invariant(/^[A-Za-z0-9._:-]{1,128}$/.test(a.quotaPool), "invalid quotaPool");
+    if (a.hedgeAfterMs !== undefined) {
+      invariant(Number.isSafeInteger(a.hedgeAfterMs) && a.hedgeAfterMs >= 10 && a.hedgeAfterMs <= 60000, "invalid hedgeAfterMs");
+      invariant(a.fallbacks?.length, "hedgeAfterMs requires fallback routes");
+    }
     if (a.jobs !== undefined) names(a.jobs, Object.keys(s.jobs ?? {}), "agent jobs");
     if (a.tools.includes("run_job")) invariant(a.jobs && a.jobs.length > 0, "run_job requires named job capabilities");
     if (s.supervision) invariant(a.tools.includes("run_check"), "supervision requires a permitted checkpoint check");
