@@ -12,7 +12,7 @@ const string = { type: "string" }; const integer = { type: "integer", minimum: 0
 const def = (name: ToolName, description: string, properties: Record<string, Json>, required: string[]): ToolDefinition =>
   ({ name, description, schema: { type: "object", properties, required, additionalProperties: false } });
 export const definitions: ToolDefinition[] = [
-  def("run_job", "Run a permitted external research job. The host persists its ID, releases this worker while waiting, and resumes with the result. Never launch duplicate work through run_check.", { name: string, input: {} }, ["name", "input"]),
+  def("run_job", "Run a permitted external research job. Emit multiple independent run_job calls in the SAME model turn when experiments can proceed in parallel: the host durably fans them out up to remote capacity, releases this worker once, and resumes with all completed results. Never serialize independent experiments across reasoning turns and never launch duplicate work through run_check.", { name: string, input: {} }, ["name", "input"]),
   def("spawn_tasks", "Split this task into independently verifiable child tasks when parallel work will reduce the decision scope. The host validates scope, depth, count, dependencies and agent roster, releases this parent while children run, then resumes this exact tool call with verified child outputs.", {
     children: { type: "array", minItems: 1, maxItems: 32, items: { type: "object", additionalProperties: false,
       properties: { id: string, goal: string, acceptance: { type: "array", minItems: 1, items: string }, input: {},
