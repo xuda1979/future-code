@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { Scheduler } from "../../src/harness/foundry/scheduler.ts";
 import { DeferredAttemptError } from "../../src/harness/foundry/continuation.ts";
 import { DynamicDelegation } from "../../src/harness/foundry/swarm/delegation.ts";
+import { SwarmDriver } from "../../src/harness/foundry/swarm/driver.ts";
 import { SessionJournal } from "../../src/harness/foundry/swarm/session.ts";
 import { decodeTurn, requestBody } from "../../src/harness/foundry/swarm/model.ts";
 import { validateSwarmSpec } from "../../src/harness/foundry/swarm/config.ts";
@@ -40,6 +41,25 @@ test("dynamic delegation cannot widen parent authority or drift an admitted chil
   assert.throws(() => d.spawn(capsule, cfg.spec.agents.coder, { id: "spawn", name: "spawn_tasks", arguments: { tasks: [{ ...good, goal: "drift" }] } }), /drift/);
 }, s => {
   s.delegation = { maxDepth: 2, maxChildrenPerExpansion: 4, maxChildrenPerTask: 8 };
+  s.agents.coder.tools.push("spawn_tasks", "await_tasks");
+}));
+
+test("driver refreshes context budgets after another scheduler expands the run", async () => fixture(async (s, cfg) => {
+  const parent = { ...task("parent"), delegateScope: ["src/b.txt"] };
+  const q = new Scheduler(s); const run = q.start([parent]); const parentLease = q.claim(run, "parent")!;
+  const driver = new SwarmDriver(s, cfg, scripted([() => reply("child complete")]).fetcher);
+  (driver as any).contextPlan = { run, recipe: parentLease.recipeHash, taskCount: 1, budgets: new Map([["parent", 1024]]) };
+  const d = new DynamicDelegation(s, cfg);
+  d.spawn(q.capsule(parentLease), cfg.spec.agents.coder, { id: "spawn-refresh", name: "spawn_tasks", arguments: {
+    tasks: [{ ...task("child"), writeScope: ["src/b.txt"], dependencies: [] }]
+  } });
+  q.defer(parentLease, new DeferredAttemptError("subagents", Date.now() + 1000, "yield parent"));
+  const childLease = q.claim(run, "child")!; assert.equal(childLease.taskId, "child");
+  await driver.execute(q.capsule(childLease), signal());
+  assert.equal((driver as any).contextPlan.taskCount, 2);
+  assert.ok((driver as any).contextPlan.budgets.has("child"));
+}, s => {
+  s.delegation = { maxDepth: 3, maxChildrenPerExpansion: 4, maxChildrenPerTask: 8 };
   s.agents.coder.tools.push("spawn_tasks", "await_tasks");
 }));
 
