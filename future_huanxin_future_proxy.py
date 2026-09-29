@@ -41,14 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--upstream-url", required=True)
-    parser.add_argument("--upstream-token", default="", help=argparse.SUPPRESS)
     parser.add_argument("--model-name", required=True)
-    parser.add_argument(
-        "--appcode",
-        default="",
-        help="Optional API-gateway appcode (JWT) sent as the X-Ca-Key header. "
-        "Some Huanxin subscriptions (e.g. deepseekv4_master) require it.",
-    )
     parser.add_argument(
         "--max-input-chars",
         type=int,
@@ -61,11 +54,9 @@ def parse_args() -> argparse.Namespace:
         help="Skip upstream TLS certificate verification (also via HUANXIN_PROXY_INSECURE=1).",
     )
     args = parser.parse_args()
-    # Prefer environment-provided secrets so API keys/appcodes never need to
-    # appear in the proxy process command line. CLI flags remain accepted only
-    # for backward compatibility with existing launchers.
-    args.upstream_token = args.upstream_token or os.environ.get("HUANXIN_PROXY_UPSTREAM_TOKEN", "").strip()
-    args.appcode = args.appcode or os.environ.get("HUANXIN_PROXY_APPCODE", "").strip()
+    # Credentials are environment-only so they cannot leak through process argv.
+    args.upstream_token = os.environ.get("HUANXIN_PROXY_UPSTREAM_TOKEN", "").strip()
+    args.appcode = os.environ.get("HUANXIN_PROXY_APPCODE", "").strip()
     if not args.upstream_token:
         parser.error("upstream token is required via HUANXIN_PROXY_UPSTREAM_TOKEN")
     return args
