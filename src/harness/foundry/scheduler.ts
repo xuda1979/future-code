@@ -69,14 +69,18 @@ export class Scheduler {
         if (status === "FAIL") blockDependents(this.store, runId, String(t.id));
       }
 
-      const unfinished = this.store.db.prepare(
-        "SELECT COUNT(*) AS n FROM tasks WHERE run=? AND status NOT IN ('PASS','FAIL','BLOCKED')"
-      ).get(runId)!.n as number;
-      if (unfinished === 0) {
-        const failed = this.store.db.prepare(
-          "SELECT COUNT(*) AS n FROM tasks WHERE run=? AND status IN ('FAIL','BLOCKED')"
-        ).get(runId)!.n as number;
-        const status = failed === 0 ? "PASS" : "FAIL";
+      // Indexed existence probes avoid a completed-task scan on every refill.
+      const hasReady = !!this.store.db.prepare(
+        "SELECT 1 FROM tasks WHERE run=? AND status='READY' LIMIT 1"
+      ).get(runId);
+      const hasRunning = !!this.store.db.prepare(
+        "SELECT 1 FROM tasks WHERE run=? AND status='RUNNING' LIMIT 1"
+      ).get(runId);
+      if (!hasReady && !hasRunning) {
+        const failed = !!this.store.db.prepare(
+          "SELECT 1 FROM tasks WHERE run=? AND status IN ('FAIL','BLOCKED') LIMIT 1"
+        ).get(runId);
+        const status = failed ? "FAIL" : "PASS";
         this.store.db.prepare("UPDATE runs SET status=?,ended=? WHERE id=?").run(status, now, runId);
         this.store.event("run.finished", { status }, runId);
         return [];
