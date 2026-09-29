@@ -28,6 +28,7 @@ import {
   type FileStateCache,
 } from './fileStateCache.js'
 import { isNotEmptyMessage, normalizeMessages } from './messages.js'
+import { allowSilentEndTurn } from './responseLiveness.js'
 import { expandPath } from './path.js'
 import type {
   inputSchema as permissionToolInputSchema,
@@ -50,8 +51,11 @@ const ASK_READ_FILE_STATE_CACHE_SIZE = 10
  * Returns true if:
  * - Last message is assistant with text/thinking content
  * - Last message is user with only tool_result blocks
- * - Last message is the user prompt but the API completed with end_turn
- *   (model chose to emit no content blocks)
+ * - Last message is a system/meta task-notification prompt and the API
+ *   completed with end_turn without user-visible content.
+ *
+ * A human-authored turn must never be classified successful solely because the
+ * provider returned end_turn; that would surface a blank successful result.
  */
 export function isResultSuccessful(
   message: Message | undefined,
@@ -80,17 +84,9 @@ export function isResultSuccessful(
     }
   }
 
-  // Carve-out: API completed (message_delta set stop_reason) but yielded
-  // no assistant content — last(messages) is still this turn's prompt.
-  // future.ts:2026 recognizes end_turn-with-zero-content-blocks as
-  // legitimate and passes through without throwing. Observed on
-  // task_notification drain turns: model returns stop_reason=end_turn,
-  // outputTokens=4, textContentLength=0 — it saw the subagent result
-  // and decided nothing needed saying. Without this, QueryEngine emits
-  // error_during_execution with errors[] = the entire process's
-  // accumulated logError() buffer. Covers both string-content and
-  // text-block-content user prompts, and any other non-passing shape.
-  return stopReason === 'end_turn'
+  // Silent end_turn is only legitimate for structurally identified
+  // task-notification/meta drain turns. Human turns require visible content.
+  return allowSilentEndTurn(message, stopReason)
 }
 
 // Track last sent time for tool progress messages per tool use ID
