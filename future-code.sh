@@ -48,7 +48,7 @@ source "$CONFIG_FILE"
 set -u
 
 API_KEY="${FUTURE_CODE_API_KEY:-${DEEPSEEK_API_KEY:-}}"
-BASE_URL="${FUTURE_CODE_BASE_URL:-${DEEPSEEK_BASE_URL:-http://172.23.31.2/token}}"
+BASE_URL="${FUTURE_CODE_BASE_URL:-${DEEPSEEK_BASE_URL:-}}"
 MODEL="${FUTURE_CODE_MODEL:-${DEEPSEEK_MODEL_NAME:-GLM-5.3}}"
 APPCODE="${FUTURE_CODE_APPCODE:-${DEEPSEEK_APPCODE:-}}"
 MAX_INPUT_CHARS="${FUTURE_CODE_MAX_INPUT_CHARS:-${MAX_INPUT_CHARS:-440000}}"
@@ -107,10 +107,13 @@ if [[ "$DIRECT" -eq 0 ]]; then
   PROXY_PORT="$(free_local_port)"
   LOG_FILE="${TMPDIR:-/tmp}/future-code-proxy-${PROXY_PORT}.log"
   AUTH="Bearer"
+  # Pass credentials through the environment, never argv. Process command
+  # lines are routinely visible to local inspection/debugging tools.
+  export HUANXIN_PROXY_UPSTREAM_TOKEN="$AUTH $API_KEY"
   if [[ -n "$APPCODE" ]]; then
-    APPCODE_ARG=(--appcode "$APPCODE")
+    export HUANXIN_PROXY_APPCODE="$APPCODE"
   else
-    APPCODE_ARG=()
+    unset HUANXIN_PROXY_APPCODE
   fi
   # The proxy appends "/v1/chat/completions" to the upstream URL itself, so a
   # base URL that already carries the "/v1" suffix (e.g. the CMRI gateway's
@@ -121,10 +124,8 @@ if [[ "$DIRECT" -eq 0 ]]; then
   python3 "$PROXY_SCRIPT" \
     --host 127.0.0.1 --port "$PROXY_PORT" \
     --upstream-url "$UPSTREAM_URL" \
-    --upstream-token "$AUTH $API_KEY" \
     --model-name "$MODEL" \
-    --max-input-chars "$MAX_INPUT_CHARS" \
-    "${APPCODE_ARG[@]+"${APPCODE_ARG[@]}"}" >"$LOG_FILE" 2>&1 &
+    --max-input-chars "$MAX_INPUT_CHARS" >"$LOG_FILE" 2>&1 &
   PROXY_PID=$!
   ENDPOINT="http://127.0.0.1:${PROXY_PORT}"
   local_key="local-proxy"
