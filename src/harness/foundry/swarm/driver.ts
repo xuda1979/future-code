@@ -2,9 +2,10 @@ import { DeferredAttemptError } from "../continuation.ts";
 import { ResearchJobs } from "./jobs.ts";
 import { canonical, digest, invariant, allocateContext } from "../kernel.ts";
 import { FatalAttemptError } from "../errors.ts";
+import { spawnTasks } from "../dynamicDag.ts";
 import type { Store } from "../store.ts";
 import type { AttemptControl, Capsule, Driver, Json, Task, Verification, WorkerResult, Lease, Measurement } from "../types.ts";
-import { keys, type PinnedSwarm } from "./config.ts";
+import { keys, validateSwarmTasks, type PinnedSwarm } from "./config.ts";
 import { inlineReceipt, type Call } from "./context.ts";
 import { HttpBrain } from "./model.ts";
 import { SessionJournal, type Thread } from "./session.ts";
@@ -28,7 +29,7 @@ export class SwarmDriver implements Driver {
   readonly workerId: string; readonly verifierId: string;
   readonly journal: SessionJournal; readonly brain: HttpBrain;
   readonly store: Store; readonly cfg: PinnedSwarm; readonly backend: HandsBackend;
-  private contextPlan?: { run: string; recipe: string; budgets: Map<string, number> };
+  private contextPlan?: { run: string; recipe: string; taskCount: number; budgets: Map<string, number> };
   constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend) {
     invariant(backend.id === cfg.handsId, "execution backend identity mismatch");
     this.store = store; this.cfg = cfg; this.backend = backend;
@@ -40,9 +41,12 @@ export class SwarmDriver implements Driver {
   }
   async execute(c: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult> {
     const profile = this.cfg.spec.agents[c.task.agent ?? this.cfg.spec.defaultAgent]; invariant(profile, "unknown agent profile");
+    const canSpawn = profile.tools.includes("spawn_tasks") && !!this.cfg.spec.supervision?.dynamicDAG;
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
-      contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. Do not delegate or edit infrastructure." }) }],
+      contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. " +
+        (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
+        "Do not edit harness infrastructure outside the declared task scope." }) }],
       turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null });
     const resumed = c.fence > (t.state.lastFence ?? 0);
     if (resumed) {
@@ -72,9 +76,11 @@ export class SwarmDriver implements Driver {
     const budget = this.cfg.spec.budget;
     const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg) : null;
     t.state.lastCheckAt ??= Date.now();
-    if (this.contextPlan?.run !== c.runId || this.contextPlan.recipe !== c.recipeHash) {
+    const taskCount = this.store.db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE run=?").get(c.runId)!.n as number;
+    if (this.contextPlan?.run !== c.runId || this.contextPlan.recipe !== c.recipeHash ||
+        this.contextPlan.taskCount !== taskCount) {
       const allTasks: Task[] = this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(c.runId).map(r => JSON.parse(r.spec));
-      this.contextPlan = { run: c.runId, recipe: c.recipeHash,
+      this.contextPlan = { run: c.runId, recipe: c.recipeHash, taskCount,
         budgets: allocateContext(allTasks, this.store.recipe(c.recipeHash), this.store.contract().limits.contextBytes) };
     }
     const limit = this.contextPlan.budgets.get(c.task.id)!;
@@ -99,7 +105,34 @@ export class SwarmDriver implements Driver {
             control?.activity?.(`tool:${call.name}`);
             try {
               invariant(profile.tools.includes(call.name as any), "tool not allowed");
-              if (call.name === "run_job") {
+              if (call.name === "spawn_tasks") {
+                const policy = this.cfg.spec.supervision?.dynamicDAG;
+                invariant(policy, "dynamic DAG spawning is not configured");
+                const a = call.arguments; keys(a, ["children"]);
+                invariant(Array.isArray(a.children) && a.children.length > 0, "spawn_tasks requires children");
+                const children: Task[] = (a.children as unknown[]).map(item => {
+                  invariant(item && typeof item === "object" && !Array.isArray(item), "invalid spawned child");
+                  const raw = item as Record<string, any>;
+                  keys(raw, ["id", "goal", "acceptance", "input", "writeScope", "readScope"],
+                    ["agent", "priority", "estimatedDurationMs", "contextBudget"]);
+                  invariant(typeof raw.id === "string" && raw.id.length > 0, "invalid child id");
+                  const child: Task = { id: `${c.task.id}.${raw.id}`, goal: raw.goal, acceptance: raw.acceptance,
+                    dependencies: [...c.task.dependencies], writeScope: raw.writeScope, readScope: raw.readScope, input: raw.input };
+                  const agent = raw.agent ?? c.task.agent;
+                  if (agent !== undefined) child.agent = agent;
+                  if (raw.priority !== undefined) child.priority = raw.priority;
+                  if (raw.estimatedDurationMs !== undefined) child.estimatedDurationMs = raw.estimatedDurationMs;
+                  if (raw.contextBudget !== undefined) child.contextBudget = raw.contextBudget;
+                  if (c.task.dependencyViews !== undefined)
+                    child.dependencyViews = JSON.parse(canonical(c.task.dependencyViews));
+                  return child;
+                });
+                validateSwarmTasks(this.cfg.spec, children);
+                const spawned = spawnTasks(this.store, c, call.id, digest(call.arguments), children, policy);
+                if (!spawned.complete) throw new DeferredAttemptError("spawn", Date.now(),
+                  `Spawned ${spawned.childIds.length} child task(s); parent resumes after independent verification`);
+                result = { childIds: spawned.childIds, verified: spawned.dependencies };
+              } else if (call.name === "run_job") {
                 invariant(jobs, "no remote job templates configured");
                 result = await jobs.execute(c, profile, call, signal);
               } else if (call.name === "recall") {
