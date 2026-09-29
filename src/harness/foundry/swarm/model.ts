@@ -5,6 +5,7 @@ import type { Capsule, Json } from "../types.ts";
 import type { AgentProfile, Protocol, ProviderRoute, SwarmBudget, ToolName } from "./config.ts";
 import { bytes, compactHistory, type Call, type Message } from "./context.ts";
 import { SessionJournal } from "./session.ts";
+import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
 
 export interface Turn { message: Message; tokens: number | null; truncated: boolean }
 export interface ToolDefinition { name: ToolName; description: string; schema: Record<string, Json> }
@@ -158,7 +159,11 @@ export class HttpBrain {
     const pending = new Map<number, Promise<Outcome>>();
     const call = async (index: number): Promise<Outcome> => {
       const route = routes[index]; const controller = controllers[index];
-      const routeSignal = AbortSignal.any([signal, controller.signal, AbortSignal.timeout(budget.requestTimeoutMs)]);
+      const combined = createCombinedAbortSignal(signal, {
+        signalB: controller.signal,
+        timeoutMs: budget.requestTimeoutMs,
+      });
+      const routeSignal = combined.signal;
       const headers: Record<string, string> = { "content-type": "application/json" };
       if (profile.protocol === "anthropic") headers["anthropic-version"] = "2023-06-01";
       if (route.keyEnv) {
@@ -200,6 +205,8 @@ export class HttpBrain {
         const transient = isTransportFailure(error);
         return { index, kind: "failure", transient,
           error: error instanceof Error ? error : new Error(String(error)) };
+      } finally {
+        combined.cleanup();
       }
     };
     const launch = (index: number) => {
@@ -263,9 +270,11 @@ export class HttpBrain {
     for (let retry = 0; retry < 2; retry++) {
       const id = await this.journal.reserve(c, provider, body, budget, signal);
       let completed = false;
+      const combined = createCombinedAbortSignal(signal, {
+        timeoutMs: budget.requestTimeoutMs,
+      });
       try {
-        const timeout = AbortSignal.timeout(budget.requestTimeoutMs);
-        const response = await this.fetcher(profile.url, { method: "POST", headers, body: canonical(body), redirect: "error", signal: AbortSignal.any([signal, timeout]) });
+        const response = await this.fetcher(profile.url, { method: "POST", headers, body: canonical(body), redirect: "error", signal: combined.signal });
         if (!response.ok) {
           await response.body?.cancel();
           // Error bodies may contain credentials or upstream internals. Do not log them.
@@ -292,7 +301,10 @@ export class HttpBrain {
         signal.throwIfAborted();
         if (isTransportFailure(e)) throw new DeferredAttemptError("provider", Date.now() + Math.min(60000, 1000 * 2 ** Math.min(this.journal.usage(c.runId, c.task.id).requests - 1, 6)), "Provider transport unavailable; replay-safe continuation scheduled");
         throw e;
-      } finally { if (!completed) this.journal.complete(id, null, null); }
+      } finally {
+        combined.cleanup();
+        if (!completed) this.journal.complete(id, null, null);
+      }
     }
     throw new Error("model retry budget exhausted");
   }
