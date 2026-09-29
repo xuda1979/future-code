@@ -149,7 +149,11 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     invariant(a.promptCache === undefined || typeof a.promptCache === "boolean", "invalid provider flag");
     if (a.fallbacks !== undefined) {
       invariant(Array.isArray(a.fallbacks) && a.fallbacks.length > 0 && a.fallbacks.length <= 3, "invalid fallback routes");
-      for (let i = 0; i < a.fallbacks.length; i++) validateRoute(a.fallbacks[i], `fallback[${i}]`);
+      for (let i = 0; i < a.fallbacks.length; i++) {
+        validateRoute(a.fallbacks[i], `fallback[${i}]`);
+        invariant(a.fallbacks[i].model === a.model,
+          "fallback route must serve the same logical model; routing must not silently change model behavior");
+      }
       const ids = [a, ...a.fallbacks].map(r => `${r.url}#${r.model}`);
       invariant(new Set(ids).size === ids.length, "duplicate provider route");
     }
