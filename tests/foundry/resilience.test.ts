@@ -153,6 +153,8 @@ test("successful external job requires a bounded result and permitted template",
 test("job and supervision configuration reject unsafe bounds/capabilities", () => {
   const s = spec("x"); jobSpec(s); s.jobs!.train.idempotentEnsure = false as any; assert.throws(() => validateSwarmSpec(s), /idempotent/);
   s.jobs!.train.idempotentEnsure = true; s.jobs!.train.maxConcurrent = 0; assert.throws(() => validateSwarmSpec(s), /concurrency/);
+  const supervised = spec("x"); supervised.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 9 };
+  assert.throws(() => validateSwarmSpec(supervised), /maxReplans/);
 });
 test("transient provider responses yield without resetting the run request ledger", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); let l = q.claim(run, "w")!; const j = new SessionJournal(s);
@@ -187,6 +189,35 @@ test("an objective finishes only after integration and resumes without another m
   const rerun: any = await superviseSwarm(s, { id: "research" }, signal(), undefined, script.fetcher);
   assert.equal(rerun.objective.run, result.objective.run); assert.equal(script.bodies.length, 2);
   await assert.rejects(superviseSwarm(s, { id: "research", goal: "silently changed objective" }, signal()), /goal changed/);
+}));
+test("bounded recovery planner versions the task graph and resumes the objective", async () => swarmFixture(async s => {
+  const script = scripted([
+    () => reply("finished without a patch"),
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+    () => reply(),
+  ]);
+  let plannerCalls = 0;
+  const repaired = { ...swarmTask("repair"), goal: "Repair the failed objective with a smaller task", writeScope: ["src/a.txt"] };
+  const result: any = await superviseSwarm(
+    s,
+    { id: "auto-recover", goal: "Implement 42 and verify it", tasks: [swarmTask()] },
+    signal(),
+    undefined,
+    script.fetcher,
+    async context => {
+      plannerCalls++;
+      assert.equal(context.revision, 1);
+      assert.ok(context.failures.some(f => f.status === "FAIL"));
+      return { reason: "Replace the failed broad attempt with a focused repair task", tasks: [repaired] };
+    },
+  );
+  assert.equal(result.status, "PASS"); assert.equal(result.objective.state, "COMPLETE");
+  assert.equal(plannerCalls, 1); assert.equal(script.bodies.length, 3);
+  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective='auto-recover'").get()!.n, 2);
+  assert.equal(s.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective='auto-recover'").get()!.state, "PLANNED");
+}, s => {
+  s.recipe.attempts = 1;
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
 }));
 test("permanent failure stays visible, does not spin models, and honors operator pause", async () => swarmFixture(async s => {
   let requests = 0; const ctl = new AbortController(); const phases: string[] = [];
