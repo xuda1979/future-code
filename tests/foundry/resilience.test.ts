@@ -109,6 +109,11 @@ test("remote job resumes by immutable ID and never re-submits after polling fail
   const result: any = await jobs.execute(q.capsule(l), cfg.spec.agents.coder, jobCall, signal());
   assert.equal(result.status, "SUCCEEDED"); assert.deepEqual(requests.map(r => r.operation), ["ensure", "inspect", "inspect"]);
   assert.equal(new Set(requests.map(r => r.key)).size, 1); assert.equal(q.summary(run).accepted, 0, "remote exit is not acceptance");
+  const terminal = s.db.prepare("SELECT reconciliation_hash,input_hash FROM research_jobs WHERE run=?").get(run)!;
+  assert.match(terminal.reconciliation_hash, /^[a-f0-9]{64}$/);
+  const attestation: any = s.readArtifact(terminal.reconciliation_hash);
+  assert.equal(attestation.inputHash, terminal.input_hash); assert.equal(attestation.baseCommit, cfg.baseCommit);
+  assert.equal(attestation.status, "SUCCEEDED");
 }, jobSpec));
 test("lost submit reply reconciles the SAME key without duplicate remote execution", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const l = q.claim(run, "w")!; const c = q.capsule(l);
