@@ -132,6 +132,8 @@ export interface RunSummary {
   contractHash: string;
   status: "RUNNING" | "PASS" | "FAIL";
   accepted: number;
+  /** Verified root objective tasks. Spawned support tasks do not inflate this. */
+  verifiedProgress: number;
   failed: number;
   blocked: number;
   attempts: number;
