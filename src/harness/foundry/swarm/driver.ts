@@ -150,7 +150,11 @@ export class SwarmDriver implements Driver {
                 }
               } else result = await hands.tool(call);
             } catch (e) {
-              signal.throwIfAborted(); this.journal.assertLease(c);
+              signal.throwIfAborted();
+              // Atomic spawn deferral intentionally invalidates the current lease
+              // in the same transaction that admitted children.
+              if (e instanceof PersistedDeferredAttemptError) throw e;
+              this.journal.assertLease(c);
               if (e instanceof FatalAttemptError || e instanceof DeferredAttemptError) throw e;
               result = { error: e instanceof Error ? e.message.slice(0, 2048) : "tool error" };
             }
