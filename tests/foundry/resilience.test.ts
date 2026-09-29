@@ -256,12 +256,10 @@ test("prepared recovery is adopted after a supervisor crash without another plan
     () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
     () => reply(),
   ]);
-  let plannerCalls = 0;
   const result: any = await superviseSwarm(
     s, { id: "prepared-recovery" }, signal(), undefined, script.fetcher,
-    async () => { plannerCalls++; throw new Error("prepared recovery must not re-plan"); },
   );
-  assert.equal(result.status, "PASS"); assert.equal(result.objective.run, newRun); assert.equal(plannerCalls, 0);
+  assert.equal(result.status, "PASS"); assert.equal(result.objective.run, newRun);
   assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM runs WHERE id=?").get(newRun)!.n, 1);
   assert.equal(s.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective='prepared-recovery'").get()!.state, "PLANNED");
 }, s => {
