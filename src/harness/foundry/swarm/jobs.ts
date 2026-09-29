@@ -3,7 +3,7 @@ import { FatalAttemptError } from "../errors.ts";
 import { checkPins } from "../commands.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
 import type { Capsule, Json } from "../types.ts";
-import type { PinnedSwarm, AgentProfile } from "./config.ts";
+import type { PinnedSwarm, AgentProfile, JobTemplate } from "./config.ts";
 import { keys } from "./config.ts";
 import type { Call } from "./context.ts";
 import { SessionJournal } from "./session.ts";
@@ -69,7 +69,7 @@ export class ResearchJobs {
       return store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
     });
     if (row.result_hash) return store.readArtifact(row.result_hash);
-    if (row.poll_at > Date.now()) throw this.wait(row, template.staleMs);
+    if (row.poll_at > Date.now()) throw this.wait(row, template);
     const request = { schema: 1, operation: row.job_id ? "inspect" : "ensure", key, jobId: row.job_id ?? null,
       input, inputHash: binding, baseCommit: this.cfg.baseCommit } as Json;
     let raw: unknown;
@@ -85,7 +85,7 @@ export class ResearchJobs {
         store.event("job.reconciling", { key, jobId: row.job_id ?? null, reason: "adapter RPC failed; never infer remote termination" }, c.runId, c.task.id);
       });
       row = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
-      throw this.wait(row, template.staleMs);
+      throw this.wait(row, template);
     }
     signal.throwIfAborted(); this.journal.assertLease(c);
     const v = raw as JobReply;
@@ -113,10 +113,15 @@ export class ResearchJobs {
     });
     if (terminal) return v as unknown as Json;
     row = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
-    throw this.wait(row, template.staleMs);
+    throw this.wait(row, template);
   }
-  private wait(row: Record<string, any>, staleMs: number): DeferredAttemptError {
-    const stale = Date.now() - row.progress_at >= staleMs;
+  private wait(row: Record<string, any>, template: JobTemplate): DeferredAttemptError | FatalAttemptError {
+    const age = Math.max(0, Date.now() - row.progress_at);
+    const reconcileAfterMs = template.reconcileAfterMs ?? Math.min(604800000, template.staleMs * 3);
+    if (age >= reconcileAfterMs) {
+      return new FatalAttemptError(`REMOTE_JOB_RECONCILIATION_REQUIRED: job ${row.key.slice(0, 12)} ${row.status}; no semantic milestone for ${age}ms. Inspect/adopt/cancel the remote job before any replacement work.`);
+    }
+    const stale = age >= template.staleMs;
     return new DeferredAttemptError(stale ? "remote-stalled" : "remote-job", Math.max(Date.now() + 10, row.poll_at),
       `job ${row.key.slice(0, 12)} ${row.status}${stale ? "; no new milestone: inspect remote worker/queue" : "; durable poll scheduled"}`);
   }
