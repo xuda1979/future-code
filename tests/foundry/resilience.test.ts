@@ -12,6 +12,7 @@ import { DeferredAttemptError } from "../../src/harness/foundry/continuation.ts"
 import { runHealth, formatHealth } from "../../src/harness/foundry/health.ts";
 import type { Driver, Task, Recipe, Contract, Lease } from "../../src/harness/foundry/types.ts";
 import { ResearchJobs, type JobRPC } from "../../src/harness/foundry/swarm/jobs.ts";
+import { SwarmDriver } from "../../src/harness/foundry/swarm/driver.ts";
 import { SessionJournal } from "../../src/harness/foundry/swarm/session.ts";
 import { HttpBrain, isTransportFailure } from "../../src/harness/foundry/swarm/model.ts";
 import { createApiRecoveryPlanner } from "../../src/harness/foundry/swarm/recovery.ts";
@@ -135,6 +136,43 @@ test("remote job input replay drift and mismatched identity fail closed", async 
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, { ...jobCall, arguments: { ...jobCall.arguments, input: { seed: 99 } } }, signal()), /drift/);
   wrong = true; s.db.prepare("UPDATE research_jobs SET poll_at=0").run(); await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), FatalAttemptError);
 }, jobSpec));
+test("one model turn fans out independent remote experiments concurrently", async () => swarmFixture(async (s, cfg) => {
+  const q = new Scheduler(s); const run = q.start([swarmTask()]); const capsule = q.capsule(q.claim(run, "batch-worker")!);
+  let active = 0; let peak = 0; let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const operations: any[] = [];
+  const rpc: JobRPC = async (_command, _cfg, request) => {
+    const r = request as any; operations.push(r);
+    active++; peak = Math.max(peak, active);
+    if (active === 2) release();
+    await Promise.race([
+      gate,
+      delay(500).then(() => { throw new Error("remote jobs were serialized"); }),
+    ]);
+    active--;
+    return { schema: 1, key: r.key, jobId: `job-${r.key.slice(0, 8)}`,
+      status: "SUCCEEDED", result: { seed: r.input.seed } };
+  };
+  const model = scripted([
+    () => reply("", [
+      { id: "exp-a", name: "run_job", arguments: { name: "train", input: { seed: 1 } } },
+      { id: "exp-b", name: "run_job", arguments: { name: "train", input: { seed: 2 } } },
+    ]),
+    body => {
+      const toolMessages = body.messages.filter((m: any) => m.role === "tool");
+      assert.equal(toolMessages.length, 2);
+      return reply("experiments completed");
+    },
+  ]);
+  const driver = new SwarmDriver(s, cfg, model.fetcher, undefined, rpc);
+  const result = await driver.execute(capsule, signal());
+  assert.equal((result.artifact as any).summary, "experiments completed");
+  assert.equal(peak, 2, "both experiment submissions must overlap");
+  assert.equal(operations.length, 2);
+  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE run=?").get(run)!.n, 2);
+  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE run=? AND result_hash IS NOT NULL").get(run)!.n, 2);
+}, jobSpec));
+
 test("remote capacity waits before submitting another costly job", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!); let calls = 0;
   const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => { calls++; return { schema: 1, key: (request as any).key, jobId: "running", status: "RUNNING" }; });
