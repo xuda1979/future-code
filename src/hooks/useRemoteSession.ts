@@ -32,13 +32,7 @@ import {
 import { generateSessionTitle } from '../utils/sessionTitle.js'
 import type { RemoteMessageContent } from '../utils/teleport/api.js'
 import { updateSessionTitle } from '../utils/teleport/api.js'
-
-// How long to wait for a response before showing a warning
-const RESPONSE_TIMEOUT_MS = 60000 // 60 seconds
-// Extended timeout during compaction — compact API calls take 5-30s and
-// block other SDK messages, so the normal 60s timeout isn't enough when
-// compaction itself runs close to the edge.
-const COMPACTION_TIMEOUT_MS = 180000 // 3 minutes
+import { RemoteResponseWatchdog } from '../remote/responseLiveness.js'
 
 type UseRemoteSessionProps = {
   config: RemoteSessionConfig | undefined
@@ -110,8 +104,10 @@ export function useRemoteSession({
     )
   }, [setAppState])
 
-  // Timer for detecting stuck sessions
-  const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // Foreground remote-turn liveness watchdog. Transport echoes do not count as
+  // semantic progress; otherwise an echoed user prompt can suppress timeout
+  // detection forever while the remote agent produces no answer.
+  const responseWatchdogRef = useRef<RemoteResponseWatchdog | null>(null)
 
   // Track whether the remote session is compacting. During compaction the
   // CLI worker is busy with an API call and won't emit messages for a while;
@@ -165,15 +161,6 @@ export function useRemoteSession({
         }
         logForDebugging(`[useRemoteSession] Received ${parts.join(' ')}`)
 
-        // Clear response timeout on any message received — including the WS
-        // echo of our own POST, which acts as a heartbeat. This must run
-        // BEFORE the echo filter, or slow-to-stream agents (compaction, cold
-        // start) spuriously trip the 60s unresponsive warning + reconnect.
-        if (responseTimeoutRef.current) {
-          clearTimeout(responseTimeoutRef.current)
-          responseTimeoutRef.current = null
-        }
-
         // Echo filter: drop user messages we already added locally before POST.
         // The server and/or worker round-trip our own send back on the WS with
         // the same uuid we passed to sendEventToRemoteSession. DO NOT delete on
@@ -187,8 +174,14 @@ export function useRemoteSession({
           logForDebugging(
             `[useRemoteSession] Dropping echoed user message ${sdkMessage.uuid}`,
           )
+          // Transport echo is not response progress. Keep the foreground
+          // watchdog armed until the remote agent emits semantic progress.
           return
         }
+
+        // Any non-echo message from the remote worker counts as semantic
+        // progress for the foreground turn and refreshes the watchdog.
+        responseWatchdogRef.current?.progress()
         // Handle init message - extract available slash commands
         if (
           sdkMessage.type === 'system' &&
@@ -238,6 +231,7 @@ export function useRemoteSession({
         // Check if session ended
         if (isSessionEndMessage(sdkMessage)) {
           isCompactingRef.current = false
+          responseWatchdogRef.current?.complete()
           setIsLoading(false)
         }
 
@@ -372,6 +366,7 @@ export function useRemoteSession({
             setToolUseConfirmQueue(queue =>
               queue.filter(item => item.toolUseID !== request.tool_use_id),
             )
+            responseWatchdogRef.current?.resume()
           },
           onAllow(updatedInput, _permissionUpdates, _feedback) {
             const response: RemotePermissionResponse = {
@@ -382,7 +377,8 @@ export function useRemoteSession({
             setToolUseConfirmQueue(queue =>
               queue.filter(item => item.toolUseID !== request.tool_use_id),
             )
-            // Resume loading indicator after approving
+            // Resume loading indicator and foreground liveness watchdog.
+            responseWatchdogRef.current?.resume()
             setIsLoading(true)
           },
           onReject(feedback?: string) {
@@ -401,7 +397,9 @@ export function useRemoteSession({
         }
 
         setToolUseConfirmQueue(queue => [...queue, toolUseConfirm])
-        // Pause loading indicator while waiting for permission
+        // Pause liveness timeout and loading indicator while waiting for the
+        // user's permission decision.
+        responseWatchdogRef.current?.pause()
         setIsLoading(false)
       },
       onPermissionCancelled: (requestId, toolUseId) => {
@@ -412,6 +410,7 @@ export function useRemoteSession({
         setToolUseConfirmQueue(queue =>
           queue.filter(item => item.toolUseID !== idToRemove),
         )
+        responseWatchdogRef.current?.resume()
         setIsLoading(true)
       },
       onConnected: () => {
@@ -431,6 +430,7 @@ export function useRemoteSession({
       },
       onDisconnected: () => {
         logForDebugging('[useRemoteSession] Disconnected')
+        responseWatchdogRef.current?.complete()
         setConnStatus('disconnected')
         setIsLoading(false)
         runningTaskIdsRef.current.clear()
@@ -442,16 +442,46 @@ export function useRemoteSession({
       },
     })
 
+    responseWatchdogRef.current = new RemoteResponseWatchdog({
+      isCompacting: () => isCompactingRef.current,
+      onReconnect: attempt => {
+        logForDebugging(
+          `[useRemoteSession] Foreground response stalled; reconnect attempt ${attempt}`,
+        )
+        const warningMessage = createSystemMessage(
+          'Remote session may be unresponsive. Attempting to reconnect…',
+          'warning',
+        )
+        setMessages(prev => [...prev, warningMessage])
+        manager.reconnect()
+      },
+      onExhausted: () => {
+        logForDebugging(
+          '[useRemoteSession] Foreground response stalled after reconnect; cancelling stale turn',
+        )
+        const errorMessage = createSystemMessage(
+          'Remote session did not produce a response after reconnecting. The stale turn was cancelled so you can continue.',
+          'error',
+        )
+        setMessages(prev => [...prev, errorMessage])
+        if (!config.viewerOnly) manager.cancelSession()
+        setConnStatus('disconnected')
+        setIsLoading(false)
+        runningTaskIdsRef.current.clear()
+        writeTaskCount()
+        setInProgressToolUseIDs?.(prev =>
+          prev.size > 0 ? new Set() : prev,
+        )
+      },
+    })
+
     managerRef.current = manager
     manager.connect()
 
     return () => {
       logForDebugging('[useRemoteSession] Cleanup - disconnecting')
-      // Clear any pending timeout
-      if (responseTimeoutRef.current) {
-        clearTimeout(responseTimeoutRef.current)
-        responseTimeoutRef.current = null
-      }
+      responseWatchdogRef.current?.dispose()
+      responseWatchdogRef.current = null
       manager.disconnect()
       managerRef.current = null
     }
@@ -478,11 +508,6 @@ export function useRemoteSession({
       if (!manager) {
         logForDebugging('[useRemoteSession] Cannot send - no manager')
         return false
-      }
-
-      // Clear any existing timeout
-      if (responseTimeoutRef.current) {
-        clearTimeout(responseTimeoutRef.current)
       }
 
       setIsLoading(true)
@@ -531,33 +556,11 @@ export function useRemoteSession({
         }
       }
 
-      // Start timeout to detect stuck sessions. Skip in viewerOnly mode —
-      // the remote agent may be idle-shut and take >60s to respawn.
-      // Use a longer timeout when the remote session is compacting, since
-      // the CLI worker is busy with an API call and won't emit messages.
+      // Start response-progress watchdog after the POST succeeds. Viewer-only
+      // mode intentionally skips foreground liveness because the remote agent
+      // may be cold/idle for longer periods without a local user waiting.
       if (!config?.viewerOnly) {
-        const timeoutMs = isCompactingRef.current
-          ? COMPACTION_TIMEOUT_MS
-          : RESPONSE_TIMEOUT_MS
-        responseTimeoutRef.current = setTimeout(
-          (setMessages, manager) => {
-            logForDebugging(
-              '[useRemoteSession] Response timeout - attempting reconnect',
-            )
-            // Add a warning message to the conversation
-            const warningMessage = createSystemMessage(
-              'Remote session may be unresponsive. Attempting to reconnect…',
-              'warning',
-            )
-            setMessages(prev => [...prev, warningMessage])
-
-            // Attempt to reconnect the WebSocket - the subscription may have become stale
-            manager.reconnect()
-          },
-          timeoutMs,
-          setMessages,
-          manager,
-        )
+        responseWatchdogRef.current?.start()
       }
 
       return success
@@ -567,11 +570,7 @@ export function useRemoteSession({
 
   // Cancel the current request on the remote session
   const cancelRequest = useCallback(() => {
-    // Clear any pending timeout
-    if (responseTimeoutRef.current) {
-      clearTimeout(responseTimeoutRef.current)
-      responseTimeoutRef.current = null
-    }
+    responseWatchdogRef.current?.complete()
 
     // Send interrupt signal to CCR. Skip in viewerOnly mode — Ctrl+C
     // should never interrupt the remote agent.
