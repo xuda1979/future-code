@@ -9,11 +9,24 @@ import { integrateSwarm, loadSwarm, runSwarm } from "./host.ts";
 import { validateSwarmTasks } from "./config.ts";
 
 export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
+export interface RecoveryContext {
+  objectiveId: string; goal: string; runId: string; reason: string; revision: number;
+  tasks: Task[]; failures: { id: string; status: string; error: string | null }[];
+}
+export interface RecoveryPlan { reason: string; tasks: Task[] }
+export type RecoveryPlanner = (context: RecoveryContext, signal: AbortSignal) => Promise<RecoveryPlan | null>;
 export function installObjectives(store: Store): void {
   store.db.exec(`CREATE TABLE IF NOT EXISTS swarm_objectives(
     id TEXT PRIMARY KEY, goal TEXT NOT NULL, plan TEXT NOT NULL, cfg TEXT NOT NULL,
     run TEXT UNIQUE, state TEXT NOT NULL, reason TEXT, owner TEXT, lease REAL,
-    updated REAL NOT NULL);`);
+    updated REAL NOT NULL);
+    CREATE TABLE IF NOT EXISTS swarm_objective_revisions(
+      objective TEXT NOT NULL, revision INTEGER NOT NULL, plan TEXT NOT NULL, run TEXT NOT NULL,
+      reason TEXT NOT NULL, created REAL NOT NULL, PRIMARY KEY(objective,revision));
+    CREATE TABLE IF NOT EXISTS swarm_recovery_attempts(
+      objective TEXT NOT NULL, run TEXT NOT NULL, revision INTEGER NOT NULL,
+      state TEXT NOT NULL, detail TEXT NOT NULL, new_run TEXT, created REAL NOT NULL,
+      updated REAL NOT NULL, PRIMARY KEY(objective,run));`);
 }
 export function objectiveStatus(store: Store, id: string): Json {
   installObjectives(store); identifier(id);
@@ -26,7 +39,7 @@ export function objectiveStatus(store: Store, id: string): Json {
  * work resumes in runTasks; exhausted budgets or unsafe outcomes remain visible
  * NEEDS_ATTENTION instead of silently exiting or resetting resource ceilings. */
 export async function superviseSwarm(store: Store, input: ObjectiveInput, signal: AbortSignal,
-  onProgress?: HealthObserver, fetcher?: typeof fetch): Promise<Json> {
+  onProgress?: HealthObserver, fetcher?: typeof fetch, recoveryPlanner?: RecoveryPlanner): Promise<Json> {
   identifier(input.id); const cfg = loadSwarm(store); installObjectives(store);
   const owner = randomUUID(); const ttl = 30000;
   if (input.tasks) { validateTasks(store.contract(), input.tasks); validateSwarmTasks(cfg.spec, input.tasks); }
@@ -70,12 +83,72 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       [{ id: "objective", status: row.state, stage: "integration", activityAgeMs: null, progressAgeMs: null, checkAgeMs: null, deadline: null, wakeAt: null, reason: row.reason }] : [] }); }
     catch { store.event("observer.error", { reason: "objective observer threw" }, row.run); }
   };
+  const attemptRecovery = async (reason: string): Promise<boolean> => {
+    const maxReplans = cfg.spec.supervision?.maxReplans ?? 0;
+    if (!recoveryPlanner || maxReplans <= 0) return false;
+    const row = assertOwner(); if (!row.run) return false;
+    const existing = store.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective=? AND run=?").get(input.id, row.run);
+    if (existing) return false; // one durable planner attempt per failed run
+    const used = store.db.prepare("SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective=? AND revision>0").get(input.id)!.n;
+    if (used >= maxReplans) return false;
+    const revision = used + 1;
+    const tasks = store.readArtifact(row.plan) as unknown as Task[];
+    const failures = store.db.prepare("SELECT id,status,error FROM tasks WHERE run=? AND status<>'PASS' ORDER BY id LIMIT 200").all(row.run)
+      .map(r => ({ id: String(r.id), status: String(r.status), error: r.error == null ? null : String(r.error).slice(0, 1024) }));
+    store.transaction(() => {
+      assertOwner(); const now = Date.now();
+      store.db.prepare("INSERT INTO swarm_recovery_attempts VALUES(?,?,?,?,?,NULL,?,?)")
+        .run(input.id, row.run, revision, "STARTED", reason.slice(0, 2048), now, now);
+      store.event("objective.recovery.started", { id: input.id, run: row.run, revision, reason: reason.slice(0, 1024) }, row.run);
+    });
+    let proposal: RecoveryPlan | null = null;
+    try {
+      proposal = await recoveryPlanner({ objectiveId: input.id, goal: row.goal, runId: row.run, reason, revision, tasks, failures }, controller.signal);
+      controller.signal.throwIfAborted();
+      if (!proposal) {
+        store.db.prepare("UPDATE swarm_recovery_attempts SET state='DECLINED',detail=?,updated=? WHERE objective=? AND run=?")
+          .run("planner returned no safe recovery plan", Date.now(), input.id, row.run);
+        return false;
+      }
+      invariant(typeof proposal.reason === "string" && proposal.reason.trim().length > 0 && Buffer.byteLength(proposal.reason) <= 4096, "invalid recovery reason");
+      validateTasks(store.contract(), proposal.tasks); validateSwarmTasks(cfg.spec, proposal.tasks);
+      invariant(digest(proposal.tasks) !== digest(tasks), "recovery plan must materially change execution structure");
+      const newPlan = store.artifact(JSON.parse(canonical(proposal.tasks)));
+      // Starting a new run is intentionally outside the objective transaction.
+      // A crash here can leave an orphan run, never duplicate accepted work.
+      const newRun = new Scheduler(store).start(proposal.tasks);
+      store.transaction(() => {
+        const current = assertOwner(); invariant(current.run === row.run, "objective changed during recovery planning");
+        const now = Date.now();
+        store.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
+          .run(input.id, revision, newPlan, newRun, proposal!.reason.slice(0, 2048), now);
+        store.db.prepare("UPDATE swarm_objectives SET plan=?,run=?,state='RUNNING',reason=NULL,updated=? WHERE id=?")
+          .run(newPlan, newRun, now, input.id);
+        store.db.prepare("UPDATE swarm_recovery_attempts SET state='PLANNED',detail=?,new_run=?,updated=? WHERE objective=? AND run=?")
+          .run(proposal!.reason.slice(0, 2048), newRun, now, input.id, row.run);
+        store.event("objective.replanned", { id: input.id, fromRun: row.run, toRun: newRun, revision, plan: newPlan }, newRun);
+      });
+      return true;
+    } catch (e) {
+      if (controller.signal.aborted) throw e;
+      const detail = e instanceof Error ? e.message.slice(0, 2048) : "recovery planner failed";
+      store.db.prepare("UPDATE swarm_recovery_attempts SET state='FAILED',detail=?,updated=? WHERE objective=? AND run=?")
+        .run(detail, Date.now(), input.id, row.run);
+      store.event("objective.recovery.failed", { id: input.id, run: row.run, revision, detail }, row.run);
+      return false;
+    }
+  };
   try {
     let row = assertOwner();
     if (!row.run) {
       // A crash here can leave an unstarted orphan run, never duplicated execution.
       const run = new Scheduler(store).start(store.readArtifact(row.plan) as unknown as Task[]);
-      store.transaction(() => { assertOwner(); store.db.prepare("UPDATE swarm_objectives SET run=? WHERE id=?").run(run, input.id); });
+      store.transaction(() => {
+        const current = assertOwner();
+        store.db.prepare("UPDATE swarm_objectives SET run=? WHERE id=?").run(run, input.id);
+        store.db.prepare("INSERT OR IGNORE INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
+          .run(input.id, 0, current.plan, run, "initial admitted plan", Date.now());
+      });
     }
     transition("RUNNING"); report();
     for (;;) {
@@ -98,10 +171,14 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
           return { status: "PASS", objective: objectiveStatus(store, input.id), integration: JSON.parse(canonical(receipt)) };
         } catch (e) {
           controller.signal.throwIfAborted();
-          transition("NEEDS_ATTENTION", `Final integration failed: ${e instanceof Error ? e.message.slice(0, 800) : "unknown error"}. Inspect evidence; do not weaken the acceptance checks.`);
+          const reason = `Final integration failed: ${e instanceof Error ? e.message.slice(0, 800) : "unknown error"}. Inspect evidence; do not weaken the acceptance checks.`;
+          transition("NEEDS_ATTENTION", reason);
+          if (await attemptRecovery(reason)) { report(); continue; }
         }
       } else if (runStatus === "FAIL") {
-        transition("NEEDS_ATTENTION", "Repair attempts or resource bounds exhausted. Saved checkpoints and diagnostics remain available; a revised authorized plan/configuration is required. No blind retries or budget reset.");
+        const reason = "Repair attempts or resource bounds exhausted. Saved checkpoints and diagnostics remain available; a revised execution plan is required. Acceptance checks remain immutable.";
+        transition("NEEDS_ATTENTION", reason);
+        if (await attemptRecovery(reason)) { report(); continue; }
       }
       report();
       // No model polling and no repeated failed verification. An explicit integrate
