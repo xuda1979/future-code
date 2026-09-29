@@ -143,7 +143,11 @@ Unsupported returned block types fail closed instead of silently removing data
 required for a later API turn. Choose a compatible profile for the initial canary.
 
 Tools are `list_files`, bounded `read_file`, `write_file`, exact-once-match
-`edit_file`, `delete_file`, `run_check` and `recall`. There is no arbitrary shell
+`edit_file`, `delete_file`, `run_check`, `recall`, and—when explicitly
+enabled—`spawn_tasks`/`await_tasks`. A delegation policy must bound
+`maxDepth`, `maxChildrenPerExpansion`, and `maxChildrenPerTask`. A parent
+may delegate writes only beneath its declared `delegateScope`; a child cannot
+widen that authority. There is no arbitrary shell
 command supplied by the model. `run_check` accepts only a configured check name.
 Trusted checks may themselves execute arbitrary code; configure them accordingly.
 
@@ -204,9 +208,16 @@ Mandatory instructions, acceptance and dependency inputs never silently truncate
 The full encoded provider request (including system and tool schemas) must fit
 the admitted context allocation.
 
-Prefix structure is stable; Anthropic system-prefix cache hints are opt-in.
-Cache hits depend on the provider, model and minimum prefix length. This code
-neither owns nor shares physical KV cache and does not claim zero-prefill forks.
+Future-Code now constructs a deliberately stable inference prefix: roster system
+instructions, the invariant Foundry worker contract, and deterministically
+ordered tool schemas precede task-specific user content. Set
+`inferenceEngine` to `"sglang"` or `"vllm"` for an OpenAI-compatible local
+endpoint. SGLang can reuse that prefix through RadixAttention and vLLM through
+automatic prefix caching; the physical KV pages remain owned by those serving
+engines, not by the Scheduler. Future-Code does not copy KV tensors through its
+HTTP layer. When the endpoint reports OpenAI `prompt_tokens_details.cached_tokens`,
+the harness persists real cache-hit counts; otherwise it does not fabricate a
+cache hit. Anthropic system-prefix cache hints remain opt-in via `promptCache`.
 
 Inspect without calling a model:
 
@@ -237,22 +248,80 @@ are shared within that ledger; request attempts still consume durable budgets.
 The number of calls and aggregate serialized request bytes have run-level caps.
 Per-thread turn/tool caps and per-RPC/tool deadlines give additional limits.
 
-These byte limits are not token limits or dollar caps. `providerUsage` records
-provider metadata tokens, `knownTokens`, `unknownRequests`, and reservations.
-Missing usage is null rather than zero. Anthropic cache read/creation tokens are
-included in total input accounting. Model JSON that claims its own cost is ignored.
-There is no trusted currency price meter, so costUsd is unknown. The older Foundry
-`progressDensity` retains its budget-based meaning and is not relabeled as billed
-token efficiency. Planning calls made in the interactive UI are not included in
-the worker-run ledger; include them in a real end-to-end evaluation.
+These byte limits are not dollar caps. `providerUsage` records request bytes,
+provider tokens, cached-input tokens and cache-creation tokens when reported.
+Missing usage is null rather than zero. Model-authored JSON cannot claim usage.
+There is no trusted currency price meter, so costUsd is unknown.
+
+`RunSummary.progressDensity` now has an explicit measurement contract. For model
+runs with complete detailed usage, its denominator is **uncached provider input
+tokens**; `cacheReuseRatio` separately reports cached/input tokens. If detailed
+provider token usage is unavailable, the denominator falls back to measured
+serialized provider request bytes. Generic Foundry workers use the actual encoded
+capsule bytes recorded per attempt. `progressDensityBasis` and `decisionInput`
+are always exposed, and evaluation refuses to compare arms with different bases.
+Configured context headroom is therefore neither a fake cost nor a fake
+productivity improvement. Planning calls made in the interactive UI are not
+included in the worker-run ledger; include them in a real end-to-end evaluation.
 
 The implementation accepts bounded plans up to the existing contract ceilings,
 not an empirically validated 30,000-agent cluster. SQLite is a local single-host
 control plane. There is no distributed consensus, autoscaling fleet, remote
 worker service, universal MCP proxy, Vault, cross-session learning/Dreaming,
-recursive delegation or self-modifying orchestrator in this patch. A second
+unbounded recursive delegation or self-modifying orchestrator in this patch. A second
 process can cooperate through the existing Store/host API; the CLI does not
 create or manage a daemon fleet.
+
+### Dynamic delegation example
+
+A root task can authorize only a subset of the repository for descendants:
+
+```json
+{
+  "id": "root",
+  "goal": "Implement the feature and delegate independent adapters",
+  "acceptance": ["root behavior check"],
+  "writeScope": ["src/core"],
+  "delegateScope": ["src/adapters"],
+  "dependencies": [],
+  "input": {}
+}
+```
+
+Enable the tools on the selected agent and add:
+
+```json
+"delegation": {
+  "maxDepth": 3,
+  "maxChildrenPerExpansion": 8,
+  "maxChildrenPerTask": 24
+}
+```
+
+Spawn proposals are replay-idempotent by tool-call ID. Existing task IDs are
+immutable: a retry may re-admit the same exact child, but cannot silently replace
+its goal, scopes, dependencies or acceptance conditions.
+
+### Shared-prefix local inference example
+
+For an OpenAI-compatible SGLang or vLLM endpoint:
+
+```json
+{
+  "protocol": "chat-completions",
+  "inferenceEngine": "vllm",
+  "url": "http://127.0.0.1:8000/v1/chat/completions",
+  "model": "YOUR_SERVED_MODEL",
+  "system": "You are a scoped software-engineering worker.",
+  "tools": ["list_files", "read_file", "write_file", "edit_file", "run_check", "recall"],
+  "checks": ["behavior"]
+}
+```
+
+Use `"sglang"` for an SGLang OpenAI-compatible server. Prefix caching must be
+enabled in the serving engine; Future-Code supplies a stable prefix and records
+reported cache hits, but does not override an engine launched with caching
+disabled.
 
 ## 7. Tests and evaluation
 
