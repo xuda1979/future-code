@@ -39,8 +39,11 @@ export class DynamicDelegation {
     const raw = call.arguments.tasks;
     invariant(Array.isArray(raw) && raw.length > 0 && raw.length <= policy.maxChildrenPerExpansion, "invalid child task batch");
     invariant(this.depth(c.runId, c.task.id) < policy.maxDepth, "delegation depth exhausted");
-    const existingChildren = this.store.db.prepare("SELECT COUNT(DISTINCT task) AS n FROM task_expansions WHERE run=? AND parent=?").get(c.runId, c.task.id)!.n;
-    invariant(existingChildren + raw.length <= policy.maxChildrenPerTask, "delegation child budget exhausted");
+    const existingRows = this.store.db.prepare("SELECT DISTINCT task FROM task_expansions WHERE run=? AND parent=?").all(c.runId, c.task.id);
+    const existingIds = new Set(existingRows.map(r => String(r.task)));
+    const requestedIds = raw.map((value: any) => String(value?.id ?? ""));
+    const newIds = new Set(requestedIds.filter(id => !existingIds.has(id)));
+    invariant(existingIds.size + newIds.size <= policy.maxChildrenPerTask, "delegation child budget exhausted");
     const tasks: Task[] = raw.map((value: any) => {
       invariant(value && typeof value === "object" && !Array.isArray(value), "invalid spawned task");
       const task: Task = {
