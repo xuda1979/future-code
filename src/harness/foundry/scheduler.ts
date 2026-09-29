@@ -109,34 +109,43 @@ export class Scheduler {
           WHERE e.run=? AND e.parent=? AND t.status<>'PASS' LIMIT 1`).get(runId, task.id);
       };
 
-      // A bounded overscan lets scope/context conflicts skip candidates without
-      // turning a large ready set into a full-run scan.
+      // Overscan the highest-ranked ready work first, then page deeper only
+      // when scope/context conflicts make that window inadmissible. This keeps
+      // the common path bounded while preventing a fixed 4096-row prefix from
+      // starving feasible lower-ranked work in large swarms.
       const window = Math.min(4096, Math.max(64, capacity * 16));
-      for (const candidate of readyCandidates(this.store, runId, now, window)) {
-        const task = JSON.parse(candidate.spec) as Task;
-        if (!authoritativeReady(task)) { derivedDrift = true; continue; }
-        if (active.some(other => snapshotReads
-          ? conflicts(task.writeScope, other.writeScope)
-          : accessConflicts(task, other))) continue;
-        if (recipe.maxInFlightContextBytes !== undefined &&
-            reserved + candidate.budget > recipe.maxInFlightContextBytes) continue;
+      let offset = 0;
+      while (leases.length < capacity) {
+        const candidates = readyCandidates(this.store, runId, now, window, offset);
+        if (!candidates.length) break;
+        offset += candidates.length;
+        for (const candidate of candidates) {
+          const task = JSON.parse(candidate.spec) as Task;
+          if (!authoritativeReady(task)) { derivedDrift = true; continue; }
+          if (active.some(other => snapshotReads
+            ? conflicts(task.writeScope, other.writeScope)
+            : accessConflicts(task, other))) continue;
+          if (recipe.maxInFlightContextBytes !== undefined &&
+              reserved + candidate.budget > recipe.maxInFlightContextBytes) continue;
 
-        const fence = candidate.fence + 1; const deadline = now + recipe.timeoutMs;
-        const updated = this.store.db.prepare(`UPDATE tasks SET status='RUNNING',fence=?,owner=?,deadline=?,error=NULL
-          WHERE run=? AND id=? AND status='READY' AND fence=?`)
-          .run(fence, owner, deadline, runId, candidate.id, candidate.fence);
-        if (!updated.changes) continue;
-        this.store.db.prepare("INSERT INTO attempts(run,task,fence,started,status) VALUES(?,?,?,?,'RUNNING')")
-          .run(runId, candidate.id, fence, now);
-        this.store.db.prepare("DELETE FROM task_waits WHERE run=? AND task=?").run(runId, candidate.id);
-        this.store.db.prepare("INSERT INTO attempt_health VALUES(?,?,?,?,?,NULL,NULL)")
-          .run(runId, candidate.id, fence, "prepare", now);
-        this.store.event("task.claimed", { owner, fence, deadline, reservedContextBytes: candidate.budget,
-          criticalPathEstimate: candidate.rank }, runId, candidate.id);
-        leases.push({ runId, taskId: candidate.id, owner, fence, deadline,
-          recipeHash: run.recipe, contractHash: run.contract });
-        active.push(task); reserved += candidate.budget;
-        if (leases.length >= capacity) break;
+          const fence = candidate.fence + 1; const deadline = now + recipe.timeoutMs;
+          const updated = this.store.db.prepare(`UPDATE tasks SET status='RUNNING',fence=?,owner=?,deadline=?,error=NULL
+            WHERE run=? AND id=? AND status='READY' AND fence=?`)
+            .run(fence, owner, deadline, runId, candidate.id, candidate.fence);
+          if (!updated.changes) continue;
+          this.store.db.prepare("INSERT INTO attempts(run,task,fence,started,status) VALUES(?,?,?,?,'RUNNING')")
+            .run(runId, candidate.id, fence, now);
+          this.store.db.prepare("DELETE FROM task_waits WHERE run=? AND task=?").run(runId, candidate.id);
+          this.store.db.prepare("INSERT INTO attempt_health VALUES(?,?,?,?,?,NULL,NULL)")
+            .run(runId, candidate.id, fence, "prepare", now);
+          this.store.event("task.claimed", { owner, fence, deadline, reservedContextBytes: candidate.budget,
+            criticalPathEstimate: candidate.rank }, runId, candidate.id);
+          leases.push({ runId, taskId: candidate.id, owner, fence, deadline,
+            recipeHash: run.recipe, contractHash: run.contract });
+          active.push(task); reserved += candidate.budget;
+          if (leases.length >= capacity) break;
+        }
+        if (candidates.length < window) break;
       }
       if (derivedDrift) {
         this.store.event("scheduler.index.unsafe_candidate",
