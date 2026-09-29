@@ -1,6 +1,4 @@
-# Future Code Source Snapshot for Security Research
 
-> This repository mirrors a **publicly exposed Future Code source snapshot** that became accessible on **March 31, 2026** through a source map exposure in the npm distribution. It is maintained for **educational, defensive security research, and software supply-chain analysis**.
 
 ---
 
