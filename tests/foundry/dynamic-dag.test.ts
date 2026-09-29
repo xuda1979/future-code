@@ -114,6 +114,30 @@ test("dynamic DAG batches are durable, replay-safe, and use measured progress de
   });
 });
 
+test("nested dynamic DAG failure propagates through runtime spawn edges", async () => {
+  await coreFixture(store => {
+    const q = new Scheduler(store);
+    const run = q.start([coreTask("root", { writeScope: ["src"], readScope: ["src"] })]);
+    const rootLease = q.claim(run, "root")!; const rootCapsule = q.capsule(rootLease);
+    const mid = coreTask("root.mid", { writeScope: ["src/mid"], readScope: ["src"] });
+    spawnTasks(store, rootCapsule, "root-spawn", digest({ child: "mid" }), [mid], policy);
+    q.defer(rootLease, new DeferredAttemptError("spawn", Date.now(), "waiting for mid"));
+
+    const midLease = q.claim(run, "mid")!; assert.equal(midLease.taskId, "root.mid");
+    const midCapsule = q.capsule(midLease);
+    const leaf = coreTask("root.mid.leaf", { writeScope: ["src/mid/leaf"], readScope: ["src/mid"] });
+    spawnTasks(store, midCapsule, "mid-spawn", digest({ child: "leaf" }), [leaf], policy);
+    q.defer(midLease, new DeferredAttemptError("spawn", Date.now(), "waiting for leaf"));
+
+    const leafLease = q.claim(run, "leaf")!; assert.equal(leafLease.taskId, "root.mid.leaf");
+    q.fail(leafLease, "leaf failed permanently", zero, Date.now(), { retryable: false });
+    assert.equal(q.claim(run, "finalize"), null);
+    assert.equal(q.summary(run).status, "FAIL");
+    assert.equal(store.db.prepare("SELECT status FROM tasks WHERE run=? AND id='root.mid'").get(run)!.status, "BLOCKED");
+    assert.equal(store.db.prepare("SELECT status FROM tasks WHERE run=? AND id='root'").get(run)!.status, "BLOCKED");
+  });
+});
+
 test("dynamic DAG admission rejects authority expansion and sibling conflicts", async () => {
   await coreFixture(store => {
     const q = new Scheduler(store);
