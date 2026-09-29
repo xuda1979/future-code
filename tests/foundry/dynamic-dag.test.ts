@@ -73,6 +73,8 @@ test("dynamic DAG batches are durable, replay-safe, and use measured progress de
     assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM spawn_edges WHERE run=?")
       .get(run)!.n, 1);
     assert.equal(accept(q, secondLease), true);
+    // Run finalization is scheduler-owned and occurs on the next refill/claim.
+    assert.equal(q.claim(run, "finalize"), null);
 
     const measured = store.db.prepare(
       "SELECT context_bytes FROM attempt_telemetry WHERE run=? AND context_bytes IS NOT NULL"
