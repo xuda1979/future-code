@@ -63,6 +63,19 @@ test("large ready sets claim from the durable index and rebuild after index loss
   assert.ok(stats.rebuilds >= 1);
 }));
 
+test("stale scheduler fingerprint is rebuilt before another claim", async () => fixture(store => {
+  const q = new Scheduler(store); const run = q.start([task("a"), task("b")]);
+  const before = schedulerIndexStats(store, run)!;
+  store.db.prepare("UPDATE scheduler_index_meta SET source_hash=? WHERE run=?").run("0".repeat(64), run);
+  const lease = q.claim(run, "worker")!;
+  assert.ok(lease);
+  const after = schedulerIndexStats(store, run)!;
+  assert.ok(after.rebuilds > before.rebuilds);
+  assert.notEqual(after.sourceHash, "0".repeat(64));
+  const drift = store.db.prepare("SELECT COUNT(*) AS n FROM events WHERE run=? AND kind='scheduler.index.drift'").get(run)!.n;
+  assert.equal(drift, 1);
+}));
+
 test("acceptance releases only indexed dependents and terminal failure blocks descendants", async () => fixture(store => {
   const q = new Scheduler(store);
   const run = q.start([task("a"), task("b", ["a"]), task("c", ["b"]), task("side")]);
