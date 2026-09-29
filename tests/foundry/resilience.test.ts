@@ -266,6 +266,36 @@ test("prepared recovery is adopted after a supervisor crash without another plan
   s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
 }));
+test("unresolved remote outcome suppresses autonomous replacement planning", async () => swarmFixture(async (s, cfg) => {
+  const first = new AbortController();
+  await superviseSwarm(
+    s,
+    { id: "remote-reconcile", goal: "Finish without duplicating external compute", tasks: [swarmTask()] },
+    first.signal,
+    r => { if (r.status === "NEEDS_ATTENTION") first.abort(); },
+    (async () => new Response(null, { status: 401 })) as typeof fetch,
+  );
+  const old: any = objectiveStatus(s, "remote-reconcile");
+  new ResearchJobs(new SessionJournal(s), cfg);
+  const now = Date.now();
+  s.db.prepare(`INSERT INTO research_jobs
+    (key,run,task,template,input_hash,created,progress_at,poll_at,failures,job_id,status,result_hash,updated)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run("unresolved-job", old.run, "a", "train", "binding", now, now, now, 0, "remote-1", "UNKNOWN", null, now);
+  s.db.prepare("UPDATE swarm_objectives SET owner=NULL,lease=NULL,state='NEEDS_ATTENTION' WHERE id='remote-reconcile'").run();
+  let plannerCalls = 0; const second = new AbortController();
+  const result: any = await superviseSwarm(
+    s, { id: "remote-reconcile" }, second.signal,
+    r => { if (r.status === "NEEDS_ATTENTION") second.abort(); },
+    undefined,
+    async () => { plannerCalls++; return { reason: "unsafe replacement", tasks: [{ ...swarmTask("replacement") }] }; },
+  );
+  assert.equal(result.status, "PAUSED"); assert.equal(plannerCalls, 0);
+  assert.match((objectiveStatus(s, "remote-reconcile") as any).reason, /Remote outcome requires reconciliation/);
+}, s => {
+  jobSpec(s); s.recipe.attempts = 1;
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
+}));
 test("permanent failure stays visible, does not spin models, and honors operator pause", async () => swarmFixture(async s => {
   let requests = 0; const ctl = new AbortController(); const phases: string[] = [];
   const result: any = await superviseSwarm(s, { id: "needs-config", goal: "Correct implementation", tasks: [swarmTask()] }, ctl.signal,
