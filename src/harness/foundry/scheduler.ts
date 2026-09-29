@@ -20,7 +20,23 @@ export class Scheduler {
       invariant(typeof t.spec === "string", "missing persisted task specification");
       return JSON.parse(t.spec) as Task;
     });
-    const plan = compilePlan(tasks, recipe, this.store.contract().limits.contextBytes);
+    // Runtime-spawned children are first-class scheduling dependencies even
+    // though the persisted parent Task remains immutable for thread binding.
+    // Overlay spawn edges only for planning/ranking; readiness is still checked
+    // against durable task and spawn state below.
+    const spawned = new Map<string, string[]>();
+    for (const edge of this.store.db.prepare(
+      "SELECT parent,child FROM spawn_edges WHERE run=? ORDER BY parent,child"
+    ).all(runId)) {
+      const list = spawned.get(String(edge.parent)) ?? [];
+      list.push(String(edge.child)); spawned.set(String(edge.parent), list);
+    }
+    const runtimeTasks = tasks.map(task => {
+      const extra = spawned.get(task.id) ?? [];
+      if (!extra.length) return task;
+      return { ...task, dependencies: [...new Set([...task.dependencies, ...extra])] };
+    });
+    const plan = compilePlan(runtimeTasks, recipe, this.store.contract().limits.contextBytes);
     this.cachedPlan = { runId, recipeHash, taskCount, plan }; return plan;
   }
   start(tasks: Task[], recipeHash = this.store.active(), now = Date.now(), id = randomUUID()): string {
@@ -31,7 +47,10 @@ export class Scheduler {
       const existing = this.store.db.prepare("SELECT recipe,contract FROM runs WHERE id=?").get(id);
       if (existing) {
         invariant(existing.recipe === recipeHash && existing.contract === digest(contract), "run id binding drift");
-        const actual = this.store.db.prepare("SELECT spec FROM tasks WHERE run=? ORDER BY id").all(id).map(t => JSON.parse(t.spec));
+        const actual = this.store.db.prepare(`SELECT t.spec FROM tasks t
+          WHERE t.run=? AND NOT EXISTS (
+            SELECT 1 FROM spawn_edges e WHERE e.run=t.run AND e.child=t.id
+          ) ORDER BY t.id`).all(id).map(t => JSON.parse(t.spec));
         const expected = [...tasks].sort((a, b) => a.id.localeCompare(b.id));
         invariant(digest(actual) === digest(expected), "run id task graph drift");
         return id;
