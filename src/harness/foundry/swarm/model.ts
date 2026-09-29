@@ -154,7 +154,7 @@ export class HttpBrain {
       const key = process.env[profile.keyEnv]; if (!key) throw new FatalAttemptError(`Missing credential environment: ${profile.keyEnv}`);
       headers[profile.protocol === "anthropic" ? "x-api-key" : "authorization"] = profile.protocol === "anthropic" ? key : `Bearer ${key}`;
     }
-    const provider = digest({ url: profile.url });
+    const provider = digest({ quotaPool: profile.quotaPool ?? `${profile.url}#${profile.model}` });
     for (let retry = 0; retry < 2; retry++) {
       const id = await this.journal.reserve(c, provider, body, budget, signal);
       let completed = false;
