@@ -42,8 +42,7 @@ export class SwarmDriver implements Driver {
   async execute(c: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult> {
     const profile = this.cfg.spec.agents[c.task.agent ?? this.cfg.spec.defaultAgent]; invariant(profile, "unknown agent profile");
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
-      task: c.task, dependencies: c.dependencies,
-      contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. If delegation tools are enabled, spawn only independent bounded child tasks inside delegateScope and await them before relying on their results. Never edit infrastructure." }) }],
+      task: c.task, dependencies: c.dependencies }) }],
       turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null });
     const resumed = c.fence > (t.state.lastFence ?? 0);
     if (resumed) {
