@@ -1,52 +1,53 @@
 export type PermissionDeliveryResult = {
   delivered: string[]
-  pending: string[]
+  retained: string[]
 }
 
 /**
- * Keeps control responses until the WebSocket has synchronously accepted them.
- * A reconnect may retry the same request_id; the protocol request identity makes
- * that safer than deleting a decision before it has even left this process.
+ * Retains control responses through reconnects.
+ *
+ * A WebSocket send only proves that the local socket accepted bytes; it does
+ * not prove the remote process consumed them before a disconnect. Keeping the
+ * decision keyed by request_id lets reconnect replay the exact same response.
+ * Entries are removed only when the server cancels the request or the session
+ * is torn down.
  */
 export class PermissionResponseDeliveryQueue<T> {
-  private readonly pending = new Map<string, T>()
+  private readonly retained = new Map<string, T>()
 
   enqueue(requestId: string, payload: T): void {
-    this.pending.set(requestId, payload)
+    this.retained.set(requestId, payload)
   }
 
   has(requestId: string): boolean {
-    return this.pending.has(requestId)
+    return this.retained.has(requestId)
   }
 
   get size(): number {
-    return this.pending.size
+    return this.retained.size
   }
 
   cancel(requestId: string): void {
-    this.pending.delete(requestId)
+    this.retained.delete(requestId)
   }
 
   clear(): void {
-    this.pending.clear()
+    this.retained.clear()
   }
 
   flush(send: (payload: T) => boolean): PermissionDeliveryResult {
     const delivered: string[] = []
 
-    for (const [requestId, payload] of this.pending) {
+    for (const [requestId, payload] of this.retained) {
       let accepted = false
       try {
         accepted = send(payload)
       } catch {
         accepted = false
       }
-      if (!accepted) continue
-
-      this.pending.delete(requestId)
-      delivered.push(requestId)
+      if (accepted) delivered.push(requestId)
     }
 
-    return { delivered, pending: [...this.pending.keys()] }
+    return { delivered, retained: [...this.retained.keys()] }
   }
 }
