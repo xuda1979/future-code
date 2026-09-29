@@ -40,6 +40,58 @@ export class Scheduler {
       return id;
     });
   }
+  /** Atomically add validated child tasks to a live run. Existing task specs
+   * are immutable. The caller must pass the currently leased parent task so
+   * delegated authority can be bounded and replay-safe. */
+  expand(runId: string, parentId: string, children: Task[], proposalId: string, now = Date.now()): { added: string[]; existing: string[] } {
+    identifier(proposalId);
+    invariant(children.length > 0, "empty task expansion");
+    const contract = this.store.contract();
+    return this.store.transaction(() => {
+      const run = this.store.db.prepare("SELECT * FROM runs WHERE id=?").get(runId); invariant(run?.status === "RUNNING", "run is not expandable");
+      const parentRow = this.store.db.prepare("SELECT spec,status FROM tasks WHERE run=? AND id=?").get(runId, parentId);
+      invariant(parentRow?.status === "RUNNING", "parent task must be actively leased");
+      const parent = JSON.parse(parentRow.spec) as Task;
+      const authority = parent.delegateScope ?? parent.writeScope;
+      invariant(authority.length > 0, "parent has no delegable scope");
+      this.store.db.exec(`CREATE TABLE IF NOT EXISTS task_expansions(
+        run TEXT NOT NULL,parent TEXT NOT NULL,proposal TEXT NOT NULL,task TEXT NOT NULL,
+        spec_hash TEXT NOT NULL,created REAL NOT NULL,PRIMARY KEY(run,parent,proposal,task));
+        CREATE INDEX IF NOT EXISTS task_expansions_run ON task_expansions(run,parent);`);
+      const existingTasks = this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(runId).map(r => JSON.parse(r.spec) as Task);
+      const known = new Map(existingTasks.map(t => [t.id, t]));
+      const seen = new Set<string>();
+      for (const child of children) {
+        invariant(!seen.has(child.id), "duplicate child task id"); seen.add(child.id);
+        invariant(child.id !== parentId, "child may not replace parent");
+        invariant(child.dependencies.includes(parentId), "spawned child must depend on parent");
+        invariant(child.writeScope.every(p => authority.some(a => p === a || p.startsWith(`${a}/`))), "child write scope exceeds delegated authority");
+        invariant((child.delegateScope ?? []).every(p => authority.some(a => p === a || p.startsWith(`${a}/`))), "child delegation exceeds parent authority");
+        for (const d of child.dependencies) invariant(d === parentId || known.has(d) || seen.has(d), "child dependency is not admitted");
+      }
+      const merged = [...existingTasks];
+      for (const child of children) if (!known.has(child.id)) merged.push(child);
+      validateTasks(contract, merged);
+      invariant(merged.length <= contract.limits.tasks, "expanded task graph exceeds task limit");
+      compilePlan(merged, this.store.recipe(run.recipe), contract.limits.contextBytes);
+      const added: string[] = []; const existing: string[] = [];
+      const insert = this.store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')");
+      const record = this.store.db.prepare("INSERT OR IGNORE INTO task_expansions VALUES(?,?,?,?,?,?)");
+      for (const child of children) {
+        const prior = known.get(child.id);
+        if (prior) {
+          invariant(digest(prior) === digest(child), "spawned task id drift");
+          existing.push(child.id);
+        } else {
+          insert.run(runId, child.id, JSON.stringify(child)); known.set(child.id, child); added.push(child.id);
+        }
+        record.run(runId, parentId, proposalId, child.id, digest(child), now);
+      }
+      this.cachedPlan = undefined;
+      this.store.event("run.expanded", { parent: parentId, proposalId, added, existing, taskCount: merged.length }, runId, parentId);
+      return { added, existing };
+    });
+  }
   /** Backward-compatible single claim; all reservations share the batch path. */
   claim(runId: string, owner: string, now = Date.now()): Lease | null {
     return this.claimMany(runId, owner, 1, now)[0] ?? null;
