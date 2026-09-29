@@ -264,11 +264,12 @@ include them in a real end-to-end evaluation.
 
 The implementation accepts bounded plans up to the existing contract ceilings,
 not an empirically validated 30,000-agent cluster. SQLite is a local single-host
-control plane. There is no distributed consensus, autoscaling fleet, remote
-worker service, universal MCP proxy, Vault, cross-session learning/Dreaming,
-recursive delegation or self-modifying orchestrator in this patch. A second
-process can cooperate through the existing Store/host API; the CLI does not
-create or manage a daemon fleet.
+control plane. Opt-in dynamic DAG spawning may recurse only within host-enforced
+depth/count/scope limits; it does not create an unbounded manager hierarchy.
+There is no distributed consensus, autoscaling fleet, remote worker service,
+universal MCP proxy, Vault, cross-session learning/Dreaming, or self-modifying
+orchestrator. A second process can cooperate through the existing Store/host API;
+the CLI does not create or manage a daemon fleet.
 
 ## 7. Tests and evaluation
 
