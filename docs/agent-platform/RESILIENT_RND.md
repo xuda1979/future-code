@@ -89,10 +89,13 @@ reservations. `snapshotReads: true` is an explicit new contract for the private
 Git backend: a sibling writing its own private tree does not block a reader of
 another pinned tree. It does not provide locking for external databases/devices.
 
-Plan useful independent work with `/swarm-plan`; the runtime dispatches that
-reviewed DAG. This release does not invent new tasks, recursively spawn arbitrary
-roles, mutate an admitted task graph, or provide multi-host agent scheduling.
-Increasing limits is not evidence of higher productivity.
+Plan useful independent work with `/swarm-plan`; that reviewed DAG remains
+the admitted root work. When a pinned agent profile explicitly grants
+`spawn_tasks` and `supervision.dynamicDAG` is configured, the runtime may add
+bounded child tasks without rewriting the parent's immutable task specification.
+The host enforces roster, scope, depth and task-count ceilings; this is not
+arbitrary role creation or multi-host scheduling. Increasing limits is not
+evidence of higher productivity.
 
 ## Resume and inspect
 
