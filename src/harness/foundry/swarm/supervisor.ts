@@ -86,19 +86,44 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       [{ id: "objective", status: row.state, stage: "integration", activityAgeMs: null, progressAgeMs: null, checkAgeMs: null, deadline: null, wakeAt: null, reason: row.reason }] : [] }); }
     catch { store.event("observer.error", { reason: "objective observer threw" }, row.run); }
   };
+  const adoptPreparedRecovery = (row: any, recovery: any): boolean => {
+    invariant(recovery?.state === "PREPARED" && typeof recovery.new_run === "string", "invalid prepared recovery");
+    const revision = store.db.prepare("SELECT plan,run,reason FROM swarm_objective_revisions WHERE objective=? AND revision=?")
+      .get(input.id, recovery.revision);
+    invariant(revision && revision.run === recovery.new_run, "prepared recovery revision missing or drifted");
+    const tasks = store.readArtifact(revision.plan) as unknown as Task[];
+    validateTasks(store.contract(), tasks); validateSwarmTasks(cfg.spec, tasks);
+    const source = store.db.prepare("SELECT recipe FROM runs WHERE id=?").get(row.run);
+    invariant(source?.recipe, "recovery source run missing");
+    // The run identity is durable before creation. Repeating start after a crash
+    // adopts the exact same run and task graph instead of creating another run.
+    new Scheduler(store).start(tasks, source.recipe, Date.now(), recovery.new_run);
+    store.transaction(() => {
+      const current = assertOwner(); invariant(current.run === row.run, "objective changed during recovery adoption");
+      const now = Date.now();
+      store.db.prepare("UPDATE swarm_objectives SET plan=?,run=?,state='RUNNING',reason=NULL,updated=? WHERE id=?")
+        .run(revision.plan, recovery.new_run, now, input.id);
+      store.db.prepare("UPDATE swarm_recovery_attempts SET state='PLANNED',detail=?,updated=? WHERE objective=? AND run=?")
+        .run(String(revision.reason).slice(0, 2048), now, input.id, row.run);
+      store.event("objective.replanned", { id: input.id, fromRun: row.run, toRun: recovery.new_run,
+        revision: recovery.revision, plan: revision.plan }, recovery.new_run);
+    });
+    return true;
+  };
   const attemptRecovery = async (reason: string): Promise<boolean> => {
     const maxReplans = cfg.spec.supervision?.maxReplans ?? 0;
     if (!recoveryPlanner || maxReplans <= 0) return false;
     const row = assertOwner(); if (!row.run) return false;
-    const existing = store.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective=? AND run=?").get(input.id, row.run);
-    if (existing) return false; // one durable planner attempt per failed run
+    const existing = store.db.prepare("SELECT * FROM swarm_recovery_attempts WHERE objective=? AND run=?").get(input.id, row.run);
+    if (existing?.state === "PREPARED") return adoptPreparedRecovery(row, existing);
+    if (existing && existing.state !== "STARTED") return false; // terminal planner decision is durable
     const used = store.db.prepare("SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective=? AND revision>0").get(input.id)!.n;
-    if (used >= maxReplans) return false;
-    const revision = used + 1;
+    if (!existing && used >= maxReplans) return false;
+    const revision = existing ? existing.revision : used + 1;
     const tasks = store.readArtifact(row.plan) as unknown as Task[];
     const failures = store.db.prepare("SELECT id,status,error FROM tasks WHERE run=? AND status<>'PASS' ORDER BY id LIMIT 200").all(row.run)
       .map(r => ({ id: String(r.id), status: String(r.status), error: r.error == null ? null : String(r.error).slice(0, 1024) }));
-    store.transaction(() => {
+    if (!existing) store.transaction(() => {
       assertOwner(); const now = Date.now();
       store.db.prepare("INSERT INTO swarm_recovery_attempts VALUES(?,?,?,?,?,NULL,?,?)")
         .run(input.id, row.run, revision, "STARTED", reason.slice(0, 2048), now, now);
@@ -106,6 +131,9 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     });
     let proposal: RecoveryPlan | null = null;
     try {
+      // STARTED is deliberately replayable: the planner has no execution authority
+      // and no replacement run has been admitted yet. A controller crash can safely
+      // repeat planning under the same bounded revision.
       proposal = await recoveryPlanner({ objectiveId: input.id, goal: row.goal, runId: row.run, reason, revision, tasks, failures }, controller.signal);
       controller.signal.throwIfAborted();
       if (!proposal) {
@@ -117,23 +145,30 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       validateTasks(store.contract(), proposal.tasks); validateSwarmTasks(cfg.spec, proposal.tasks);
       invariant(digest(proposal.tasks) !== digest(tasks), "recovery plan must materially change execution structure");
       const newPlan = store.artifact(JSON.parse(canonical(proposal.tasks)));
-      // Starting a new run is intentionally outside the objective transaction.
-      // A crash here can leave an orphan run, never duplicate accepted work.
-      const newRun = new Scheduler(store).start(proposal.tasks);
+      const newRun = randomUUID();
+      const source = store.db.prepare("SELECT recipe FROM runs WHERE id=?").get(row.run);
+      invariant(source?.recipe, "recovery source run missing");
+      // Persist the exact replacement identity and graph BEFORE creating the run.
+      // Any crash from this point is reconciled through adoptPreparedRecovery().
       store.transaction(() => {
         const current = assertOwner(); invariant(current.run === row.run, "objective changed during recovery planning");
         const now = Date.now();
         store.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
           .run(input.id, revision, newPlan, newRun, proposal!.reason.slice(0, 2048), now);
-        store.db.prepare("UPDATE swarm_objectives SET plan=?,run=?,state='RUNNING',reason=NULL,updated=? WHERE id=?")
-          .run(newPlan, newRun, now, input.id);
-        store.db.prepare("UPDATE swarm_recovery_attempts SET state='PLANNED',detail=?,new_run=?,updated=? WHERE objective=? AND run=?")
+        store.db.prepare("UPDATE swarm_recovery_attempts SET state='PREPARED',detail=?,new_run=?,updated=? WHERE objective=? AND run=?")
           .run(proposal!.reason.slice(0, 2048), newRun, now, input.id, row.run);
-        store.event("objective.replanned", { id: input.id, fromRun: row.run, toRun: newRun, revision, plan: newPlan }, newRun);
+        store.event("objective.recovery.prepared", { id: input.id, fromRun: row.run, toRun: newRun, revision, plan: newPlan }, row.run);
       });
-      return true;
+      new Scheduler(store).start(proposal.tasks, source.recipe, Date.now(), newRun);
+      return adoptPreparedRecovery(row, { state: "PREPARED", new_run: newRun, revision });
     } catch (e) {
       if (controller.signal.aborted) throw e;
+      const current = store.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective=? AND run=?").get(input.id, row.run);
+      if (current?.state === "PREPARED") {
+        store.event("objective.recovery.pending", { id: input.id, run: row.run, revision,
+          detail: e instanceof Error ? e.message.slice(0, 1024) : "prepared recovery awaiting restart" }, row.run);
+        throw e; // preserve PREPARED for deterministic adoption on process restart
+      }
       const detail = e instanceof Error ? e.message.slice(0, 2048) : "recovery planner failed";
       store.db.prepare("UPDATE swarm_recovery_attempts SET state='FAILED',detail=?,updated=? WHERE objective=? AND run=?")
         .run(detail, Date.now(), input.id, row.run);
