@@ -5,6 +5,7 @@ import type { Store } from "../store.ts";
 import type { Json, Task } from "../types.ts";
 import type { AgentProfile, PinnedSwarm, Protocol } from "./config.ts";
 import { boundedJson, isTransportFailure } from "./model.ts";
+import { SessionJournal } from "./session.ts";
 import type { RecoveryContext, RecoveryPlan, RecoveryPlanner } from "./supervisor.ts";
 
 const TRANSIENT = new Set([408, 425, 429, 500, 502, 503, 504, 529]);
@@ -124,6 +125,19 @@ function decodePlan(protocol: Protocol, raw: any): RecoveryPlan | null {
   return { reason: value.reason, tasks: value.tasks as Task[] };
 }
 
+function usageTokens(raw: any, protocol: Protocol): number | null {
+  const u = raw?.usage;
+  if (!u || typeof u !== "object") return null;
+  const ns = protocol === "anthropic"
+    ? [u.input_tokens, u.output_tokens, u.cache_creation_input_tokens ?? 0, u.cache_read_input_tokens ?? 0]
+    : [u.prompt_tokens, u.completion_tokens];
+  if (ns.some(x => x === undefined || x === null)) return null;
+  invariant(ns.every(x => Number.isSafeInteger(x) && x >= 0), "invalid provider usage");
+  const total = ns.reduce((a, b) => a + b, 0);
+  invariant(Number.isSafeInteger(total), "provider usage overflow");
+  return total;
+}
+
 function headers(profile: AgentProfile): Record<string, string> {
   const out: Record<string, string> = { "content-type": "application/json" };
   if (profile.protocol === "anthropic") out["anthropic-version"] = "2023-06-01";
@@ -143,6 +157,7 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
   const agent = cfg.spec.supervision?.recoveryAgent ?? cfg.spec.defaultAgent;
   const profile = cfg.spec.agents[agent];
   invariant(profile, "unknown recovery agent");
+  const journal = new SessionJournal(store);
   return async (context, signal) => {
     const body = requestBody(profile, context, cfg);
     const encoded = canonical(body);
@@ -151,6 +166,8 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
     const provider = digest({ url: profile.url });
     for (let attempt = 0; attempt < 2; attempt++) {
       signal.throwIfAborted();
+      const requestId = await journal.reserveRun(context.runId, "__recovery__", provider, body, cfg.spec.budget, signal);
+      let recorded = false;
       store.event("objective.recovery.model.request", {
         objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
         agent, provider, attempt: attempt + 1, requestBytes: Buffer.byteLength(encoded),
@@ -163,13 +180,16 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
         });
         if (!response.ok) {
           await response.body?.cancel();
+          journal.complete(requestId, null, null); recorded = true;
           if (TRANSIENT.has(response.status) && attempt === 0) {
+            journal.cooldown(provider, 250);
             await delay(250, undefined, { signal });
             continue;
           }
           throw new FatalAttemptError(`Recovery model HTTP ${response.status}; provider/configuration requires attention`);
         }
         const raw = await boundedJson(response, cfg.spec.budget.maxToolOutputBytes);
+        journal.complete(requestId, usageTokens(raw, profile.protocol), raw); recorded = true;
         const plan = decodePlan(profile.protocol, raw);
         store.event("objective.recovery.model.reply", {
           objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
@@ -178,8 +198,10 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
         }, context.runId);
         return plan;
       } catch (error) {
+        if (!recorded) journal.complete(requestId, null, null);
         signal.throwIfAborted();
         if (attempt === 0 && isTransportFailure(error)) {
+          journal.cooldown(provider, 250);
           await delay(250, undefined, { signal });
           continue;
         }
