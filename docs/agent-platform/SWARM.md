@@ -262,14 +262,14 @@ Use dependency paths for shared schemas. Independent work should usually use
 narrow read scopes too: declaring the whole `src` tree read-only will deliberately
 serialize it against every writer under `src`.
 
-`modelConcurrency` bounds in-flight RPCs per provider/model quota pool **within
-one run and Store**. By default the pool identity is endpoint + model. Set the
+`modelConcurrency` bounds in-flight RPCs per provider/model quota pool **across
+all runs sharing one Store**. By default the pool identity is endpoint + model. Set the
 optional `quotaPool` on multiple agent profiles when an external provider applies
 one shared limit across those models. Same-process waiters are event-driven when
 a request completes; a bounded 250 ms check remains only for coordination with
 another process sharing the SQLite Store. Multiple processes sharing that Store
 honor the same durable limit.
-It is not an account-wide or cross-run rate limiter. HTTP 429/503/529 cooldowns
+It is not an account-wide or cross-Store rate limiter. HTTP 429/503/529 cooldowns
 are shared within that ledger; request attempts still consume durable budgets.
 The number of calls and aggregate serialized request bytes have run-level caps.
 Recovery-planner requests use the same durable run request/byte ledger and provider
