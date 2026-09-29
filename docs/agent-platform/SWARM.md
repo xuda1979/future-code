@@ -230,7 +230,11 @@ node --experimental-strip-types src/harness/foundry/swarm/cli.ts receipt \
 ```
 
 Status returns at most 200 tasks plus `nextTaskAfter`. Request another page with
-`--task-after TASK_ID`. Event pages use sequence cursors. Keep the state directory
+`--task-after TASK_ID`. Health output also reports scheduler runnable,
+dependency-blocked and delayed counts, provider active/unknown request state, and
+external-job active/stalled/terminal counts. This lets an operator distinguish
+slow execution from dependency starvation, provider throttling and remote-job
+reconciliation without inferring progress from chat activity. Event pages use sequence cursors. Keep the state directory
 private, backed up as a consistent SQLite/artifact pair, and out of source control.
 Logs and source content are not automatically secret-redacted.
 
@@ -247,13 +251,24 @@ independently verified before the parent resumes. Crash replay reuses the origin
 tool-call ID and cannot duplicate an admitted child batch.
 
 Foundry's existing task concurrency and logical read/write reservations remain
-in force. Separate worktrees do not justify ignoring declared interface conflicts.
+in force. Ready-state scheduling is backed by a durable derived index containing
+runtime dependency edges, remaining prerequisite counts, critical-path rank and
+context reservation. Claims operate on indexed READY candidates plus the small
+RUNNING set; full O(V+E) graph work is paid at admission or structural DAG
+expansion. The index is disposable: if it is absent after a crash or upgrade,
+Future Code reconstructs it from authoritative `tasks` and `spawn_edges`
+before admitting more work. Separate worktrees do not justify ignoring declared interface conflicts.
 Use dependency paths for shared schemas. Independent work should usually use
 narrow read scopes too: declaring the whole `src` tree read-only will deliberately
 serialize it against every writer under `src`.
 
-`modelConcurrency` bounds in-flight RPCs per model endpoint/model group **within
-one run and Store**. Multiple processes sharing that Store honor the same limit.
+`modelConcurrency` bounds in-flight RPCs per provider/model quota pool **within
+one run and Store**. By default the pool identity is endpoint + model. Set the
+optional `quotaPool` on multiple agent profiles when an external provider applies
+one shared limit across those models. Same-process waiters are event-driven when
+a request completes; a bounded 250 ms check remains only for coordination with
+another process sharing the SQLite Store. Multiple processes sharing that Store
+honor the same durable limit.
 It is not an account-wide or cross-run rate limiter. HTTP 429/503/529 cooldowns
 are shared within that ledger; request attempts still consume durable budgets.
 The number of calls and aggregate serialized request bytes have run-level caps.
