@@ -23,7 +23,7 @@ export class Store {
     db.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS recipes(hash TEXT PRIMARY KEY, parent TEXT, json TEXT NOT NULL, admitted INTEGER NOT NULL DEFAULT 0);
-      CREATE TABLE IF NOT EXISTS runs(id TEXT PRIMARY KEY, recipe TEXT NOT NULL, contract TEXT NOT NULL, started REAL NOT NULL, ended REAL, status TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS runs(id TEXT PRIMARY KEY, recipe TEXT NOT NULL, contract TEXT NOT NULL, started REAL NOT NULL, ended REAL, status TEXT NOT NULL, graph_version INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS tasks(run TEXT NOT NULL, id TEXT NOT NULL, spec TEXT NOT NULL, status TEXT NOT NULL, fence INTEGER NOT NULL DEFAULT 0, owner TEXT, deadline REAL, artifact TEXT, evidence TEXT, error TEXT, PRIMARY KEY(run,id));
       CREATE INDEX IF NOT EXISTS tasks_status ON tasks(run,status);
       CREATE INDEX IF NOT EXISTS tasks_deadline ON tasks(run,status,deadline);
@@ -40,7 +40,7 @@ export class Store {
         ON scheduler_edges(run,dependent,prerequisite);
       CREATE TABLE IF NOT EXISTS scheduler_index_meta(
         run TEXT PRIMARY KEY, task_count INTEGER NOT NULL, edge_count INTEGER NOT NULL,
-        rebuilds INTEGER NOT NULL, built_at REAL NOT NULL, source_hash TEXT);
+        rebuilds INTEGER NOT NULL, built_at REAL NOT NULL, source_hash TEXT, source_version INTEGER);
       CREATE TABLE IF NOT EXISTS attempts(run TEXT NOT NULL, task TEXT NOT NULL, fence INTEGER NOT NULL, started REAL NOT NULL, ended REAL, status TEXT NOT NULL, tokens REAL, cost REAL, duration REAL, PRIMARY KEY(run,task,fence));
       CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL, kind TEXT NOT NULL, run TEXT, task TEXT, payload TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS attempt_telemetry(run TEXT NOT NULL, task TEXT NOT NULL, fence INTEGER NOT NULL,
@@ -55,8 +55,11 @@ export class Store {
         depth INTEGER NOT NULL, created REAL NOT NULL, PRIMARY KEY(run,child));
       CREATE INDEX IF NOT EXISTS spawn_edges_parent ON spawn_edges(run,parent);
       CREATE TABLE IF NOT EXISTS evaluations(id TEXT PRIMARY KEY, json TEXT NOT NULL, hash TEXT NOT NULL, promoted INTEGER NOT NULL DEFAULT 0);`);
+    const runCols = new Set(db.prepare("PRAGMA table_info(runs)").all().map(r => String(r.name)));
+    if (!runCols.has("graph_version")) db.exec("ALTER TABLE runs ADD COLUMN graph_version INTEGER NOT NULL DEFAULT 0");
     const metaCols = new Set(db.prepare("PRAGMA table_info(scheduler_index_meta)").all().map(r => String(r.name)));
     if (!metaCols.has("source_hash")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_hash TEXT");
+    if (!metaCols.has("source_version")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_version INTEGER");
     const store = new Store(root, db); installContinuationTables(store); return store;
   }
   transaction<T>(fn: () => T): T {
