@@ -285,6 +285,39 @@ test("supervision uses the configured external API for bounded recovery by defau
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1, recoveryAgent: "coder" };
 }));
 
+test("transient recovery failure is durably retried without consuming a new revision", async () => swarmFixture(async s => {
+  const script = scripted([
+    () => reply("finished without a patch"),
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+    () => reply(),
+  ]);
+  let plannerCalls = 0;
+  const repaired = { ...swarmTask("repair"), goal: "Focused retry recovery", writeScope: ["src/a.txt"] };
+  const result: any = await superviseSwarm(
+    s,
+    { id: "deferred-recovery", goal: "Implement 42 and verify it", tasks: [swarmTask()] },
+    signal(),
+    undefined,
+    script.fetcher,
+    async () => {
+      plannerCalls++;
+      if (plannerCalls === 1) throw new DeferredAttemptError("provider", Date.now() + 20, "temporary planner outage");
+      return { reason: "Retry with focused repair", tasks: [repaired] };
+    },
+  );
+  assert.equal(result.status, "PASS");
+  assert.equal(plannerCalls, 2);
+  assert.equal(s.db.prepare(
+    "SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective='deferred-recovery' AND revision>0"
+  ).get()!.n, 1);
+  assert.equal(s.db.prepare(
+    "SELECT state FROM swarm_recovery_attempts WHERE objective='deferred-recovery'"
+  ).get()!.state, "PLANNED");
+}, s => {
+  s.recipe.attempts = 1;
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
+}));
+
 test("prepared recovery is adopted after a supervisor crash without another planner call", async () => swarmFixture(async s => {
   const ctl = new AbortController();
   await superviseSwarm(
@@ -301,7 +334,9 @@ test("prepared recovery is adopted after a supervisor crash without another plan
   const now = Date.now();
   s.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
     .run("prepared-recovery", 1, plan, newRun, "prepared before crash", now);
-  s.db.prepare("INSERT INTO swarm_recovery_attempts VALUES(?,?,?,?,?,?,?,?)")
+  s.db.prepare(`INSERT INTO swarm_recovery_attempts
+    (objective,run,revision,state,detail,new_run,retry_at,created,updated)
+    VALUES(?,?,?,?,?,?,NULL,?,?)`)
     .run("prepared-recovery", old.run, 1, "PREPARED", "prepared before crash", newRun, now, now);
   const sourceRecipe = s.db.prepare("SELECT recipe FROM runs WHERE id=?").get(old.run)!.recipe as string;
   new Scheduler(s).start([repaired], sourceRecipe, now, newRun); // crash after run creation, before objective binding
