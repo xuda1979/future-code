@@ -110,6 +110,7 @@ import {
 } from './bootstrap/state.js'
 import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
+import { shouldRecoverSilentResponse } from './utils/responseLiveness.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
@@ -206,6 +207,7 @@ type State = {
   toolUseContext: ToolUseContext
   autoCompactTracking: AutoCompactTrackingState | undefined
   maxOutputTokensRecoveryCount: number
+  silentResponseRecoveryCount: number
   hasAttemptedReactiveCompact: boolean
   maxOutputTokensOverride: number | undefined
   pendingToolUseSummary: Promise<ToolUseSummaryMessage | null> | undefined
@@ -272,6 +274,7 @@ async function* queryLoop(
     autoCompactTracking: undefined,
     stopHookActive: undefined,
     maxOutputTokensRecoveryCount: 0,
+    silentResponseRecoveryCount: 0,
     hasAttemptedReactiveCompact: false,
     turnCount: 1,
     pendingToolUseSummary: undefined,
@@ -313,6 +316,7 @@ async function* queryLoop(
       messages,
       autoCompactTracking,
       maxOutputTokensRecoveryCount,
+      silentResponseRecoveryCount,
       hasAttemptedReactiveCompact,
       maxOutputTokensOverride,
       pendingToolUseSummary,
@@ -1154,6 +1158,7 @@ async function* queryLoop(
             toolUseContext,
             autoCompactTracking: undefined,
             maxOutputTokensRecoveryCount,
+            silentResponseRecoveryCount,
             hasAttemptedReactiveCompact: true,
             maxOutputTokensOverride: undefined,
             pendingToolUseSummary: undefined,
@@ -1209,6 +1214,7 @@ async function* queryLoop(
             toolUseContext,
             autoCompactTracking: tracking,
             maxOutputTokensRecoveryCount,
+            silentResponseRecoveryCount,
             hasAttemptedReactiveCompact,
             maxOutputTokensOverride: ESCALATED_MAX_TOKENS,
             pendingToolUseSummary: undefined,
@@ -1237,6 +1243,7 @@ async function* queryLoop(
             toolUseContext,
             autoCompactTracking: tracking,
             maxOutputTokensRecoveryCount: maxOutputTokensRecoveryCount + 1,
+            silentResponseRecoveryCount,
             hasAttemptedReactiveCompact,
             maxOutputTokensOverride: undefined,
             pendingToolUseSummary: undefined,
@@ -1253,6 +1260,50 @@ async function* queryLoop(
 
         // Recovery exhausted — surface the withheld error now.
         yield lastMessage
+      }
+
+      if (shouldRecoverSilentResponse(
+        messagesForQuery,
+        assistantMessages,
+        toolUseBlocks.length > 0,
+        Boolean(lastMessage?.isApiErrorMessage),
+      )) {
+        if (silentResponseRecoveryCount < 1) {
+          logEvent('tengu_silent_response_recovery', {
+            queryChainId: queryChainIdForAnalytics,
+            queryDepth: queryTracking.depth,
+          })
+          state = {
+            messages: [
+              ...messagesForQuery,
+              ...assistantMessages,
+              createUserMessage({
+                content:
+                  'Your previous turn ended without any user-visible answer. ' +
+                  'Answer the user\'s latest request directly now. Do not return an empty response.',
+                isMeta: true,
+              }),
+            ],
+            toolUseContext,
+            autoCompactTracking: tracking,
+            maxOutputTokensRecoveryCount: 0,
+            silentResponseRecoveryCount: silentResponseRecoveryCount + 1,
+            hasAttemptedReactiveCompact,
+            maxOutputTokensOverride: undefined,
+            pendingToolUseSummary: undefined,
+            stopHookActive: undefined,
+            turnCount,
+            transition: { reason: 'silent_response_recovery' } as Continue,
+          }
+          continue
+        }
+
+        yield createAssistantAPIErrorMessage({
+          content:
+            'The model completed twice without producing a user-visible answer. ' +
+            'The turn was stopped instead of silently reporting success.',
+        })
+        return { reason: 'completed' }
       }
 
       // Skip stop hooks when the last message is an API error (rate limit,
@@ -1330,6 +1381,7 @@ async function* queryLoop(
             toolUseContext,
             autoCompactTracking: tracking,
             maxOutputTokensRecoveryCount: 0,
+            silentResponseRecoveryCount,
             hasAttemptedReactiveCompact: false,
             maxOutputTokensOverride: undefined,
             pendingToolUseSummary: undefined,
