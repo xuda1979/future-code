@@ -52,14 +52,19 @@ export function runHealth(store: Store, runId: string, now = Date.now()): Health
     "SELECT 1 FROM sqlite_master WHERE type='table' AND name='research_jobs'"
   ).get();
   const remoteJobs = hasJobs ? (() => {
+    const jobColumns = new Set(store.db.prepare("PRAGMA table_info(research_jobs)").all().map(r => String(r.name)));
+    const hasAttestation = jobColumns.has("reconciliation_hash");
     const row = store.db.prepare(`SELECT
       SUM(CASE WHEN result_hash IS NULL THEN 1 ELSE 0 END) AS active,
       SUM(CASE WHEN result_hash IS NULL AND status='UNKNOWN' THEN 1 ELSE 0 END) AS stalled,
-      SUM(CASE WHEN result_hash IS NOT NULL THEN 1 ELSE 0 END) AS terminal,
-      SUM(CASE WHEN result_hash IS NOT NULL AND reconciliation_hash IS NULL THEN 1 ELSE 0 END) AS unattested
+      SUM(CASE WHEN result_hash IS NOT NULL THEN 1 ELSE 0 END) AS terminal
       FROM research_jobs WHERE run=?`).get(runId)!;
+    const terminal = Number(row.terminal ?? 0);
+    const unattested = hasAttestation ? Number(store.db.prepare(
+      "SELECT COUNT(*) AS n FROM research_jobs WHERE run=? AND result_hash IS NOT NULL AND reconciliation_hash IS NULL"
+    ).get(runId)!.n) : terminal;
     return { active: Number(row.active ?? 0), stalled: Number(row.stalled ?? 0),
-      terminal: Number(row.terminal ?? 0), unattestedTerminal: Number(row.unattested ?? 0) };
+      terminal, unattestedTerminal: unattested };
   })() : null;
 
   const rows = store.db.prepare(`SELECT t.id,t.status,t.deadline,t.error,h.stage,h.activity_at,h.progress_at,h.check_at,w.wake,w.kind,w.reason
