@@ -2,12 +2,18 @@ import { canonical, digest, identifier, invariant, validateTasks } from "./kerne
 import { accessConflicts, compilePlan } from "./productivity.ts";
 import { rebuildSchedulerIndex } from "./schedulerIndex.ts";
 import type { Store } from "./store.ts";
-import type { Capsule, Json, SpawnPolicy, Task } from "./types.ts";
+import type { Capsule, Json, Measurement, SpawnPolicy, Task } from "./types.ts";
 
 export interface SpawnResult {
   childIds: string[];
   complete: boolean;
+  parentDeferred?: boolean;
   dependencies: { taskId: string; artifactHash: string; artifact: Json }[];
+}
+export interface SpawnYield {
+  reason: string;
+  wakeAt: number;
+  measurement: Measurement;
 }
 
 function within(path: string, scopes: readonly string[]): boolean {
@@ -31,7 +37,7 @@ function validatePolicy(store: Store, policy: SpawnPolicy): void {
  * The parent task specification stays immutable so durable model-thread bindings survive
  * deferral/restart. Runtime edges are host-owned and independently verified. */
 export function spawnTasks(store: Store, c: Capsule, requestKey: string, requestHash: string,
-  children: Task[], policy: SpawnPolicy, now = Date.now()): SpawnResult {
+  children: Task[], policy: SpawnPolicy, now = Date.now(), yieldParent?: SpawnYield): SpawnResult {
   validatePolicy(store, policy);
   invariant(typeof requestKey === "string" && requestKey.length > 0 && requestKey.length <= 256,
     "invalid spawn request key");
@@ -46,6 +52,27 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
       "stale spawn authority");
     const parent = JSON.parse(parentRow.spec) as Task;
     invariant(digest(parent) === digest(c.task), "spawn parent binding drift");
+    const deferParent = () => {
+      if (!yieldParent) return false;
+      invariant(Number.isSafeInteger(yieldParent.wakeAt) && yieldParent.wakeAt >= 0, "invalid spawn wake time");
+      invariant(typeof yieldParent.reason === "string" && yieldParent.reason.length > 0, "invalid spawn deferral reason");
+      const a = store.db.prepare("SELECT started,status FROM attempts WHERE run=? AND task=? AND fence=?")
+        .get(c.runId, c.task.id, c.fence);
+      invariant(a?.status === "RUNNING", "spawn parent attempt is not running");
+      const wake = Math.max(now, yieldParent.wakeAt);
+      store.db.prepare(`UPDATE attempts SET status='DEFERRED',ended=?,duration=?,tokens=?,cost=?
+        WHERE run=? AND task=? AND fence=? AND status='RUNNING'`)
+        .run(now, Math.max(0, now - a.started), yieldParent.measurement.tokens,
+          yieldParent.measurement.costUsd, c.runId, c.task.id, c.fence);
+      store.db.prepare("UPDATE tasks SET status='READY',owner=NULL,deadline=NULL,error=? WHERE run=? AND id=? AND fence=?")
+        .run(yieldParent.reason.slice(0, 1024), c.runId, c.task.id, c.fence);
+      store.db.prepare(`INSERT INTO task_waits(run,task,wake,kind,reason) VALUES(?,?,?,?,?)
+        ON CONFLICT(run,task) DO UPDATE SET wake=excluded.wake,kind=excluded.kind,reason=excluded.reason`)
+        .run(c.runId, c.task.id, wake, "spawn", yieldParent.reason.slice(0, 1024));
+      store.event("task.deferred", { fence: c.fence, wakeAt: wake, kind: "spawn",
+        reason: yieldParent.reason.slice(0, 1024), atomicWithSpawn: true }, c.runId, c.task.id);
+      return true;
+    };
 
     const existing = store.db.prepare(
       "SELECT request_hash,children FROM spawn_requests WHERE run=? AND parent=? AND request_key=?"
@@ -58,9 +85,11 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
       const rows = childIds.map(id =>
         store.db.prepare("SELECT status,artifact FROM tasks WHERE run=? AND id=?").get(c.runId, id));
       const complete = rows.every(row => row?.status === "PASS" && typeof row.artifact === "string");
+      const parentDeferred = !complete ? deferParent() : false;
       return {
         childIds,
         complete,
+        parentDeferred,
         refs: complete ? rows.map((row, i) => ({ id: childIds[i], hash: row!.artifact as string })) : [],
       };
     }
@@ -139,7 +168,9 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
     rebuildSchedulerIndex(store, c.runId, store.recipe(c.recipeHash), now);
     store.event("task.expanded",
       { parent: c.task.id, requestKey, depth, children: ids }, c.runId, c.task.id);
-    return { childIds: ids, complete: false, refs: [] as { id: string; hash: string }[] };
+    const parentDeferred = deferParent();
+    return { childIds: ids, complete: false, parentDeferred,
+      refs: [] as { id: string; hash: string }[] };
   });
 
   const dependencies = state.refs.map(ref => ({
@@ -147,5 +178,6 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
     artifactHash: ref.hash,
     artifact: store.readArtifact(ref.hash),
   }));
-  return { childIds: state.childIds, complete: state.complete, dependencies };
+  return { childIds: state.childIds, complete: state.complete,
+    parentDeferred: state.parentDeferred, dependencies };
 }
