@@ -17,6 +17,9 @@ export interface AgentProfile {
   jobs?: string[];
   promptCache?: boolean;
   allowHttp?: boolean;
+  /** OpenAI-compatible local engine. SGLang RadixAttention and vLLM APC
+   * reuse the stable system/tool prefix constructed by the harness. */
+  inferenceEngine?: "generic" | "sglang" | "vllm";
 }
 export interface CheckSpec extends CommandSpec { replaySafe: boolean }
 export interface SwarmBudget {
@@ -109,7 +112,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   names(s.integrationChecks, checks, "integration checks");
   invariant(s.integrationChecks.every(n => s.checks[n].replaySafe), "integration checks must be replay-safe");
   for (const [id, a] of Object.entries(s.agents)) {
-    identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"], ["keyEnv", "promptCache", "allowHttp", "jobs"]);
+    identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"], ["keyEnv", "promptCache", "allowHttp", "jobs", "inferenceEngine"]);
     invariant(["anthropic", "chat-completions"].includes(a.protocol), "unsupported provider protocol");
     const url = new URL(a.url);
     const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
@@ -121,6 +124,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       invariant(url.protocol === "https:" || loopback, "credentials require HTTPS unless the provider is loopback");
     }
     for (const x of [a.promptCache, a.allowHttp]) invariant(x === undefined || typeof x === "boolean", "invalid provider flag");
+    invariant(a.inferenceEngine === undefined || ["generic", "sglang", "vllm"].includes(a.inferenceEngine), "invalid inference engine");
+    if (a.inferenceEngine === "sglang" || a.inferenceEngine === "vllm") invariant(a.protocol === "chat-completions", "shared-prefix engines require chat-completions protocol");
     if (a.jobs !== undefined) names(a.jobs, Object.keys(s.jobs ?? {}), "agent jobs");
     if (a.tools.includes("run_job")) invariant(a.jobs && a.jobs.length > 0, "run_job requires named job capabilities");
     if (a.tools.includes("spawn_tasks") || a.tools.includes("await_tasks")) invariant(s.delegation, "delegation tools require a delegation policy");
