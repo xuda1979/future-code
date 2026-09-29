@@ -97,12 +97,24 @@ export class Scheduler {
         sum + (schedulerNode(this.store, runId, String(row.id))?.budget ?? recipe.contextBytes), 0);
       const snapshotReads = this.store.contract().readIsolation === "snapshot";
       const leases: Lease[] = [];
+      let derivedDrift = false;
+      const authoritativeReady = (task: Task): boolean => {
+        for (const dependency of task.dependencies) {
+          const row = this.store.db.prepare("SELECT status FROM tasks WHERE run=? AND id=?")
+            .get(runId, dependency);
+          if (row?.status !== "PASS") return false;
+        }
+        return !this.store.db.prepare(`SELECT 1 FROM spawn_edges e
+          JOIN tasks t ON t.run=e.run AND t.id=e.child
+          WHERE e.run=? AND e.parent=? AND t.status<>'PASS' LIMIT 1`).get(runId, task.id);
+      };
 
       // A bounded overscan lets scope/context conflicts skip candidates without
       // turning a large ready set into a full-run scan.
       const window = Math.min(4096, Math.max(64, capacity * 16));
       for (const candidate of readyCandidates(this.store, runId, now, window)) {
         const task = JSON.parse(candidate.spec) as Task;
+        if (!authoritativeReady(task)) { derivedDrift = true; continue; }
         if (active.some(other => snapshotReads
           ? conflicts(task.writeScope, other.writeScope)
           : accessConflicts(task, other))) continue;
@@ -125,6 +137,20 @@ export class Scheduler {
           recipeHash: run.recipe, contractHash: run.contract });
         active.push(task); reserved += candidate.budget;
         if (leases.length >= capacity) break;
+      }
+      if (derivedDrift) {
+        this.store.event("scheduler.index.unsafe_candidate",
+          { reason: "derived readiness disagreed with authoritative dependencies" }, runId);
+        rebuildSchedulerIndex(this.store, runId, recipe, now);
+      } else if (!leases.length && active.length === 0 && hasReady) {
+        const delayed = this.store.db.prepare(`SELECT 1 FROM task_waits w
+          JOIN tasks t ON t.run=w.run AND t.id=w.task
+          WHERE w.run=? AND t.status='READY' AND w.wake>? LIMIT 1`).get(runId, now);
+        if (!delayed) {
+          this.store.event("scheduler.index.starvation",
+            { reason: "READY work exists but no indexed candidate or running/delayed root" }, runId);
+          rebuildSchedulerIndex(this.store, runId, recipe, now);
+        }
       }
       return leases;
     });
