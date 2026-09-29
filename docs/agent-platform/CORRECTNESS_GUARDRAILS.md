@@ -99,7 +99,10 @@ larger review recommendations:
 - automatic candidate-code/data staging and remote experiment attestation;
 - autonomous, versioned repair-plan admission after integration failure;
 - multi-host scheduling, KV-cache sharing, or learned concurrency control;
-- correction of the legacy `progressDensity` denominator or clean-build packaging.
+- clean-build packaging beyond the existing source-snapshot CI.
+
+The legacy `progressDensity` denominator is corrected by the dynamic-DAG change:
+it now uses trusted measured capsule bytes rather than allocated context budget.
 
 Remote wrappers must still authenticate the exact candidate tree/patch, data
 manifest, environment, checkpoint, and evaluation contract before expensive
