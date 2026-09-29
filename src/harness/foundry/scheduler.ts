@@ -1,7 +1,7 @@
 import { DeferredAttemptError, persistContinuation } from "./continuation.ts";
 import { randomUUID } from "node:crypto";
 import { Store } from "./store.ts";
-import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
+import { conflicts, digest, encodeCapsule, identifier, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
 import { accessConflicts, compilePlan, projectDependency } from "./productivity.ts";
 import type { Capsule, FailureOptions, Json, Lease, Measurement, Recipe, RunSummary, Task } from "./types.ts";
 
@@ -64,10 +64,9 @@ export class Scheduler {
       for (const child of children) {
         invariant(!seen.has(child.id), "duplicate child task id"); seen.add(child.id);
         invariant(child.id !== parentId, "child may not replace parent");
-        invariant(child.dependencies.includes(parentId), "spawned child must depend on parent");
         invariant(child.writeScope.every(p => authority.some(a => p === a || p.startsWith(`${a}/`))), "child write scope exceeds delegated authority");
         invariant((child.delegateScope ?? []).every(p => authority.some(a => p === a || p.startsWith(`${a}/`))), "child delegation exceeds parent authority");
-        for (const d of child.dependencies) invariant(d === parentId || known.has(d) || seen.has(d), "child dependency is not admitted");
+        for (const d of child.dependencies) invariant(known.has(d) || seen.has(d), "child dependency is not admitted");
       }
       const merged = [...existingTasks];
       for (const child of children) if (!known.has(child.id)) merged.push(child);
