@@ -170,44 +170,45 @@ test("verdict returns FAIL when progressDensity SLO minimum is not met", () => {
 
 // == RunSummary includes progressDensity ==
 
-test("runTasks summary includes progressDensity", async () => {
+test("runTasks summary includes measured progressDensity basis", async () => {
   await fixture(async (s, d) => {
     const result = await runTasks(s, [fixtureTask("a"), fixtureTask("b")], d);
-    assert.ok(result.progressDensity !== undefined);
-    assert.ok(result.progressDensity !== null);
-    assert.ok(result.progressDensity > 0);
+    assert.equal(result.progressDensityBasis, "capsuleBytes");
+    assert.ok(result.decisionInput !== null && result.decisionInput > 0);
+    assert.equal(result.progressDensity, result.accepted / result.decisionInput);
   });
 });
 
-test("progressDensity is higher with smaller context budget", async () => {
+test("progressDensity ignores unused configured context headroom", async () => {
   await fixture(async (s, d) => {
-    // Same tasks, smaller contextBytes -> higher density
     const r1 = await runTasks(s, [fixtureTask("a"), fixtureTask("b")], d);
     const smallBudget = s.propose({ contextBytes: 5000 });
     s.setMeta("active", smallBudget);
     const r2 = await runTasks(s, [fixtureTask("a"), fixtureTask("b")], d, { recipeHash: smallBudget });
-    assert.ok(r2.progressDensity! > r1.progressDensity!, `r2 ${r2.progressDensity} should exceed r1 ${r1.progressDensity}`);
+    assert.equal(r2.progressDensityBasis, r1.progressDensityBasis);
+    assert.equal(r2.decisionInput, r1.decisionInput);
+    assert.equal(r2.progressDensity, r1.progressDensity);
   });
 });
 
 // == Evolution with progressDensity objective ==
 
-test("evaluate ADMITS candidate with higher progressDensity", async () => {
+test("evaluate does not reward a smaller unused context ceiling", async () => {
   await fixture(async (s, d, baseline) => {
     const candidate = s.propose({ contextBytes: 5000 });
     const e = await evaluate(s, candidate, protocol("progressDensity", 0.1), d);
-    assert.equal(e.decision, "ADMIT");
-    assert.ok(e.relativeGain! >= 0.1);
+    assert.equal(e.decision, "REJECT");
+    assert.equal(e.relativeGain, 0);
     assert.equal(s.active(), baseline);
   });
 });
 
-test("evaluate REJECTS candidate with lower progressDensity", async () => {
-  await fixture(async (s, d, baseline) => {
+test("evaluate does not penalize a larger unused context ceiling", async () => {
+  await fixture(async (s, d) => {
     const candidate = s.propose({ contextBytes: 20000 });
     const e = await evaluate(s, candidate, protocol("progressDensity", 0.1), d);
     assert.equal(e.decision, "REJECT");
-    assert.ok(e.relativeGain! < 0);
+    assert.equal(e.relativeGain, 0);
   });
 });
 
@@ -218,8 +219,8 @@ test("score handles progressDensity objective (higher is better)", async () => {
       id: "test", baselineHash: s.active(), candidateHash: "x", contractHash: digest(s.contract()),
       protocol: p, protocolHash: digest(p),
       pairs: [{
-        baseline: { id: "r1", recipeHash: s.active(), contractHash: digest(s.contract()), status: "PASS", accepted: 1, failed: 0, blocked: 0, attempts: 1, durationMs: 0, tokens: 0, costUsd: 0, progressDensity: 0.0001 },
-        candidate: { id: "r2", recipeHash: "x", contractHash: digest(s.contract()), status: "PASS", accepted: 1, failed: 0, blocked: 0, attempts: 1, durationMs: 0, tokens: 0, costUsd: 0, progressDensity: 0.0002 },
+        baseline: { id: "r1", recipeHash: s.active(), contractHash: digest(s.contract()), status: "PASS", accepted: 1, failed: 0, blocked: 0, attempts: 1, durationMs: 0, tokens: 0, costUsd: 0, progressDensity: 0.0001, progressDensityBasis: "capsuleBytes", decisionInput: 10000, cacheReuseRatio: null },
+        candidate: { id: "r2", recipeHash: "x", contractHash: digest(s.contract()), status: "PASS", accepted: 1, failed: 0, blocked: 0, attempts: 1, durationMs: 0, tokens: 0, costUsd: 0, progressDensity: 0.0002, progressDensityBasis: "capsuleBytes", decisionInput: 5000, cacheReuseRatio: null },
       }],
       decision: "UNKNOWN", reasons: [], relativeGain: null,
     };

@@ -1,7 +1,7 @@
 import { DeferredAttemptError, persistContinuation } from "./continuation.ts";
 import { randomUUID } from "node:crypto";
 import { Store } from "./store.ts";
-import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
+import { conflicts, digest, encodeCapsule, identifier, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
 import { accessConflicts, compilePlan, projectDependency } from "./productivity.ts";
 import type { Capsule, FailureOptions, Json, Lease, Measurement, Recipe, RunSummary, Task } from "./types.ts";
 
@@ -12,8 +12,10 @@ export class Scheduler {
   private cachedPlan?: { runId: string; recipeHash: string; plan: ReturnType<typeof compilePlan> };
   constructor(store: Store) { this.store = store; }
   private plan(runId: string, recipeHash: string, recipe: Recipe, rows?: Record<string, unknown>[]) {
-    if (this.cachedPlan?.runId === runId && this.cachedPlan.recipeHash === recipeHash) return this.cachedPlan.plan;
-    const tasks: Task[] = (rows ?? this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(runId)).map(t => {
+    const sourceRows = rows ?? this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(runId);
+    if (this.cachedPlan?.runId === runId && this.cachedPlan.recipeHash === recipeHash &&
+        this.cachedPlan.plan.byId.size === sourceRows.length) return this.cachedPlan.plan;
+    const tasks: Task[] = sourceRows.map(t => {
       invariant(typeof t.spec === "string", "missing persisted task specification");
       return JSON.parse(t.spec) as Task;
     });
@@ -38,6 +40,58 @@ export class Scheduler {
       for (const task of tasks) insert.run(id, task.id, JSON.stringify(task));
       this.store.event("run.started", { recipeHash, contractHash: digest(contract), taskCount: tasks.length, taskHash: digest(tasks) }, id);
       return id;
+    });
+  }
+  /** Atomically add validated child tasks to a live run. Existing task specs
+   * are immutable. The caller must pass the currently leased parent task so
+   * delegated authority can be bounded and replay-safe. */
+  expand(runId: string, parentId: string, children: Task[], proposalId: string, now = Date.now()): { added: string[]; existing: string[] } {
+    identifier(proposalId);
+    invariant(children.length > 0, "empty task expansion");
+    const contract = this.store.contract();
+    return this.store.transaction(() => {
+      const run = this.store.db.prepare("SELECT * FROM runs WHERE id=?").get(runId); invariant(run?.status === "RUNNING", "run is not expandable");
+      const parentRow = this.store.db.prepare("SELECT spec,status FROM tasks WHERE run=? AND id=?").get(runId, parentId);
+      invariant(parentRow?.status === "RUNNING", "parent task must be actively leased");
+      const parent = JSON.parse(parentRow.spec) as Task;
+      const authority = parent.delegateScope ?? parent.writeScope;
+      invariant(authority.length > 0, "parent has no delegable scope");
+      this.store.db.exec(`CREATE TABLE IF NOT EXISTS task_expansions(
+        run TEXT NOT NULL,parent TEXT NOT NULL,proposal TEXT NOT NULL,task TEXT NOT NULL,
+        spec_hash TEXT NOT NULL,created REAL NOT NULL,PRIMARY KEY(run,parent,proposal,task));
+        CREATE INDEX IF NOT EXISTS task_expansions_run ON task_expansions(run,parent);`);
+      const existingTasks = this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(runId).map(r => JSON.parse(r.spec) as Task);
+      const known = new Map(existingTasks.map(t => [t.id, t]));
+      const seen = new Set<string>();
+      for (const child of children) {
+        invariant(!seen.has(child.id), "duplicate child task id");
+        invariant(child.id !== parentId, "child may not replace parent");
+        invariant(child.writeScope.every(p => authority.some(a => p === a || p.startsWith(`${a}/`))), "child write scope exceeds delegated authority");
+        invariant((child.delegateScope ?? []).every(p => authority.some(a => p === a || p.startsWith(`${a}/`))), "child delegation exceeds parent authority");
+        for (const d of child.dependencies) invariant(d !== child.id && (known.has(d) || seen.has(d)), "child dependency is not admitted");
+        seen.add(child.id);
+      }
+      const merged = [...existingTasks];
+      for (const child of children) if (!known.has(child.id)) merged.push(child);
+      validateTasks(contract, merged);
+      invariant(merged.length <= contract.limits.tasks, "expanded task graph exceeds task limit");
+      compilePlan(merged, this.store.recipe(run.recipe), contract.limits.contextBytes);
+      const added: string[] = []; const existing: string[] = [];
+      const insert = this.store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')");
+      const record = this.store.db.prepare("INSERT OR IGNORE INTO task_expansions VALUES(?,?,?,?,?,?)");
+      for (const child of children) {
+        const prior = known.get(child.id);
+        if (prior) {
+          invariant(digest(prior) === digest(child), "spawned task id drift");
+          existing.push(child.id);
+        } else {
+          insert.run(runId, child.id, JSON.stringify(child)); known.set(child.id, child); added.push(child.id);
+        }
+        record.run(runId, parentId, proposalId, child.id, digest(child), now);
+      }
+      this.cachedPlan = undefined;
+      this.store.event("run.expanded", { parent: parentId, proposalId, added, existing, taskCount: merged.length }, runId, parentId);
+      return { added, existing };
     });
   }
   /** Backward-compatible single claim; all reservations share the batch path. */
@@ -219,18 +273,42 @@ export class Scheduler {
   }
   summary(id: string, now = Date.now()): RunSummary {
     const r = this.store.db.prepare("SELECT * FROM runs WHERE id=?").get(id); invariant(r, "unknown run");
-    const tasks = this.store.db.prepare("SELECT status FROM tasks WHERE run=?").all(id);
+    const tasks = this.store.db.prepare("SELECT id,status FROM tasks WHERE run=?").all(id);
     const attempts = this.store.db.prepare("SELECT tokens,cost FROM attempts WHERE run=?").all(id);
     const sum = (key: string): number | null => attempts.length && attempts.every(a => a[key] !== null && Number.isFinite(a[key])) ? attempts.reduce((n, a) => n + a[key], 0) : null;
     const accepted = tasks.filter(t => t.status === "PASS").length;
-    const recipe = this.store.recipe(r.recipe);
-    // Progress density: verified accepted tasks per total context budget allocated.
-    const totalContext = tasks.length * recipe.contextBytes;
-    const pd = progressDensity(accepted, totalContext);
+    const hasExpansions = !!this.store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='task_expansions'").get();
+    const spawned = hasExpansions ? new Set(this.store.db.prepare("SELECT DISTINCT task FROM task_expansions WHERE run=?").all(id).map(r => String(r.task))) : new Set<string>();
+    const verifiedProgress = tasks.filter(t => t.status === "PASS" && !spawned.has(String(t.id))).length;
+    let basis: RunSummary["progressDensityBasis"] = null;
+    let decisionInput: number | null = null;
+    let cacheReuseRatio: number | null = null;
+    const hasRequests = !!this.store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_requests'").get();
+    const hasUsage = !!this.store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_request_usage'").get();
+    if (hasRequests) {
+      const requests = this.store.db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM agent_requests WHERE run=?").get(id)!;
+      if (requests.n > 0 && hasUsage) {
+        const usage = this.store.db.prepare(`SELECT COUNT(*) AS n,COALESCE(SUM(u.input_tokens),0) AS input_tokens,
+          COALESCE(SUM(u.cached_input_tokens),0) AS cached_tokens FROM agent_requests r
+          JOIN agent_request_usage u ON r.id=u.id WHERE r.run=?`).get(id)!;
+        if (usage.n === requests.n) {
+          const uncached = usage.input_tokens - usage.cached_tokens;
+          invariant(uncached >= 0, "cached input exceeds provider input");
+          basis = "uncachedInputTokens"; decisionInput = uncached;
+          cacheReuseRatio = usage.input_tokens > 0 ? usage.cached_tokens / usage.input_tokens : null;
+        }
+      }
+      if (basis === null) { basis = "providerRequestBytes"; decisionInput = requests.bytes; }
+    }
+    if (basis === null) {
+      const telemetry = this.store.db.prepare("SELECT COUNT(context_bytes) AS n,COALESCE(SUM(context_bytes),0) AS bytes FROM attempt_telemetry WHERE run=?").get(id)!;
+      if (telemetry.n > 0) { basis = "capsuleBytes"; decisionInput = telemetry.bytes; }
+    }
+    const pd = decisionInput === null ? null : progressDensity(verifiedProgress, decisionInput);
     return { id, recipeHash: r.recipe, contractHash: r.contract, status: r.status,
-      accepted, failed: tasks.filter(t => t.status === "FAIL").length,
+      accepted, verifiedProgress, failed: tasks.filter(t => t.status === "FAIL").length,
       blocked: tasks.filter(t => t.status === "BLOCKED").length, attempts: attempts.length,
       durationMs: Math.max(0, (r.ended ?? now) - r.started), tokens: sum("tokens"), costUsd: sum("cost"),
-      progressDensity: pd };
+      progressDensity: pd, progressDensityBasis: basis, decisionInput, cacheReuseRatio };
   }
 }

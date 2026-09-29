@@ -6,6 +6,7 @@ import { Store } from "../store.ts";
 import type { Capsule, Json, Verification } from "../types.ts";
 import type { Call, Message } from "./context.ts";
 import type { SwarmBudget } from "./config.ts";
+import type { ProviderUsage } from "./model.ts";
 
 export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
 export interface ThreadState {
@@ -43,6 +44,8 @@ export class SessionJournal {
       CREATE INDEX IF NOT EXISTS agent_requests_run ON agent_requests(run,task,fence);
       CREATE INDEX IF NOT EXISTS agent_requests_live ON agent_requests(provider,status,deadline);
       CREATE TABLE IF NOT EXISTS agent_replies(run TEXT NOT NULL, task TEXT NOT NULL, step INTEGER NOT NULL, body TEXT NOT NULL, response TEXT NOT NULL, PRIMARY KEY(run,task,step));
+      CREATE TABLE IF NOT EXISTS agent_request_usage(id TEXT PRIMARY KEY, input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL,
+        cached_input_tokens INTEGER NOT NULL, created_cache_tokens INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS agent_cooldowns(provider TEXT PRIMARY KEY, until_ms REAL NOT NULL);
     `);
   }
@@ -158,7 +161,7 @@ export class SessionJournal {
     invariant(row.body === digest(body), "model replay input drift");
     return this.store.readArtifact(row.response);
   }
-  complete(id: string, tokens: number | null, response: Json | null, step?: number): void {
+  complete(id: string, tokens: number | null, response: Json | null, step?: number, usage?: ProviderUsage | null): void {
     invariant(tokens === null || (Number.isSafeInteger(tokens) && tokens >= 0), "invalid provider usage");
     const hash = response === null ? null : this.store.artifact(response);
     this.store.transaction(() => {
@@ -166,6 +169,13 @@ export class SessionJournal {
       invariant(row && row.status !== "DONE", "unknown/already completed request");
       this.store.db.prepare("UPDATE agent_requests SET status=?,tokens=?,response=? WHERE id=?")
         .run(response === null ? "UNKNOWN" : "DONE", tokens, hash, id);
+      if (usage) {
+        for (const n of [usage.inputTokens, usage.outputTokens, usage.cachedInputTokens, usage.createdCacheTokens])
+          invariant(Number.isSafeInteger(n) && n >= 0, "invalid detailed provider usage");
+        invariant(usage.cachedInputTokens <= usage.inputTokens, "invalid cached input usage");
+        this.store.db.prepare("INSERT INTO agent_request_usage VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET input_tokens=excluded.input_tokens,output_tokens=excluded.output_tokens,cached_input_tokens=excluded.cached_input_tokens,created_cache_tokens=excluded.created_cache_tokens")
+          .run(id, usage.inputTokens, usage.outputTokens, usage.cachedInputTokens, usage.createdCacheTokens);
+      }
       const task = this.store.db.prepare("SELECT status,fence,deadline FROM tasks WHERE run=? AND id=?").get(row.run, row.task);
       // Record late spend, but a superseded RPC must never publish a replayable reply.
       const current = task?.status === "RUNNING" && task.fence === row.fence && task.deadline > Date.now();
@@ -182,12 +192,19 @@ export class SessionJournal {
     this.store.db.prepare("INSERT INTO agent_cooldowns VALUES(?,?) ON CONFLICT(provider) DO UPDATE SET until_ms=MAX(until_ms,excluded.until_ms)")
       .run(provider, Date.now() + ms);
   }
-  usage(run: string, task?: string, fence?: number): { requests: number; requestBytes: number; knownTokens: number; unknownRequests: number; tokens: number | null } {
+  usage(run: string, task?: string, fence?: number): { requests: number; requestBytes: number; knownTokens: number; unknownRequests: number; tokens: number | null;
+    inputTokens: number | null; cachedInputTokens: number | null; createdCacheTokens: number | null; outputTokens: number | null } {
     const where = task === undefined ? "run=?" : fence === undefined ? "run=? AND task=?" : "run=? AND task=? AND fence=?";
     const args = task === undefined ? [run] : fence === undefined ? [run, task] : [run, task, fence];
     const row = this.store.db.prepare(`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes,COALESCE(SUM(tokens),0) AS tokens,
       COALESCE(SUM(CASE WHEN tokens IS NULL THEN 1 ELSE 0 END),0) AS unknown_count FROM agent_requests WHERE ${where}`).get(...args)!;
+    const details = this.store.db.prepare(`SELECT COUNT(*) AS n,COALESCE(SUM(u.input_tokens),0) AS input_tokens,
+      COALESCE(SUM(u.cached_input_tokens),0) AS cached_input_tokens,COALESCE(SUM(u.created_cache_tokens),0) AS created_cache_tokens,
+      COALESCE(SUM(u.output_tokens),0) AS output_tokens FROM agent_requests r JOIN agent_request_usage u ON r.id=u.id WHERE ${where.replaceAll("run", "r.run").replaceAll("task", "r.task").replaceAll("fence", "r.fence")}`).get(...args)!;
+    const detailed = row.n > 0 && details.n === row.n;
     return { requests: row.n, requestBytes: row.bytes, knownTokens: row.tokens, unknownRequests: row.unknown_count,
-      tokens: row.unknown_count ? null : row.tokens };
+      tokens: row.unknown_count ? null : row.tokens,
+      inputTokens: detailed ? details.input_tokens : null, cachedInputTokens: detailed ? details.cached_input_tokens : null,
+      createdCacheTokens: detailed ? details.created_cache_tokens : null, outputTokens: detailed ? details.output_tokens : null };
   }
 }

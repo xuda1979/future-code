@@ -80,7 +80,8 @@ export function validateTasks(c: Contract, tasks: Task[]): void {
     invariant(Array.isArray(t.dependencies) && new Set(t.dependencies).size === t.dependencies.length, "invalid dependencies");
     invariant(Array.isArray(t.writeScope), "invalid write scopes");
     invariant(t.readScope === undefined || Array.isArray(t.readScope), "invalid read scopes");
-    for (const p of [...t.writeScope, ...(t.readScope ?? [])]) {
+    invariant(t.delegateScope === undefined || Array.isArray(t.delegateScope), "invalid delegate scopes");
+    for (const p of [...t.writeScope, ...(t.readScope ?? []), ...(t.delegateScope ?? [])]) {
       invariant(typeof p === "string" && p.length > 0 && !p.includes("\\") && !p.startsWith("/") &&
         !p.includes("\0") && !p.includes(":") && p.split("/").every(x => !!x && x !== "." && x !== "..") &&
         ![".git", ".future-code"].includes(p.split("/")[0]), "unsafe write scope");
@@ -165,10 +166,8 @@ export function validateEvidence(contract: Contract, recipeHash: string, task: T
   invariant(e.verification && verdict(contract, artifact, e.verification, e.metrics) === "PASS", "evidence does not satisfy acceptance contract");
 }
 
-/** Progress density: verified accepted tasks per total context bytes consumed.
- *  This is the core shift from bounding activity to bounding the decision problem.
- *  Higher density means more verified progress per unit of context — not just
- *  more agent activity, file size, or conversation length. */
+/** Progress density: verified accepted tasks per measured decision-input unit.
+ *  The caller must expose the denominator basis alongside this number. */
 export function progressDensity(accepted: number, contextBytes: number): number | null {
   if (!Number.isFinite(accepted) || accepted < 0 || !Number.isFinite(contextBytes) || contextBytes <= 0) return null;
   return accepted / contextBytes;

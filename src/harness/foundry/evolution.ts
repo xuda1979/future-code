@@ -20,11 +20,16 @@ export function score(e: Evaluation): Pick<Evaluation, "decision" | "reasons" | 
   let baseline = 0; let candidate = 0;
   for (const pair of e.pairs) {
     for (const r of [pair.baseline, pair.candidate]) {
-      if (r.status !== "PASS" || r.accepted !== e.protocol.tasks.length || r.failed || r.blocked) {
-        return { decision: "REJECT", reasons: ["all predeclared tasks must pass in both arms; recovery is not an efficiency win"], relativeGain: null };
+      const verifiedProgress = r.verifiedProgress ?? r.accepted;
+      if (r.status !== "PASS" || verifiedProgress !== e.protocol.tasks.length || r.failed || r.blocked) {
+        return { decision: "REJECT", reasons: ["all predeclared root tasks must pass in both arms; spawned support tasks do not count as extra progress"], relativeGain: null };
       }
       const n = r[e.protocol.objective];
       if (n === null || !Number.isFinite(n) || n < 0) return { decision: "UNKNOWN", reasons: ["missing or invalid complete cost measurement"], relativeGain: null };
+    }
+    if (e.protocol.objective === "progressDensity" &&
+        pair.baseline.progressDensityBasis !== pair.candidate.progressDensityBasis) {
+      return { decision: "UNKNOWN", reasons: ["progressDensity denominator basis differs between evaluation arms"], relativeGain: null };
     }
     baseline += pair.baseline[e.protocol.objective]!;
     candidate += pair.candidate[e.protocol.objective]!;
@@ -87,9 +92,13 @@ export function promote(store: Store, id: string): string {
         invariant(!seen.has(r.id), "duplicate evaluation run"); seen.add(r.id);
         invariant(r.recipeHash === hash && r.contractHash === e.contractHash, "evaluation binding mismatch");
         invariant(digest(scheduler.summary(r.id)) === digest(r), "run evidence changed since evaluation");
-        const actual = store.db.prepare("SELECT spec FROM tasks WHERE run=? ORDER BY id").all(r.id).map(t => JSON.parse(t.spec));
+        const hasExpansions = !!store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='task_expansions'").get();
+        const actualRoots = hasExpansions
+          ? store.db.prepare(`SELECT spec FROM tasks t WHERE run=? AND NOT EXISTS
+              (SELECT 1 FROM task_expansions x WHERE x.run=t.run AND x.task=t.id) ORDER BY id`).all(r.id).map(t => JSON.parse(t.spec))
+          : store.db.prepare("SELECT spec FROM tasks WHERE run=? ORDER BY id").all(r.id).map(t => JSON.parse(t.spec));
         const expected = [...e.protocol.tasks].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-        invariant(digest(actual) === digest(expected), "task set mismatch");
+        invariant(digest(actualRoots) === digest(expected), "root task set mismatch");
         // Missing or corrupted accepted artifacts invalidate the promotion.
         for (const t of store.db.prepare("SELECT spec,artifact,evidence FROM tasks WHERE run=?").all(r.id)) {
           validateEvidence(store.contract(), hash, JSON.parse(t.spec), store.readArtifact(t.artifact), store.readArtifact(t.evidence));

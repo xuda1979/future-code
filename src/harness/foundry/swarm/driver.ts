@@ -1,5 +1,6 @@
 import { DeferredAttemptError } from "../continuation.ts";
 import { ResearchJobs } from "./jobs.ts";
+import { DynamicDelegation } from "./delegation.ts";
 import { canonical, digest, invariant, allocateContext } from "../kernel.ts";
 import { FatalAttemptError } from "../errors.ts";
 import type { Store } from "../store.ts";
@@ -28,7 +29,7 @@ export class SwarmDriver implements Driver {
   readonly workerId: string; readonly verifierId: string;
   readonly journal: SessionJournal; readonly brain: HttpBrain;
   readonly store: Store; readonly cfg: PinnedSwarm; readonly backend: HandsBackend;
-  private contextPlan?: { run: string; recipe: string; budgets: Map<string, number> };
+  private contextPlan?: { run: string; recipe: string; taskCount: number; budgets: Map<string, number> };
   constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend) {
     invariant(backend.id === cfg.handsId, "execution backend identity mismatch");
     this.store = store; this.cfg = cfg; this.backend = backend;
@@ -41,8 +42,7 @@ export class SwarmDriver implements Driver {
   async execute(c: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult> {
     const profile = this.cfg.spec.agents[c.task.agent ?? this.cfg.spec.defaultAgent]; invariant(profile, "unknown agent profile");
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
-      task: c.task, dependencies: c.dependencies,
-      contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. Do not delegate or edit infrastructure." }) }],
+      task: c.task, dependencies: c.dependencies }) }],
       turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null });
     const resumed = c.fence > (t.state.lastFence ?? 0);
     if (resumed) {
@@ -71,13 +71,16 @@ export class SwarmDriver implements Driver {
     const hands = this.backend.open(this.store, this.cfg, c, profile, signal, t.state.patchHash);
     const budget = this.cfg.spec.budget;
     const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg) : null;
+    const delegation = this.cfg.spec.delegation ? new DynamicDelegation(this.store, this.cfg) : null;
     t.state.lastCheckAt ??= Date.now();
-    if (this.contextPlan?.run !== c.runId || this.contextPlan.recipe !== c.recipeHash) {
+    const taskCount = this.store.db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE run=?").get(c.runId)!.n;
+    if (this.contextPlan?.run !== c.runId || this.contextPlan.recipe !== c.recipeHash || this.contextPlan.taskCount !== taskCount) {
       const allTasks: Task[] = this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(c.runId).map(r => JSON.parse(r.spec));
-      this.contextPlan = { run: c.runId, recipe: c.recipeHash,
+      this.contextPlan = { run: c.runId, recipe: c.recipeHash, taskCount: allTasks.length,
         budgets: allocateContext(allTasks, this.store.recipe(c.recipeHash), this.store.contract().limits.contextBytes) };
     }
-    const limit = this.contextPlan.budgets.get(c.task.id)!;
+    const limit = this.contextPlan.budgets.get(c.task.id);
+    invariant(Number.isSafeInteger(limit) && limit! > 0, "missing admitted context budget for task");
     try {
       if (t.state.pending?.name === "run_check") {
         const name = t.state.pending.arguments.name as string;
@@ -102,6 +105,12 @@ export class SwarmDriver implements Driver {
               if (call.name === "run_job") {
                 invariant(jobs, "no remote job templates configured");
                 result = await jobs.execute(c, profile, call, signal);
+              } else if (call.name === "spawn_tasks") {
+                invariant(delegation, "dynamic delegation is not configured");
+                result = delegation.spawn(c, profile, call);
+              } else if (call.name === "await_tasks") {
+                invariant(delegation, "dynamic delegation is not configured");
+                result = delegation.await(c, profile, call);
               } else if (call.name === "recall") {
                 const a = call.arguments; keys(a, [], ["receipt", "offset", "length", "historyAfter", "limit"]);
                 if (a.receipt !== undefined) {
