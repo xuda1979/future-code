@@ -127,10 +127,9 @@ export class SwarmDriver implements Driver {
                 validateSwarmTasks(this.cfg.spec, children);
                 const reason = `Spawned ${children.length} child task(s); parent resumes after independent verification`;
                 const spawned = spawnTasks(this.store, c, call.id, digest(call.arguments), children, policy,
-                  Date.now(), { reason, wakeAt: Date.now(), measurement: this.measurement({
-                    runId: c.runId, taskId: c.task.id, owner: "", fence: c.fence, deadline: 0,
-                    recipeHash: c.recipeHash, contractHash: c.contractHash,
-                  }) });
+                  Date.now(), { reason, wakeAt: Date.now(), measurement: {
+                    tokens: this.journal.usage(c.runId, c.task.id, c.fence).tokens, costUsd: null,
+                  } });
                 if (!spawned.complete) {
                   invariant(spawned.parentDeferred, "spawn admission did not durably yield parent");
                   throw new PersistedDeferredAttemptError("spawn", Date.now(), reason);
