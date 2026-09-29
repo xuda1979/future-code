@@ -118,7 +118,7 @@ export class Scheduler {
       while (leases.length < capacity) {
         const candidates = readyCandidates(this.store, runId, now, window, offset);
         if (!candidates.length) break;
-        offset += candidates.length;
+        const claimedBeforePage = leases.length;
         for (const candidate of candidates) {
           const task = JSON.parse(candidate.spec) as Task;
           if (!authoritativeReady(task)) { derivedDrift = true; continue; }
@@ -145,6 +145,10 @@ export class Scheduler {
           active.push(task); reserved += candidate.budget;
           if (leases.length >= capacity) break;
         }
+        // Claimed rows leave the READY result set before the next page query.
+        // Advance only past rows that remain READY, otherwise OFFSET would skip
+        // candidates that shifted left after successful claims.
+        offset += candidates.length - (leases.length - claimedBeforePage);
         if (candidates.length < window) break;
       }
       if (derivedDrift) {
