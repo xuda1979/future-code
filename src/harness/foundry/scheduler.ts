@@ -12,8 +12,10 @@ export class Scheduler {
   private cachedPlan?: { runId: string; recipeHash: string; plan: ReturnType<typeof compilePlan> };
   constructor(store: Store) { this.store = store; }
   private plan(runId: string, recipeHash: string, recipe: Recipe, rows?: Record<string, unknown>[]) {
-    if (this.cachedPlan?.runId === runId && this.cachedPlan.recipeHash === recipeHash) return this.cachedPlan.plan;
-    const tasks: Task[] = (rows ?? this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(runId)).map(t => {
+    const sourceRows = rows ?? this.store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(runId);
+    if (this.cachedPlan?.runId === runId && this.cachedPlan.recipeHash === recipeHash &&
+        this.cachedPlan.plan.byId.size === sourceRows.length) return this.cachedPlan.plan;
+    const tasks: Task[] = sourceRows.map(t => {
       invariant(typeof t.spec === "string", "missing persisted task specification");
       return JSON.parse(t.spec) as Task;
     });
