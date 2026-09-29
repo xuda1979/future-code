@@ -62,11 +62,12 @@ export class Scheduler {
       const known = new Map(existingTasks.map(t => [t.id, t]));
       const seen = new Set<string>();
       for (const child of children) {
-        invariant(!seen.has(child.id), "duplicate child task id"); seen.add(child.id);
+        invariant(!seen.has(child.id), "duplicate child task id");
         invariant(child.id !== parentId, "child may not replace parent");
         invariant(child.writeScope.every(p => authority.some(a => p === a || p.startsWith(`${a}/`))), "child write scope exceeds delegated authority");
         invariant((child.delegateScope ?? []).every(p => authority.some(a => p === a || p.startsWith(`${a}/`))), "child delegation exceeds parent authority");
-        for (const d of child.dependencies) invariant(known.has(d) || seen.has(d), "child dependency is not admitted");
+        for (const d of child.dependencies) invariant(d !== child.id && (known.has(d) || seen.has(d)), "child dependency is not admitted");
+        seen.add(child.id);
       }
       const merged = [...existingTasks];
       for (const child of children) if (!known.has(child.id)) merged.push(child);
