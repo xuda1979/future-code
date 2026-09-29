@@ -244,7 +244,7 @@ export class Scheduler {
   }
   summary(id: string, now = Date.now()): RunSummary {
     const r = this.store.db.prepare("SELECT * FROM runs WHERE id=?").get(id); invariant(r, "unknown run");
-    const tasks = this.store.db.prepare("SELECT status FROM tasks WHERE run=?").all(id);
+    const tasks = this.store.db.prepare("SELECT id,status FROM tasks WHERE run=?").all(id);
     const attempts = this.store.db.prepare("SELECT tokens,cost FROM attempts WHERE run=?").all(id);
     const sum = (key: string): number | null => attempts.length && attempts.every(a => a[key] !== null && Number.isFinite(a[key])) ? attempts.reduce((n, a) => n + a[key], 0) : null;
     const accepted = tasks.filter(t => t.status === "PASS").length;
