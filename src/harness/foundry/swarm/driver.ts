@@ -91,8 +91,65 @@ export class SwarmDriver implements Driver {
         if (t.state.output) return { artifact: toJson(t.state.output), measurement: { tokens: this.journal.usage(c.runId, c.task.id, c.fence).tokens, costUsd: null } };
         const calls = outstanding(t);
         if (calls.length) {
+          const remoteBatch = calls.filter(call => call.name === "run_job");
+          if (remoteBatch.length > 1) {
+            invariant(jobs, "no remote job templates configured");
+            const alreadyPending = new Set(t.state.pendingBatch ?? []);
+            const fresh = remoteBatch.filter(call => !alreadyPending.has(call.id));
+            invariant(t.state.toolCalls + fresh.length <= budget.maxToolCalls,
+              "THREAD_TOOL_BUDGET_EXHAUSTED");
+            t.state.toolCalls += fresh.length;
+            t.state.pending = null;
+            t.state.pendingBatch = remoteBatch.map(call => call.id);
+            for (const call of fresh) this.journal.checkpoint(t, "tool.intent", call);
+            this.journal.checkpoint(t, "tool.batch.intent", {
+              kind: "run_job", callIds: t.state.pendingBatch,
+            });
+            control?.activity?.(`remote-batch:launch:${remoteBatch.length}`);
+            const outcomes = await Promise.allSettled(
+              remoteBatch.map(call => jobs.execute(c, profile, call, signal))
+            );
+            const deferred: DeferredAttemptError[] = [];
+            let terminalError: Error | null = null;
+            const stillPending: string[] = [];
+            for (let i = 0; i < outcomes.length; i++) {
+              const call = remoteBatch[i]!;
+              const outcome = outcomes[i]!;
+              if (outcome.status === "rejected") {
+                const error = outcome.reason;
+                if (error instanceof DeferredAttemptError) {
+                  deferred.push(error); stillPending.push(call.id); continue;
+                }
+                if (error instanceof FatalAttemptError) {
+                  terminalError ??= error; continue;
+                }
+                const result: Json = { error: error instanceof Error ? error.message.slice(0, 2048) : "tool error" };
+                const receipt = this.journal.receipt(c, result);
+                t.state.history.push({ role: "tool", callId: call.id, content: inlineReceipt(receipt, result) });
+                this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
+                continue;
+              }
+              const result = outcome.value;
+              const receipt = this.journal.receipt(c, result);
+              t.state.history.push({ role: "tool", callId: call.id, content: inlineReceipt(receipt, result) });
+              this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
+            }
+            t.state.pendingBatch = stillPending.length ? stillPending : undefined;
+            this.journal.checkpoint(t, "tool.batch.result", {
+              completed: remoteBatch.length - stillPending.length,
+              pending: stillPending,
+            });
+            if (terminalError) throw terminalError;
+            if (deferred.length) {
+              const wakeAt = Math.min(...deferred.map(error => error.wakeAt));
+              throw new DeferredAttemptError("remote-job", wakeAt,
+                `${stillPending.length} remote experiment(s) still running; batch resume scheduled`);
+            }
+            control?.activity?.(`remote-batch:completed:${remoteBatch.length}`);
+            continue;
+          }
           for (const call of calls) {
-            const resuming = t.state.pending?.id === call.id;
+            const resuming = t.state.pending?.id === call.id || t.state.pendingBatch?.includes(call.id) === true;
             if (!resuming) {
               if (t.state.toolCalls >= budget.maxToolCalls) throw new FatalAttemptError("THREAD_TOOL_BUDGET_EXHAUSTED");
               t.state.toolCalls++;
