@@ -65,7 +65,6 @@ function source(store: Store, runId: string): {
 /** Caller owns the surrounding transaction. */
 export function rebuildSchedulerIndex(store: Store, runId: string, recipe: Recipe,
   now = Date.now()): void {
-  installSchedulerIndex(store);
   const { status, runtime, edges } = source(store, runId);
   const plan = compilePlan(runtime, recipe, store.contract().limits.contextBytes);
   const previous = store.db.prepare("SELECT rebuilds FROM scheduler_index_meta WHERE run=?").get(runId);
@@ -100,7 +99,6 @@ export function rebuildSchedulerIndex(store: Store, runId: string, recipe: Recip
 }
 
 export function hasSchedulerIndex(store: Store, runId: string): boolean {
-  installSchedulerIndex(store);
   return !!store.db.prepare("SELECT 1 FROM scheduler_index_meta WHERE run=?").get(runId);
 }
 
@@ -166,7 +164,6 @@ export function readyCandidates(store: Store, runId: string, now: number, limit:
 }
 
 export function schedulerIndexStats(store: Store, runId: string, now = Date.now()): SchedulerIndexStats | null {
-  installSchedulerIndex(store);
   const meta = store.db.prepare(
     "SELECT task_count,edge_count,rebuilds,built_at FROM scheduler_index_meta WHERE run=?"
   ).get(runId);
