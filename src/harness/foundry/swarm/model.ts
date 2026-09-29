@@ -6,13 +6,16 @@ import type { AgentProfile, Protocol, SwarmBudget, ToolName } from "./config.ts"
 import { bytes, compactHistory, type Call, type Message } from "./context.ts";
 import { SessionJournal } from "./session.ts";
 
-export interface Turn { message: Message; tokens: number | null; truncated: boolean }
+export interface ProviderUsage { inputTokens: number; outputTokens: number; cachedInputTokens: number; createdCacheTokens: number }
+export interface Turn { message: Message; tokens: number | null; usage: ProviderUsage | null; truncated: boolean }
 export interface ToolDefinition { name: ToolName; description: string; schema: Record<string, Json> }
 const string = { type: "string" }; const integer = { type: "integer", minimum: 0 };
 const def = (name: ToolName, description: string, properties: Record<string, Json>, required: string[]): ToolDefinition =>
   ({ name, description, schema: { type: "object", properties, required, additionalProperties: false } });
 export const definitions: ToolDefinition[] = [
   def("run_job", "Run a permitted external research job. The host persists its ID, releases this worker while waiting, and resumes with the result. Never launch duplicate work through run_check.", { name: string, input: {} }, ["name", "input"]),
+  def("spawn_tasks", "Dynamically spawn bounded child agents for independent work inside this task's delegateScope. Child tasks get separate scheduler leases and verification.", { tasks: { type: "array", minItems: 1, maxItems: 64, items: { type: "object" } } }, ["tasks"]),
+  def("await_tasks", "Yield this parent lease until the named direct child agents finish. This does not burn an implementation failure attempt.", { ids: { type: "array", minItems: 1, maxItems: 256, items: string } }, ["ids"]),
   def("list_files", "List tracked and new files in the task's readable scopes. Paginated; paths only.", { offset: integer, limit: { type: "integer", minimum: 1, maximum: 200 } }, []),
   def("read_file", "Read a bounded line range of a non-symlink UTF-8 file in readable scopes.", { path: string, start: { type: "integer", minimum: 1 }, lines: { type: "integer", minimum: 1, maximum: 300 } }, ["path"]),
   def("write_file", "Write a UTF-8 file within the task's exclusive write scopes; use edit_file for small changes.", { path: string, content: string }, ["path", "content"]),
@@ -23,16 +26,21 @@ export const definitions: ToolDefinition[] = [
     { receipt: string, offset: integer, length: { type: "integer", minimum: 1, maximum: 8192 }, historyAfter: integer, limit: { type: "integer", minimum: 1, maximum: 10 } }, []),
 ];
 const asJson = (x: unknown): Json => JSON.parse(canonical(x));
-function measured(raw: any, protocol: Protocol): number | null {
+function measured(raw: any, protocol: Protocol): { tokens: number; usage: ProviderUsage } | null {
   const u = raw?.usage;
   if (!u || typeof u !== "object") return null;
-  const ns = protocol === "anthropic"
-    ? [u.input_tokens, u.output_tokens, u.cache_creation_input_tokens ?? 0, u.cache_read_input_tokens ?? 0]
-    : [u.prompt_tokens, u.completion_tokens];
+  const input = protocol === "anthropic" ? u.input_tokens : u.prompt_tokens;
+  const output = protocol === "anthropic" ? u.output_tokens : u.completion_tokens;
+  const cached = protocol === "anthropic" ? (u.cache_read_input_tokens ?? 0) : (u.prompt_tokens_details?.cached_tokens ?? 0);
+  const created = protocol === "anthropic" ? (u.cache_creation_input_tokens ?? 0) : (u.prompt_tokens_details?.created_cache_tokens ?? 0);
+  const ns = [input, output, cached, created];
   if (ns.some(x => x === undefined || x === null)) return null;
   invariant(ns.every(x => Number.isSafeInteger(x) && x >= 0), "invalid provider usage");
-  const total = ns.reduce((a, b) => a + b, 0);
-  invariant(Number.isSafeInteger(total), "provider usage overflow"); return total;
+  const promptTotal = protocol === "anthropic" ? input + cached + created : input;
+  invariant(cached <= promptTotal, "cached input exceeds prompt usage");
+  const total = promptTotal + output;
+  invariant(Number.isSafeInteger(total), "provider usage overflow");
+  return { tokens: total, usage: { inputTokens: promptTotal, outputTokens: output, cachedInputTokens: cached, createdCacheTokens: created } };
 }
 export function decodeTurn(protocol: Protocol, raw: any): Turn {
   let content = ""; const calls: Call[] = []; let stop: string;
@@ -67,8 +75,9 @@ export function decodeTurn(protocol: Protocol, raw: any): Turn {
     canonical(c.arguments);
   }
   invariant(!["tool_calls", "tool_use"].includes(stop) || calls.length > 0, "tool stop without calls");
-  return { message: { role: "assistant", content, ...(calls.length ? { calls } : {}) }, tokens: measured(raw, protocol),
-    truncated: stop === "length" || stop === "max_tokens" };
+  const usage = measured(raw, protocol);
+  return { message: { role: "assistant", content, ...(calls.length ? { calls } : {}) }, tokens: usage?.tokens ?? null,
+    usage: usage?.usage ?? null, truncated: stop === "length" || stop === "max_tokens" };
 }
 export function requestBody(profile: AgentProfile, history: Message[], budget: SwarmBudget): Json {
   const tools = definitions.filter(x => profile.tools.includes(x.name)).sort((a, b) => a.name.localeCompare(b.name));
@@ -171,7 +180,7 @@ export class HttpBrain {
         }
         const raw = await boundedJson(response, budget.maxToolOutputBytes);
         const turn = decodeTurn(profile.protocol, raw);
-        this.journal.complete(id, turn.tokens, raw, step); completed = true;
+        this.journal.complete(id, turn.tokens, raw, step, turn.usage); completed = true;
         signal.throwIfAborted(); this.journal.assertLease(c);
         if (turn.truncated) throw new FatalAttemptError("Model output truncated; admit more output or split task");
         return { turn, history: projection };
