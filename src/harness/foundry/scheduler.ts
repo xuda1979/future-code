@@ -248,6 +248,15 @@ export class Scheduler {
     const attempts = this.store.db.prepare("SELECT tokens,cost FROM attempts WHERE run=?").all(id);
     const sum = (key: string): number | null => attempts.length && attempts.every(a => a[key] !== null && Number.isFinite(a[key])) ? attempts.reduce((n, a) => n + a[key], 0) : null;
     const accepted = tasks.filter(t => t.status === "PASS").length;
+    // Dynamic children are implementation work, not additional objective progress.
+    // Keep the numerator bound to the admitted task graph so a provider cannot
+    // improve progressDensity merely by splitting one task into many verified
+    // subtasks. Child attempts still contribute to the measured input denominator.
+    const spawnedChildren = new Set(this.store.db.prepare(
+      "SELECT child FROM spawn_edges WHERE run=?"
+    ).all(id).map(row => String(row.child)));
+    const verifiedProgress = tasks.filter(t =>
+      t.status === "PASS" && !spawnedChildren.has(String(t.id))).length;
     // Progress density uses actual encoded capsule bytes recorded by the trusted
     // host for prepared attempts. It is not a recipe allocation, token bill, or
     // provider KV/prompt-cache metric.
@@ -258,7 +267,7 @@ export class Scheduler {
       Number.isSafeInteger(x.context_bytes) && x.context_bytes > 0);
     const totalContext = contexts.length && validContexts
       ? contexts.reduce((n, x) => n + x.context_bytes, 0) : null;
-    const pd = totalContext === null ? null : progressDensity(accepted, totalContext);
+    const pd = totalContext === null ? null : progressDensity(verifiedProgress, totalContext);
     return { id, recipeHash: r.recipe, contractHash: r.contract, status: r.status,
       accepted, failed: tasks.filter(t => t.status === "FAIL").length,
       blocked: tasks.filter(t => t.status === "BLOCKED").length, attempts: attempts.length,
