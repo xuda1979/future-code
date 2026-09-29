@@ -163,7 +163,7 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
     const encoded = canonical(body);
     invariant(Buffer.byteLength(encoded) <= cfg.spec.budget.maxRequestBytes,
       "recovery planner request exceeds configured request-byte budget");
-    const provider = digest({ url: profile.url });
+    const provider = digest({ quotaPool: profile.quotaPool ?? `${profile.url}#${profile.model}` });
     for (let attempt = 0; attempt < 2; attempt++) {
       signal.throwIfAborted();
       const requestId = await journal.reserveRun(context.runId, "__recovery__", provider, body, cfg.spec.budget, signal);
