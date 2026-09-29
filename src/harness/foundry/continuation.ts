@@ -7,7 +7,7 @@ import type { Lease, Measurement } from "./types.ts";
 export class DeferredAttemptError extends Error {
   readonly wakeAt: number;
   readonly kind: string;
-  constructor(kind: "provider" | "remote-job" | "remote-stalled" | "checkpoint" | "cancelled", wakeAt: number, reason: string) {
+  constructor(kind: "provider" | "remote-job" | "remote-stalled" | "checkpoint" | "spawn" | "cancelled", wakeAt: number, reason: string) {
     super(reason); this.name = "DeferredAttemptError";
     invariant(Number.isSafeInteger(wakeAt) && wakeAt >= 0, "invalid continuation time");
     this.wakeAt = wakeAt; this.kind = kind;
