@@ -1,3 +1,5 @@
+import type { SDKMessage } from "../entrypoints/agentSdkTypes.js";
+
 export type RemoteResponseWatchdogOptions = {
   responseTimeoutMs: number
   compactionTimeoutMs: number
@@ -124,4 +126,23 @@ export class RemoteResponseWatchdog {
     this.waiting = false
     this.callbacks.onExhausted()
   }
+}
+
+/**
+ * Return true only for messages that demonstrate work on the foreground turn.
+ * Connection/init chatter must not reset the reconnect budget.
+ */
+export function isRemoteResponseProgress(message: SDKMessage): boolean {
+  if (message.type === "assistant" || message.type === "stream_event") return true;
+  if (message.type === "user") {
+    const content = message.message?.content;
+    return Array.isArray(content) && content.some(block => block.type === "tool_result");
+  }
+  if (message.type !== "system") return false;
+  return message.subtype === "task_started" ||
+    message.subtype === "task_progress" ||
+    message.subtype === "task_notification" ||
+    message.subtype === "status" ||
+    message.subtype === "compact_boundary" ||
+    message.subtype === "tool_use_summary";
 }
