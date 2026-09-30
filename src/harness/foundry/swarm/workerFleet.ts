@@ -118,6 +118,7 @@ class RemoteHands implements Hands {
         if (!reply.ok) return { error: reply.error ?? "remote tool failed" };
         return reply.result ?? null;
       } catch (e) {
+        if (e instanceof DeferredAttemptError) throw e;
         if (attempt || Object.keys(this.cfg.spec.workers ?? {}).length - this.failedWorkers.size <= 0) throw e;
         await this.failover(e);
       }
