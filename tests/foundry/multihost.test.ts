@@ -143,7 +143,7 @@ test("prepare success cannot erase repeated worker RPC failures before quarantin
       const body = JSON.parse(init.body as string);
       const hasToolResult = body.messages.some((m: any) => m.role === "tool");
       if (!hasToolResult)
-        return reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\\n" } }]);
+        return reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]);
       return reply("complete");
     }) as typeof fetch;
 
@@ -165,14 +165,14 @@ test("prepare success cannot erase repeated worker RPC failures before quarantin
       "delegate = sys.argv[1:]",
       "raw = sys.stdin.buffer.read()",
       "request = json.loads(raw)",
-      "if request.get(\\\"op\\\") == \\\"tool\\\":",
+      "if request.get(\"op\") == \"tool\":",
       "    raise SystemExit(71)",
       "p = subprocess.run(delegate, input=raw, stdout=subprocess.PIPE, stderr=subprocess.PIPE)",
       "sys.stdout.buffer.write(p.stdout)",
       "sys.stderr.buffer.write(p.stderr)",
       "raise SystemExit(p.returncode)",
       ""
-    ].join("\\n"));
+    ].join("\n"));
     const repos = [1, 2].map(i => join(parent, `quarantine-worker-repo-${i}`));
     const roots = [1, 2].map(i => join(parent, `quarantine-worker-root-${i}`));
     repos.forEach(repo => execFileSync("git", ["clone", "-q", s.project, repo]));
