@@ -213,6 +213,47 @@ test("alternating old remote milestones cannot mask a stalled job", async () => 
   assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM research_job_progress").get()!.n, 2);
 }, s => { jobSpec(s); s.jobs!.train.staleMs = 200; s.jobs!.train.reconcileAfterMs = 1000; }));
 
+test("status-only remote lifecycle renews liveness once and health uses the real stale deadline", async () => swarmFixture(async (s, cfg) => {
+  const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
+  const states = ["QUEUED", "RUNNING", "RUNNING", "QUEUED"] as const;
+  let index = 0;
+  const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => ({
+    schema: 1, key: (request as any).key, jobId: "train", status: states[index++]!,
+  }));
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), DeferredAttemptError);
+  let row = s.db.prepare("SELECT progress_at,stale_at,progress_rank FROM research_jobs WHERE run=?").get(run)!;
+  assert.equal(row.progress_rank, 1, "first QUEUED observation is a one-time lifecycle milestone");
+
+  const forcedStale = Date.now() - 300;
+  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?,stale_at=? WHERE run=?")
+    .run(forcedStale, forcedStale + 200, run);
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), DeferredAttemptError);
+  row = s.db.prepare("SELECT progress_at,stale_at,progress_rank FROM research_jobs WHERE run=?").get(run)!;
+  assert.equal(row.progress_rank, 2, "QUEUED to RUNNING is real forward progress even without a custom token");
+  assert.ok(row.progress_at > forcedStale);
+  assert.ok(row.stale_at > Date.now());
+  assert.equal(runHealth(s, run).remoteJobs?.stalled, 0);
+
+  const staleAt = Date.now() - 300;
+  s.db.prepare("UPDATE research_jobs SET poll_at=0,progress_at=?,stale_at=? WHERE run=?")
+    .run(staleAt, staleAt + 200, run);
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => {
+    assert.ok(e instanceof DeferredAttemptError); assert.equal(e.kind, "remote-stalled"); return true;
+  });
+  row = s.db.prepare("SELECT progress_at,progress_rank FROM research_jobs WHERE run=?").get(run)!;
+  assert.equal(row.progress_at, staleAt, "repeated RUNNING must not fake liveness");
+  assert.equal(row.progress_rank, 2);
+  assert.equal(runHealth(s, run).remoteJobs?.stalled, 1, "health must use the no-progress deadline, not UNKNOWN status");
+
+  s.db.prepare("UPDATE research_jobs SET poll_at=0 WHERE run=?").run(run);
+  await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), e => {
+    assert.ok(e instanceof DeferredAttemptError); assert.equal(e.kind, "remote-stalled"); return true;
+  });
+  row = s.db.prepare("SELECT progress_at,progress_rank FROM research_jobs WHERE run=?").get(run)!;
+  assert.equal(row.progress_at, staleAt, "status regression must not renew liveness");
+  assert.equal(row.progress_rank, 2);
+}, s => { jobSpec(s); s.jobs!.train.staleMs = 200; s.jobs!.train.reconcileAfterMs = 1000; }));
+
 test("operator reconciliation records a terminal remote outcome without resubmission", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   let rpcCalls = 0;

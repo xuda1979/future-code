@@ -136,3 +136,57 @@ os.execv(delegate[0], delegate)
     s.recipe.parallelism = 1;
   });
 });
+
+test("prepare success cannot erase repeated worker RPC failures before quarantine", async () => {
+  await fixture(async (store) => {
+    const fetcher = (async (_url: any, init: any) => {
+      const body = JSON.parse(init.body as string);
+      const hasToolResult = body.messages.some((m: any) => m.role === "tool");
+      if (!hasToolResult)
+        return reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]);
+      return reply("complete");
+    }) as typeof fetch;
+
+    const result: any = await runSwarm(store, [{ ...task("a"), readScope: [] }], signal(), undefined, fetcher);
+    assert.equal(result.status, "FAIL");
+    const health = store.db.prepare("SELECT worker,failures,quarantine_until FROM swarm_worker_health ORDER BY worker").all();
+    assert.equal(health.length, 2);
+    assert.ok(health.every(row => Number(row.failures) >= 2), JSON.stringify(health));
+    assert.ok(health.every(row => Number(row.quarantine_until) > Date.now()), JSON.stringify(health));
+  }, s => {
+    const parent = dirname(s.project);
+    const endpoint = resolve("scripts/swarm-worker-agent.py");
+    const python = executable("python3");
+    const config = join(parent, "worker-template-quarantine.json");
+    const wrapper = join(parent, "worker-tool-failure.py");
+    writeFileSync(config, JSON.stringify({ checks: {} }));
+    writeFileSync(wrapper, [
+      "import json, subprocess, sys",
+      "delegate = sys.argv[1:]",
+      "raw = sys.stdin.buffer.read()",
+      "request = json.loads(raw)",
+      "if request.get(\"op\") == \"tool\":",
+      "    raise SystemExit(71)",
+      "p = subprocess.run(delegate, input=raw, stdout=subprocess.PIPE, stderr=subprocess.PIPE)",
+      "sys.stdout.buffer.write(p.stdout)",
+      "sys.stderr.buffer.write(p.stderr)",
+      "raise SystemExit(p.returncode)",
+      ""
+    ].join("\n"));
+    const repos = [1, 2].map(i => join(parent, `quarantine-worker-repo-${i}`));
+    const roots = [1, 2].map(i => join(parent, `quarantine-worker-root-${i}`));
+    repos.forEach(repo => execFileSync("git", ["clone", "-q", s.project, repo]));
+    roots.forEach(root => mkdirSync(root, { recursive: true }));
+    s.workers = Object.fromEntries(repos.map((repo, i) => [
+      `host-${i + 1}`,
+      {
+        adapter: { argv: [python, wrapper, python, endpoint, "--root", roots[i]!, "--repo", repo, "--config", config],
+          files: [wrapper, endpoint, config] },
+        maxConcurrent: 1,
+        maxRpcBytes: 2 * 1024 * 1024,
+      },
+    ]));
+    s.recipe.attempts = 2;
+    s.recipe.parallelism = 1;
+  });
+});

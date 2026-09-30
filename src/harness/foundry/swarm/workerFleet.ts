@@ -145,7 +145,9 @@ class RemoteHands implements Hands {
       limits: { toolTimeoutMs: this.cfg.spec.budget.toolTimeoutMs,
         maxToolOutputBytes: this.cfg.spec.budget.maxToolOutputBytes, maxPatchBytes: this.cfg.spec.budget.maxPatchBytes },
     });
-    if (reply.ok) workerSucceeded(this.store, lease.worker);
+    // A successful workspace prepare proves reachability only. Do not clear a
+    // durable RPC-failure streak until useful tool/snapshot traffic succeeds;
+    // otherwise prepare -> tool-failure loops can keep a broken host healthy forever.
     invariant(reply.ok, reply.error ?? "remote worker prepare failed"); this.prepared = true;
   }
   private async failover(error: unknown): Promise<void> {

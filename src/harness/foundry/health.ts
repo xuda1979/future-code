@@ -54,11 +54,13 @@ export function runHealth(store: Store, runId: string, now = Date.now()): Health
   const remoteJobs = hasJobs ? (() => {
     const jobColumns = new Set(store.db.prepare("PRAGMA table_info(research_jobs)").all().map(r => String(r.name)));
     const hasAttestation = jobColumns.has("reconciliation_hash");
+    const hasStaleDeadline = jobColumns.has("stale_at");
+    const stalledPredicate = hasStaleDeadline ? "stale_at IS NOT NULL AND stale_at<=?" : "status='UNKNOWN'";
     const row = store.db.prepare(`SELECT
       SUM(CASE WHEN result_hash IS NULL THEN 1 ELSE 0 END) AS active,
-      SUM(CASE WHEN result_hash IS NULL AND status='UNKNOWN' THEN 1 ELSE 0 END) AS stalled,
+      SUM(CASE WHEN result_hash IS NULL AND ${stalledPredicate} THEN 1 ELSE 0 END) AS stalled,
       SUM(CASE WHEN result_hash IS NOT NULL THEN 1 ELSE 0 END) AS terminal
-      FROM research_jobs WHERE run=?`).get(runId)!;
+      FROM research_jobs WHERE run=?`).get(...(hasStaleDeadline ? [now, runId] : [runId]))!;
     const terminal = Number(row.terminal ?? 0);
     const unattested = hasAttestation ? Number(store.db.prepare(
       "SELECT COUNT(*) AS n FROM research_jobs WHERE run=? AND result_hash IS NOT NULL AND reconciliation_hash IS NULL"
