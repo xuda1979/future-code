@@ -154,7 +154,7 @@ export class ResearchJobs {
   private wait(row: Record<string, any>, template: JobTemplate): DeferredAttemptError | FatalAttemptError {
     const now = Date.now();
     const age = Math.max(0, now - row.progress_at);
-    const staleAt = Number(row.stale_at ?? (row.progress_at + template.staleMs));
+    const staleAt = Math.min(Number(row.stale_at ?? Number.POSITIVE_INFINITY), row.progress_at + template.staleMs);
     const reconcileAfterMs = template.reconcileAfterMs ?? Math.min(604800000, template.staleMs * 3);
     if (age >= reconcileAfterMs) {
       return new FatalAttemptError(`REMOTE_JOB_RECONCILIATION_REQUIRED: job ${row.key.slice(0, 12)} ${row.status}; no semantic milestone for ${age}ms. Inspect/adopt/cancel the remote job before any replacement work.`);
