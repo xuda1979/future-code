@@ -1,5 +1,6 @@
 import { digest, invariant } from "../kernel.ts";
 import { invoke } from "../commands.ts";
+import { DeferredAttemptError } from "../continuation.ts";
 import type { Capsule, Json, Verification } from "../types.ts";
 import type { Store } from "../store.ts";
 import type { AgentProfile, PinnedSwarm } from "./config.ts";
@@ -49,7 +50,8 @@ function claimLease(store: Store, cfg: PinnedSwarm, c: Capsule, exclude = new Se
       tie: digest({ run: c.runId, task: c.task.id, fence: c.fence, worker: id }),
     })).filter(x => x.active < x.capacity)
       .sort((a, b) => a.active - b.active || (a.tie < b.tie ? -1 : a.tie > b.tie ? 1 : 0));
-    invariant(ranked.length > 0, "REMOTE_WORKER_CAPACITY_EXHAUSTED");
+    if (!ranked.length) throw new DeferredAttemptError("worker-capacity", now + 250,
+      "All configured execution workers are busy; retry scheduled");
     const worker = ranked[0]!.id; const workspace = workspaceId(c);
     store.db.prepare("INSERT INTO swarm_worker_leases VALUES(?,?,?,?,?,?)")
       .run(c.runId, c.task.id, c.fence, worker, workspace, Number(task.deadline));
@@ -123,20 +125,15 @@ class RemoteHands implements Hands {
     throw new Error("unreachable");
   }
   async snapshot(): Promise<string> {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        await this.prepare();
-        const reply = await this.rpc({ schema: 1, op: "snapshot", workspace: this.lease!.workspace });
-        invariant(reply.ok && typeof reply.patch === "string", reply.error ?? "remote snapshot failed");
-        invariant(Buffer.byteLength(reply.patch) <= this.cfg.spec.budget.maxPatchBytes, "remote patch exceeds budget");
-        this.restorePatch = this.store.artifact(reply.patch);
-        return this.restorePatch;
-      } catch (e) {
-        if (attempt || Object.keys(this.cfg.spec.workers ?? {}).length - this.failedWorkers.size <= 0) throw e;
-        await this.failover(e);
-      }
-    }
-    throw new Error("unreachable");
+    await this.prepare();
+    // Do not fail over inside snapshot. A mutating tool may already have
+    // succeeded on this worker; if snapshot transport fails, the enclosing
+    // attempt must retry the still-pending tool from the last durable patch.
+    const reply = await this.rpc({ schema: 1, op: "snapshot", workspace: this.lease!.workspace });
+    invariant(reply.ok && typeof reply.patch === "string", reply.error ?? "remote snapshot failed");
+    invariant(Buffer.byteLength(reply.patch) <= this.cfg.spec.budget.maxPatchBytes, "remote patch exceeds budget");
+    this.restorePatch = this.store.artifact(reply.patch);
+    return this.restorePatch;
   }
   async dispose(): Promise<void> {
     if (this.lease) {
