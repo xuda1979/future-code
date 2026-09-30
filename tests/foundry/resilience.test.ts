@@ -501,24 +501,21 @@ test("deferred recovery wakes at retry_at instead of waiting for the report cade
 
 test("recovery rejects cosmetic task renames that repeat a failed execution strategy", async () => swarmFixture(async s => {
   const ctl = new AbortController();
-  const cosmetic = {
-    ...swarmTask("renamed-repair"),
-    goal: "Different words for the same failed work",
-    acceptance: ["same behavior with different prose"],
-  };
+  const original = swarmTask();
+  const cosmetic = { ...original, id: "renamed-repair" };
   const script = scripted([
     () => reply("first graph produced no patch"),
     () => reply("cosmetic replacement also produced no patch"),
   ]);
   const result: any = await superviseSwarm(
     s,
-    { id: "strategy-novelty", goal: "Require a causally different recovery plan", tasks: [swarmTask()] },
+    { id: "strategy-novelty", goal: "Require a structurally or semantically different recovery plan", tasks: [original] },
     ctl.signal,
     r => {
       if (r.status === "NEEDS_ATTENTION") ctl.abort();
     },
     script.fetcher,
-    async () => ({ reason: "Rename the task without changing execution", tasks: [cosmetic] }),
+    async () => ({ reason: "Rename only the task ID without changing execution", tasks: [cosmetic] }),
   );
   assert.equal(result.status, "PAUSED");
   const recovery = s.db.prepare(
