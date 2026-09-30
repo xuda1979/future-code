@@ -90,16 +90,12 @@ class RemoteHands implements Hands {
   }
   private async prepare(): Promise<void> {
     if (this.prepared) return;
-    const checks = Object.fromEntries(this.profile.checks.map(name => {
-      const command = this.cfg.checks[name]; invariant(command, "missing worker check");
-      return [name, { argv: command.argv, envAllow: command.envAllow ?? [] }];
-    }));
     const lease = this.ensureLease();
     const reply = await this.rpc({
       schema: 1, op: "prepare", workspace: lease.workspace, baseCommit: this.cfg.baseCommit,
       dependencyPatches: this.dependencies(), restorePatch: this.restorePatch,
       task: { writeScope: this.c.task.writeScope, readScope: this.c.task.readScope ?? [] },
-      protectedPaths: this.cfg.spec.protectedPaths, allowedChecks: this.profile.checks, checks,
+      protectedPaths: this.cfg.spec.protectedPaths, allowedChecks: this.profile.checks,
       limits: { toolTimeoutMs: this.cfg.spec.budget.toolTimeoutMs,
         maxToolOutputBytes: this.cfg.spec.budget.maxToolOutputBytes, maxPatchBytes: this.cfg.spec.budget.maxPatchBytes },
     });
