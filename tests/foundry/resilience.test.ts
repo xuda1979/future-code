@@ -526,7 +526,10 @@ test("prepared recovery is adopted after a supervisor crash without another plan
   assert.equal(s.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective='prepared-recovery'").get()!.state, "PLANNED");
 }, s => {
   s.recipe.attempts = 1;
-  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
+  // This fixture injects PREPARED manually to model the crash window. Disable
+  // ordinary replanning so the setup does not race the default recovery planner.
+  // PREPARED adoption remains allowed even when new automatic replans are off.
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 0 };
 }));
 test("unresolved remote outcome suppresses autonomous replacement planning", async () => swarmFixture(async (s, cfg) => {
   const first = new AbortController();
