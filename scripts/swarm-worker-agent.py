@@ -91,8 +91,13 @@ def run(argv: list[str], cwd: Path, timeout_ms: int, max_bytes: int, stdin: byte
     return {"code": proc.returncode, "stdout": out.decode("utf-8", "replace"), "stderr": err.decode("utf-8", "replace")}
 
 
+GIT = shutil.which("git")
+if not GIT:
+    raise RuntimeError("git executable not found")
+
+
 def git(repo: Path, args: list[str], timeout_ms: int = 30000, stdin: bytes | None = None) -> str:
-    result = run(["/usr/bin/git", "--no-pager", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
+    result = run([GIT, "--no-pager", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
                   "-c", "core.autocrlf=false", *args], repo, timeout_ms, 16 * 1024 * 1024, stdin)
     if result["code"] != 0:
         raise ValueError(f"git {args[0]} failed: {result['stderr'][-1200:]}")
@@ -165,12 +170,17 @@ def prepare(root: Path, repo: Path, request: dict[str, Any]) -> dict[str, Any]:
                     raise ValueError("invalid dependency patch")
                 if patch:
                     git(tree, ["apply", "--index", "--whitespace=nowarn", "-"], stdin=patch.encode())
+            # The worker's own patch must exclude already-verified dependency
+            # changes. Pin their composed tree before applying the task's
+            # resumable patch.
+            base_tree = git(tree, ["write-tree"]).strip()
             restore = request.get("restorePatch")
             if restore:
                 if not isinstance(restore, str):
                     raise ValueError("invalid restore patch")
                 git(tree, ["apply", "--index", "--whitespace=nowarn", "-"], stdin=restore.encode())
-            atomic(state_path, {"binding": binding, "request": request, "created": time.time()})
+            prepared = {**request, "baseTree": base_tree}
+            atomic(state_path, {"binding": binding, "request": prepared, "created": time.time()})
         except Exception:
             try:
                 git(repo, ["worktree", "remove", "--force", str(tree)])
@@ -280,7 +290,8 @@ def snapshot(root: Path, request: dict[str, Any]) -> dict[str, Any]:
     tree, prepared = context(root, request["workspace"])
     max_patch = prepared["limits"]["maxPatchBytes"]
     git(tree, ["add", "-A", "--", "."])
-    names = git(tree, ["diff", "--cached", "--no-renames", "--name-only", "-z", prepared["baseCommit"]]).split("\0")
+    base_tree = prepared["baseTree"]
+    names = git(tree, ["diff", "--cached", "--no-renames", "--name-only", "-z", base_tree]).split("\0")
     for name in filter(None, names):
         safe_rel(name)
         if not in_scope(name, prepared["task"].get("writeScope", [])):
@@ -288,7 +299,7 @@ def snapshot(root: Path, request: dict[str, Any]) -> dict[str, Any]:
         if any(in_scope(name, [p]) or in_scope(p, [name]) for p in prepared.get("protectedPaths", [])):
             raise ValueError("protected patch path")
         check_no_symlinks(tree, safe_rel(name))
-    patch = git(tree, ["diff", "--cached", "--no-ext-diff", "--no-renames", "--binary", prepared["baseCommit"]])
+    patch = git(tree, ["diff", "--cached", "--no-ext-diff", "--no-renames", "--binary", base_tree])
     if len(patch.encode()) > max_patch:
         raise ValueError("patch exceeds budget")
     return {"ok": True, "patch": patch}
