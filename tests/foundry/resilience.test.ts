@@ -236,7 +236,7 @@ test("successful external job requires a bounded result and permitted template",
 test("job and supervision configuration reject unsafe bounds/capabilities", () => {
   const s = spec("x"); jobSpec(s); s.jobs!.train.idempotentEnsure = false as any; assert.throws(() => validateSwarmSpec(s), /idempotent/);
   s.jobs!.train.idempotentEnsure = true; s.jobs!.train.maxConcurrent = 0; assert.throws(() => validateSwarmSpec(s), /concurrency/);
-  const supervised = spec("x"); supervised.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 9 };
+  const supervised = spec("x"); supervised.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 257 };
   assert.throws(() => validateSwarmSpec(supervised), /maxReplans/);
   const reconcile = spec("x"); jobSpec(reconcile); reconcile.jobs!.train.reconcileAfterMs = reconcile.jobs!.train.staleMs - 1;
   assert.throws(() => validateSwarmSpec(reconcile), /reconciliation interval/);
