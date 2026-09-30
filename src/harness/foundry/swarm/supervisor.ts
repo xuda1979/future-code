@@ -17,7 +17,7 @@ export interface RecoveryContext {
 }
 export interface RecoveryPlan { reason: string; tasks: Task[] }
 export type RecoveryPlanner = (context: RecoveryContext, signal: AbortSignal) => Promise<RecoveryPlan | null>;
-export function recoveryStrategySignature(tasks: Task[]): string {
+export function recoveryStrategySignature(tasks: Task[], defaultAgent?: string): string {
   const remaining = new Map(tasks.map(task => [task.id, task]));
   const labels = new Map<string, string>();
   while (remaining.size) {
@@ -29,7 +29,9 @@ export function recoveryStrategySignature(tasks: Task[]): string {
         ? task.dependencies.map(dep => task.dependencyViews?.[dep] ?? null)
         : [];
       labels.set(id, digest({
-        agent: task.agent ?? null,
+        agent: task.agent ?? defaultAgent ?? null,
+        goal: task.goal.trim().replace(/\s+/g, " "),
+        acceptance: task.acceptance.map(value => value.trim().replace(/\s+/g, " ")),
         input: task.input,
         writeScope: [...task.writeScope].sort(),
         readScope: [...(task.readScope ?? [])].sort(),
@@ -215,11 +217,11 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         for (const path of task.readScope ?? [])
           invariant(inScope(path, readAuthority), "recovery plan widens read authority");
       }
-      const proposalStrategy = recoveryStrategySignature(proposal.tasks);
+      const proposalStrategy = recoveryStrategySignature(proposal.tasks, cfg.spec.defaultAgent);
       const priorStrategies = store.db.prepare(
         "SELECT plan FROM swarm_objective_revisions WHERE objective=? ORDER BY revision"
       ).all(input.id).map(row => recoveryStrategySignature(
-        store.readArtifact(String(row.plan)) as unknown as Task[]
+        store.readArtifact(String(row.plan)) as unknown as Task[], cfg.spec.defaultAgent
       ));
       invariant(!priorStrategies.includes(proposalStrategy),
         "recovery plan repeats a previously failed execution strategy");
