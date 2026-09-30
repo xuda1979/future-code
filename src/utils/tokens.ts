@@ -3,6 +3,7 @@ import { roughTokenCountEstimationForMessages } from '../services/tokenEstimatio
 import type { AssistantMessage, Message } from '../types/message.js'
 import { SYNTHETIC_MESSAGES, SYNTHETIC_MODEL } from './messages.js'
 import { jsonStringify } from './slowOperations.js'
+import { isUsableUsageAnchor } from './tokenAnchor.js'
 
 export function getTokenUsage(message: Message): Usage | undefined {
   if (
@@ -12,7 +13,13 @@ export function getTokenUsage(message: Message): Usage | undefined {
       message.message.content[0]?.type === 'text' &&
       SYNTHETIC_MESSAGES.has(message.message.content[0].text)
     ) &&
-    message.message.model !== SYNTHETIC_MODEL
+    message.message.model !== SYNTHETIC_MODEL &&
+    // Providers/proxies that do not report usage emit all-zero usage fields.
+    // Such a record is NOT a usable estimation anchor: anchoring on it makes
+    // tokenCountWithEstimation() report ~0 and autocompact/session-memory
+    // thresholds never fire, so the session silently grows past the real
+    // context window and surfaces as recurring empty end_turn responses.
+    isUsableUsageAnchor(message.message.usage)
   ) {
     return message.message.usage
   }

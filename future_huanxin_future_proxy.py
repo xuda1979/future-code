@@ -92,6 +92,22 @@ def text_from_content(content: Any) -> str:
     return "\n".join(part for part in parts if part)
 
 
+def estimate_tokens_from_chars(text: str) -> int:
+    """Rough token estimate: ~3.5 chars/token for mixed code and text.
+
+    Matches the prompt_tokens_est heuristic used for max_tokens budgeting so
+    every usage figure the proxy emits is derived consistently.
+    """
+    return int(len(text) / 3.5) + 1
+
+
+def usage_total(usage: dict[str, Any] | None) -> int:
+    """Total tokens in an OpenAI-style usage dict; 0 when absent or all-zero."""
+    if not isinstance(usage, dict):
+        return 0
+    return int(usage.get("prompt_tokens") or 0) + int(usage.get("completion_tokens") or 0)
+
+
 def append_text_message(messages: list[dict[str, Any]], role: str, text: str) -> None:
     if text:
         messages.append({"role": role, "content": text})
@@ -358,6 +374,10 @@ def local_compaction_response(server: ThreadingHTTPServer, body: dict[str, Any],
     )
     excerpt = trim_text_middle(source, 7000)
     text = f"{fallback_note}\n\nPreserved context excerpt:\n{excerpt}".strip()
+    # Report a positive usage anchor: the compaction request had a real prompt
+    # (the whole conversation) and this fallback emits a real response. All-zero
+    # usage would make Future Code's context accounting read ~0 tokens and
+    # suppress the very autocompact that this fallback is trying to help.
     return {
         "id": f"msg_{uuid.uuid4().hex}",
         "type": "message",
@@ -366,7 +386,10 @@ def local_compaction_response(server: ThreadingHTTPServer, body: dict[str, Any],
         "content": [{"type": "text", "text": text}],
         "stop_reason": "end_turn",
         "stop_sequence": None,
-        "usage": {"input_tokens": 0, "output_tokens": 0},
+        "usage": {
+            "input_tokens": estimate_tokens_from_chars(json.dumps(body.get("messages") or [], ensure_ascii=False)),
+            "output_tokens": estimate_tokens_from_chars(text),
+        },
     }
 
 
@@ -841,6 +864,20 @@ def future_response(server: ThreadingHTTPServer, body: dict[str, Any], upstream:
         content_blocks.insert(0 if not reasoning_text else 1, {"type": "text", "text": text})
     usage = upstream.get("usage") if isinstance(upstream.get("usage"), dict) else {}
     stop_reason = "tool_use" if any(block.get("type") == "tool_use" for block in content_blocks) else "end_turn"
+    input_tokens = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+    output_tokens = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+    if input_tokens + output_tokens <= 0:
+        # No usable upstream usage: estimate both sides so Future Code gets a
+        # positive anchor for context accounting (all-zero usage would make its
+        # autocompact/session-memory thresholds read ~0 and never fire).
+        prompt_text = json.dumps(body.get("messages") or [], ensure_ascii=False, separators=(",", ":"))
+        for tool in body.get("tools") or []:
+            prompt_text += json.dumps(tool, ensure_ascii=False, separators=(",", ":"))
+        if isinstance(body.get("system"), str):
+            prompt_text += body["system"]
+        output_text = json.dumps(content_blocks, ensure_ascii=False, separators=(",", ":"))
+        input_tokens = estimate_tokens_from_chars(prompt_text)
+        output_tokens = estimate_tokens_from_chars(output_text)
     result = {
         "id": upstream.get("id") or f"msg_{uuid.uuid4().hex}",
         "type": "message",
@@ -850,8 +887,8 @@ def future_response(server: ThreadingHTTPServer, body: dict[str, Any], upstream:
         "stop_reason": stop_reason,
         "stop_sequence": None,
         "usage": {
-            "input_tokens": int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0),
-            "output_tokens": int(usage.get("completion_tokens") or usage.get("output_tokens") or 0),
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
         },
     }
     return result
@@ -866,7 +903,7 @@ class FutureStreamWriter:
     treats as a dropped/failed request on the next turn).
     """
 
-    def __init__(self, handler: BaseHTTPRequestHandler, msg_id: str, model: str, tool_names: list[str] | None = None) -> None:
+    def __init__(self, handler: BaseHTTPRequestHandler, msg_id: str, model: str, tool_names: list[str] | None = None, prompt_text: str = "") -> None:
         self.handler = handler
         self.msg_id = msg_id
         self.model = model
@@ -876,9 +913,17 @@ class FutureStreamWriter:
         self.thinking_index: int | None = None
         self.tool_blocks: dict[int, dict[str, Any]] = {}
         self.reasoning_buffer: list[str] = []
+        # All generated output (text, reasoning, tool arguments) so finish()
+        # can estimate output_tokens when the upstream reports no usage.
+        self.text_parts: list[str] = []
         self.any_output = False
         self.finish_reason: str | None = None
         self.usage: dict[str, Any] | None = None
+        # Request body text, used to estimate prompt tokens when the upstream
+        # does not report usage. Future Code anchors context accounting on the
+        # usage we emit; all-zero usage makes its context look ~0 tokens so
+        # autocompact never fires and sessions die past the real window.
+        self.prompt_text = prompt_text if isinstance(prompt_text, str) else ""
         self.last_write = time.time()
 
     def _send(self, event_type: str, data: dict[str, Any]) -> None:
@@ -942,6 +987,7 @@ class FutureStreamWriter:
             return
         self._ensure_text_open()
         self.any_output = True
+        self.text_parts.append(text)
         self._send("content_block_delta", {"index": self.text_index, "delta": {"type": "text_delta", "text": text}})
 
     def add_reasoning(self, text: str) -> None:
@@ -954,6 +1000,7 @@ class FutureStreamWriter:
         if not text:
             return
         self.reasoning_buffer.append(text)
+        self.text_parts.append(text)
         self._ensure_thinking_open()
         self._send(
             "content_block_delta",
@@ -1007,6 +1054,7 @@ class FutureStreamWriter:
             arguments = function.get("arguments")
             if isinstance(arguments, str) and arguments and block["started"]:
                 self.any_output = True
+                self.text_parts.append(arguments)
                 self._send(
                     "content_block_delta",
                     {"index": block["future_index"], "delta": {"type": "input_json_delta", "partial_json": arguments}},
@@ -1059,13 +1107,24 @@ class FutureStreamWriter:
         if self.finish_reason == "length" and not has_tool:
             stop_reason = "max_tokens"
         usage = self.usage or {}
+        input_tokens = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+        output_tokens = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+        if input_tokens + output_tokens <= 0:
+            # Upstream reported no usable usage. Estimate both sides from the
+            # request body and the generated output so Future Code receives a
+            # positive usage anchor. An all-zero anchor makes its context
+            # accounting read ~0 tokens, autocompact never fires, and the
+            # session silently grows past the real context window (surfacing
+            # as empty end_turn responses).
+            input_tokens = estimate_tokens_from_chars(self.prompt_text)
+            output_tokens = sum(estimate_tokens_from_chars(text) for text in self.text_parts)
         self._send(
             "message_delta",
             {
                 "delta": {"stop_reason": stop_reason, "stop_sequence": None},
                 "usage": {
-                    "input_tokens": int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0),
-                    "output_tokens": int(usage.get("completion_tokens") or usage.get("output_tokens") or 0),
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
                 },
             },
         )
@@ -1268,7 +1327,14 @@ class Handler(BaseHTTPRequestHandler):
                 fn = tool.get("function") if isinstance(tool.get("function"), dict) else tool
                 if isinstance(fn, dict) and isinstance(fn.get("name"), str):
                     request_tool_names.append(fn["name"])
-        writer = FutureStreamWriter(self, f"msg_{uuid.uuid4().hex}", str(getattr(server, "model_name", "")), request_tool_names)
+        # Serialize the request (messages + system + tools) so finish() can
+        # estimate input_tokens when the upstream reports no usage.
+        prompt_text = json.dumps(body.get("messages") or [], ensure_ascii=False, separators=(",", ":"))
+        for tool in body.get("tools") or []:
+            prompt_text += json.dumps(tool, ensure_ascii=False, separators=(",", ":"))
+        if isinstance(body.get("system"), str):
+            prompt_text += body["system"]
+        writer = FutureStreamWriter(self, f"msg_{uuid.uuid4().hex}", str(getattr(server, "model_name", "")), request_tool_names, prompt_text)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
