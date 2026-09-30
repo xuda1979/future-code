@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -147,9 +148,9 @@ def prepare(root: Path, repo: Path, request: dict[str, Any]) -> dict[str, Any]:
     workspace = request.get("workspace")
     directory = state_dir(root, workspace)
     tree = directory / "tree"
-    binding = encoded({k: request.get(k) for k in (
+    binding = hashlib.sha256(encoded({k: request.get(k) for k in (
         "baseCommit", "dependencyPatches", "restorePatch", "task", "protectedPaths", "allowedChecks", "limits"
-    )}).hex()
+    )})).hexdigest()
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     with open(root / "registry.lock", "a+b") as registry:
         fcntl.flock(registry, fcntl.LOCK_EX)
@@ -179,7 +180,14 @@ def prepare(root: Path, repo: Path, request: dict[str, Any]) -> dict[str, Any]:
                 if not isinstance(restore, str):
                     raise ValueError("invalid restore patch")
                 git(tree, ["apply", "--index", "--whitespace=nowarn", "-"], stdin=restore.encode())
-            prepared = {**request, "baseTree": base_tree}
+            prepared = {
+                "baseCommit": request["baseCommit"],
+                "baseTree": base_tree,
+                "task": request["task"],
+                "protectedPaths": request.get("protectedPaths", []),
+                "allowedChecks": request.get("allowedChecks", []),
+                "limits": request["limits"],
+            }
             atomic(state_path, {"binding": binding, "request": prepared, "created": time.time()})
         except Exception:
             try:
