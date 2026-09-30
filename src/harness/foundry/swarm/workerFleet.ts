@@ -74,9 +74,14 @@ class RemoteHands implements Hands {
       return patchText(this.store, artifact.patchHash, this.cfg.spec.budget.maxPatchBytes);
     }).filter(Boolean);
   }
-  private async rpc(request: Json): Promise<WorkerReply> {
+  private ensureLease(): WorkerLease {
     this.signal.throwIfAborted();
     if (!this.lease) this.lease = claimLease(this.store, this.cfg, this.c, this.failedWorkers);
+    return this.lease;
+  }
+  private async rpc(request: Json): Promise<WorkerReply> {
+    this.signal.throwIfAborted();
+    this.ensureLease();
     const id = this.lease.worker; const spec = this.cfg.spec.workers?.[id]; const command = this.cfg.workerAdapters?.[id];
     invariant(spec && command, "execution worker configuration missing");
     const result = await invoke(command, request, spec.maxRpcBytes, this.signal) as WorkerReply;
@@ -89,8 +94,9 @@ class RemoteHands implements Hands {
       const command = this.cfg.checks[name]; invariant(command, "missing worker check");
       return [name, { argv: command.argv, envAllow: command.envAllow ?? [] }];
     }));
+    const lease = this.ensureLease();
     const reply = await this.rpc({
-      schema: 1, op: "prepare", workspace: this.lease!.workspace, baseCommit: this.cfg.baseCommit,
+      schema: 1, op: "prepare", workspace: lease.workspace, baseCommit: this.cfg.baseCommit,
       dependencyPatches: this.dependencies(), restorePatch: this.restorePatch,
       task: { writeScope: this.c.task.writeScope, readScope: this.c.task.readScope ?? [] },
       protectedPaths: this.cfg.spec.protectedPaths, allowedChecks: this.profile.checks, checks,
