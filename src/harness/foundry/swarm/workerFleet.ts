@@ -1,0 +1,155 @@
+import { digest, invariant } from "../kernel.ts";
+import { invoke } from "../commands.ts";
+import type { Capsule, Json, Verification } from "../types.ts";
+import type { Store } from "../store.ts";
+import type { AgentProfile, PinnedSwarm } from "./config.ts";
+import type { Call } from "./context.ts";
+import { orderedTasks, patchText, readPatchArtifact, verifyPatch, type Hands, type HandsBackend } from "./workspace.ts";
+
+interface WorkerReply { ok: boolean; result?: Json; patch?: string; error?: string }
+interface WorkerLease { worker: string; workspace: string; deadline: number }
+
+function install(store: Store): void {
+  store.db.exec(`CREATE TABLE IF NOT EXISTS swarm_worker_leases(
+    run TEXT NOT NULL, task TEXT NOT NULL, fence INTEGER NOT NULL,
+    worker TEXT NOT NULL, workspace TEXT NOT NULL, deadline REAL NOT NULL,
+    PRIMARY KEY(run,task,fence));
+    CREATE INDEX IF NOT EXISTS swarm_worker_leases_worker ON swarm_worker_leases(worker,deadline);`);
+}
+function workspaceId(c: Capsule): string {
+  return digest({ run: c.runId, task: c.task.id, fence: c.fence, contract: c.contractHash, recipe: c.recipeHash });
+}
+function spawnedRoots(store: Store, c: Capsule): string[] {
+  return store.db.prepare("SELECT child FROM spawn_edges WHERE run=? AND parent=? ORDER BY child")
+    .all(c.runId, c.task.id).map(r => String(r.child));
+}
+function activeCount(store: Store, worker: string, now: number): number {
+  return Number(store.db.prepare("SELECT COUNT(*) AS n FROM swarm_worker_leases WHERE worker=? AND deadline>?")
+    .get(worker, now)?.n ?? 0);
+}
+function releaseLease(store: Store, c: Capsule): void {
+  store.db.prepare("DELETE FROM swarm_worker_leases WHERE run=? AND task=? AND fence=?").run(c.runId, c.task.id, c.fence);
+}
+function claimLease(store: Store, cfg: PinnedSwarm, c: Capsule, exclude = new Set<string>()): WorkerLease {
+  install(store); const now = Date.now();
+  const task = store.db.prepare("SELECT deadline FROM tasks WHERE run=? AND id=? AND fence=?").get(c.runId, c.task.id, c.fence);
+  invariant(task?.deadline && task.deadline > now, "stale worker lease request");
+  const workers = Object.keys(cfg.spec.workers ?? {}).sort();
+  invariant(workers.length > 0, "no execution workers configured");
+  return store.transaction(() => {
+    store.db.prepare("DELETE FROM swarm_worker_leases WHERE deadline<=?").run(now);
+    const existing = store.db.prepare("SELECT worker,workspace,deadline FROM swarm_worker_leases WHERE run=? AND task=? AND fence=?")
+      .get(c.runId, c.task.id, c.fence);
+    if (existing && !exclude.has(String(existing.worker))) return {
+      worker: String(existing.worker), workspace: String(existing.workspace), deadline: Number(existing.deadline),
+    };
+    if (existing) releaseLease(store, c);
+    const ranked = workers.filter(id => !exclude.has(id)).map(id => ({
+      id, active: activeCount(store, id, now), capacity: cfg.spec.workers![id]!.maxConcurrent,
+      tie: digest({ run: c.runId, task: c.task.id, fence: c.fence, worker: id }),
+    })).filter(x => x.active < x.capacity)
+      .sort((a, b) => a.active - b.active || (a.tie < b.tie ? -1 : a.tie > b.tie ? 1 : 0));
+    invariant(ranked.length > 0, "REMOTE_WORKER_CAPACITY_EXHAUSTED");
+    const worker = ranked[0]!.id; const workspace = workspaceId(c);
+    store.db.prepare("INSERT INTO swarm_worker_leases VALUES(?,?,?,?,?,?)")
+      .run(c.runId, c.task.id, c.fence, worker, workspace, Number(task.deadline));
+    store.event("worker.claimed", { worker, workspace }, c.runId, c.task.id);
+    return { worker, workspace, deadline: Number(task.deadline) };
+  });
+}
+
+class RemoteHands implements Hands {
+  readonly store: Store; readonly cfg: PinnedSwarm; readonly c: Capsule; readonly profile: AgentProfile; readonly signal: AbortSignal;
+  private lease: WorkerLease | null = null;
+  private prepared = false;
+  private restorePatch: string | null;
+  private failedWorkers = new Set<string>();
+  constructor(store: Store, cfg: PinnedSwarm, c: Capsule, profile: AgentProfile, signal: AbortSignal, restore: string | null) {
+    this.store = store; this.cfg = cfg; this.c = c; this.profile = profile; this.signal = signal; this.restorePatch = restore;
+  }
+  private dependencies(): string[] {
+    const roots = [...this.c.task.dependencies, ...spawnedRoots(this.store, this.c)];
+    return orderedTasks(this.store, this.c.runId, roots).map(task => {
+      const artifact = readPatchArtifact(this.store, this.c.runId, task.id);
+      return patchText(this.store, artifact.patchHash, this.cfg.spec.budget.maxPatchBytes);
+    }).filter(Boolean);
+  }
+  private async rpc(request: Json): Promise<WorkerReply> {
+    this.signal.throwIfAborted();
+    if (!this.lease) this.lease = claimLease(this.store, this.cfg, this.c, this.failedWorkers);
+    const id = this.lease.worker; const spec = this.cfg.spec.workers?.[id]; const command = this.cfg.workerAdapters?.[id];
+    invariant(spec && command, "execution worker configuration missing");
+    const result = await invoke(command, request, spec.maxRpcBytes, this.signal) as WorkerReply;
+    invariant(result && typeof result === "object" && typeof result.ok === "boolean", "invalid worker reply");
+    return result;
+  }
+  private async prepare(): Promise<void> {
+    if (this.prepared) return;
+    const checks = Object.fromEntries(this.profile.checks.map(name => {
+      const command = this.cfg.checks[name]; invariant(command, "missing worker check");
+      return [name, { argv: command.argv, envAllow: command.envAllow ?? [] }];
+    }));
+    const reply = await this.rpc({
+      schema: 1, op: "prepare", workspace: this.lease!.workspace, baseCommit: this.cfg.baseCommit,
+      dependencyPatches: this.dependencies(), restorePatch: this.restorePatch,
+      task: { writeScope: this.c.task.writeScope, readScope: this.c.task.readScope ?? [] },
+      protectedPaths: this.cfg.spec.protectedPaths, allowedChecks: this.profile.checks, checks,
+      limits: { toolTimeoutMs: this.cfg.spec.budget.toolTimeoutMs,
+        maxToolOutputBytes: this.cfg.spec.budget.maxToolOutputBytes, maxPatchBytes: this.cfg.spec.budget.maxPatchBytes },
+    });
+    invariant(reply.ok, reply.error ?? "remote worker prepare failed"); this.prepared = true;
+  }
+  private async failover(error: unknown): Promise<void> {
+    const prior = this.lease?.worker;
+    if (prior) this.failedWorkers.add(prior);
+    releaseLease(this.store, this.c); this.lease = null; this.prepared = false;
+    this.store.event("worker.failed_over", { from: prior ?? null, reason: error instanceof Error ? error.message.slice(0, 512) : "worker RPC failed" },
+      this.c.runId, this.c.task.id);
+  }
+  async tool(call: Call): Promise<Json> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await this.prepare();
+        const reply = await this.rpc({ schema: 1, op: "tool", workspace: this.lease!.workspace, call });
+        if (!reply.ok) return { error: reply.error ?? "remote tool failed" };
+        return reply.result ?? null;
+      } catch (e) {
+        if (attempt || Object.keys(this.cfg.spec.workers ?? {}).length - this.failedWorkers.size <= 0) throw e;
+        await this.failover(e);
+      }
+    }
+    throw new Error("unreachable");
+  }
+  async snapshot(): Promise<string> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await this.prepare();
+        const reply = await this.rpc({ schema: 1, op: "snapshot", workspace: this.lease!.workspace });
+        invariant(reply.ok && typeof reply.patch === "string", reply.error ?? "remote snapshot failed");
+        invariant(Buffer.byteLength(reply.patch) <= this.cfg.spec.budget.maxPatchBytes, "remote patch exceeds budget");
+        this.restorePatch = this.store.artifact(reply.patch);
+        return this.restorePatch;
+      } catch (e) {
+        if (attempt || Object.keys(this.cfg.spec.workers ?? {}).length - this.failedWorkers.size <= 0) throw e;
+        await this.failover(e);
+      }
+    }
+    throw new Error("unreachable");
+  }
+  async dispose(): Promise<void> {
+    if (this.lease) {
+      try { await this.rpc({ schema: 1, op: "dispose", workspace: this.lease.workspace }); }
+      catch { /* disposable remote workspace; lease release is authoritative */ }
+    }
+    releaseLease(this.store, this.c); this.lease = null; this.prepared = false;
+  }
+}
+
+/** Multi-host execution with one authoritative coordinator.
+ * Remote workers can execute tools, but only local verification may certify PASS. */
+export const remoteWorkerFleetBackend: HandsBackend = {
+  id: "remote-worker-fleet-v1",
+  open: (store, cfg, c, profile, signal, restore) => new RemoteHands(store, cfg, c, profile, signal, restore),
+  verify: (store: Store, cfg: PinnedSwarm, c: Capsule, artifact: Json, signal: AbortSignal): Promise<Verification> =>
+    verifyPatch(store, cfg, c, artifact, signal),
+};
