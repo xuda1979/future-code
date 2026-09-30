@@ -206,8 +206,8 @@ call to that external model for a replacement Task[] proposal. The proposal has
 no execution authority: the host rejects widened read/write authority, unknown
 agents, protected paths, invalid dependencies, repeated normalized execution
 strategies, and any contract or task-limit violation before creating a replacement
-run. Cosmetic task renames or prose changes therefore cannot consume recovery
-budget as a supposedly new strategy. Without
+run. Task-ID or ordering-only rewrites therefore cannot consume recovery budget
+as a supposedly new strategy, while changed task instructions remain admissible. Without
 `recoveryAgent`, recovery remains operator/injected-planner driven and no extra
 model call is introduced. Acceptance checks, provider settings, model deployment,
 credentials, and global ceilings are not mutable recovery output.
