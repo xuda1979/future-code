@@ -143,7 +143,11 @@ reset lifetime spend.
 The supervisor records one durable recovery attempt per failed run, gives the
 planner the frozen objective, previous task graph and bounded failure evidence,
 and validates any replacement task graph against the unchanged Foundry contract
-and Swarm configuration. Recovery admission is crash-reconcilable:
+and Swarm configuration. A replacement must also have a new normalized execution
+strategy signature: task-ID or ordering-only rewrites do not make the same
+goal/acceptance/agent/input/scope/dependency strategy admissible again. Deferred
+planner retries wake at their durable `retry_at` deadline rather than waiting for
+the next status-report interval. Recovery admission is crash-reconcilable:
 `STARTED -> PREPARED -> PLANNED`. The exact replacement plan and deterministic
 run ID are persisted in `PREPARED` before the run is created. A restarted
 supervisor can therefore create-or-adopt that same run and finish binding it
@@ -181,8 +185,10 @@ not distributed SQLite or multi-master acceptance:
   durable task patch;
 - after mutating tools, the patch is snapshotted back into the coordinator's
   content-addressed store;
-- if a worker disappears before a durable snapshot, the attempt replays the pending
-  isolated tool on another worker from the last durable patch;
+- if a worker disappears before a durable snapshot, the task tries the remaining
+  healthy worker fleet rather than stopping after one alternate host; repeated
+  worker RPC failures are tracked durably and temporarily quarantine unhealthy
+  workers before later probes;
 - remote diagnostic `run_check` commands come from the worker's trusted template,
   but **PASS is never accepted from a worker**. The coordinator reconstructs the
   candidate patch locally and reruns the pinned independent verifier before task
