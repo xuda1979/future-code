@@ -165,13 +165,8 @@ class RemoteHands implements Hands {
         return reply.result ?? null;
       } catch (e) {
         if (e instanceof DeferredAttemptError) throw e;
-        const remaining = Object.keys(this.cfg.spec.workers ?? {}).length - this.failedWorkers.size;
-        if (remaining <= 1) {
-          const prior = this.lease?.worker;
-          if (prior) workerFailed(this.store, prior, e);
-          throw e;
-        }
         await this.failover(e);
+        if (this.failedWorkers.size >= Object.keys(this.cfg.spec.workers ?? {}).length) throw e;
       }
     }
   }
