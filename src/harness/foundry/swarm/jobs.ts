@@ -40,7 +40,7 @@ export class ResearchJobs {
       input_hash TEXT NOT NULL, created REAL NOT NULL, progress_at REAL NOT NULL,
       progress_token TEXT, poll_at REAL NOT NULL, failures INTEGER NOT NULL DEFAULT 0,
       job_id TEXT, status TEXT NOT NULL, result_hash TEXT, updated REAL NOT NULL,
-      reconciliation_hash TEXT);
+      reconciliation_hash TEXT, progress_rank INTEGER NOT NULL DEFAULT 0, stale_at REAL);
       CREATE INDEX IF NOT EXISTS research_jobs_run ON research_jobs(run,task);
       CREATE TABLE IF NOT EXISTS research_job_progress(
         key TEXT NOT NULL, token TEXT NOT NULL, observed REAL NOT NULL,
@@ -48,6 +48,10 @@ export class ResearchJobs {
     const columns = new Set(journal.store.db.prepare("PRAGMA table_info(research_jobs)").all().map(r => String(r.name)));
     if (!columns.has("reconciliation_hash"))
       journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN reconciliation_hash TEXT");
+    if (!columns.has("progress_rank"))
+      journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN progress_rank INTEGER NOT NULL DEFAULT 0");
+    if (!columns.has("stale_at"))
+      journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN stale_at REAL");
   }
   async execute(c: Capsule, profile: AgentProfile, call: Call, signal: AbortSignal): Promise<Json> {
     this.journal.assertLease(c); signal.throwIfAborted();
@@ -71,12 +75,19 @@ export class ResearchJobs {
       if (live >= template.maxConcurrent) throw new DeferredAttemptError("remote-job", Date.now() + template.pollMs, `Remote capacity busy for ${name}; no new job submitted`);
       const now = Date.now();
       store.db.prepare(`INSERT INTO research_jobs
-        (key,run,task,template,input_hash,created,progress_at,progress_token,poll_at,failures,job_id,status,result_hash,updated,reconciliation_hash)
-        VALUES(?,?,?,?,?,?,?,NULL,0,0,NULL,'UNKNOWN',NULL,?,NULL)`)
-        .run(key, c.runId, c.task.id, name, binding, now, now, now);
+        (key,run,task,template,input_hash,created,progress_at,progress_token,poll_at,failures,job_id,status,result_hash,updated,reconciliation_hash,progress_rank,stale_at)
+        VALUES(?,?,?,?,?,?,?,NULL,0,0,NULL,'UNKNOWN',NULL,?,NULL,0,?)`)
+        .run(key, c.runId, c.task.id, name, binding, now, now, now, now + template.staleMs);
       store.event("job.intent", { key, template: name, inputHash: binding }, c.runId, c.task.id);
       return store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
     });
+    if (row.stale_at == null) {
+      const initialRank = row.status === "QUEUED" ? 1 : row.status === "RUNNING" ? 2 :
+        ["SUCCEEDED", "FAILED", "CANCELLED"].includes(row.status) ? 3 : 0;
+      store.db.prepare("UPDATE research_jobs SET progress_rank=?,stale_at=? WHERE key=? AND stale_at IS NULL")
+        .run(initialRank, row.progress_at + template.staleMs, key);
+      row = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
+    }
     if (row.result_hash) return store.readArtifact(row.result_hash);
     if (row.poll_at > Date.now()) throw this.wait(row, template);
     const request = { schema: 1, operation: row.job_id ? "inspect" : "ensure", key, jobId: row.job_id ?? null,
@@ -116,19 +127,21 @@ export class ResearchJobs {
     }) : null;
     store.transaction(() => {
       this.journal.assertLease(c); const now = Date.now();
-      let changed = false;
+      const rank = v.status === "QUEUED" ? 1 : v.status === "RUNNING" ? 2 : terminal ? 3 : 0;
+      let changed = rank > Number(row.progress_rank ?? 0);
       if (v.progressToken !== undefined) {
         // A semantic milestone renews liveness only once. Alternating or replayed
         // old tokens (A -> B -> A -> B) must not keep a stalled remote job alive.
         const inserted = store.db.prepare(
           "INSERT OR IGNORE INTO research_job_progress(key,token,observed) VALUES(?,?,?)"
         ).run(key, v.progressToken, now);
-        changed = v.progressToken !== row.progress_token && inserted.changes > 0;
+        changed = changed || (v.progressToken !== row.progress_token && inserted.changes > 0);
       }
       store.db.prepare(`UPDATE research_jobs SET job_id=?,status=?,progress_at=?,progress_token=?,poll_at=?,failures=0,
-        result_hash=?,updated=?,reconciliation_hash=? WHERE key=?`)
+        result_hash=?,updated=?,reconciliation_hash=?,progress_rank=?,stale_at=? WHERE key=?`)
         .run(v.jobId, v.status, changed ? now : row.progress_at, v.progressToken ?? row.progress_token,
-          now + template.pollMs, terminal ? receipt : null, now, reconciliationHash, key);
+          now + template.pollMs, terminal ? receipt : null, now, reconciliationHash,
+          Math.max(Number(row.progress_rank ?? 0), rank), changed ? now + template.staleMs : row.stale_at, key);
       // Store only meaningful changes; polling/replayed milestones do not
       // manufacture progress.
       if (changed || row.status !== v.status || row.job_id !== v.jobId) store.event("job.observed",
@@ -139,13 +152,15 @@ export class ResearchJobs {
     throw this.wait(row, template);
   }
   private wait(row: Record<string, any>, template: JobTemplate): DeferredAttemptError | FatalAttemptError {
-    const age = Math.max(0, Date.now() - row.progress_at);
+    const now = Date.now();
+    const age = Math.max(0, now - row.progress_at);
+    const staleAt = Number(row.stale_at ?? (row.progress_at + template.staleMs));
     const reconcileAfterMs = template.reconcileAfterMs ?? Math.min(604800000, template.staleMs * 3);
     if (age >= reconcileAfterMs) {
       return new FatalAttemptError(`REMOTE_JOB_RECONCILIATION_REQUIRED: job ${row.key.slice(0, 12)} ${row.status}; no semantic milestone for ${age}ms. Inspect/adopt/cancel the remote job before any replacement work.`);
     }
-    const stale = age >= template.staleMs;
-    return new DeferredAttemptError(stale ? "remote-stalled" : "remote-job", Math.max(Date.now() + 10, row.poll_at),
+    const stale = now >= staleAt;
+    return new DeferredAttemptError(stale ? "remote-stalled" : "remote-job", Math.max(now + 10, row.poll_at),
       `job ${row.key.slice(0, 12)} ${row.status}${stale ? "; no new milestone: inspect remote worker/queue" : "; durable poll scheduled"}`);
   }
   reconcile(run: string, key: string, reply: JobReply): Json {
@@ -177,7 +192,7 @@ export class ResearchJobs {
     return reply as unknown as Json;
   }
   list(run: string): Json {
-    const rows = this.journal.store.db.prepare(`SELECT key,task,template,job_id,status,progress_at,poll_at,failures,result_hash,reconciliation_hash,updated
+    const rows = this.journal.store.db.prepare(`SELECT key,task,template,job_id,status,progress_at,stale_at,progress_rank,poll_at,failures,result_hash,reconciliation_hash,updated
       FROM research_jobs WHERE run=? ORDER BY created LIMIT 201`).all(run);
     return { items: rows.slice(0, 200) as Json[], truncated: rows.length > 200 };
   }
