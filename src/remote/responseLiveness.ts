@@ -148,7 +148,20 @@ export class RemoteResponseWatchdog {
  * stalled foreground answer.
  */
 export function isRemoteResponseProgress(message: SDKMessage): boolean {
-  if (message.type === "assistant" || message.type === "stream_event") return true;
+  if (message.type === "assistant") return true;
+  if (message.type === "stream_event") {
+    const event = message.event as any;
+    if (event?.type === "content_block_start")
+      return ["tool_use", "server_tool_use"].includes(event.content_block?.type);
+    if (event?.type !== "content_block_delta") return false;
+    const delta = event.delta;
+    if (delta?.type === "text_delta") return typeof delta.text === "string" && delta.text.length > 0;
+    if (delta?.type === "input_json_delta")
+      return typeof delta.partial_json === "string" && delta.partial_json.length > 0;
+    if (delta?.type === "thinking_delta")
+      return typeof delta.thinking === "string" && delta.thinking.length > 0;
+    return false;
+  }
   if (message.type === "user") {
     const content = message.message?.content;
     return Array.isArray(content) && content.some(block => block.type === "tool_result");
