@@ -204,8 +204,10 @@ that another process is dead. Exhausted tasks remain visible and are never conve
 existing roster profile, the attached supervisor may make a bounded ordinary API
 call to that external model for a replacement Task[] proposal. The proposal has
 no execution authority: the host rejects widened read/write authority, unknown
-agents, protected paths, invalid dependencies, unchanged plans, and any contract
-or task-limit violation before creating a replacement run. Without
+agents, protected paths, invalid dependencies, repeated normalized execution
+strategies, and any contract or task-limit violation before creating a replacement
+run. Cosmetic task renames or prose changes therefore cannot consume recovery
+budget as a supposedly new strategy. Without
 `recoveryAgent`, recovery remains operator/injected-planner driven and no extra
 model call is introduced. Acceptance checks, provider settings, model deployment,
 credentials, and global ceilings are not mutable recovery output.
@@ -307,9 +309,10 @@ node scripts/test-swarm.mjs
 node --experimental-strip-types scripts/bench-swarm.mjs
 ```
 
-The test launcher runs the unchanged productivity tests plus new lifecycle,
+The test launcher runs the unchanged productivity tests plus lifecycle,
 provider protocol, real localhost HTTP, native command facade, real Git,
-independent verification, fault injection and cancellation tests. The benchmark
+independent verification, multi-host worker failover fault injection and
+cancellation tests. The benchmark
 compares one vs four workers in the **same patched runtime**: 12 independent tiny
 file edits, a fixed 80 ms simulated model delay, three alternating-order pairs,
 real worktrees, real external checks and real integration branch publication.
