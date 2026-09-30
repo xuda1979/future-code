@@ -27,6 +27,11 @@ MAX_REQUEST = 1024 * 1024
 # publishes RUNNING under worker.lock before invoking any user command.
 STARTUP_RETRY_SECONDS = 5.0
 MAX_STARTUP_ATTEMPTS = 3
+# A freshly spawned runner must survive brief administrative lock contention
+# from concurrent ensure/inspect calls. This is deliberately much shorter than
+# a job lifetime: if another worker publishes RUNNING/terminal state, the
+# losing runner exits instead of waiting behind real execution.
+WORKER_LOCK_HANDOFF_SECONDS = 2.0
 
 
 def encoded(value: Any) -> bytes:
@@ -182,10 +187,23 @@ def endpoint(root: Path, config: Path, request: Any) -> dict[str, Any]:
 
 def worker(directory: Path) -> None:
     with open(directory / "worker.lock", "a+b") as guard:
-        try:
-            fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return
+        # Pollers also take worker.lock briefly while reconciling QUEUED startup.
+        # A one-shot LOCK_NB made a valid freshly spawned runner disappear if it
+        # raced one of those pollers. Retry only during a short startup handoff;
+        # if another runner wins and publishes RUNNING/terminal state, exit.
+        deadline = time.monotonic() + WORKER_LOCK_HANDOFF_SECONDS
+        while True:
+            try:
+                fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                try:
+                    status = read(directory / "state.json").get("status")
+                except (OSError, ValueError, AttributeError):
+                    return
+                if status != "QUEUED" or time.monotonic() >= deadline:
+                    return
+                time.sleep(0.01)
         record = read(directory / "state.json")
         if record["status"] != "QUEUED":
             return
