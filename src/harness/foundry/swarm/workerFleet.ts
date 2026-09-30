@@ -130,7 +130,6 @@ class RemoteHands implements Hands {
     invariant(spec && command, "execution worker configuration missing");
     const result = await invoke(command, request, spec.maxRpcBytes, this.signal) as WorkerReply;
     invariant(result && typeof result === "object" && typeof result.ok === "boolean", "invalid worker reply");
-    workerSucceeded(this.store, id);
     return result;
   }
   private async prepare(): Promise<void> {
@@ -144,6 +143,7 @@ class RemoteHands implements Hands {
       limits: { toolTimeoutMs: this.cfg.spec.budget.toolTimeoutMs,
         maxToolOutputBytes: this.cfg.spec.budget.maxToolOutputBytes, maxPatchBytes: this.cfg.spec.budget.maxPatchBytes },
     });
+    if (reply.ok) workerSucceeded(this.store, lease.worker);
     invariant(reply.ok, reply.error ?? "remote worker prepare failed"); this.prepared = true;
   }
   private async failover(error: unknown): Promise<void> {
@@ -161,6 +161,7 @@ class RemoteHands implements Hands {
       try {
         await this.prepare();
         const reply = await this.rpc({ schema: 1, op: "tool", workspace: this.lease!.workspace, call });
+        workerSucceeded(this.store, this.lease!.worker);
         if (!reply.ok) return { error: reply.error ?? "remote tool failed" };
         return reply.result ?? null;
       } catch (e) {
@@ -176,6 +177,7 @@ class RemoteHands implements Hands {
     // succeeded on this worker; if snapshot transport fails, the enclosing
     // attempt must retry the still-pending tool from the last durable patch.
     const reply = await this.rpc({ schema: 1, op: "snapshot", workspace: this.lease!.workspace });
+    if (reply.ok && typeof reply.patch === "string") workerSucceeded(this.store, this.lease!.worker);
     invariant(reply.ok && typeof reply.patch === "string", reply.error ?? "remote snapshot failed");
     invariant(Buffer.byteLength(reply.patch) <= this.cfg.spec.budget.maxPatchBytes, "remote patch exceeds budget");
     this.restorePatch = this.store.artifact(reply.patch);
