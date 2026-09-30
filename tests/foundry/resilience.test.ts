@@ -468,6 +468,72 @@ test("transient recovery failure is durably retried without consuming a new revi
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
 }));
 
+
+test("deferred recovery wakes at retry_at instead of waiting for the report cadence", async () => swarmFixture(async s => {
+  const script = scripted([
+    () => reply("finished without a patch"),
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+    () => reply("repair complete"),
+  ]);
+  let plannerCalls = 0;
+  const repaired = { ...swarmTask("retry-repair"), goal: "Focused retry recovery", writeScope: ["src/a.txt"] };
+  const start = Date.now();
+  const result: any = await superviseSwarm(
+    s,
+    { id: "retry-at-wake", goal: "Implement 42 without sleeping until the next report", tasks: [swarmTask()] },
+    signal(),
+    undefined,
+    script.fetcher,
+    async () => {
+      plannerCalls++;
+      if (plannerCalls === 1) throw new DeferredAttemptError("provider", Date.now() + 20, "temporary planner outage");
+      return { reason: "Retry promptly with focused repair", tasks: [repaired] };
+    },
+  );
+  const elapsed = Date.now() - start;
+  assert.equal(result.status, "PASS");
+  assert.equal(plannerCalls, 2);
+  assert.ok(elapsed < 750, `recovery waited for reporting cadence: ${elapsed}ms`);
+}, s => {
+  s.recipe.attempts = 1;
+  s.supervision = { reportEveryMs: 1000, checkpointEveryMs: 1000, recoveryBackoffMs: 100 };
+}));
+
+test("recovery rejects cosmetic task renames that repeat a failed execution strategy", async () => swarmFixture(async s => {
+  const ctl = new AbortController();
+  const cosmetic = {
+    ...swarmTask("renamed-repair"),
+    goal: "Different words for the same failed work",
+    acceptance: ["same behavior with different prose"],
+  };
+  const script = scripted([
+    () => reply("first graph produced no patch"),
+    () => reply("cosmetic replacement also produced no patch"),
+  ]);
+  const result: any = await superviseSwarm(
+    s,
+    { id: "strategy-novelty", goal: "Require a causally different recovery plan", tasks: [swarmTask()] },
+    ctl.signal,
+    r => {
+      if (r.status === "NEEDS_ATTENTION") ctl.abort();
+    },
+    script.fetcher,
+    async () => ({ reason: "Rename the task without changing execution", tasks: [cosmetic] }),
+  );
+  assert.equal(result.status, "PAUSED");
+  const recovery = s.db.prepare(
+    "SELECT state,detail FROM swarm_recovery_attempts WHERE objective='strategy-novelty'"
+  ).get()!;
+  assert.equal(recovery.state, "FAILED");
+  assert.match(String(recovery.detail), /repeats a previously failed execution strategy/);
+  assert.equal(s.db.prepare(
+    "SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective='strategy-novelty'"
+  ).get()!.n, 1);
+}, s => {
+  s.recipe.attempts = 1;
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
+}));
+
 test("completed recovery API reply replays after crash without another external call", async () => swarmFixture(async (s, cfg) => {
   const root = swarmTask(); const run = new Scheduler(s).start([root]);
   const context = { objectiveId: "replay-recovery", goal: "repair safely", runId: run,
