@@ -72,3 +72,67 @@ test("multi-host worker fleet executes parallel tasks while coordinator retains 
     s.integrationChecks = ["integration"];
   });
 });
+
+
+test("worker RPC failover traverses the healthy fleet instead of stopping after one alternate host", async () => {
+  await fixture(async (store) => {
+    const fetcher = (async (_url: any, init: any) => {
+      const body = JSON.parse(init.body as string);
+      const hasToolResult = body.messages.some((m: any) => m.role === "tool");
+      if (!hasToolResult)
+        return reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]);
+      return reply("complete");
+    }) as typeof fetch;
+
+    const result: any = await runSwarm(store, [{ ...task("a"), readScope: [] }], signal(), undefined, fetcher);
+    assert.equal(result.status, "PASS");
+
+    const claims = store.db.prepare(
+      "SELECT payload FROM events WHERE run=? AND kind='worker.claimed' ORDER BY seq"
+    ).all(result.id).map(row => JSON.parse(row.payload).worker);
+    const failovers = store.db.prepare(
+      "SELECT payload FROM events WHERE run=? AND kind='worker.failed_over' ORDER BY seq"
+    ).all(result.id);
+    assert.equal(failovers.length, 2);
+    assert.equal(new Set(claims).size, 3, `expected failover across three workers, got ${claims.join(",")}`);
+  }, s => {
+    const parent = dirname(s.project);
+    const endpoint = resolve("scripts/swarm-worker-agent.py");
+    const python = executable("python3");
+    const config = join(parent, "worker-template-failover.json");
+    const wrapper = join(parent, "worker-fail-twice.py");
+    const counter = join(parent, "worker-fail-twice.count");
+    writeFileSync(config, JSON.stringify({ checks: {} }));
+    writeFileSync(wrapper, `import fcntl, os, sys
+counter = sys.argv[1]
+delegate = sys.argv[2:]
+with open(counter, "a+") as f:
+    fcntl.flock(f, fcntl.LOCK_EX)
+    f.seek(0)
+    raw = f.read().strip()
+    n = int(raw or "0") + 1
+    f.seek(0)
+    f.truncate()
+    f.write(str(n))
+    f.flush()
+if n <= 2:
+    raise SystemExit(71)
+os.execv(delegate[0], delegate)
+`);
+    const repos = [1, 2, 3].map(i => join(parent, `failover-worker-repo-${i}`));
+    const roots = [1, 2, 3].map(i => join(parent, `failover-worker-root-${i}`));
+    repos.forEach(repo => execFileSync("git", ["clone", "-q", s.project, repo]));
+    roots.forEach(root => mkdirSync(root, { recursive: true }));
+    s.workers = Object.fromEntries(repos.map((repo, i) => [
+      `host-${i + 1}`,
+      {
+        adapter: { argv: [python, wrapper, counter, python, endpoint, "--root", roots[i]!, "--repo", repo, "--config", config],
+          files: [wrapper, endpoint, config] },
+        maxConcurrent: 1,
+        maxRpcBytes: 2 * 1024 * 1024,
+      },
+    ]));
+    s.recipe.attempts = 1;
+    s.recipe.parallelism = 1;
+  });
+});
