@@ -144,8 +144,8 @@ The supervisor records one durable recovery attempt per failed run, gives the
 planner the frozen objective, previous task graph and bounded failure evidence,
 and validates any replacement task graph against the unchanged Foundry contract
 and Swarm configuration. A replacement must also have a new normalized execution
-strategy signature: cosmetic task-ID, goal-text or acceptance-text changes do not
-make the same agent/input/scope/dependency strategy admissible again. Deferred
+strategy signature: task-ID or ordering-only rewrites do not make the same
+goal/acceptance/agent/input/scope/dependency strategy admissible again. Deferred
 planner retries wake at their durable `retry_at` deadline rather than waiting for
 the next status-report interval. Recovery admission is crash-reconcilable:
 `STARTED -> PREPARED -> PLANNED`. The exact replacement plan and deterministic
