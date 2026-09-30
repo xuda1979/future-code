@@ -83,8 +83,8 @@ class RemoteHands implements Hands {
   }
   private async rpc(request: Json): Promise<WorkerReply> {
     this.signal.throwIfAborted();
-    this.ensureLease();
-    const id = this.lease.worker; const spec = this.cfg.spec.workers?.[id]; const command = this.cfg.workerAdapters?.[id];
+    const lease = this.ensureLease();
+    const id = lease.worker; const spec = this.cfg.spec.workers?.[id]; const command = this.cfg.workerAdapters?.[id];
     invariant(spec && command, "execution worker configuration missing");
     const result = await invoke(command, request, spec.maxRpcBytes, this.signal) as WorkerReply;
     invariant(result && typeof result === "object" && typeof result.ok === "boolean", "invalid worker reply");
