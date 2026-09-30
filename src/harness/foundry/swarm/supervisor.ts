@@ -28,7 +28,9 @@ export function installObjectives(store: Store): void {
     CREATE TABLE IF NOT EXISTS swarm_recovery_attempts(
       objective TEXT NOT NULL, run TEXT NOT NULL, revision INTEGER NOT NULL,
       state TEXT NOT NULL, detail TEXT NOT NULL, new_run TEXT, retry_at REAL,
-      created REAL NOT NULL, updated REAL NOT NULL, PRIMARY KEY(objective,run));`);
+      created REAL NOT NULL, updated REAL NOT NULL, PRIMARY KEY(objective,run));
+    CREATE TABLE IF NOT EXISTS swarm_objective_budgets(
+      objective TEXT PRIMARY KEY, max_requests INTEGER NOT NULL, max_request_bytes INTEGER NOT NULL);`);
   const recoveryColumns = new Set(store.db.prepare("PRAGMA table_info(swarm_recovery_attempts)").all().map(r => String(r.name)));
   if (!recoveryColumns.has("retry_at"))
     store.db.exec("ALTER TABLE swarm_recovery_attempts ADD COLUMN retry_at REAL");
@@ -38,8 +40,16 @@ export function objectiveStatus(store: Store, id: string): Json {
   const r = store.db.prepare("SELECT id,goal,run,state,reason,updated,lease FROM swarm_objectives WHERE id=?").get(id);
   invariant(r, "unknown objective");
   const revision = store.db.prepare("SELECT MAX(revision) AS n FROM swarm_objective_revisions WHERE objective=?").get(id)?.n ?? 0;
-  const recovery = store.db.prepare("SELECT state,detail,new_run,updated FROM swarm_recovery_attempts WHERE objective=? ORDER BY revision DESC LIMIT 1").get(id);
-  return { ...(r as Record<string, Json>), revision, recovery: (recovery ?? null) as Json };
+  const recovery = store.db.prepare("SELECT state,detail,new_run,retry_at,updated FROM swarm_recovery_attempts WHERE objective=? ORDER BY revision DESC LIMIT 1").get(id);
+  const budget = store.db.prepare("SELECT max_requests,max_request_bytes FROM swarm_objective_budgets WHERE objective=?").get(id);
+  const usage = store.db.prepare(`SELECT COUNT(*) AS requests,COALESCE(SUM(bytes),0) AS request_bytes
+    FROM agent_requests WHERE run IN (
+      SELECT run FROM swarm_objective_revisions WHERE objective=?
+      UNION SELECT run FROM swarm_objectives WHERE id=? AND run IS NOT NULL
+    )`).get(id, id) ?? { requests: 0, request_bytes: 0 };
+  return { ...(r as Record<string, Json>), revision, recovery: (recovery ?? null) as Json,
+    budget: budget ? { maxRequests: budget.max_requests, maxRequestBytes: budget.max_request_bytes,
+      usedRequests: usage.requests, usedRequestBytes: usage.request_bytes } : null };
 }
 
 /** Persistent, single-host objective control on the SAME Foundry scheduler.
@@ -53,6 +63,11 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
   if (input.tasks) { validateTasks(store.contract(), input.tasks); validateSwarmTasks(cfg.spec, input.tasks); }
   if (input.goal !== undefined) invariant(input.goal.trim().length > 0 && Buffer.byteLength(input.goal) <= 16384, "invalid objective goal");
   const plan = input.tasks ? store.artifact(JSON.parse(canonical(input.tasks))) : null;
+  const supervision = cfg.spec.supervision;
+  const maxObjectiveRequests = supervision?.maxObjectiveRequests ??
+    Math.min(Number.MAX_SAFE_INTEGER, cfg.spec.budget.maxRequests * 64);
+  const maxObjectiveRequestBytes = supervision?.maxObjectiveRequestBytes ??
+    Math.min(Number.MAX_SAFE_INTEGER, cfg.spec.budget.maxRequestBytes * 64);
   store.transaction(() => {
     const row = store.db.prepare("SELECT * FROM swarm_objectives WHERE id=?").get(input.id); const now = Date.now();
     if (row) {
@@ -66,10 +81,15 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       store.db.prepare("INSERT INTO swarm_objectives VALUES(?,?,?,?,NULL,'RUNNING',NULL,?,?,?)")
         .run(input.id, input.goal, plan, digest(cfg), owner, now + ttl, now);
     }
+    const budget = store.db.prepare("SELECT max_requests,max_request_bytes FROM swarm_objective_budgets WHERE objective=?").get(input.id);
+    if (budget) invariant(budget.max_requests === maxObjectiveRequests && budget.max_request_bytes === maxObjectiveRequestBytes,
+      "objective budget drift");
+    else store.db.prepare("INSERT INTO swarm_objective_budgets VALUES(?,?,?)")
+      .run(input.id, maxObjectiveRequests, maxObjectiveRequestBytes);
   });
-  const configuredReplans = cfg.spec.supervision?.maxReplans ?? 0;
-  const planner = recoveryPlanner ?? (configuredReplans > 0 && cfg.spec.supervision?.recoveryAgent
-    ? createApiRecoveryPlanner(store, cfg, fetcher ?? fetch) : undefined);
+  const configuredReplans = supervision?.maxReplans;
+  const recoveryEnabled = configuredReplans !== 0;
+  const planner = recoveryPlanner ?? (recoveryEnabled ? createApiRecoveryPlanner(store, cfg, fetcher ?? fetch) : undefined);
   const controller = new AbortController(); const stop = () => controller.abort(signal.reason ?? new Error("operator paused"));
   signal.addEventListener("abort", stop, { once: true }); if (signal.aborted) stop();
   const assertOwner = () => {
@@ -129,10 +149,10 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     if (existing?.state === "PREPARED") return adoptPreparedRecovery(row, existing);
     if (existing?.state === "STARTED" && existing.retry_at != null && existing.retry_at > Date.now()) return false;
     const maxReplans = configuredReplans;
-    if (!planner || maxReplans <= 0) return false;
+    if (!planner || maxReplans === 0) return false;
     if (existing && existing.state !== "STARTED") return false; // terminal planner decision is durable
     const used = store.db.prepare("SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective=? AND revision>0").get(input.id)!.n;
-    if (!existing && used >= maxReplans) return false;
+    if (!existing && maxReplans !== undefined && used >= maxReplans) return false;
     const revision = existing ? existing.revision : used + 1;
     const tasks = store.readArtifact(row.plan) as unknown as Task[];
     const failures = store.db.prepare("SELECT id,status,error FROM tasks WHERE run=? AND status<>'PASS' ORDER BY id LIMIT 200").all(row.run)
@@ -195,7 +215,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       }
       const detail = e instanceof Error ? e.message.slice(0, 2048) : "recovery planner failed";
       if (e instanceof DeferredAttemptError) {
-        const retryAt = Math.max(Date.now() + 100, e.wakeAt);
+        const retryAt = Math.max(Date.now() + (supervision?.recoveryBackoffMs ?? 2000), e.wakeAt);
         store.db.prepare("UPDATE swarm_recovery_attempts SET state='STARTED',detail=?,retry_at=?,updated=? WHERE objective=? AND run=?")
           .run(detail, retryAt, Date.now(), input.id, row.run);
         store.event("objective.recovery.deferred",
@@ -233,17 +253,25 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         });
         continue;
       }
-      if (runStatus === "PASS" && row.state !== "NEEDS_ATTENTION") {
-        transition("VERIFYING"); report();
-        try {
-          assertOwner(); const receipt = await integrateSwarm(store, row.run, controller.signal);
-          assertOwner(); transition("COMPLETE"); report();
-          return { status: "PASS", objective: objectiveStatus(store, input.id), integration: JSON.parse(canonical(receipt)) };
-        } catch (e) {
-          controller.signal.throwIfAborted();
-          const reason = `Final integration failed: ${e instanceof Error ? e.message.slice(0, 800) : "unknown error"}. Inspect evidence; do not weaken the acceptance checks.`;
-          transition("NEEDS_ATTENTION", reason);
-          if (await attemptRecovery(reason)) { report(); continue; }
+      if (runStatus === "PASS") {
+        // If final integration previously failed and recovery was merely
+        // deferred, resume the durable recovery attempt instead of skipping
+        // this branch forever because state is already NEEDS_ATTENTION.
+        if (row.state === "NEEDS_ATTENTION" && typeof row.reason === "string" &&
+            row.reason.startsWith("Final integration failed:")) {
+          if (await attemptRecovery(row.reason)) { report(); continue; }
+        } else {
+          transition("VERIFYING"); report();
+          try {
+            assertOwner(); const receipt = await integrateSwarm(store, row.run, controller.signal);
+            assertOwner(); transition("COMPLETE"); report();
+            return { status: "PASS", objective: objectiveStatus(store, input.id), integration: JSON.parse(canonical(receipt)) };
+          } catch (e) {
+            controller.signal.throwIfAborted();
+            const reason = `Final integration failed: ${e instanceof Error ? e.message.slice(0, 800) : "unknown error"}. Inspect evidence; do not weaken the acceptance checks.`;
+            transition("NEEDS_ATTENTION", reason);
+            if (await attemptRecovery(reason)) { report(); continue; }
+          }
         }
       } else if (runStatus === "FAIL") {
         const unresolved = unresolvedRemoteJobs(row.run);
@@ -260,7 +288,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         await integrateSwarm(store, row.run, controller.signal); transition("COMPLETE"); report();
         return { status: "PASS", objective: objectiveStatus(store, input.id) };
       }
-      await delay(cfg.spec.supervision?.reportEveryMs ?? 30000, undefined, { signal: controller.signal });
+      await delay(supervision?.reportEveryMs ?? 30000, undefined, { signal: controller.signal });
     }
   } catch (e) {
     if (signal.aborted) { transition("PAUSED", "Operator paused supervision; remote jobs are not cancelled."); report(); return { status: "PAUSED", objective: objectiveStatus(store, input.id) }; }
