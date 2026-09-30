@@ -31,6 +31,22 @@ test("transport/status/background chatter do not count as foreground response pr
     message: { role: "assistant", content: [{ type: "text", text: "working" }] },
   } as any), true);
   assert.equal(isRemoteResponseProgress({
+    type: "stream_event",
+    event: { type: "message_start", message: {} },
+  } as any), false);
+  assert.equal(isRemoteResponseProgress({
+    type: "stream_event",
+    event: { type: "message_delta", usage: { output_tokens: 1 } },
+  } as any), false);
+  assert.equal(isRemoteResponseProgress({
+    type: "stream_event",
+    event: { type: "content_block_delta", delta: { type: "text_delta", text: "work" } },
+  } as any), true);
+  assert.equal(isRemoteResponseProgress({
+    type: "stream_event",
+    event: { type: "content_block_start", content_block: { type: "tool_use", id: "x", name: "Read" } },
+  } as any), true);
+  assert.equal(isRemoteResponseProgress({
     type: "user",
     message: {
       role: "user",
