@@ -15,7 +15,9 @@ function install(store: Store): void {
     run TEXT NOT NULL, task TEXT NOT NULL, fence INTEGER NOT NULL,
     worker TEXT NOT NULL, workspace TEXT NOT NULL, deadline REAL NOT NULL,
     PRIMARY KEY(run,task,fence));
-    CREATE INDEX IF NOT EXISTS swarm_worker_leases_worker ON swarm_worker_leases(worker,deadline);`);
+    CREATE INDEX IF NOT EXISTS swarm_worker_leases_worker ON swarm_worker_leases(worker,deadline);
+    CREATE TABLE IF NOT EXISTS swarm_worker_health(
+      worker TEXT PRIMARY KEY, failures INTEGER NOT NULL, quarantine_until REAL, updated REAL NOT NULL);`);
 }
 function workspaceId(c: Capsule): string {
   return digest({ run: c.runId, task: c.task.id, fence: c.fence, contract: c.contractHash, recipe: c.recipeHash });
@@ -27,6 +29,31 @@ function spawnedRoots(store: Store, c: Capsule): string[] {
 function activeCount(store: Store, worker: string, now: number): number {
   return Number(store.db.prepare("SELECT COUNT(*) AS n FROM swarm_worker_leases WHERE worker=? AND deadline>?")
     .get(worker, now)?.n ?? 0);
+}
+function workerHealth(store: Store, worker: string): { failures: number; quarantineUntil: number } {
+  const row = store.db.prepare("SELECT failures,quarantine_until FROM swarm_worker_health WHERE worker=?").get(worker);
+  return { failures: Number(row?.failures ?? 0), quarantineUntil: Number(row?.quarantine_until ?? 0) };
+}
+function workerSucceeded(store: Store, worker: string): void {
+  store.db.prepare(`INSERT INTO swarm_worker_health(worker,failures,quarantine_until,updated)
+    VALUES(?,0,NULL,?) ON CONFLICT(worker) DO UPDATE SET failures=0,quarantine_until=NULL,updated=excluded.updated`)
+    .run(worker, Date.now());
+}
+function workerFailed(store: Store, worker: string, reason: unknown): void {
+  const now = Date.now();
+  store.transaction(() => {
+    const current = workerHealth(store, worker);
+    const failures = current.failures + 1;
+    const quarantineUntil = failures >= 2 ? now + 30_000 : null;
+    store.db.prepare(`INSERT INTO swarm_worker_health(worker,failures,quarantine_until,updated)
+      VALUES(?,?,?,?) ON CONFLICT(worker) DO UPDATE SET
+      failures=excluded.failures,quarantine_until=excluded.quarantine_until,updated=excluded.updated`)
+      .run(worker, failures, quarantineUntil, now);
+    store.event("worker.health", {
+      worker, failures, quarantineUntil,
+      reason: reason instanceof Error ? reason.message.slice(0, 512) : "worker RPC failed",
+    });
+  });
 }
 function releaseLease(store: Store, c: Capsule): void {
   store.db.prepare("DELETE FROM swarm_worker_leases WHERE run=? AND task=? AND fence=?").run(c.runId, c.task.id, c.fence);
@@ -45,13 +72,25 @@ function claimLease(store: Store, cfg: PinnedSwarm, c: Capsule, exclude = new Se
       worker: String(existing.worker), workspace: String(existing.workspace), deadline: Number(existing.deadline),
     };
     if (existing) releaseLease(store, c);
-    const ranked = workers.filter(id => !exclude.has(id)).map(id => ({
-      id, active: activeCount(store, id, now), capacity: cfg.spec.workers![id]!.maxConcurrent,
-      tie: digest({ run: c.runId, task: c.task.id, fence: c.fence, worker: id }),
-    })).filter(x => x.active < x.capacity)
-      .sort((a, b) => a.active - b.active || (a.tie < b.tie ? -1 : a.tie > b.tie ? 1 : 0));
-    if (!ranked.length) throw new DeferredAttemptError("worker-capacity", now + 250,
-      "All configured execution workers are busy; retry scheduled");
+    const eligible = workers.filter(id => !exclude.has(id)).map(id => {
+      const health = workerHealth(store, id);
+      return {
+        id, active: activeCount(store, id, now), capacity: cfg.spec.workers![id]!.maxConcurrent,
+        failures: health.failures, quarantineUntil: health.quarantineUntil,
+        tie: digest({ run: c.runId, task: c.task.id, fence: c.fence, worker: id }),
+      };
+    });
+    const ranked = eligible.filter(x => x.quarantineUntil <= now && x.active < x.capacity)
+      .sort((a, b) => a.failures - b.failures || a.active - b.active ||
+        (a.tie < b.tie ? -1 : a.tie > b.tie ? 1 : 0));
+    if (!ranked.length) {
+      const wake = eligible.filter(x => x.quarantineUntil > now)
+        .reduce((min, x) => Math.min(min, x.quarantineUntil), Number.POSITIVE_INFINITY);
+      throw new DeferredAttemptError("worker-capacity", Number.isFinite(wake) ? wake : now + 250,
+        Number.isFinite(wake)
+          ? "All remaining execution workers are quarantined; retry scheduled"
+          : "All configured execution workers are busy; retry scheduled");
+    }
     const worker = ranked[0]!.id; const workspace = workspaceId(c);
     store.db.prepare("INSERT INTO swarm_worker_leases VALUES(?,?,?,?,?,?)")
       .run(c.runId, c.task.id, c.fence, worker, workspace, Number(task.deadline));
@@ -78,6 +117,9 @@ class RemoteHands implements Hands {
   }
   private ensureLease(): WorkerLease {
     this.signal.throwIfAborted();
+    const total = Object.keys(this.cfg.spec.workers ?? {}).length;
+    if (!this.lease && this.failedWorkers.size >= total)
+      throw new Error("all configured execution workers failed for this task attempt");
     if (!this.lease) this.lease = claimLease(this.store, this.cfg, this.c, this.failedWorkers);
     return this.lease;
   }
@@ -88,6 +130,7 @@ class RemoteHands implements Hands {
     invariant(spec && command, "execution worker configuration missing");
     const result = await invoke(command, request, spec.maxRpcBytes, this.signal) as WorkerReply;
     invariant(result && typeof result === "object" && typeof result.ok === "boolean", "invalid worker reply");
+    workerSucceeded(this.store, id);
     return result;
   }
   private async prepare(): Promise<void> {
@@ -105,13 +148,16 @@ class RemoteHands implements Hands {
   }
   private async failover(error: unknown): Promise<void> {
     const prior = this.lease?.worker;
-    if (prior) this.failedWorkers.add(prior);
+    if (prior) {
+      this.failedWorkers.add(prior);
+      workerFailed(this.store, prior, error);
+    }
     releaseLease(this.store, this.c); this.lease = null; this.prepared = false;
     this.store.event("worker.failed_over", { from: prior ?? null, reason: error instanceof Error ? error.message.slice(0, 512) : "worker RPC failed" },
       this.c.runId, this.c.task.id);
   }
   async tool(call: Call): Promise<Json> {
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (;;) {
       try {
         await this.prepare();
         const reply = await this.rpc({ schema: 1, op: "tool", workspace: this.lease!.workspace, call });
@@ -119,11 +165,15 @@ class RemoteHands implements Hands {
         return reply.result ?? null;
       } catch (e) {
         if (e instanceof DeferredAttemptError) throw e;
-        if (attempt || Object.keys(this.cfg.spec.workers ?? {}).length - this.failedWorkers.size <= 0) throw e;
+        const remaining = Object.keys(this.cfg.spec.workers ?? {}).length - this.failedWorkers.size;
+        if (remaining <= 1) {
+          const prior = this.lease?.worker;
+          if (prior) workerFailed(this.store, prior, e);
+          throw e;
+        }
         await this.failover(e);
       }
     }
-    throw new Error("unreachable");
   }
   async snapshot(): Promise<string> {
     await this.prepare();
