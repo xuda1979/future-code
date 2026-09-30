@@ -84,12 +84,14 @@ function claimLease(store: Store, cfg: PinnedSwarm, c: Capsule, exclude = new Se
       .sort((a, b) => a.failures - b.failures || a.active - b.active ||
         (a.tie < b.tie ? -1 : a.tie > b.tie ? 1 : 0));
     if (!ranked.length) {
-      const wake = eligible.filter(x => x.quarantineUntil > now)
+      const healthyBusy = eligible.some(x => x.quarantineUntil <= now && x.active >= x.capacity);
+      const quarantineWake = eligible.filter(x => x.quarantineUntil > now)
         .reduce((min, x) => Math.min(min, x.quarantineUntil), Number.POSITIVE_INFINITY);
+      const wake = healthyBusy ? now + 250 : quarantineWake;
       throw new DeferredAttemptError("worker-capacity", Number.isFinite(wake) ? wake : now + 250,
-        Number.isFinite(wake)
-          ? "All remaining execution workers are quarantined; retry scheduled"
-          : "All configured execution workers are busy; retry scheduled");
+        healthyBusy
+          ? "All healthy execution workers are busy; retry scheduled"
+          : "All remaining execution workers are quarantined; retry scheduled");
     }
     const worker = ranked[0]!.id; const workspace = workspaceId(c);
     store.db.prepare("INSERT INTO swarm_worker_leases VALUES(?,?,?,?,?,?)")
