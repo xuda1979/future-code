@@ -17,6 +17,34 @@ export interface RecoveryContext {
 }
 export interface RecoveryPlan { reason: string; tasks: Task[] }
 export type RecoveryPlanner = (context: RecoveryContext, signal: AbortSignal) => Promise<RecoveryPlan | null>;
+export function recoveryStrategySignature(tasks: Task[]): string {
+  const remaining = new Map(tasks.map(task => [task.id, task]));
+  const labels = new Map<string, string>();
+  while (remaining.size) {
+    let progressed = false;
+    for (const [id, task] of [...remaining.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      if (!task.dependencies.every(dep => labels.has(dep))) continue;
+      const dependencyLabels = task.dependencies.map(dep => labels.get(dep)!).sort();
+      const views = task.dependencyViews
+        ? task.dependencies.map(dep => task.dependencyViews?.[dep] ?? null)
+        : [];
+      labels.set(id, digest({
+        agent: task.agent ?? null,
+        input: task.input,
+        writeScope: [...task.writeScope].sort(),
+        readScope: [...(task.readScope ?? [])].sort(),
+        dependencies: dependencyLabels,
+        dependencyViews: views,
+        priority: task.priority ?? null,
+        estimatedDurationMs: task.estimatedDurationMs ?? null,
+        contextBudget: task.contextBudget ?? null,
+      }));
+      remaining.delete(id); progressed = true;
+    }
+    invariant(progressed, "recovery strategy graph is cyclic or references unknown dependencies");
+  }
+  return digest([...labels.values()].sort());
+}
 export function installObjectives(store: Store): void {
   store.db.exec(`CREATE TABLE IF NOT EXISTS swarm_objectives(
     id TEXT PRIMARY KEY, goal TEXT NOT NULL, plan TEXT NOT NULL, cfg TEXT NOT NULL,
@@ -187,7 +215,14 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         for (const path of task.readScope ?? [])
           invariant(inScope(path, readAuthority), "recovery plan widens read authority");
       }
-      invariant(digest(proposal.tasks) !== digest(tasks), "recovery plan must materially change execution structure");
+      const proposalStrategy = recoveryStrategySignature(proposal.tasks);
+      const priorStrategies = store.db.prepare(
+        "SELECT plan FROM swarm_objective_revisions WHERE objective=? ORDER BY revision"
+      ).all(input.id).map(row => recoveryStrategySignature(
+        store.readArtifact(String(row.plan)) as unknown as Task[]
+      ));
+      invariant(!priorStrategies.includes(proposalStrategy),
+        "recovery plan repeats a previously failed execution strategy");
       const newPlan = store.artifact(JSON.parse(canonical(proposal.tasks)));
       const newRun = randomUUID();
       const source = store.db.prepare("SELECT recipe FROM runs WHERE id=?").get(row.run);
@@ -288,7 +323,12 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         await integrateSwarm(store, row.run, controller.signal); transition("COMPLETE"); report();
         return { status: "PASS", objective: objectiveStatus(store, input.id) };
       }
-      await delay(supervision?.reportEveryMs ?? 30000, undefined, { signal: controller.signal });
+      const reportDelay = supervision?.reportEveryMs ?? 30000;
+      const retry = row.run ? store.db.prepare(
+        "SELECT retry_at FROM swarm_recovery_attempts WHERE objective=? AND run=? AND state='STARTED'"
+      ).get(input.id, row.run)?.retry_at : null;
+      const retryDelay = retry == null ? reportDelay : Math.max(1, Number(retry) - Date.now());
+      await delay(Math.min(reportDelay, retryDelay), undefined, { signal: controller.signal });
     }
   } catch (e) {
     if (signal.aborted) { transition("PAUSED", "Operator paused supervision; remote jobs are not cancelled."); report(); return { status: "PAUSED", objective: objectiveStatus(store, input.id) }; }
