@@ -10,6 +10,7 @@ import { Store } from "../store.ts";
 import type { Capsule, Contract, Json, Task } from "../types.ts";
 import { executable, validateSwarmSpec, validateSwarmTasks, type PinnedSwarm, type SwarmSpec } from "./config.ts";
 import { SwarmDriver, verifierIdentity, workerIdentity } from "./driver.ts";
+import { remoteWorkerFleetBackend } from "./workerFleet.ts";
 import { SessionJournal } from "./session.ts";
 import { git, LocalGitHands, orderedTasks, readPatchArtifact } from "./workspace.ts";
 const json = (value: unknown): Json => JSON.parse(canonical(value));
@@ -17,7 +18,8 @@ const KEY = "extension.swarm";
 export async function initializeSwarm(store: Store, input: SwarmSpec, signal: AbortSignal): Promise<PinnedSwarm> {
   validateSwarmSpec(input);
   const spec: SwarmSpec = JSON.parse(canonical(input)); spec.project = realpathSync(resolve(spec.project));
-  const cfg: PinnedSwarm = { version: 1, handsId: "local-git-posix-v1", spec, baseCommit: "", git: pinCommand({ argv: [executable("git")] }, spec.project), checks: {} };
+  const cfg: PinnedSwarm = { version: 1, handsId: spec.workers ? remoteWorkerFleetBackend.id : "local-git-posix-v1",
+    spec, baseCommit: "", git: pinCommand({ argv: [executable("git")] }, spec.project), checks: {} };
   const root = (await git(cfg, spec.project, ["rev-parse", "--show-toplevel"], signal)).trim();
   invariant(realpathSync(root) === spec.project, "project must be the Git repository root");
   cfg.baseCommit = (await git(cfg, spec.project, ["rev-parse", "--verify", `${spec.baseRef}^{commit}`], signal)).trim();
@@ -41,6 +43,17 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
       }
     }
   }
+  if (spec.workers) {
+    cfg.workerAdapters = {};
+    for (const [name, worker] of Object.entries(spec.workers)) {
+      cfg.workerAdapters[name] = pinCommand({ ...worker.adapter,
+        argv: [worker.adapter.argv[0] === "$NODE" ? executable("node") : worker.adapter.argv[0], ...worker.adapter.argv.slice(1)] }, spec.project);
+      for (const pin of cfg.workerAdapters[name].pins) {
+        const path = relative(spec.project, pin.path).replaceAll("\\", "/");
+        if (path && !path.startsWith("../") && !isAbsolute(path)) spec.protectedPaths.push(path);
+      }
+    }
+  }
   spec.protectedPaths = [...new Set([...spec.protectedPaths, ".gitignore", ".gitattributes", ".gitmodules"])].sort();
   const contract: Contract = { schema: 1, ...(spec.supervision?.snapshotReads ? { readIsolation: "snapshot" as const } : {}), name: spec.name, workerId: workerIdentity(cfg), verifierId: verifierIdentity(cfg),
     environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior"],
@@ -50,9 +63,11 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
 }
 export function loadSwarm(store: Store): PinnedSwarm {
   const cfg = store.getMeta<PinnedSwarm>(KEY); invariant(cfg?.version === 1, "swarm is not initialized");
-  invariant(cfg.handsId === "local-git-posix-v1", "unsupported execution backend");
+  invariant(cfg.handsId === "local-git-posix-v1" || cfg.handsId === remoteWorkerFleetBackend.id, "unsupported execution backend");
+  invariant((cfg.handsId === remoteWorkerFleetBackend.id) === !!cfg.spec.workers, "execution backend drift");
   validateSwarmSpec(cfg.spec); checkPins(cfg.git); Object.values(cfg.checks).forEach(checkPins);
   Object.values(cfg.jobAdapters ?? {}).forEach(checkPins);
+  Object.values(cfg.workerAdapters ?? {}).forEach(checkPins);
   invariant((store.contract().readIsolation === "snapshot") === !!cfg.spec.supervision?.snapshotReads, "snapshot isolation drift");
   const c = store.contract();
   invariant(c.workerId === workerIdentity(cfg) && c.verifierId === verifierIdentity(cfg) &&
@@ -63,7 +78,8 @@ export async function runSwarm(store: Store, tasks: Task[], signal: AbortSignal,
   const cfg = loadSwarm(store);
   const actual: Task[] = resumeRun ? store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(resumeRun).map(r => JSON.parse(r.spec)) : tasks;
   validateTasks(store.contract(), actual); validateSwarmTasks(cfg.spec, actual);
-  const driver = new SwarmDriver(store, cfg, fetcher);
+  const backend = cfg.handsId === remoteWorkerFleetBackend.id ? remoteWorkerFleetBackend : undefined;
+  const driver = new SwarmDriver(store, cfg, fetcher, backend);
   const summary = await runTasks(store, tasks, driver, { signal, resumeRun, onProgress, reportEveryMs: cfg.spec.supervision?.reportEveryMs });
   return json({ ...summary, providerUsage: driver.journal.usage(summary.id), baseCommit: cfg.baseCommit,
     note: "Acceptance is per-task. Run integrate for cross-task checks. Monetary cost is unknown without a trusted price meter." });
