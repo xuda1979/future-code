@@ -52,6 +52,27 @@ function waitPermit(provider: string, signal: AbortSignal, maxMs = 250): Promise
   });
 }
 
+function objectiveRequestBudget(store: Store, run: string, incomingBytes: number): void {
+  const hasBudgets = store.db.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='swarm_objective_budgets'"
+  ).get();
+  if (!hasBudgets) return;
+  const objective = store.db.prepare(`SELECT objective FROM swarm_objective_revisions WHERE run=?
+    UNION SELECT id AS objective FROM swarm_objectives WHERE run=? LIMIT 1`).get(run, run)?.objective;
+  if (!objective) return;
+  const limits = store.db.prepare(
+    "SELECT max_requests,max_request_bytes FROM swarm_objective_budgets WHERE objective=?"
+  ).get(objective);
+  if (!limits) return;
+  const used = store.db.prepare(`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM agent_requests
+    WHERE run IN (
+      SELECT run FROM swarm_objective_revisions WHERE objective=?
+      UNION SELECT run FROM swarm_objectives WHERE id=? AND run IS NOT NULL
+    )`).get(objective, objective)!;
+  if (used.n >= limits.max_requests || used.bytes + incomingBytes > limits.max_request_bytes)
+    throw new FatalAttemptError("OBJECTIVE_REQUEST_BUDGET_EXHAUSTED");
+}
+
 /** Same Foundry database and artifact store, not a second scheduler. */
 export class SessionJournal {
   readonly store: Store;
@@ -181,6 +202,7 @@ export class SessionJournal {
         this.store.db.prepare("UPDATE agent_requests SET status='UNKNOWN' WHERE status='ACTIVE' AND deadline<=?").run(now);
         const used = this.store.db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM agent_requests WHERE run=?").get(c.runId)!;
         if (used.n >= budget.maxRequests || used.bytes + count > budget.maxRequestBytes) throw new FatalAttemptError("RUN_REQUEST_BUDGET_EXHAUSTED");
+        objectiveRequestBudget(this.store, c.runId, count);
         const cooldown = this.store.db.prepare("SELECT until_ms FROM agent_cooldowns WHERE provider=?").get(provider)?.until_ms ?? 0;
         const live = this.store.db.prepare("SELECT COUNT(*) AS n FROM agent_requests WHERE provider=? AND status='ACTIVE'").get(provider)!.n;
         if (cooldown > now || live >= budget.modelConcurrency) return null;
@@ -211,6 +233,7 @@ export class SessionJournal {
         const used = this.store.db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM agent_requests WHERE run=?").get(run)!;
         if (used.n >= budget.maxRequests || used.bytes + count > budget.maxRequestBytes)
           throw new FatalAttemptError("RUN_REQUEST_BUDGET_EXHAUSTED");
+        objectiveRequestBudget(this.store, run, count);
         const cooldown = this.store.db.prepare("SELECT until_ms FROM agent_cooldowns WHERE provider=?").get(provider)?.until_ms ?? 0;
         const live = this.store.db.prepare("SELECT COUNT(*) AS n FROM agent_requests WHERE provider=? AND status='ACTIVE'").get(provider)!.n;
         if (cooldown > now || live >= budget.modelConcurrency) return null;
