@@ -9,10 +9,15 @@ path explicitly for reviewed multi-task work and durable external experiments.
 
 An objective stays open until all required tasks and the final integration gate
 pass. Transient provider failures and external job waits are durable continuations,
-not failed implementation attempts. Terminal failures or depleted authorized
-budgets are reported as `NEEDS_ATTENTION`, not relabeled as success. The supervisor
-remains attached, emits health reports, and can be cancelled. It cannot guarantee
-that an arbitrary objective is solvable or that unavailable infrastructure returns.
+not failed implementation attempts. Terminal failures trigger durable objective replanning by the configured external
+API agent (or the default agent) unless `maxReplans: 0` explicitly disables it.
+Omitting `maxReplans` no longer means zero recovery: the supervisor keeps trying
+materially different execution graphs while the objective-wide request/byte budget
+permits. True blockers such as unresolved external side effects, missing credentials,
+a recovery planner that declines a safe change, or exhausted objective budget remain
+visible as `NEEDS_ATTENTION`. The supervisor remains attached, emits health reports,
+and can be cancelled. It cannot guarantee that an arbitrary objective is solvable or
+that unavailable infrastructure returns.
 It never overrides a user's stop, invents credentials, resets spending ceilings,
 or blindly resubmits a remote job whose outcome is unknown.
 
@@ -126,8 +131,15 @@ modify main, checkout, force-update or push. Cached evidence is revalidated.
 problems or failed final integration. It does not silently drop the objective or
 run identical failed checks forever.
 
-Supervision may now opt into bounded execution replanning with
-`supervision.maxReplans` (0..8) plus a host-supplied `RecoveryPlanner`.
+Supervision performs bounded execution replanning by default. `supervision.recoveryAgent`
+selects the external API profile and defaults to `defaultAgent`. `maxReplans` is
+an optional lifetime cap (0 disables automatic replanning); when omitted, recovery
+continues under `maxObjectiveRequests` and `maxObjectiveRequestBytes`. If those
+objective-wide ceilings are omitted they default to 64 times the per-run request and
+request-byte budgets. Every model request is charged at reservation time against
+both the current run and the objective ledger, so creating a replacement run cannot
+reset lifetime spend.
+
 The supervisor records one durable recovery attempt per failed run, gives the
 planner the frozen objective, previous task graph and bounded failure evidence,
 and validates any replacement task graph against the unchanged Foundry contract
@@ -150,6 +162,58 @@ forever. Credential/configuration failures should normally return no recovery
 plan and wait for operator repair. Explicitly running a successful `integrate`
 can still resolve the final integration gate; the supervisor revalidates the
 resulting receipt before accepting completion.
+
+## Multi-host execution workers
+
+A Swarm may configure `workers` to distribute filesystem/tool execution across
+multiple machines while keeping one authoritative coordinator. This is deliberately
+not distributed SQLite or multi-master acceptance:
+
+- the coordinator owns task leases, fences, model request ledgers, objective state,
+  verification evidence and final integration;
+- each worker is a disposable execution accelerator with a bounded
+  `maxConcurrent` workspace capacity;
+- the coordinator invokes a pinned adapter command, so SSH, Kubernetes exec, a
+  batch wrapper or another transport can be used without embedding transport logic
+  in the scheduler;
+- the supplied `scripts/swarm-worker-agent.py` endpoint reconstructs a private
+  worktree from the exact base commit, verified dependency patches and the latest
+  durable task patch;
+- after mutating tools, the patch is snapshotted back into the coordinator's
+  content-addressed store;
+- if a worker disappears before a durable snapshot, the attempt replays the pending
+  isolated tool on another worker from the last durable patch;
+- remote diagnostic `run_check` commands come from the worker's trusted template,
+  but **PASS is never accepted from a worker**. The coordinator reconstructs the
+  candidate patch locally and reruns the pinned independent verifier before task
+  acceptance.
+
+Example worker fragment:
+
+```json
+{
+  "workers": {
+    "host-a": {
+      "adapter": {
+        "argv": ["/usr/bin/ssh", "-F", "/etc/future/ssh_config", "host-a",
+          "/usr/bin/python3", "/opt/future/swarm-worker-agent.py",
+          "--root", "/srv/future/workspaces",
+          "--repo", "/srv/project",
+          "--config", "/opt/future/worker-template.json"],
+        "files": ["/etc/future/ssh_config"]
+      },
+      "maxConcurrent": 8,
+      "maxRpcBytes": 8388608
+    }
+  }
+}
+```
+
+The adapter must be non-interactive and pinned. Keep model credentials out of
+worker/check environment allowlists. The remote repository must contain the pinned
+`baseCommit`; repository/data synchronization remains an operator/infrastructure
+responsibility. Multi-host improves wall time only when the task DAG exposes parallel
+work; it does not make one serial external LLM request faster.
 
 ## External jobs: provider-neutral protocol
 
