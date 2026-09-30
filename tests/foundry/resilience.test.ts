@@ -476,8 +476,8 @@ test("deferred recovery wakes at retry_at instead of waiting for the report cade
     () => reply("repair complete"),
   ]);
   let plannerCalls = 0;
+  const plannerAt: number[] = [];
   const repaired = { ...swarmTask("retry-repair"), goal: "Focused retry recovery", writeScope: ["src/a.txt"] };
-  const start = Date.now();
   const result: any = await superviseSwarm(
     s,
     { id: "retry-at-wake", goal: "Implement 42 without sleeping until the next report", tasks: [swarmTask()] },
@@ -485,15 +485,20 @@ test("deferred recovery wakes at retry_at instead of waiting for the report cade
     undefined,
     script.fetcher,
     async () => {
-      plannerCalls++;
+      plannerCalls++; plannerAt.push(Date.now());
       if (plannerCalls === 1) throw new DeferredAttemptError("provider", Date.now() + 20, "temporary planner outage");
       return { reason: "Retry promptly with focused repair", tasks: [repaired] };
     },
   );
-  const elapsed = Date.now() - start;
   assert.equal(result.status, "PASS");
   assert.equal(plannerCalls, 2);
-  assert.ok(elapsed < 750, `recovery waited for reporting cadence: ${elapsed}ms`);
+  // Assert the WAKE INTERVAL (deferred planner call -> retry), not total
+  // runtime: verification checks, git worktree integration, and the run
+  // itself legitimately take time unrelated to wake scheduling. Waiting for
+  // the reporting cadence would show >= reportEveryMs here (1000ms); waking
+  // at retry_at (backoff 100ms + wake 20ms) stays well under half that.
+  const wake = plannerAt[1]! - plannerAt[0]!;
+  assert.ok(wake < 500, `recovery waited for reporting cadence: ${wake}ms`);
 }, s => {
   s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 1000, checkpointEveryMs: 1000, recoveryBackoffMs: 100 };
