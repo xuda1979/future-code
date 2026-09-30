@@ -236,7 +236,7 @@ test("successful external job requires a bounded result and permitted template",
 test("job and supervision configuration reject unsafe bounds/capabilities", () => {
   const s = spec("x"); jobSpec(s); s.jobs!.train.idempotentEnsure = false as any; assert.throws(() => validateSwarmSpec(s), /idempotent/);
   s.jobs!.train.idempotentEnsure = true; s.jobs!.train.maxConcurrent = 0; assert.throws(() => validateSwarmSpec(s), /concurrency/);
-  const supervised = spec("x"); supervised.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 9 };
+  const supervised = spec("x"); supervised.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 257 };
   assert.throws(() => validateSwarmSpec(supervised), /maxReplans/);
   const reconcile = spec("x"); jobSpec(reconcile); reconcile.jobs!.train.reconcileAfterMs = reconcile.jobs!.train.staleMs - 1;
   assert.throws(() => validateSwarmSpec(reconcile), /reconciliation interval/);
@@ -366,6 +366,75 @@ test("supervision uses the configured external API for bounded recovery by defau
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1, recoveryAgent: "coder" };
 }));
 
+test("unfinished objectives keep replanning by default across multiple failed execution graphs", async () => swarmFixture(async s => {
+  const repair1 = { ...swarmTask("repair1"), goal: "first alternative decomposition", writeScope: ["src/a.txt"] };
+  const repair2 = { ...swarmTask("repair2"), goal: "second alternative decomposition", writeScope: ["src/a.txt"] };
+  let recoveryCalls = 0;
+  const script = scripted([
+    () => reply("first graph produced no patch"),
+    body => {
+      recoveryCalls++;
+      assert.equal(body.tool_choice?.function?.name, "propose_recovery_plan");
+      return reply("", [{ name: "propose_recovery_plan", arguments: {
+        decision: "replan", reason: "Try a smaller first recovery graph", tasks: [repair1],
+      } }]);
+    },
+    () => reply("first recovery also produced no patch"),
+    body => {
+      recoveryCalls++;
+      return reply("", [{ name: "propose_recovery_plan", arguments: {
+        decision: "replan", reason: "Use a different second recovery graph", tasks: [repair2],
+      } }]);
+    },
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+    () => reply("complete"),
+  ]);
+  const result: any = await superviseSwarm(
+    s, { id: "persistent-default", goal: "Do not stop until verified 42 exists", tasks: [swarmTask()] },
+    signal(), undefined, script.fetcher,
+  );
+  assert.equal(result.status, "PASS");
+  assert.equal(result.objective.state, "COMPLETE");
+  assert.equal(recoveryCalls, 2);
+  assert.equal(s.db.prepare(
+    "SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective='persistent-default'"
+  ).get()!.n, 3);
+  assert.ok(result.objective.budget.usedRequests >= 6);
+}, s => {
+  s.recipe.attempts = 1;
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000 };
+}));
+
+test("deferred integration recovery resumes instead of dead-ending in NEEDS_ATTENTION", async () => swarmFixture(async s => {
+  const script = scripted([
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "1\n" } }]),
+    () => reply("first graph complete"),
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+    () => reply("repair graph complete"),
+  ]);
+  let plannerCalls = 0;
+  const repaired = { ...swarmTask("integration-repair"), goal: "repair the integration failure", writeScope: ["src/a.txt"] };
+  const result: any = await superviseSwarm(
+    s, { id: "integration-recovery", goal: "Pass the final integrated-tree check", tasks: [swarmTask()] },
+    signal(), undefined, script.fetcher,
+    async () => {
+      plannerCalls++;
+      if (plannerCalls === 1) throw new DeferredAttemptError("provider", Date.now() + 5, "temporary recovery outage");
+      return { reason: "repair final integration with a focused task", tasks: [repaired] };
+    },
+  );
+  assert.equal(result.status, "PASS");
+  assert.equal(plannerCalls, 2);
+  assert.equal(result.objective.state, "COMPLETE");
+}, s => {
+  s.recipe.attempts = 1;
+  s.checks.behavior = { argv: [process.execPath, "-e", "process.exit(0)"], replaySafe: true };
+  s.checks.integration = { argv: [process.execPath, "-e",
+    "const fs=require('node:fs');if(fs.readFileSync('src/a.txt','utf8').trim()!=='42')process.exit(1)"], replaySafe: true };
+  s.integrationChecks = ["integration"];
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, recoveryBackoffMs: 100 };
+}));
+
 test("transient recovery failure is durably retried without consuming a new revision", async () => swarmFixture(async s => {
   const script = scripted([
     () => reply("finished without a patch"),
@@ -457,7 +526,10 @@ test("prepared recovery is adopted after a supervisor crash without another plan
   assert.equal(s.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective='prepared-recovery'").get()!.state, "PLANNED");
 }, s => {
   s.recipe.attempts = 1;
-  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
+  // This fixture injects PREPARED manually to model the crash window. Disable
+  // ordinary replanning so the setup does not race the default recovery planner.
+  // PREPARED adoption remains allowed even when new automatic replans are off.
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 0 };
 }));
 test("unresolved remote outcome suppresses autonomous replacement planning", async () => swarmFixture(async (s, cfg) => {
   const first = new AbortController();
@@ -494,13 +566,15 @@ test("unresolved remote outcome suppresses autonomous replacement planning", asy
   jobSpec(s); s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
 }));
-test("permanent failure stays visible, does not spin models, and honors operator pause", async () => swarmFixture(async s => {
+test("explicitly disabled recovery leaves permanent failure visible and honors operator pause", async () => swarmFixture(async s => {
   let requests = 0; const ctl = new AbortController(); const phases: string[] = [];
   const result: any = await superviseSwarm(s, { id: "needs-config", goal: "Correct implementation", tasks: [swarmTask()] }, ctl.signal,
     r => { phases.push(r.status); if (r.status === "NEEDS_ATTENTION") ctl.abort(); },
     (async () => { requests++; return new Response(null, { status: 401 }); }) as typeof fetch);
   assert.equal(result.status, "PAUSED"); assert.ok(phases.includes("NEEDS_ATTENTION")); assert.equal(requests, 1);
   assert.equal((objectiveStatus(s, "needs-config") as any).state, "PAUSED");
+}, s => {
+  s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 0 };
 }));
 test("two objective supervisors cannot both own the same work", async () => swarmFixture(async s => {
   const ctl = new AbortController(); let observed!: () => void; const started = new Promise<void>(r => observed = r);

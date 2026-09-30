@@ -32,6 +32,14 @@ export interface AgentProfile {
   hedgeAfterMs?: number;
 }
 export interface CheckSpec extends CommandSpec { replaySafe: boolean }
+export interface ExecutionWorker {
+  /** Trusted coordinator-side adapter. It may wrap SSH/Kubernetes/etc. */
+  adapter: CommandSpec;
+  /** Coordinator-enforced number of simultaneously leased workspaces on this worker. */
+  maxConcurrent: number;
+  /** Aggregate JSON request/response ceiling for one worker RPC. */
+  maxRpcBytes: number;
+}
 export interface SwarmBudget {
   maxRequests: number;
   maxRequestBytes: number;
@@ -57,14 +65,23 @@ export interface SupervisionPolicy {
   reportEveryMs: number;
   checkpointEveryMs: number;
   snapshotReads?: boolean;
+  /** Optional hard lifetime cap. Omit for persistent recovery under objective budgets; set 0 to disable autonomous replanning. */
   maxReplans?: number;
-  /** Existing external-API agent used only to propose bounded recovery DAGs. */
+  /** Cumulative external-model request ceiling across every run/revision of one objective. */
+  maxObjectiveRequests?: number;
+  /** Cumulative encoded external-model request-byte ceiling across every run/revision of one objective. */
+  maxObjectiveRequestBytes?: number;
+  /** Minimum wait before re-evaluating a non-terminal recovery state. */
+  recoveryBackoffMs?: number;
+  /** External-API agent used only to propose bounded recovery DAGs. Defaults to defaultAgent. */
   recoveryAgent?: string;
   /** Provider-neutral runtime DAG expansion, enforced by the host scheduler. */
   dynamicDAG?: SpawnPolicy;
 }
 export interface SwarmSpec {
   jobs?: Record<string, JobTemplate>;
+  /** Optional multi-host execution fleet. The coordinator remains authoritative. */
+  workers?: Record<string, ExecutionWorker>;
   supervision?: SupervisionPolicy;
   schema: 1;
   name: string;
@@ -87,6 +104,7 @@ export interface PinnedSwarm {
   git: PinnedCommand;
   checks: Record<string, PinnedCommand>;
   jobAdapters?: Record<string, PinnedCommand>;
+  workerAdapters?: Record<string, PinnedCommand>;
 }
 export function keys(value: object, required: string[], optional: string[] = []): void {
   invariant(value && typeof value === "object" && !Array.isArray(value), "expected object");
@@ -104,7 +122,7 @@ function names(names: string[], known: string[], label: string): void {
   invariant(Array.isArray(names) && names.length > 0 && new Set(names).size === names.length && names.every(n => known.includes(n)), `invalid ${label}`);
 }
 export function validateSwarmSpec(s: SwarmSpec): void {
-  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "supervision"]);
+  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision"]);
   invariant(s.schema === 1 && typeof s.name === "string" && !!s.name.trim(), "invalid swarm identity");
   invariant(typeof s.project === "string" && s.project.length > 0, "missing project");
   invariant(typeof s.baseRef === "string" && s.baseRef.length > 0 && !s.baseRef.startsWith("-") && !s.baseRef.includes("\0"), "invalid baseRef");
@@ -170,12 +188,21 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     invariant(a.checks.every(n => s.checks[n].replaySafe), "independent verification checks must be replay-safe");
   }
   if (s.supervision) {
-    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["snapshotReads", "maxReplans", "recoveryAgent", "dynamicDAG"]);
+    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["snapshotReads", "maxReplans", "maxObjectiveRequests", "maxObjectiveRequestBytes", "recoveryBackoffMs", "recoveryAgent", "dynamicDAG"]);
     positive(s.supervision.reportEveryMs, 3600000, "reportEveryMs");
     invariant(s.supervision.reportEveryMs >= 10, "report interval too small");
     positive(s.supervision.checkpointEveryMs, 3600000, "checkpointEveryMs");
     invariant(s.supervision.snapshotReads === undefined || typeof s.supervision.snapshotReads === "boolean", "invalid snapshotReads");
-    invariant(s.supervision.maxReplans === undefined || (Number.isSafeInteger(s.supervision.maxReplans) && s.supervision.maxReplans >= 0 && s.supervision.maxReplans <= 8), "invalid maxReplans");
+    invariant(s.supervision.maxReplans === undefined || (Number.isSafeInteger(s.supervision.maxReplans) && s.supervision.maxReplans >= 0 && s.supervision.maxReplans <= 256), "invalid maxReplans");
+    invariant(s.supervision.maxObjectiveRequests === undefined ||
+      (Number.isSafeInteger(s.supervision.maxObjectiveRequests) && s.supervision.maxObjectiveRequests > 0 && s.supervision.maxObjectiveRequests <= 100_000_000),
+      "invalid maxObjectiveRequests");
+    invariant(s.supervision.maxObjectiveRequestBytes === undefined ||
+      (Number.isSafeInteger(s.supervision.maxObjectiveRequestBytes) && s.supervision.maxObjectiveRequestBytes > 0 && s.supervision.maxObjectiveRequestBytes <= 9_000_000_000_000_000),
+      "invalid maxObjectiveRequestBytes");
+    invariant(s.supervision.recoveryBackoffMs === undefined ||
+      (Number.isSafeInteger(s.supervision.recoveryBackoffMs) && s.supervision.recoveryBackoffMs >= 100 && s.supervision.recoveryBackoffMs <= 3_600_000),
+      "invalid recoveryBackoffMs");
     if (s.supervision.recoveryAgent !== undefined)
       invariant(Object.hasOwn(s.agents, s.supervision.recoveryAgent), "unknown recoveryAgent");
     if (s.supervision.dynamicDAG) {
@@ -184,6 +211,18 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       positive(d.maxChildrenPerTask, 32, "dynamic child limit");
       positive(d.maxDepth, 32, "dynamic depth limit");
       positive(d.maxSpawnedTasks, s.limits.tasks, "dynamic task limit");
+    }
+  }
+  if (s.workers) {
+    keys(s.workers, [], Object.keys(s.workers)); positive(Object.keys(s.workers).length, 64, "execution worker count");
+    for (const [id, worker] of Object.entries(s.workers)) {
+      identifier(id); keys(worker, ["adapter", "maxConcurrent", "maxRpcBytes"]);
+      keys(worker.adapter, ["argv"], ["envAllow", "files"]);
+      invariant(Array.isArray(worker.adapter.argv) && worker.adapter.argv.length > 0 &&
+        worker.adapter.argv.every(x => typeof x === "string" && !x.includes("\0")), "invalid worker adapter argv");
+      positive(worker.maxConcurrent, 256, "worker concurrency");
+      invariant(Number.isSafeInteger(worker.maxRpcBytes) && worker.maxRpcBytes >= 65536 && worker.maxRpcBytes <= 64 * 1024 * 1024,
+        "invalid worker RPC byte limit");
     }
   }
   if (s.jobs) {
@@ -203,8 +242,10 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     }
   }
   const credentialNames = new Set(Object.values(s.agents).map(a => a.keyEnv).filter(Boolean));
-  for (const check of [...Object.values(s.checks), ...Object.values(s.jobs ?? {}).map(j => j.adapter)]) {
-    invariant(!(check.envAllow ?? []).some(name => credentialNames.has(name)), "model credentials may not be forwarded to checks");
+  for (const check of [...Object.values(s.checks), ...Object.values(s.jobs ?? {}).map(j => j.adapter),
+    ...Object.values(s.workers ?? {}).map(w => w.adapter)]) {
+    invariant(!(check.envAllow ?? []).some(name => credentialNames.has(name)),
+      "model credentials may not be forwarded to checks/jobs/execution workers");
   }
   invariant(Array.isArray(s.protectedPaths), "invalid protectedPaths"); s.protectedPaths.forEach(safePath);
   const bounds: SwarmBudget = { maxRequests: 1_000_000, maxRequestBytes: 1_000_000_000_000, maxTurns: 1000,

@@ -53,8 +53,10 @@ child environment variables allowlisted, and POSIX process groups terminated
 on cancellation. These controls do not contain hostile native code, prevent
 all same-UID credential access, or guarantee termination of deliberately escaped
 processes. Use a hardened container/VM backend before running untrusted projects.
-`HandsBackend` is an identity-checked host injection point for both execution and
-verification; a remote/container backend is not shipped here.
+`HandsBackend` is an identity-checked host injection point. This release includes
+an optional `remote-worker-fleet-v1` execution backend plus the trusted
+`scripts/swarm-worker-agent.py` endpoint. Remote workers never own acceptance:
+verification still runs on the coordinator with the pinned local verifier.
 
 API keys are read by the harness from named environment variables and omitted
 from model request bodies, logs and default child environments. Check configs
@@ -289,13 +291,14 @@ Planning calls made in the interactive UI are not included in the worker-run led
 include them in a real end-to-end evaluation.
 
 The implementation accepts bounded plans up to the existing contract ceilings,
-not an empirically validated 30,000-agent cluster. SQLite is a local single-host
-control plane. Opt-in dynamic DAG spawning may recurse only within host-enforced
-depth/count/scope limits; it does not create an unbounded manager hierarchy.
-There is no distributed consensus, autoscaling fleet, remote worker service,
-universal MCP proxy, Vault, cross-session learning/Dreaming, or self-modifying
-orchestrator. A second process can cooperate through the existing Store/host API;
-the CLI does not create or manage a daemon fleet.
+not an empirically validated 30,000-agent cluster. SQLite remains a local,
+single-authority control plane. Opt-in dynamic DAG spawning may recurse only
+within host-enforced depth/count/scope limits; it does not create an unbounded
+manager hierarchy. Multi-host execution workers may be configured underneath
+that coordinator, but there is intentionally no distributed consensus or
+multi-master acceptance. The project still does not provide autoscaling fleet
+management, a universal MCP proxy, Vault, cross-session learning/Dreaming, or a
+self-modifying orchestrator.
 
 ## 7. Tests and evaluation
 
