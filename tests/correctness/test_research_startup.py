@@ -96,6 +96,20 @@ class StartupRecovery(unittest.TestCase):
                 launch.assert_not_called()
                 self.assertEqual((self.directory / "state.json").read_bytes(), before)
 
+    def test_spawned_worker_waits_through_brief_startup_lock_handoff(self):
+        with patch.object(agent.subprocess, "Popen"):
+            self.ensure()
+        with open(self.directory / "worker.lock", "a+b") as guard:
+            fcntl.flock(guard, fcntl.LOCK_EX)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(agent.worker, self.directory)
+                time.sleep(0.05)
+                self.assertFalse(future.done(), "worker must not abandon QUEUED on brief poller lock contention")
+                fcntl.flock(guard, fcntl.LOCK_UN)
+                future.result(timeout=3)
+        self.assertEqual(self.inspect()["status"], "SUCCEEDED")
+        self.assertEqual(self.counter.read_text(), "x")
+
     def test_running_without_ownership_is_unknown_never_resubmitted(self):
         with patch.object(agent.subprocess, "Popen"):
             self.ensure()
