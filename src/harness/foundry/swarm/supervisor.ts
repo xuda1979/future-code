@@ -11,6 +11,7 @@ import { integrateSwarm, loadSwarm, runSwarm } from "./host.ts";
 import { inScope, validateSwarmTasks } from "./config.ts";
 import { createApiRecoveryPlanner } from "./recovery.ts";
 import { externalEffectSnapshot, objectiveJobUsage } from "./jobs.ts";
+import { buildObjectiveEpisode, installRndEpisodeTables, objectiveEpisodeStatus, persistObjectiveEpisode } from "../rndEpisodes.ts";
 
 export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
 export interface RecoveryContext {
@@ -110,6 +111,7 @@ export function installObjectives(store: Store): void {
     CREATE TABLE IF NOT EXISTS swarm_objective_completions(
       objective TEXT PRIMARY KEY, run TEXT NOT NULL, attestation TEXT NOT NULL,
       created REAL NOT NULL);`);
+  installRndEpisodeTables(store);
   const recoveryColumns = new Set(store.db.prepare("PRAGMA table_info(swarm_recovery_attempts)").all().map(r => String(r.name)));
   if (!recoveryColumns.has("retry_at"))
     store.db.exec("ALTER TABLE swarm_recovery_attempts ADD COLUMN retry_at REAL");
@@ -138,6 +140,7 @@ export function objectiveStatus(store: Store, id: string): Json {
       usedRequests: usage.requests, usedRequestBytes: usage.request_bytes } : null,
     evidenceGate: evidenceGate as unknown as Json,
     jobBudget: jobBudget as unknown as Json,
+    episode: objectiveEpisodeStatus(store, id),
     completion: (completion ?? null) as Json };
 }
 
@@ -154,6 +157,7 @@ function recordObjectiveCompletion(store: Store, objective: string, row: any,
     externalEffects.unresolved === gate.unresolvedExternalJobs,
     "objective external-effect gate changed before attestation");
   const externalEffectsManifest = store.artifact(externalEffects.records as unknown as Json);
+  const episode = buildObjectiveEpisode(store, objective, integration, gate as unknown as Json);
   const attestation = JSON.parse(canonical({
     schema: 1,
     objective,
@@ -168,6 +172,7 @@ function recordObjectiveCompletion(store: Store, objective: string, row: any,
       byTemplate: externalEffects.byTemplate,
       manifestHash: externalEffectsManifest,
     },
+    episode: { episodeHash: episode.episodeHash, graphHash: episode.graphHash },
     integration,
   })) as Json;
   const hash = store.artifact(attestation);
@@ -180,10 +185,12 @@ function recordObjectiveCompletion(store: Store, objective: string, row: any,
         "objective completion attestation drift");
       return;
     }
+    persistObjectiveEpisode(store, objective, String(row.run), episode, now);
     store.db.prepare(
       "INSERT INTO swarm_objective_completions(objective,run,attestation,created) VALUES(?,?,?,?)"
     ).run(objective, row.run, hash, now);
-    store.event("objective.completed", { id: objective, run: row.run, attestation: hash }, row.run);
+    store.event("objective.completed", { id: objective, run: row.run, attestation: hash,
+      episodeHash: episode.episodeHash, graphHash: episode.graphHash }, row.run);
   });
   return hash;
 }
@@ -424,7 +431,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
                 const attestation = recordObjectiveCompletion(store, input.id, assertOwner(), integration, finalGate);
                 transition("COMPLETE"); report();
                 return { status: "PASS", objective: objectiveStatus(store, input.id), integration,
-                  completion: { attestation } };
+                  completion: { attestation, episode: objectiveEpisodeStatus(store, input.id) } };
               }
             } catch (e) {
               controller.signal.throwIfAborted();
@@ -455,7 +462,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
           const attestation = recordObjectiveCompletion(store, input.id, assertOwner(), integration, finalGate);
           transition("COMPLETE"); report();
           return { status: "PASS", objective: objectiveStatus(store, input.id), integration,
-            completion: { attestation } };
+            completion: { attestation, episode: objectiveEpisodeStatus(store, input.id) } };
         }
       }
       const reportDelay = supervision?.reportEveryMs ?? 30000;

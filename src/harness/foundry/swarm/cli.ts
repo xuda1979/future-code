@@ -9,12 +9,14 @@ import type { Json, Task } from "../types.ts";
 import { initializeSwarm, integrateSwarm, loadSwarm, runSwarm, swarmStatus } from "./host.ts";
 import { ResearchJobs, type JobReply } from "./jobs.ts";
 import { SessionJournal } from "./session.ts";
+import { readObjectiveEpisode } from "../rndEpisodes.ts";
 export const help = `Foundry Swarm: durable coding agents on the existing Foundry kernel
   init --spec FILE --allow-exec
   run --tasks FILE --allow-exec
   resume --run ID --allow-exec
   supervise --objective ID [--goal FILE --tasks FILE] --allow-exec
   objective --objective ID
+  episode --objective ID
   status [--run ID] [--task-after TASK_ID]
   receipt --hash HASH [--offset N] [--length N]
   events --run ID --task ID [--after N]
@@ -45,7 +47,7 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "supervise", "objective", "status", "receipt", "events", "job-reconcile", "integrate"].includes(cmd), "unknown swarm command");
+  invariant(["init", "run", "resume", "supervise", "objective", "episode", "status", "receipt", "events", "job-reconcile", "integrate"].includes(cmd), "unknown swarm command");
   if (["init", "run", "resume", "supervise", "job-reconcile", "integrate"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
@@ -61,6 +63,7 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
           ...(opts.has("--tasks") ? { tasks: file(need("--tasks")) as Task[] } : {}) }, signal, onProgress);
       }
       case "objective": return objectiveStatus(store, need("--objective"));
+      case "episode": return readObjectiveEpisode(store, need("--objective"));
       case "status": return swarmStatus(store, opts.get("--run"), opts.get("--task-after"));
       case "receipt": {
         const offset = Number(opts.get("--offset") ?? 0); const length = Number(opts.get("--length") ?? 4096);
