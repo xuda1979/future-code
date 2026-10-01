@@ -147,6 +147,22 @@ export function objectiveStatus(store: Store, id: string): Json {
 function recordObjectiveCompletion(store: Store, objective: string, row: any,
   integration: Json, gate: ObjectiveEvidenceGate, now = Date.now()): string {
   invariant(gate.status === "PASS", "objective completion requires a passing evidence gate");
+  // Completion is immutable. A restarted supervisor must replay the already
+  // accepted attestation/episode instead of rebuilding it from later events.
+  const persisted = store.db.prepare(
+    "SELECT run,attestation FROM swarm_objective_completions WHERE objective=?"
+  ).get(objective);
+  if (persisted) {
+    invariant(String(persisted.run) === String(row.run), "objective completion run drift");
+    const attestation = store.readArtifact(String(persisted.attestation)) as any;
+    invariant(attestation?.objective === objective && attestation?.run === String(row.run),
+      "objective completion attestation binding drift");
+    if (attestation?.episode?.episodeHash) {
+      store.readArtifact(String(attestation.episode.episodeHash));
+      store.readArtifact(String(attestation.episode.graphHash));
+    }
+    return String(persisted.attestation);
+  }
   const lineage = store.db.prepare(`SELECT revision,plan,run,reason FROM swarm_objective_revisions
     WHERE objective=? ORDER BY revision`).all(objective).map(item => ({
       revision: Number(item.revision), plan: String(item.plan), run: String(item.run), reason: String(item.reason),
