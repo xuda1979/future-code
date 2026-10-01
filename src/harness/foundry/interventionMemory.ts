@@ -84,7 +84,7 @@ export function classifyIntervention(sourceTasks: Task[], targetTasks: Task[], d
   if (!classes.length) classes.push("semantic_plan_change");
   classes.sort();
   const descriptor = json({ classes, before, after });
-  return json({ ...(descriptor as any), interventionHash: digest(descriptor) });
+  return json({ ...(descriptor as any), interventionHash: digest({ classes }) });
 }
 
 function reflectionForRun(store: Store, objective: string, run: string): { hash: string; value: any } | null {
