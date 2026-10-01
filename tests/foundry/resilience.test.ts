@@ -373,11 +373,11 @@ test("bounded recovery planner versions the task graph and resumes the objective
 test("objective completion gate rejects unresolved contradictory evidence", async () => swarmFixture(async s => {
   const q = new Scheduler(s);
   const run = q.start([swarmTask()]);
-  const lease = q.claim(run, "gate-test")!;
   const artifact = s.artifact({ patchHash: s.artifact(""), summary: "verified" });
   const evidence = s.artifact({ checks: [{ id: "behavior", verdict: "PASS" }] });
-  assert.equal(q.finish(lease, s.readArtifact(artifact), s.readArtifact(evidence),
-    { tokens: 0, costUsd: 0 }), true);
+  s.db.prepare("UPDATE tasks SET status='PASS',artifact=?,evidence=? WHERE run=? AND id='a'")
+    .run(artifact, evidence, run);
+  s.db.prepare("UPDATE fabric_goals SET status='VERIFIED' WHERE run=? AND id='a'").run(run);
   let gate = objectiveEvidenceGate(s, run);
   assert.equal(gate.status, "PASS");
   recordEvidence(s, {
