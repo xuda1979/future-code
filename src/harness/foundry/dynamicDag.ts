@@ -1,6 +1,7 @@
 import { canonical, digest, identifier, invariant, validateTasks } from "./kernel.ts";
 import { accessConflicts, compilePlan } from "./productivity.ts";
 import { rebuildSchedulerIndex } from "./schedulerIndex.ts";
+import { refreshRunAllocations, registerTaskGoals } from "./evidenceFabric.ts";
 import type { Store } from "./store.ts";
 import type { Capsule, Json, Measurement, SpawnPolicy, Task } from "./types.ts";
 
@@ -186,6 +187,8 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
     // Dynamic expansion is the uncommon structural operation. Pay O(V+E) here
     // once so subsequent claims remain bounded to ready/running work.
     rebuildSchedulerIndex(store, c.runId, store.recipe(c.recipeHash), now);
+    registerTaskGoals(store, c.runId, children, c.task.id, "software-engineering", now);
+    refreshRunAllocations(store, c.runId, now);
     store.event("task.expanded",
       { parent: c.task.id, requestKey, depth, children: ids }, c.runId, c.task.id);
     const parentDeferred = deferParent();
