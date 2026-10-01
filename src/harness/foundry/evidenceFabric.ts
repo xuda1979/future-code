@@ -148,6 +148,10 @@ export const builtinDomainPacks = (): DomainPack[] => [
   },
 ];
 
+function activeDomain(store: Store): string {
+  return store.getMeta<string>("extension.evidenceDomain") ?? "software-engineering";
+}
+
 export function taskExperienceSignature(task: Task, domain = "software-engineering"): string {
   return digest({
     domain,
@@ -171,7 +175,7 @@ function taskTopology(task: Task): string {
 }
 
 export function registerTaskGoals(store: Store, run: string, tasks: Task[],
-  parent: string | null = null, domain = "software-engineering", now = Date.now()): void {
+  parent: string | null = null, domain = activeDomain(store), now = Date.now()): void {
   for (const task of tasks) {
     const specHash = digest(task); const acceptanceHash = digest(task.acceptance);
     const existing = store.db.prepare(
@@ -206,7 +210,7 @@ export function ensureRunFabric(store: Store, run: string, now = Date.now()): vo
   ).all(run).map(row => [String(row.child), String(row.parent)]));
   for (const row of rows) {
     const task = JSON.parse(row.spec) as Task;
-    registerTaskGoals(store, run, [task], parents.get(task.id) ?? null, "software-engineering", now);
+    registerTaskGoals(store, run, [task], parents.get(task.id) ?? null, activeDomain(store), now);
   }
   refreshRunAllocations(store, run, now);
   store.event("fabric.run.projected", { tasks: rows.length }, run);
@@ -296,7 +300,7 @@ function latestFailureStats(store: Store, run: string, task: string): { novelty:
   };
 }
 
-function historicalYield(store: Store, task: Task, domain = "software-engineering"): number {
+function historicalYield(store: Store, task: Task, domain = activeDomain(store)): number {
   const signature = taskExperienceSignature(task, domain);
   const row = store.db.prepare(`SELECT COUNT(*) AS n,
     SUM(CASE WHEN outcome='PASS' THEN 1 ELSE 0 END) AS passed
@@ -368,10 +372,11 @@ function recordExperience(store: Store, run: string, task: Task, outcome: "PASS"
     dependencies: task.dependencies.length, scopes: scopeShape(task.writeScope),
   });
   const id = digest({ run, task: task.id, outcome, strategyHash });
+  const domain = activeDomain(store);
   store.db.prepare(`INSERT OR IGNORE INTO fabric_experience
     (id,run,task,domain,signature,topology,outcome,duration,tokens,cost,strategy_hash,evidence_strength,created)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, run, task.id, "software-engineering",
-      taskExperienceSignature(task), taskTopology(task), outcome, duration, tokens, cost,
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, run, task.id, domain,
+      taskExperienceSignature(task, domain), taskTopology(task), outcome, duration, tokens, cost,
       strategyHash, evidence, now);
 }
 
@@ -463,10 +468,11 @@ export function adjudicationTask(store: Store, conflictId: string,
 
 export function experienceMatches(store: Store, task: Task, limit = 5): Json[] {
   invariant(Number.isSafeInteger(limit) && limit > 0 && limit <= 50, "invalid experience match limit");
-  const signature = taskExperienceSignature(task);
+  const domain = activeDomain(store);
+  const signature = taskExperienceSignature(task, domain);
   return store.db.prepare(`SELECT run,task,outcome,duration,tokens,cost,strategy_hash,evidence_strength,created
-    FROM fabric_experience WHERE signature=? AND domain='software-engineering'
-    ORDER BY created DESC LIMIT ?`).all(signature, limit).map(row => ({
+    FROM fabric_experience WHERE signature=? AND domain=?
+    ORDER BY created DESC LIMIT ?`).all(signature, domain, limit).map(row => ({
       run: row.run, task: row.task, outcome: row.outcome, durationMs: Number(row.duration),
       tokens: row.tokens === null ? null : Number(row.tokens),
       costUsd: row.cost === null ? null : Number(row.cost),
