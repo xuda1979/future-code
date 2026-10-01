@@ -34,7 +34,7 @@ export class Scheduler {
       for (const task of tasks) insert.run(id, task.id, JSON.stringify(task));
       this.store.db.prepare("UPDATE runs SET graph_version=1 WHERE id=?").run(id);
       rebuildSchedulerIndex(this.store, id, this.store.recipe(recipeHash), now);
-      registerTaskGoals(this.store, id, tasks, null, "software-engineering", now);
+      registerTaskGoals(this.store, id, tasks, null, undefined, now);
       refreshRunAllocations(this.store, id, now);
       this.store.event("run.started", { recipeHash, contractHash: digest(contract), taskCount: tasks.length, taskHash: digest(tasks) }, id);
       return id;
