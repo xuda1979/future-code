@@ -258,6 +258,12 @@ function evidenceStrength(store: Store, run: string, task: Task): number {
   return direct == null ? 0 : clamp(Number(direct));
 }
 
+function runRecipe(store: Store, run: string) {
+  const hash = store.db.prepare("SELECT recipe FROM runs WHERE id=?").get(run)?.recipe;
+  invariant(typeof hash === "string", "unknown fabric run");
+  return store.recipe(hash);
+}
+
 function latestFailureStats(store: Store, run: string, task: string): { novelty: number; repeated: number } {
   const rows = store.db.prepare(`SELECT m.failure_fingerprint AS fingerprint
     FROM attempts a LEFT JOIN attempt_telemetry m
@@ -271,7 +277,7 @@ function latestFailureStats(store: Store, run: string, task: string): { novelty:
   for (const row of rows) { if (row.fingerprint !== latest) break; consecutive++; }
   return {
     novelty: clamp(1 / Math.max(1, seen)),
-    repeated: clamp(Math.max(0, consecutive - 1) / Math.max(1, store.recipe().attempts - 1)),
+    repeated: clamp(Math.max(0, consecutive - 1) / Math.max(1, runRecipe(store, run).attempts - 1)),
   };
 }
 
@@ -299,7 +305,7 @@ export function refreshTaskAllocation(store: Store, run: string, taskId: string,
   const nonDeferred = Number(store.db.prepare(
     "SELECT COUNT(*) AS n FROM attempts WHERE run=? AND task=? AND status<>'DEFERRED'"
   ).get(run, taskId)?.n ?? 0);
-  const resourceSpent = clamp(nonDeferred / Math.max(1, store.recipe().attempts));
+  const resourceSpent = clamp(nonDeferred / Math.max(1, runRecipe(store, run).attempts));
   const score = 3 * criticality + 0.6 * uncertainty + 2 * experience + 0.8 * failure.novelty +
     1.5 * evidence - 3 * failure.repeated - 2 * resourceSpent;
   const record: AllocationRecord = {
