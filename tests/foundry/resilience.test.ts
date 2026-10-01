@@ -597,13 +597,16 @@ test("unfinished objectives keep replanning by default across multiple failed ex
       assert.equal(body.tool_choice?.function?.name, "propose_recovery_plan");
       return reply("", [{ name: "propose_recovery_plan", arguments: {
         decision: "replan", reason: "Try a smaller first recovery graph", tasks: [repair1],
+        addressedFindings: JSON.parse(body.messages[1].content).hostReflection.findings.slice(0, 1).map((item: any) => item.code),
       } }]);
     },
     () => reply("first recovery also produced no patch"),
     body => {
       recoveryCalls++;
+      const findings = JSON.parse(body.messages[1].content).hostReflection.findings.map((item: any) => item.code);
       return reply("", [{ name: "propose_recovery_plan", arguments: {
         decision: "replan", reason: "Use a different second recovery graph", tasks: [repair2],
+        addressedFindings: findings.slice(0, 1),
       } }]);
     },
     () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
