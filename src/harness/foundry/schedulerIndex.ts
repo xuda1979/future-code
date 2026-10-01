@@ -143,7 +143,7 @@ export function readyCandidates(store: Store, runId: string, now: number, limit:
     LEFT JOIN task_waits w ON w.run=t.run AND w.task=t.id
     LEFT JOIN fabric_allocations a ON a.run=t.run AND a.task=t.id
     WHERE n.run=? AND n.remaining=0 AND t.status='READY' AND (w.wake IS NULL OR w.wake<=?)
-    ORDER BY COALESCE(a.score,0) DESC,n.priority DESC,n.rank DESC,t.id LIMIT ? OFFSET ?`).all(runId, now, limit, offset)
+    ORDER BY n.priority DESC,COALESCE(a.score,0) DESC,n.rank DESC,t.id LIMIT ? OFFSET ?`).all(runId, now, limit, offset)
     .map(row => ({ id: String(row.id), spec: String(row.spec), fence: Number(row.fence),
       priority: Number(row.priority), rank: Number(row.rank), budget: Number(row.budget) }));
 }
