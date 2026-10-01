@@ -80,6 +80,8 @@ export interface SupervisionPolicy {
 }
 export interface SwarmSpec {
   jobs?: Record<string, JobTemplate>;
+  /** Evidence-Fabric semantic contract. Defaults to software-engineering. */
+  domainPack?: "software-engineering" | "ml-research" | "scientific-computing";
   /** Optional multi-host execution fleet. The coordinator remains authoritative. */
   workers?: Record<string, ExecutionWorker>;
   supervision?: SupervisionPolicy;
@@ -122,9 +124,12 @@ function names(names: string[], known: string[], label: string): void {
   invariant(Array.isArray(names) && names.length > 0 && new Set(names).size === names.length && names.every(n => known.includes(n)), `invalid ${label}`);
 }
 export function validateSwarmSpec(s: SwarmSpec): void {
-  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision"]);
+  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack"]);
   invariant(s.schema === 1 && typeof s.name === "string" && !!s.name.trim(), "invalid swarm identity");
   invariant(typeof s.project === "string" && s.project.length > 0, "missing project");
+  invariant(s.domainPack === undefined ||
+    ["software-engineering", "ml-research", "scientific-computing"].includes(s.domainPack),
+    "unknown evidence domain pack");
   invariant(typeof s.baseRef === "string" && s.baseRef.length > 0 && !s.baseRef.startsWith("-") && !s.baseRef.includes("\0"), "invalid baseRef");
   const c: Contract = { schema: 1, name: s.name, workerId: "swarm", verifierId: "swarm-checker", environmentId: "pinned-project",
     requiredChecks: ["scope", "behavior"], slos: [], limits: s.limits };
