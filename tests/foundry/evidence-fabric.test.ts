@@ -118,7 +118,7 @@ test("tool effects distinguish replay-safe reads, state-bound edits, control-pla
   assert.equal(toolEffectContract(cfg, "edit_file", { path: "a" }).compensation, "snapshot-rollback");
   assert.equal(toolEffectContract(cfg, "spawn_tasks", { children: [] }).idempotency, "spawn-request");
   assert.equal(toolEffectContract(cfg, "run_job", { name: "train", input: {} }).replay, "reconcile");
-}));
+});
 
 test("fabric status exposes evidence, conflicts and evidence-aware allocation without becoming scheduler authority", async () => fixture(store => {
   const q = new Scheduler(store); const run = q.start([task("a"), task("b")]);
