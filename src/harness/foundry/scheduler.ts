@@ -274,6 +274,7 @@ export class Scheduler {
       // An expired lease is reclaimed by claim(); do not overwrite a new owner.
       if (!this.current(lease, now)) { this.store.event("failure.stale", { fence: lease.fence, reason }, lease.runId, lease.taskId); return false; }
       const recipe = this.store.recipe(lease.recipeHash);
+      const task: Task = JSON.parse(this.store.db.prepare("SELECT spec FROM tasks WHERE run=? AND id=?").get(lease.runId, lease.taskId)!.spec);
       const a = this.store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(lease.runId, lease.taskId, lease.fence)!;
       const fingerprint = digest(options.fingerprint ?? reason.slice(0, 4096));
       this.store.db.prepare(`INSERT INTO attempt_telemetry(run,task,fence,failure_fingerprint) VALUES(?,?,?,?)
