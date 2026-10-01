@@ -456,7 +456,7 @@ test("measured recovery intervention is evaluated against the next verified run"
 
   s.db.prepare(`INSERT INTO swarm_recovery_attempts
     (objective,run,revision,state,detail,new_run,retry_at,created,updated,reflection_hash,addressed_findings)
-    VALUES(?,?,?,?,?,?,NULL,?,?,?,?,?)`)
+    VALUES(?,?,?,?,?,?,NULL,?,?,?,?)`)
     .run("effectiveness", sourceRun, 1, "PLANNED", "focused repair", targetRun,
       Date.now(), Date.now(), sourceReflection.hash, canonical(["low_verified_yield"]));
   assert.equal(evaluateInterventionOutcomes(s, "effectiveness"), 1);
