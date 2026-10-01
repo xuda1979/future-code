@@ -21,7 +21,7 @@ import { superviseSwarm, objectiveStatus, objectiveEvidenceGate, installObjectiv
 import { recordEvidence } from "../../src/harness/foundry/evidenceFabric.ts";
 import { readObjectiveEpisode } from "../../src/harness/foundry/rndEpisodes.ts";
 import { reflectRun, readLatestObjectiveReflection } from "../../src/harness/foundry/rndReflection.ts";
-import { classifyIntervention, interventionHistory, interventionMemoryForFindings } from "../../src/harness/foundry/interventionMemory.ts";
+import { classifyIntervention, evaluateInterventionOutcomes, interventionHistory, interventionMemoryForFindings } from "../../src/harness/foundry/interventionMemory.ts";
 import { runSwarm } from "../../src/harness/foundry/swarm/host.ts";
 import { validateSwarmSpec, type SwarmSpec } from "../../src/harness/foundry/swarm/config.ts";
 import { fixture as swarmFixture, task as swarmTask, scripted, reply, signal, spec } from "./swarm-fixtures.ts";
@@ -425,6 +425,50 @@ test("intervention memory keeps small samples observational instead of calling t
   assert.equal(memory.findings.low_verified_yield[0].improved, 1);
 }));
 
+test("measured recovery intervention is evaluated against the next verified run", async () => swarmFixture(async s => {
+  s.recipe.attempts = 3;
+  const q = new Scheduler(s);
+  const sourceTask = swarmTask("source");
+  const targetTask = { ...swarmTask("target"), goal: "focused repaired task" };
+  const sourcePlan = s.artifact([sourceTask] as any);
+  const targetPlan = s.artifact([targetTask] as any);
+  const sourceRun = q.start([sourceTask]);
+  s.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
+    .run("effectiveness", 0, sourcePlan, sourceRun, "initial", Date.now());
+  for (let i = 0; i < 3; i++) {
+    const lease = q.claim(sourceRun, `source-${i}`)!;
+    assert.equal(q.fail(lease, "same failure", { tokens: 5, costUsd: 0.1 }, Date.now(),
+      { fingerprint: "same-failure" }), true);
+  }
+  const sourceReflection: any = reflectRun(s, "effectiveness", sourceRun, "source failed");
+  assert.ok(sourceReflection.reflection.findings.some((item: any) => item.code === "low_verified_yield"));
+
+  const targetRun = q.start([targetTask]);
+  s.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
+    .run("effectiveness", 1, targetPlan, targetRun, "focused repair", Date.now());
+  const artifact = s.artifact({ ok: true });
+  const evidence = s.artifact({ checks: [{ id: "behavior", verdict: "PASS" }] });
+  s.db.prepare("UPDATE tasks SET status='PASS',artifact=?,evidence=? WHERE run=? AND id=?")
+    .run(artifact, evidence, targetRun, targetTask.id);
+  s.db.prepare("UPDATE runs SET status='PASS',ended=? WHERE id=?").run(Date.now(), targetRun);
+  const targetReflection: any = reflectRun(s, "effectiveness", targetRun, "objective-complete");
+  assert.equal(targetReflection.reflection.productivity.runStatus, "PASS");
+
+  s.db.prepare(`INSERT INTO swarm_recovery_attempts
+    (objective,run,revision,state,detail,new_run,retry_at,created,updated,reflection_hash,addressed_findings)
+    VALUES(?,?,?,?,?,?,NULL,?,?,?,?,?)`)
+    .run("effectiveness", sourceRun, 1, "PLANNED", "focused repair", targetRun,
+      Date.now(), Date.now(), sourceReflection.hash, canonical(["low_verified_yield"]));
+  assert.equal(evaluateInterventionOutcomes(s, "effectiveness"), 1);
+  const effects: any[] = interventionHistory(s, "effectiveness") as any[];
+  assert.equal(effects.length, 1);
+  assert.equal(effects[0].finding, "low_verified_yield");
+  assert.equal(effects[0].outcome, "IMPROVED");
+  const memory: any = interventionMemoryForFindings(s, ["low_verified_yield"]);
+  assert.equal(memory.findings.low_verified_yield[0].samples, 1);
+  assert.equal(memory.findings.low_verified_yield[0].evidenceLevel, "OBSERVED");
+}));
+
 test("host reflection identifies repeated failures and productivity loss from measured execution", async () => swarmFixture(async s => {
   s.recipe.attempts = 4;
   const q = new Scheduler(s); const run = q.start([swarmTask()]);
@@ -493,10 +537,8 @@ test("bounded recovery planner versions the task graph and resumes the objective
   assert.equal(captured.episode.policyTransitions[1].action.kind, "COMPLETE");
   assert.ok(captured.episode.reflections.length >= 2);
   assert.ok(captured.episode.recoveries[0].reflectionHash);
-  const effects: any[] = interventionHistory(s, "auto-recover") as any[];
-  assert.ok(effects.length >= 1);
-  assert.equal(effects[0].outcome, "IMPROVED");
-  assert.ok(captured.episode.interventions.length >= 1);
+  assert.deepEqual(interventionHistory(s, "auto-recover"), [],
+    "a recovery with no measured finding must not fabricate effectiveness evidence");
 }, s => {
   s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
