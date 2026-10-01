@@ -426,6 +426,7 @@ test("intervention memory keeps small samples observational instead of calling t
 }));
 
 test("measured recovery intervention is evaluated against the next verified run", async () => swarmFixture(async s => {
+  installObjectives(s);
   s.recipe.attempts = 3;
   const q = new Scheduler(s);
   const sourceTask = swarmTask("source");
