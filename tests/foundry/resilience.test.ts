@@ -7,7 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { Store } from "../../src/harness/foundry/store.ts";
 import { Scheduler } from "../../src/harness/foundry/scheduler.ts";
 import { runTasks } from "../../src/harness/foundry/runtime.ts";
-import { digest } from "../../src/harness/foundry/kernel.ts";
+import { digest, canonical } from "../../src/harness/foundry/kernel.ts";
 import { DeferredAttemptError } from "../../src/harness/foundry/continuation.ts";
 import { runHealth, formatHealth } from "../../src/harness/foundry/health.ts";
 import type { Driver, Task, Recipe, Contract, Lease } from "../../src/harness/foundry/types.ts";
@@ -19,6 +19,7 @@ import { createApiRecoveryPlanner } from "../../src/harness/foundry/swarm/recove
 import { FatalAttemptError } from "../../src/harness/foundry/errors.ts";
 import { superviseSwarm, objectiveStatus, objectiveEvidenceGate, installObjectives } from "../../src/harness/foundry/swarm/supervisor.ts";
 import { recordEvidence } from "../../src/harness/foundry/evidenceFabric.ts";
+import { readObjectiveEpisode } from "../../src/harness/foundry/rndEpisodes.ts";
 import { runSwarm } from "../../src/harness/foundry/swarm/host.ts";
 import { validateSwarmSpec, type SwarmSpec } from "../../src/harness/foundry/swarm/config.ts";
 import { fixture as swarmFixture, task as swarmTask, scripted, reply, signal, spec } from "./swarm-fixtures.ts";
@@ -328,6 +329,11 @@ test("successful external job requires a bounded result and permitted template",
   await assert.rejects(jobs.execute(c, { ...cfg.spec.agents.coder, jobs: [] }, jobCall, signal()), /denied/);
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, jobCall, signal()), /INVALID_JOB_REPLY/);
 }, jobSpec));
+test("episode command is recognized as a read-only swarm command", async () => {
+  const { tokenize } = await import("../../src/harness/foundry/swarm/cli.ts");
+  assert.deepEqual(tokenize("episode --objective research-1"), ["episode", "--objective", "research-1"]);
+});
+
 test("job and supervision configuration reject unsafe bounds/capabilities", () => {
   const s = spec("x"); jobSpec(s); s.jobs!.train.idempotentEnsure = false as any; assert.throws(() => validateSwarmSpec(s), /idempotent/);
   s.jobs!.train.idempotentEnsure = true; s.jobs!.train.maxConcurrent = 0; assert.throws(() => validateSwarmSpec(s), /concurrency/);
@@ -421,6 +427,11 @@ test("bounded recovery planner versions the task graph and resumes the objective
   assert.equal(plannerCalls, 1); assert.equal(script.bodies.length, 3);
   assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM swarm_objective_revisions WHERE objective='auto-recover'").get()!.n, 2);
   assert.equal(s.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective='auto-recover'").get()!.state, "PLANNED");
+  const captured: any = readObjectiveEpisode(s, "auto-recover");
+  assert.equal(captured.episode.revisions.length, 2);
+  assert.equal(captured.episode.policyTransitions.length, 2);
+  assert.equal(captured.episode.policyTransitions[0].action.kind, "REPLAN");
+  assert.equal(captured.episode.policyTransitions[1].action.kind, "COMPLETE");
 }, s => {
   s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
@@ -475,6 +486,27 @@ test("successful supervision persists a host-owned completion attestation", asyn
   assert.equal(attestation.externalEffects.count, 0);
   assert.match(attestation.externalEffects.manifestHash, /^[a-f0-9]{64}$/);
   assert.deepEqual(s.readArtifact(attestation.externalEffects.manifestHash), []);
+  assert.match(attestation.episode.episodeHash, /^[a-f0-9]{64}$/);
+  assert.match(attestation.episode.graphHash, /^[a-f0-9]{64}$/);
+  const captured: any = readObjectiveEpisode(s, "completion-attestation");
+  assert.equal(captured.episodeHash, attestation.episode.episodeHash);
+  assert.equal(captured.graphHash, attestation.episode.graphHash);
+  assert.equal(captured.episode.type, "future-code-rnd-episode");
+  assert.equal(captured.episode.outcome, "PASS");
+  assert.equal(captured.episode.privacy.rawPrompts, false);
+  assert.equal(captured.episode.privacy.rawResponses, false);
+  assert.equal(captured.episode.policyTransitions[0].action.kind, "COMPLETE");
+  const encoded = canonical(captured);
+  assert.ok(!encoded.includes("Implement and independently verify 42"), "episode must not copy raw objective text");
+  assert.ok(!encoded.includes("fixture-model"), "episode must not copy model identifiers");
+  const graph: any = s.readArtifact(captured.graphHash);
+  assert.ok(graph.nodes.some((node: any) => node.type === "task"));
+  assert.ok(graph.nodes.some((node: any) => node.type === "attempt"));
+  assert.ok(graph.nodes.some((node: any) => node.type === "evidence"));
+  assert.ok(graph.nodes.some((node: any) => node.type === "provider"));
+  assert.throws(() => s.db.prepare(
+    "UPDATE rnd_objective_episodes SET graph_hash='tampered' WHERE objective='completion-attestation'"
+  ).run(), /append-only R&D episode/);
   assert.ok(Array.isArray(attestation.lineage) && attestation.lineage.length >= 1);
 }));
 
