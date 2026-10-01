@@ -165,8 +165,10 @@ function objectiveResources(store: Store, objective: string, externalJobs: Recor
   const requests = tableExists(store, "agent_requests")
     ? store.db.prepare(`SELECT bytes,tokens,status FROM agent_requests WHERE ${clause}`).all(objective, objective) : [];
   const attempts = store.db.prepare(`SELECT duration,tokens,cost,status FROM attempts WHERE ${clause}`).all(objective, objective);
-  const span = store.db.prepare(`SELECT MIN(started) AS first,MAX(COALESCE(ended,started)) AS last FROM runs WHERE ${clause}`)
-    .get(objective, objective);
+  const span = store.db.prepare(`SELECT MIN(started) AS first,MAX(COALESCE(ended,started)) AS last FROM runs WHERE id IN (
+    SELECT run FROM swarm_objective_revisions WHERE objective=?
+    UNION SELECT run FROM swarm_objectives WHERE id=? AND run IS NOT NULL
+  )`).get(objective, objective);
   const budget = store.db.prepare("SELECT max_requests,max_request_bytes FROM swarm_objective_budgets WHERE objective=?").get(objective);
   const jobBudget = objectiveJobUsage(store, cfg, objective).map(item => json({
     templateHash: digest(item.template), used: item.used, unresolved: item.unresolved,
