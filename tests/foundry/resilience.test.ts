@@ -214,10 +214,6 @@ test("supervised objective remote-job budget survives replans instead of resetti
 test("objective evidence gate blocks unresolved external effects", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]);
   const lease = q.claim(run, "w")!;
-  const artifact = s.artifact({ patchHash: s.artifact(""), summary: "verified" });
-  const evidence = s.artifact({ checks: [{ id: "behavior", verdict: "PASS" }] });
-  s.db.prepare("UPDATE tasks SET status='PASS',artifact=?,evidence=? WHERE run=? AND id='a'")
-    .run(artifact, evidence, run);
   const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => ({
     schema: 1, key: (request as any).key, jobId: "still-running", status: "RUNNING",
   }));
@@ -225,6 +221,12 @@ test("objective evidence gate blocks unresolved external effects", async () => s
     jobs.execute(q.capsule(lease), cfg.spec.agents.coder, jobCall, signal()),
     DeferredAttemptError,
   );
+  // Simulate independently accepted task evidence while the external effect is
+  // still unresolved. The host-owned objective gate must not conflate the two.
+  const artifact = s.artifact({ patchHash: s.artifact(""), summary: "verified" });
+  const evidence = s.artifact({ checks: [{ id: "behavior", verdict: "PASS" }] });
+  s.db.prepare("UPDATE tasks SET status='PASS',artifact=?,evidence=? WHERE run=? AND id='a'")
+    .run(artifact, evidence, run);
   const gate = objectiveEvidenceGate(s, run);
   assert.equal(gate.status, "BLOCKED");
   assert.equal(gate.verifiedTasks, 1);
