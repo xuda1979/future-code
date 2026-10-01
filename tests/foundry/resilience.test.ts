@@ -378,6 +378,10 @@ test("objective completion gate rejects unresolved contradictory evidence", asyn
   s.db.prepare("UPDATE tasks SET status='PASS',artifact=?,evidence=? WHERE run=? AND id='a'")
     .run(artifact, evidence, run);
   s.db.prepare("UPDATE fabric_goals SET status='VERIFIED' WHERE run=? AND id='a'").run(run);
+  recordEvidence(s, {
+    run, goal: "a", task: "a", kind: "independent-verification", verdict: "PASS",
+    strength: 1, artifactHash: artifact, evidenceHash: evidence, source: "gate-test-verifier",
+  });
   let gate = objectiveEvidenceGate(s, run);
   assert.equal(gate.status, "PASS");
   recordEvidence(s, {
