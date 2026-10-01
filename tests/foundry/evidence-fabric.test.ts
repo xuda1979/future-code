@@ -58,7 +58,7 @@ test("goal and evidence graph are durable projections over the authoritative tas
 }));
 
 test("allocator uses host evidence and penalizes repeated failed work without accepting model feasibility scores", async () => fixture(store => {
-  const q = new Scheduler(store); const run = q.start([task("a"), task("b")]);
+  const q = new Scheduler(store); const run = q.start([{ ...task("a"), priority: 10 }, task("b")]);
   const before = refreshTaskAllocation(store, run, "a")!;
   const first = q.claimMany(run, "w", 2).find(x => x.taskId === "a")!;
   q.fail(first, "same deterministic failure", zero);
