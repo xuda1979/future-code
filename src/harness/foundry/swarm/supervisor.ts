@@ -13,6 +13,7 @@ import { createApiRecoveryPlanner } from "./recovery.ts";
 import { externalEffectSnapshot, objectiveJobUsage } from "./jobs.ts";
 import { buildObjectiveEpisode, installRndEpisodeTables, objectiveEpisodeStatus, persistObjectiveEpisode } from "../rndEpisodes.ts";
 import { installRndReflectionTables, latestObjectiveReflection, reflectRun } from "../rndReflection.ts";
+import { evaluateInterventionOutcomes, installInterventionMemoryTables, interventionMemoryForFindings } from "../interventionMemory.ts";
 
 export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
 export interface RecoveryContext {
@@ -20,6 +21,7 @@ export interface RecoveryContext {
   tasks: Task[]; failures: { id: string; status: string; error: string | null }[];
   reflectionHash?: string;
   reflection?: Json;
+  interventionMemory?: Json;
 }
 export interface RecoveryPlan { reason: string; tasks: Task[]; addressedFindings?: string[] }
 export type RecoveryPlanner = (context: RecoveryContext, signal: AbortSignal) => Promise<RecoveryPlan | null>;
@@ -117,6 +119,7 @@ export function installObjectives(store: Store): void {
       created REAL NOT NULL);`);
   installRndEpisodeTables(store);
   installRndReflectionTables(store);
+  installInterventionMemoryTables(store);
   const recoveryColumns = new Set(store.db.prepare("PRAGMA table_info(swarm_recovery_attempts)").all().map(r => String(r.name)));
   if (!recoveryColumns.has("retry_at"))
     store.db.exec("ALTER TABLE swarm_recovery_attempts ADD COLUMN retry_at REAL");
@@ -190,6 +193,7 @@ function recordObjectiveCompletion(store: Store, objective: string, row: any,
     "objective external-effect gate changed before attestation");
   const externalEffectsManifest = store.artifact(externalEffects.records as unknown as Json);
   const finalReflection = reflectRun(store, objective, String(row.run), "objective-complete", now);
+  evaluateInterventionOutcomes(store, objective, now);
   const episode = buildObjectiveEpisode(store, objective, integration, gate as unknown as Json);
   const attestation = JSON.parse(canonical({
     schema: 1,
@@ -335,6 +339,10 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     const reflected = existing?.reflection_hash
       ? { hash: String(existing.reflection_hash), reflection: store.readArtifact(String(existing.reflection_hash)) as Json }
       : reflectRun(store, input.id, String(row.run), reason);
+    evaluateInterventionOutcomes(store, input.id);
+    const findingCodes = Array.isArray((reflected.reflection as any).findings)
+      ? (reflected.reflection as any).findings.map((item: any) => String(item.code)) : [];
+    const interventionMemory = interventionMemoryForFindings(store, findingCodes);
     const failures = store.db.prepare("SELECT id,status,error FROM tasks WHERE run=? AND status<>'PASS' ORDER BY id LIMIT 200").all(row.run)
       .map(r => ({ id: String(r.id), status: String(r.status), error: r.error == null ? null : String(r.error).slice(0, 1024) }));
     if (!existing) store.transaction(() => {
@@ -352,7 +360,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       // and no replacement run has been admitted yet. A controller crash can safely
       // repeat planning under the same bounded revision.
       proposal = await planner({ objectiveId: input.id, goal: row.goal, runId: row.run, reason, revision, tasks, failures,
-        reflectionHash: reflected.hash, reflection: reflected.reflection }, controller.signal);
+        reflectionHash: reflected.hash, reflection: reflected.reflection, interventionMemory }, controller.signal);
       controller.signal.throwIfAborted();
       if (!proposal) {
         store.db.prepare("UPDATE swarm_recovery_attempts SET state='DECLINED',detail=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
