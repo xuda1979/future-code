@@ -394,8 +394,11 @@ export function recordTaskAccepted(store: Store, run: string, task: Task,
     run, goal: task.id, task: task.id, kind: "independent-verification",
     verdict: "PASS", strength: 1, artifactHash, evidenceHash, source: "foundry-independent-verifier",
   }, now);
-  store.db.prepare("UPDATE fabric_goals SET status='VERIFIED',updated=? WHERE run=? AND id=?")
-    .run(now, run, task.id);
+  const openConflicts = Number(store.db.prepare(
+    "SELECT COUNT(*) AS n FROM fabric_conflicts WHERE run=? AND goal=? AND status='OPEN'"
+  ).get(run, task.id)?.n ?? 0);
+  store.db.prepare("UPDATE fabric_goals SET status=?,updated=? WHERE run=? AND id=?")
+    .run(openConflicts ? "CONFLICTED" : "VERIFIED", now, run, task.id);
   recordExperience(store, run, task, "PASS", 1, now);
   refreshTaskAllocation(store, run, task.id, now);
   const dependents = store.db.prepare(
@@ -412,8 +415,11 @@ export function recordTaskFailure(store: Store, run: string, task: Task,
     verdict: "FAIL", strength: terminal ? 0.6 : 0.25, source: `runtime:${fingerprint.slice(0, 32)}`,
   }, now);
   if (terminal) {
-    store.db.prepare("UPDATE fabric_goals SET status='REJECTED',updated=? WHERE run=? AND id=?")
-      .run(now, run, task.id);
+    const openConflicts = Number(store.db.prepare(
+      "SELECT COUNT(*) AS n FROM fabric_conflicts WHERE run=? AND goal=? AND status='OPEN'"
+    ).get(run, task.id)?.n ?? 0);
+    store.db.prepare("UPDATE fabric_goals SET status=?,updated=? WHERE run=? AND id=?")
+      .run(openConflicts ? "CONFLICTED" : "REJECTED", now, run, task.id);
     recordExperience(store, run, task, "FAIL", 0, now);
   }
   refreshTaskAllocation(store, run, task.id, now);
