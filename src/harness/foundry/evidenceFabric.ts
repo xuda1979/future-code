@@ -197,6 +197,21 @@ export function registerTaskGoals(store: Store, run: string, tasks: Task[],
   }
 }
 
+export function ensureRunFabric(store: Store, run: string, now = Date.now()): void {
+  if (store.db.prepare("SELECT 1 FROM fabric_goals WHERE run=? LIMIT 1").get(run)) return;
+  const rows = store.db.prepare("SELECT id,spec FROM tasks WHERE run=? ORDER BY id").all(run);
+  invariant(rows.length > 0, "cannot project unknown run into evidence fabric");
+  const parents = new Map(store.db.prepare(
+    "SELECT child,parent FROM spawn_edges WHERE run=?"
+  ).all(run).map(row => [String(row.child), String(row.parent)]));
+  for (const row of rows) {
+    const task = JSON.parse(row.spec) as Task;
+    registerTaskGoals(store, run, [task], parents.get(task.id) ?? null, "software-engineering", now);
+  }
+  refreshRunAllocations(store, run, now);
+  store.event("fabric.run.projected", { tasks: rows.length }, run);
+}
+
 function opposite(verdict: EvidenceVerdict): EvidenceVerdict | null {
   if (verdict === "PASS") return "FAIL";
   if (verdict === "FAIL") return "PASS";
