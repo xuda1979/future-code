@@ -397,3 +397,27 @@ claimed by this patch.
 
 These sources motivate the design; local tests establish only the behavior
 reported in the separate verification report, not universal productivity gains.
+
+## Host-owned objective completion
+
+Future-Code treats external LLMs as replaceable workers, not as the authority that decides
+whether an R&D objective is complete. A stronger Claude, Codex, Gemini, Qwen, or other
+API should improve execution quality without changing the control-plane trust boundary.
+
+The attached objective supervisor now applies an independent completion gate after the
+task scheduler reports `PASS` and again after final integration:
+
+- every admitted task must have durable accepted artifact and verifier evidence;
+- unresolved strong contradictions in Evidence Fabric block objective completion;
+- final integration checks remain mandatory and immutable;
+- a successful objective writes a content-addressed completion attestation binding the
+  objective goal, pinned configuration, current plan, full recovery lineage, evidence
+  gate result, and integration receipt;
+- provider text, an agent's self-report, a session ending, or a planner decision can
+  never create that attestation.
+
+This boundary is intentionally model-agnostic. Future-Code may route work to better
+external models as they appear, but it continues to own persistence, budgets, external
+effect reconciliation, evidence, verification, recovery, and the final completion
+decision. The product therefore does not depend on a particular model remaining weak.
+
