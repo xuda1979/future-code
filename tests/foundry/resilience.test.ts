@@ -17,7 +17,8 @@ import { SessionJournal } from "../../src/harness/foundry/swarm/session.ts";
 import { HttpBrain, isTransportFailure } from "../../src/harness/foundry/swarm/model.ts";
 import { createApiRecoveryPlanner } from "../../src/harness/foundry/swarm/recovery.ts";
 import { FatalAttemptError } from "../../src/harness/foundry/errors.ts";
-import { superviseSwarm, objectiveStatus } from "../../src/harness/foundry/swarm/supervisor.ts";
+import { superviseSwarm, objectiveStatus, objectiveEvidenceGate } from "../../src/harness/foundry/swarm/supervisor.ts";
+import { recordEvidence } from "../../src/harness/foundry/evidenceFabric.ts";
 import { runSwarm } from "../../src/harness/foundry/swarm/host.ts";
 import { validateSwarmSpec, type SwarmSpec } from "../../src/harness/foundry/swarm/config.ts";
 import { fixture as swarmFixture, task as swarmTask, scripted, reply, signal, spec } from "./swarm-fixtures.ts";
@@ -369,6 +370,52 @@ test("bounded recovery planner versions the task graph and resumes the objective
   s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
 }));
+test("objective completion gate rejects unresolved contradictory evidence", async () => swarmFixture(async s => {
+  const q = new Scheduler(s);
+  const run = q.start([swarmTask()]);
+  const lease = q.claim(run, "gate-test")!;
+  const artifact = s.artifact({ patchHash: s.artifact(""), summary: "verified" });
+  const evidence = s.artifact({ checks: [{ id: "behavior", verdict: "PASS" }] });
+  assert.equal(q.finish(lease, s.readArtifact(artifact), s.readArtifact(evidence),
+    { tokens: 0, costUsd: 0 }), true);
+  let gate = objectiveEvidenceGate(s, run);
+  assert.equal(gate.status, "PASS");
+  recordEvidence(s, {
+    run, goal: "a", task: "a", kind: "counterexample", verdict: "FAIL",
+    strength: 0.9, source: "independent-adversarial-check",
+  });
+  gate = objectiveEvidenceGate(s, run);
+  assert.equal(gate.status, "BLOCKED");
+  assert.equal(gate.openConflicts, 1);
+  assert.equal(gate.verifiedTasks, 1);
+  assert.deepEqual(gate.missingTaskEvidence, []);
+}));
+
+test("successful supervision persists a host-owned completion attestation", async () => swarmFixture(async s => {
+  const script = scripted([
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+    () => reply("done"),
+  ]);
+  const result: any = await superviseSwarm(
+    s,
+    { id: "completion-attestation", goal: "Implement and independently verify 42", tasks: [swarmTask()] },
+    signal(),
+    undefined,
+    script.fetcher,
+  );
+  assert.equal(result.status, "PASS");
+  assert.match(result.completion.attestation, /^[a-f0-9]{64}$/);
+  const status: any = objectiveStatus(s, "completion-attestation");
+  assert.equal(status.evidenceGate.status, "PASS");
+  assert.equal(status.completion.run, status.run);
+  assert.equal(status.completion.attestation, result.completion.attestation);
+  const attestation: any = s.readArtifact(status.completion.attestation);
+  assert.equal(attestation.objective, "completion-attestation");
+  assert.equal(attestation.run, status.run);
+  assert.equal(attestation.evidenceGate.status, "PASS");
+  assert.ok(Array.isArray(attestation.lineage) && attestation.lineage.length >= 1);
+}));
+
 test("supervision uses the configured external API for bounded recovery by default", async () => swarmFixture(async s => {
   const repaired = { ...swarmTask("repair"), goal: "Repair the failed objective with a smaller task", writeScope: ["src/a.txt"] };
   const script = scripted([
