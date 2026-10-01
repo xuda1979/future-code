@@ -17,7 +17,8 @@ import { SessionJournal } from "../../src/harness/foundry/swarm/session.ts";
 import { HttpBrain, isTransportFailure } from "../../src/harness/foundry/swarm/model.ts";
 import { createApiRecoveryPlanner } from "../../src/harness/foundry/swarm/recovery.ts";
 import { FatalAttemptError } from "../../src/harness/foundry/errors.ts";
-import { superviseSwarm, objectiveStatus } from "../../src/harness/foundry/swarm/supervisor.ts";
+import { superviseSwarm, objectiveStatus, objectiveEvidenceGate, installObjectives } from "../../src/harness/foundry/swarm/supervisor.ts";
+import { recordEvidence } from "../../src/harness/foundry/evidenceFabric.ts";
 import { runSwarm } from "../../src/harness/foundry/swarm/host.ts";
 import { validateSwarmSpec, type SwarmSpec } from "../../src/harness/foundry/swarm/config.ts";
 import { fixture as swarmFixture, task as swarmTask, scripted, reply, signal, spec } from "./swarm-fixtures.ts";
@@ -180,6 +181,59 @@ test("remote capacity waits before submitting another costly job", async () => s
   await assert.rejects(jobs.execute(c, cfg.spec.agents.coder, { ...jobCall, id: "another-job" }, signal()), /capacity/);
   assert.equal(calls, 1); assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM research_jobs").get()!.n, 1);
 }, s => { jobSpec(s); s.jobs!.train.maxConcurrent = 1; }));
+test("supervised objective remote-job budget survives replans instead of resetting per run", async () => swarmFixture(async (s, cfg) => {
+  installObjectives(s);
+  const q = new Scheduler(s);
+  const a = swarmTask("a"); const b = swarmTask("b");
+  const runA = q.start([a]); const runB = q.start([b]);
+  const planA = s.artifact([a] as any); const planB = s.artifact([b] as any);
+  s.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
+    .run("costly-rnd", 0, planA, runA, "initial", Date.now());
+  s.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
+    .run("costly-rnd", 1, planB, runB, "recovery", Date.now());
+  let rpcCalls = 0;
+  const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => {
+    rpcCalls++; const r = request as any;
+    return { schema: 1, key: r.key, jobId: `remote-${rpcCalls}`, status: "SUCCEEDED", result: { ok: true } };
+  });
+  const first: any = await jobs.execute(q.capsule(q.claim(runA, "a")!), cfg.spec.agents.coder, jobCall, signal());
+  assert.equal(first.status, "SUCCEEDED");
+  await assert.rejects(
+    jobs.execute(q.capsule(q.claim(runB, "b")!), cfg.spec.agents.coder,
+      { ...jobCall, id: "experiment-after-replan" }, signal()),
+    e => {
+      assert.ok(e instanceof FatalAttemptError);
+      assert.match(e.message, /OBJECTIVE_JOB_BUDGET_EXHAUSTED/);
+      return true;
+    },
+  );
+  assert.equal(rpcCalls, 1, "budget rejection must happen before another remote side effect");
+  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM research_jobs").get()!.n, 1);
+}, s => { jobSpec(s); s.jobs!.train.maxObjectiveJobs = 1; }));
+
+test("objective evidence gate blocks unresolved external effects", async () => swarmFixture(async (s, cfg) => {
+  const q = new Scheduler(s); const run = q.start([swarmTask()]);
+  const lease = q.claim(run, "w")!;
+  const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => ({
+    schema: 1, key: (request as any).key, jobId: "still-running", status: "RUNNING",
+  }));
+  await assert.rejects(
+    jobs.execute(q.capsule(lease), cfg.spec.agents.coder, jobCall, signal()),
+    DeferredAttemptError,
+  );
+  // Simulate independently accepted task evidence while the external effect is
+  // still unresolved. The host-owned objective gate must not conflate the two.
+  const artifact = s.artifact({ patchHash: s.artifact(""), summary: "verified" });
+  const evidence = s.artifact({ checks: [{ id: "behavior", verdict: "PASS" }] });
+  s.db.prepare("UPDATE tasks SET status='PASS',artifact=?,evidence=? WHERE run=? AND id='a'")
+    .run(artifact, evidence, run);
+  const gate = objectiveEvidenceGate(s, run);
+  assert.equal(gate.status, "BLOCKED");
+  assert.equal(gate.verifiedTasks, 1);
+  assert.equal(gate.externalJobs, 1);
+  assert.equal(gate.unresolvedExternalJobs, 1);
+}, jobSpec));
+
 test("unchanged remote milestone becomes visibly stalled then requires reconciliation", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, request) => ({ schema: 1, key: (request as any).key, jobId: "train", status: "RUNNING", progressToken: "step-10" }));
@@ -277,6 +331,8 @@ test("successful external job requires a bounded result and permitted template",
 test("job and supervision configuration reject unsafe bounds/capabilities", () => {
   const s = spec("x"); jobSpec(s); s.jobs!.train.idempotentEnsure = false as any; assert.throws(() => validateSwarmSpec(s), /idempotent/);
   s.jobs!.train.idempotentEnsure = true; s.jobs!.train.maxConcurrent = 0; assert.throws(() => validateSwarmSpec(s), /concurrency/);
+  const objectiveJobs = spec("x"); jobSpec(objectiveJobs); objectiveJobs.jobs!.train.maxObjectiveJobs = 0;
+  assert.throws(() => validateSwarmSpec(objectiveJobs), /objective job count/);
   const supervised = spec("x"); supervised.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 257 };
   assert.throws(() => validateSwarmSpec(supervised), /maxReplans/);
   const reconcile = spec("x"); jobSpec(reconcile); reconcile.jobs!.train.reconcileAfterMs = reconcile.jobs!.train.staleMs - 1;
@@ -369,6 +425,59 @@ test("bounded recovery planner versions the task graph and resumes the objective
   s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
 }));
+test("objective completion gate rejects unresolved contradictory evidence", async () => swarmFixture(async s => {
+  const q = new Scheduler(s);
+  const run = q.start([swarmTask()]);
+  const artifact = s.artifact({ patchHash: s.artifact(""), summary: "verified" });
+  const evidence = s.artifact({ checks: [{ id: "behavior", verdict: "PASS" }] });
+  s.db.prepare("UPDATE tasks SET status='PASS',artifact=?,evidence=? WHERE run=? AND id='a'")
+    .run(artifact, evidence, run);
+  s.db.prepare("UPDATE fabric_goals SET status='VERIFIED' WHERE run=? AND id='a'").run(run);
+  recordEvidence(s, {
+    run, goal: "a", task: "a", kind: "independent-verification", verdict: "PASS",
+    strength: 1, artifactHash: artifact, evidenceHash: evidence, source: "gate-test-verifier",
+  });
+  let gate = objectiveEvidenceGate(s, run);
+  assert.equal(gate.status, "PASS");
+  recordEvidence(s, {
+    run, goal: "a", task: "a", kind: "counterexample", verdict: "FAIL",
+    strength: 0.9, source: "independent-adversarial-check",
+  });
+  gate = objectiveEvidenceGate(s, run);
+  assert.equal(gate.status, "BLOCKED");
+  assert.equal(gate.openConflicts, 1);
+  assert.equal(gate.verifiedTasks, 1);
+  assert.deepEqual(gate.missingTaskEvidence, []);
+}));
+
+test("successful supervision persists a host-owned completion attestation", async () => swarmFixture(async s => {
+  const script = scripted([
+    () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+    () => reply("done"),
+  ]);
+  const result: any = await superviseSwarm(
+    s,
+    { id: "completion-attestation", goal: "Implement and independently verify 42", tasks: [swarmTask()] },
+    signal(),
+    undefined,
+    script.fetcher,
+  );
+  assert.equal(result.status, "PASS");
+  assert.match(result.completion.attestation, /^[a-f0-9]{64}$/);
+  const status: any = objectiveStatus(s, "completion-attestation");
+  assert.equal(status.evidenceGate.status, "PASS");
+  assert.equal(status.completion.run, status.run);
+  assert.equal(status.completion.attestation, result.completion.attestation);
+  const attestation: any = s.readArtifact(status.completion.attestation);
+  assert.equal(attestation.objective, "completion-attestation");
+  assert.equal(attestation.run, status.run);
+  assert.equal(attestation.evidenceGate.status, "PASS");
+  assert.equal(attestation.externalEffects.count, 0);
+  assert.match(attestation.externalEffects.manifestHash, /^[a-f0-9]{64}$/);
+  assert.deepEqual(s.readArtifact(attestation.externalEffects.manifestHash), []);
+  assert.ok(Array.isArray(attestation.lineage) && attestation.lineage.length >= 1);
+}));
+
 test("supervision uses the configured external API for bounded recovery by default", async () => swarmFixture(async s => {
   const repaired = { ...swarmTask("repair"), goal: "Repair the failed objective with a smaller task", writeScope: ["src/a.txt"] };
   const script = scripted([

@@ -57,6 +57,10 @@ export interface JobTemplate {
   /** Adapter ensure(key) must reconcile/deduplicate remotely, not blindly resubmit. */
   idempotentEnsure: true;
   pollMs: number; staleMs: number; maxJobs: number; maxConcurrent: number;
+  /** Cumulative submissions allowed for this template across every run/replan of
+   *  one supervised objective. Defaults to maxJobs so recovery cannot silently
+   *  reset an expensive GPU/NPU/HPC experiment budget. */
+  maxObjectiveJobs?: number;
   /** After this much time without a semantic milestone, stop automatic polling
    * and require explicit remote reconciliation. Defaults to 3 * staleMs. */
   reconcileAfterMs?: number;
@@ -233,7 +237,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   if (s.jobs) {
     keys(s.jobs, [], Object.keys(s.jobs)); positive(Object.keys(s.jobs).length, 32, "job templates");
     for (const [id, job] of Object.entries(s.jobs)) {
-      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs"]);
+      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs"]);
       keys(job.adapter, ["argv"], ["envAllow", "files"]);
       invariant(job.idempotentEnsure === true, "remote ensure must be idempotent");
       positive(job.pollMs, 3600000, "job poll interval"); invariant(job.pollMs >= 10, "job poll interval too short");
@@ -243,6 +247,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
         invariant(job.reconcileAfterMs >= job.staleMs, "job reconciliation interval must be >= stale interval");
       }
       positive(job.maxJobs, 100000, "job count");
+      if (job.maxObjectiveJobs !== undefined)
+        positive(job.maxObjectiveJobs, 1_000_000, "objective job count");
       positive(job.maxConcurrent, Math.min(256, job.maxJobs), "remote concurrency");
     }
   }
