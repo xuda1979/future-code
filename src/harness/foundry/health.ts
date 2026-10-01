@@ -1,6 +1,7 @@
 import { invariant } from "./kernel.ts";
 import type { Store } from "./store.ts";
 import { schedulerIndexCurrent, schedulerIndexStats, type SchedulerIndexStats } from "./schedulerIndex.ts";
+import { fabricStatus } from "./evidenceFabric.ts";
 
 export interface HealthReport {
   runId: string; at: number; status: string; elapsedMs: number;
@@ -8,6 +9,8 @@ export interface HealthReport {
   scheduler: SchedulerIndexStats | null;
   provider: { active: number; done: number; unknown: number; requests: number; requestBytes: number; tokens: number | null } | null;
   remoteJobs: { active: number; stalled: number; terminal: number; unattestedTerminal: number } | null;
+  fabric: { goals: number; evidence: number; openConflicts: number; experiences: number;
+    topAllocations: { task: string; score: number }[] };
   integrity: {
     schedulerIndexCurrent: boolean;
     graphVersion: number;
@@ -75,6 +78,7 @@ export function runHealth(store: Store, runId: string, now = Date.now()): Health
     WHERE t.run=? AND t.status<>'PASS'
     ORDER BY CASE t.status WHEN 'RUNNING' THEN 0 WHEN 'FAIL' THEN 1 ELSE 2 END,t.id LIMIT 101`).all(runId);
   const age = (t: number | null | undefined) => t == null ? null : Math.max(0, now - t);
+  const fabric = fabricStatus(store, runId);
   const integrity = {
     schedulerIndexCurrent: schedulerIndexCurrent(store, runId),
     graphVersion: Number(run.graph_version ?? 0),
@@ -82,7 +86,7 @@ export function runHealth(store: Store, runId: string, now = Date.now()): Health
     unattestedTerminalJobs: remoteJobs?.unattestedTerminal ?? 0,
   };
   return { runId, at: now, status: run.status, elapsedMs: Math.max(0, now - run.started), counts, waiting,
-    scheduler, provider, remoteJobs, integrity,
+    scheduler, provider, remoteJobs, fabric, integrity,
     tasks: rows.slice(0, 100).map(r => ({ id: r.id, status: r.status, stage: r.kind ?? r.stage ?? "queued",
       activityAgeMs: age(r.activity_at), progressAgeMs: age(r.progress_at), checkAgeMs: age(r.check_at),
       deadline: r.deadline ?? null, wakeAt: r.wake ?? null, reason: r.reason ?? r.error ?? null })),
@@ -95,8 +99,9 @@ export function formatHealth(r: HealthReport): string {
   const queue = r.scheduler ? `queue runnable=${r.scheduler.runnable} deps=${r.scheduler.dependencyBlocked} delayed=${r.scheduler.delayed} indexed=${r.scheduler.indexedTasks}` : "queue index=unavailable";
   const provider = r.provider ? `provider active=${r.provider.active} requests=${r.provider.requests} unknown=${r.provider.unknown}` : "provider no-ledger";
   const jobs = r.remoteJobs ? `jobs active=${r.remoteJobs.active} stalled=${r.remoteJobs.stalled} terminal=${r.remoteJobs.terminal} unattested=${r.remoteJobs.unattestedTerminal}` : "jobs none";
+  const fabric = `fabric goals=${r.fabric.goals} evidence=${r.fabric.evidence} conflicts=${r.fabric.openConflicts} experience=${r.fabric.experiences}`;
   const integrity = `integrity index=${r.integrity.schedulerIndexCurrent ? "current" : "DRIFT"} graph=${r.integrity.graphVersion} indexed=${r.integrity.indexedVersion ?? "none"}`;
-  return [head, `${queue} | ${provider} | ${jobs}`, integrity,
+  return [head, `${queue} | ${provider} | ${jobs}`, `${fabric} | ${integrity}`,
     ...r.tasks.slice(0, 8).map(t => `${t.id}: ${t.stage}; activity=${age(t.activityAgeMs)} progress=${age(t.progressAgeMs)} check=${age(t.checkAgeMs)}${t.reason ? `; ${t.reason}` : ""}`),
     ...(r.tasks.length > 8 || r.truncated ? ["More tasks are available through /swarm status."] : [])].join("\n");
 }

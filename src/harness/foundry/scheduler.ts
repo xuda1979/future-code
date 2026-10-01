@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { Store } from "./store.ts";
 import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
 import { accessConflicts, compilePlan, projectDependency } from "./productivity.ts";
+import { ensureRunFabric, recordTaskAccepted, recordTaskFailure, refreshRunAllocations,
+  registerTaskGoals } from "./evidenceFabric.ts";
 import { blockDependents, ensureSchedulerIndex, readyCandidates, rebuildSchedulerIndex,
   releaseDependents, schedulerNode } from "./schedulerIndex.ts";
 import type { Capsule, FailureOptions, Json, Lease, Measurement, Recipe, RunSummary, Task } from "./types.ts";
@@ -24,6 +26,7 @@ export class Scheduler {
           ) ORDER BY t.id`).all(id).map(t => JSON.parse(t.spec));
         const expected = [...tasks].sort((a, b) => a.id.localeCompare(b.id));
         invariant(digest(actual) === digest(expected), "run id task graph drift");
+        ensureRunFabric(this.store, id, now);
         return id;
       }
       this.store.db.prepare("INSERT INTO runs(id,recipe,contract,started,status) VALUES(?,?,?,?, 'RUNNING')").run(id, recipeHash, digest(contract), now);
@@ -31,6 +34,8 @@ export class Scheduler {
       for (const task of tasks) insert.run(id, task.id, JSON.stringify(task));
       this.store.db.prepare("UPDATE runs SET graph_version=1 WHERE id=?").run(id);
       rebuildSchedulerIndex(this.store, id, this.store.recipe(recipeHash), now);
+      registerTaskGoals(this.store, id, tasks, null, undefined, now);
+      refreshRunAllocations(this.store, id, now);
       this.store.event("run.started", { recipeHash, contractHash: digest(contract), taskCount: tasks.length, taskHash: digest(tasks) }, id);
       return id;
     });
@@ -51,6 +56,7 @@ export class Scheduler {
       invariant(run.contract === digest(this.store.contract()), "run contract drift");
       const recipe = this.store.recipe(run.recipe);
       ensureSchedulerIndex(this.store, runId, recipe, now);
+      ensureRunFabric(this.store, runId, now);
 
       // Reclaim only actually expired leases; do not scan unrelated tasks.
       const expired = this.store.db.prepare(
@@ -67,7 +73,11 @@ export class Scheduler {
         this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error='lease expired' WHERE run=? AND id=?")
           .run(status, runId, t.id);
         this.store.event("lease.expired", { fence: t.fence, retry: status === "READY" }, runId, t.id);
-        if (status === "FAIL") blockDependents(this.store, runId, String(t.id));
+        if (status === "FAIL") {
+          blockDependents(this.store, runId, String(t.id));
+          const task = JSON.parse(this.store.db.prepare("SELECT spec FROM tasks WHERE run=? AND id=?").get(runId, t.id)!.spec) as Task;
+          recordTaskFailure(this.store, runId, task, true, digest("lease expired"), now);
+        }
       }
 
       // Indexed existence probes avoid a completed-task scan on every refill.
@@ -254,6 +264,7 @@ export class Scheduler {
       this.store.db.prepare("UPDATE attempts SET status='PASS',ended=?,duration=?,tokens=?,cost=? WHERE run=? AND task=? AND fence=?").run(now, Math.max(0, now - a.started), measurement.tokens, measurement.costUsd, lease.runId, lease.taskId, lease.fence);
       this.store.db.prepare("UPDATE tasks SET status='PASS',artifact=?,evidence=?,owner=NULL,deadline=NULL WHERE run=? AND id=?").run(artifactHash, evidenceHash, lease.runId, lease.taskId);
       releaseDependents(this.store, lease.runId, lease.taskId);
+      recordTaskAccepted(this.store, lease.runId, task, artifactHash, evidenceHash, measurement, now);
       this.store.event("task.accepted", { fence: lease.fence, artifactHash, evidenceHash }, lease.runId, lease.taskId); return true;
     });
   }
@@ -263,6 +274,7 @@ export class Scheduler {
       // An expired lease is reclaimed by claim(); do not overwrite a new owner.
       if (!this.current(lease, now)) { this.store.event("failure.stale", { fence: lease.fence, reason }, lease.runId, lease.taskId); return false; }
       const recipe = this.store.recipe(lease.recipeHash);
+      const task: Task = JSON.parse(this.store.db.prepare("SELECT spec FROM tasks WHERE run=? AND id=?").get(lease.runId, lease.taskId)!.spec);
       const a = this.store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(lease.runId, lease.taskId, lease.fence)!;
       const fingerprint = digest(options.fingerprint ?? reason.slice(0, 4096));
       this.store.db.prepare(`INSERT INTO attempt_telemetry(run,task,fence,failure_fingerprint) VALUES(?,?,?,?)
@@ -278,6 +290,7 @@ export class Scheduler {
       this.store.db.prepare("UPDATE attempts SET status='FAIL',ended=?,duration=?,tokens=?,cost=? WHERE run=? AND task=? AND fence=?").run(now, Math.max(0, now - a.started), measurement.tokens, measurement.costUsd, lease.runId, lease.taskId, lease.fence);
       this.store.db.prepare("UPDATE tasks SET status=?,owner=NULL,deadline=NULL,error=? WHERE run=? AND id=?").run(status, reason.slice(0, 4096), lease.runId, lease.taskId);
       if (status === "FAIL") blockDependents(this.store, lease.runId, lease.taskId);
+      recordTaskFailure(this.store, lease.runId, task, status === "FAIL", fingerprint, now);
       this.store.event("task.failed", { fence: lease.fence, reason: reason.slice(0, 4096), retry: status === "READY", repeated, fingerprint }, lease.runId, lease.taskId); return true;
     });
   }

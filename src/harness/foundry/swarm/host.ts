@@ -12,6 +12,7 @@ import { executable, validateSwarmSpec, validateSwarmTasks, type PinnedSwarm, ty
 import { SwarmDriver, verifierIdentity, workerIdentity } from "./driver.ts";
 import { remoteWorkerFleetBackend } from "./workerFleet.ts";
 import { SessionJournal } from "./session.ts";
+import { fabricStatus } from "../evidenceFabric.ts";
 import { git, LocalGitHands, orderedTasks, readPatchArtifact } from "./workspace.ts";
 const json = (value: unknown): Json => JSON.parse(canonical(value));
 const KEY = "extension.swarm";
@@ -58,7 +59,10 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
   const contract: Contract = { schema: 1, ...(spec.supervision?.snapshotReads ? { readIsolation: "snapshot" as const } : {}), name: spec.name, workerId: workerIdentity(cfg), verifierId: verifierIdentity(cfg),
     environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior"],
     slos: [], limits: spec.limits };
-  store.initialize(contract, spec.recipe, undefined, { [KEY]: json(cfg) });
+  store.initialize(contract, spec.recipe, undefined, {
+    [KEY]: json(cfg),
+    "extension.evidenceDomain": spec.domainPack ?? "software-engineering",
+  });
   new SessionJournal(store); return cfg;
 }
 export function loadSwarm(store: Store): PinnedSwarm {
@@ -69,6 +73,8 @@ export function loadSwarm(store: Store): PinnedSwarm {
   Object.values(cfg.jobAdapters ?? {}).forEach(checkPins);
   Object.values(cfg.workerAdapters ?? {}).forEach(checkPins);
   invariant((store.contract().readIsolation === "snapshot") === !!cfg.spec.supervision?.snapshotReads, "snapshot isolation drift");
+  invariant(store.getMeta("extension.evidenceDomain") === (cfg.spec.domainPack ?? "software-engineering"),
+    "evidence domain drift");
   const c = store.contract();
   invariant(c.workerId === workerIdentity(cfg) && c.verifierId === verifierIdentity(cfg) &&
     c.environmentId === digest({ project: cfg.spec.project, base: cfg.baseCommit, checks: cfg.checks }), "swarm configuration drift");
@@ -92,7 +98,8 @@ export function swarmStatus(store: Store, run?: string, after = ""): Json {
   const page = tasks.slice(0, 200);
   return json({ ...new Scheduler(store).summary(run), providerUsage: new SessionJournal(store).usage(run),
     tasks: page, nextTaskAfter: tasks.length > 200 ? page.at(-1)!.id : null,
-    health: runHealth(store, run), researchJobs: new ResearchJobs(new SessionJournal(store), cfg).list(run),
+    health: runHealth(store, run), fabric: fabricStatus(store, run),
+    researchJobs: new ResearchJobs(new SessionJournal(store), cfg).list(run),
     taskPageLimit: 200, integrationReceipt: store.getMeta(`extension.swarm.integration.${run}`) ?? null });
 }
 interface IntegrationReceipt { run: string; base: string; tree: string; commit: string; branch: string; checksHash: string; binding: string }

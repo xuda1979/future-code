@@ -11,6 +11,7 @@ import { inlineReceipt, type Call } from "./context.ts";
 import { HttpBrain } from "./model.ts";
 import { SessionJournal, type Thread } from "./session.ts";
 import { localGitBackend, type HandsBackend } from "./workspace.ts";
+import { toolEffectContract } from "./toolEffects.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -103,7 +104,12 @@ export class SwarmDriver implements Driver {
             t.state.toolCalls += fresh.length;
             t.state.pending = null;
             t.state.pendingBatch = remoteBatch.map(call => call.id);
-            for (const call of fresh) this.journal.checkpoint(t, "tool.intent", call);
+            for (const call of fresh) {
+              invariant(profile.tools.includes(call.name as any), "tool not allowed");
+              const effect = toolEffectContract(this.cfg, call.name as any, call.arguments);
+              this.journal.checkpoint(t, "tool.effect", { callId: call.id, ...effect });
+              this.journal.checkpoint(t, "tool.intent", call);
+            }
             this.journal.checkpoint(t, "tool.batch.intent", {
               kind: "run_job", callIds: t.state.pendingBatch,
             });
@@ -157,11 +163,14 @@ export class SwarmDriver implements Driver {
               if (t.state.toolCalls >= budget.maxToolCalls) throw new FatalAttemptError("THREAD_TOOL_BUDGET_EXHAUSTED");
               t.state.toolCalls++;
             }
-            t.state.pending = call; this.journal.checkpoint(t, "tool.intent", call);
+            t.state.pending = call;
+            invariant(profile.tools.includes(call.name as any), "tool not allowed");
+            const effect = toolEffectContract(this.cfg, call.name as any, call.arguments);
+            this.journal.checkpoint(t, "tool.effect", { callId: call.id, ...effect });
+            this.journal.checkpoint(t, "tool.intent", call);
             let result: Json;
             control?.activity?.(`tool:${call.name}`);
             try {
-              invariant(profile.tools.includes(call.name as any), "tool not allowed");
               if (call.name === "spawn_tasks") {
                 const policy = this.cfg.spec.supervision?.dynamicDAG;
                 invariant(policy, "dynamic DAG spawning is not configured");
@@ -270,6 +279,8 @@ export class SwarmDriver implements Driver {
           t.state.toolCalls++;
           control?.activity?.("checkpoint:check");
           const call: Call = { id: `checkpoint-${t.seq}`, name: "run_check", arguments: { name: profile.checks[0] } };
+          const effect = toolEffectContract(this.cfg, "run_check", call.arguments);
+          this.journal.checkpoint(t, "tool.effect", { callId: call.id, ...effect });
           let check: Json;
           try { check = await hands.tool(call); } catch (e) { signal.throwIfAborted(); check = { error: e instanceof Error ? e.message.slice(0, 512) : "checkpoint check failed" }; }
           t.state.patchHash = await hands.snapshot();

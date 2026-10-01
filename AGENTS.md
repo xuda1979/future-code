@@ -47,6 +47,15 @@ Provider prompt-cache hints may be used only as optional API features. They are 
 8. Preserve resumability: crashes may leave durable state, never fabricated success.
 9. For scheduler changes, keep `tasks` and `spawn_edges` authoritative; derived scheduler indexes must be rebuildable.
 10. For large swarms, avoid full-run scans in steady-state claim/refill paths.
+11. Evidence Fabric is a derived semantic/evidence plane, never a second scheduler:
+    `tasks` + `spawn_edges` remain authoritative for execution.
+12. Resource allocation may use host-measured evidence, cost, novelty and history,
+    but never an LLM-authored feasibility score to bypass dependencies, priority,
+    scope, budgets or verification.
+13. Strong contradictory evidence must remain explicit and be resolved through a
+    machine-checkable adjudication task; never use majority vote as acceptance.
+14. Every tool with side effects must have explicit replay/idempotency/
+    reconciliation semantics before the model can exercise it.
 
 ## Verification
 

@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync, openSync, closeSync, fsyncSync,
 import { randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
 import { installContinuationTables } from "./continuation.ts";
+import { installEvidenceFabricTables } from "./evidenceFabric.ts";
 import { canonical, digest, invariant, validateContract, validateRecipe } from "./kernel.ts";
 import type { Contract, Json, Recipe, PinnedCommand } from "./types.ts";
 
@@ -60,7 +61,7 @@ export class Store {
     const metaCols = new Set(db.prepare("PRAGMA table_info(scheduler_index_meta)").all().map(r => String(r.name)));
     if (!metaCols.has("source_hash")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_hash TEXT");
     if (!metaCols.has("source_version")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_version INTEGER");
-    const store = new Store(root, db); installContinuationTables(store); return store;
+    const store = new Store(root, db); installContinuationTables(store); installEvidenceFabricTables(store); return store;
   }
   transaction<T>(fn: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");
