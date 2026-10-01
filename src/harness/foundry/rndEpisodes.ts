@@ -5,6 +5,7 @@ import type { Json, Task } from "./types.ts";
 import type { PinnedSwarm } from "./swarm/config.ts";
 import { externalEffectSnapshot, objectiveJobUsage } from "./swarm/jobs.ts";
 import { reflectionHistory } from "./rndReflection.ts";
+import { interventionHistory } from "./interventionMemory.ts";
 
 const json = (value: unknown): Json => JSON.parse(canonical(value)) as Json;
 const hashText = (value: unknown): string => digest(value);
@@ -315,6 +316,7 @@ export function buildObjectiveEpisode(store: Store, objective: string, integrati
   const recoveryRows = store.db.prepare(`SELECT run,revision,state,detail,new_run,created,updated,reflection_hash,addressed_findings
     FROM swarm_recovery_attempts WHERE objective=? ORDER BY revision,run`).all(objective);
   const reflections = reflectionHistory(store, objective);
+  const interventions = interventionHistory(store, objective);
   const stateHashes = revisions.map(revision => digest({
     status: revision.status,
     tasks: (revision.tasks as Record<string, any>[]).map(task => ({
@@ -356,6 +358,7 @@ export function buildObjectiveEpisode(store: Store, objective: string, integrati
       addressedFindings: row.addressed_findings ? JSON.parse(String(row.addressed_findings)) : [],
       targetRunRef: row.new_run == null ? null : revisions.find(r => r.rawRun === String(row.new_run))?.runRef ?? digest(String(row.new_run)),
     })),
+    interventions,
     reflections: reflections.map(item => {
       const reflection: any = item.reflection;
       return json({
