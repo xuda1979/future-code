@@ -187,7 +187,7 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
     // Dynamic expansion is the uncommon structural operation. Pay O(V+E) here
     // once so subsequent claims remain bounded to ready/running work.
     rebuildSchedulerIndex(store, c.runId, store.recipe(c.recipeHash), now);
-    registerTaskGoals(store, c.runId, children, c.task.id, "software-engineering", now);
+    registerTaskGoals(store, c.runId, children, c.task.id, undefined, now);
     refreshRunAllocations(store, c.runId, now);
     store.event("task.expanded",
       { parent: c.task.id, requestKey, depth, children: ids }, c.runId, c.task.id);
