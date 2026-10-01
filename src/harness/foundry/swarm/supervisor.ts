@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { DeferredAttemptError } from "../continuation.ts";
+import { ensureRunFabric } from "../evidenceFabric.ts";
 import { setTimeout as delay } from "node:timers/promises";
 import { canonical, digest, identifier, invariant, validateTasks } from "../kernel.ts";
 import { runHealth, type HealthObserver } from "../health.ts";
@@ -17,6 +18,42 @@ export interface RecoveryContext {
 }
 export interface RecoveryPlan { reason: string; tasks: Task[] }
 export type RecoveryPlanner = (context: RecoveryContext, signal: AbortSignal) => Promise<RecoveryPlan | null>;
+
+export interface ObjectiveEvidenceGate {
+  status: "PASS" | "BLOCKED";
+  taskCount: number;
+  verifiedTasks: number;
+  missingTaskEvidence: string[];
+  openConflicts: number;
+  conflictIds: string[];
+}
+
+/** Host-owned completion gate. External models may propose work, but they never
+ * get to declare an objective complete. Every task must have durable accepted
+ * artifact/evidence, and unresolved contradictory evidence blocks completion. */
+export function objectiveEvidenceGate(store: Store, run: string): ObjectiveEvidenceGate {
+  ensureRunFabric(store, run);
+  const counts = store.db.prepare(`SELECT COUNT(*) AS total,
+    COALESCE(SUM(CASE WHEN status='PASS' AND artifact IS NOT NULL AND evidence IS NOT NULL THEN 1 ELSE 0 END),0) AS verified
+    FROM tasks WHERE run=?`).get(run);
+  invariant(counts && Number(counts.total) > 0, "unknown objective run");
+  const missingTaskEvidence = store.db.prepare(`SELECT id FROM tasks
+    WHERE run=? AND (status<>'PASS' OR artifact IS NULL OR evidence IS NULL)
+    ORDER BY id LIMIT 20`).all(run).map(row => String(row.id));
+  const conflictRows = store.db.prepare(`SELECT id FROM fabric_conflicts
+    WHERE run=? AND status='OPEN' ORDER BY created,id LIMIT 20`).all(run);
+  const openConflicts = Number(store.db.prepare(
+    "SELECT COUNT(*) AS n FROM fabric_conflicts WHERE run=? AND status='OPEN'"
+  ).get(run)?.n ?? 0);
+  return {
+    status: Number(counts.verified) === Number(counts.total) && openConflicts === 0 ? "PASS" : "BLOCKED",
+    taskCount: Number(counts.total),
+    verifiedTasks: Number(counts.verified),
+    missingTaskEvidence,
+    openConflicts,
+    conflictIds: conflictRows.map(row => String(row.id)),
+  };
+}
 export function recoveryStrategySignature(tasks: Task[], defaultAgent?: string): string {
   const remaining = new Map(tasks.map(task => [task.id, task]));
   const labels = new Map<string, string>();
@@ -60,7 +97,10 @@ export function installObjectives(store: Store): void {
       state TEXT NOT NULL, detail TEXT NOT NULL, new_run TEXT, retry_at REAL,
       created REAL NOT NULL, updated REAL NOT NULL, PRIMARY KEY(objective,run));
     CREATE TABLE IF NOT EXISTS swarm_objective_budgets(
-      objective TEXT PRIMARY KEY, max_requests INTEGER NOT NULL, max_request_bytes INTEGER NOT NULL);`);
+      objective TEXT PRIMARY KEY, max_requests INTEGER NOT NULL, max_request_bytes INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS swarm_objective_completions(
+      objective TEXT PRIMARY KEY, run TEXT NOT NULL, attestation TEXT NOT NULL,
+      created REAL NOT NULL);`);
   const recoveryColumns = new Set(store.db.prepare("PRAGMA table_info(swarm_recovery_attempts)").all().map(r => String(r.name)));
   if (!recoveryColumns.has("retry_at"))
     store.db.exec("ALTER TABLE swarm_recovery_attempts ADD COLUMN retry_at REAL");
@@ -72,14 +112,57 @@ export function objectiveStatus(store: Store, id: string): Json {
   const revision = store.db.prepare("SELECT MAX(revision) AS n FROM swarm_objective_revisions WHERE objective=?").get(id)?.n ?? 0;
   const recovery = store.db.prepare("SELECT state,detail,new_run,retry_at,updated FROM swarm_recovery_attempts WHERE objective=? ORDER BY revision DESC LIMIT 1").get(id);
   const budget = store.db.prepare("SELECT max_requests,max_request_bytes FROM swarm_objective_budgets WHERE objective=?").get(id);
+  const completion = store.db.prepare(
+    "SELECT run,attestation,created FROM swarm_objective_completions WHERE objective=?"
+  ).get(id);
   const usage = store.db.prepare(`SELECT COUNT(*) AS requests,COALESCE(SUM(bytes),0) AS request_bytes
     FROM agent_requests WHERE run IN (
       SELECT run FROM swarm_objective_revisions WHERE objective=?
       UNION SELECT run FROM swarm_objectives WHERE id=? AND run IS NOT NULL
     )`).get(id, id) ?? { requests: 0, request_bytes: 0 };
+  const evidenceGate = r.run && store.db.prepare("SELECT 1 FROM runs WHERE id=?").get(r.run)
+    ? objectiveEvidenceGate(store, String(r.run)) : null;
   return { ...(r as Record<string, Json>), revision, recovery: (recovery ?? null) as Json,
     budget: budget ? { maxRequests: budget.max_requests, maxRequestBytes: budget.max_request_bytes,
-      usedRequests: usage.requests, usedRequestBytes: usage.request_bytes } : null };
+      usedRequests: usage.requests, usedRequestBytes: usage.request_bytes } : null,
+    evidenceGate: evidenceGate as unknown as Json,
+    completion: (completion ?? null) as Json };
+}
+
+function recordObjectiveCompletion(store: Store, objective: string, row: any,
+  integration: Json, gate: ObjectiveEvidenceGate, now = Date.now()): string {
+  invariant(gate.status === "PASS", "objective completion requires a passing evidence gate");
+  const lineage = store.db.prepare(`SELECT revision,plan,run,reason FROM swarm_objective_revisions
+    WHERE objective=? ORDER BY revision`).all(objective).map(item => ({
+      revision: Number(item.revision), plan: String(item.plan), run: String(item.run), reason: String(item.reason),
+    }));
+  const attestation = JSON.parse(canonical({
+    schema: 1,
+    objective,
+    goalHash: digest(String(row.goal)),
+    configurationHash: String(row.cfg),
+    run: String(row.run),
+    planHash: String(row.plan),
+    lineage,
+    evidenceGate: gate,
+    integration,
+  })) as Json;
+  const hash = store.artifact(attestation);
+  store.transaction(() => {
+    const current = store.db.prepare(
+      "SELECT run,attestation FROM swarm_objective_completions WHERE objective=?"
+    ).get(objective);
+    if (current) {
+      invariant(current.run === row.run && current.attestation === hash,
+        "objective completion attestation drift");
+      return;
+    }
+    store.db.prepare(
+      "INSERT INTO swarm_objective_completions(objective,run,attestation,created) VALUES(?,?,?,?)"
+    ).run(objective, row.run, hash, now);
+    store.event("objective.completed", { id: objective, run: row.run, attestation: hash }, row.run);
+  });
+  return hash;
 }
 
 /** Persistent, single-host objective control on the SAME Foundry scheduler.
@@ -298,16 +381,34 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
             row.reason.startsWith("Final integration failed:")) {
           if (await attemptRecovery(row.reason)) { report(); continue; }
         } else {
-          transition("VERIFYING"); report();
-          try {
-            assertOwner(); const receipt = await integrateSwarm(store, row.run, controller.signal);
-            assertOwner(); transition("COMPLETE"); report();
-            return { status: "PASS", objective: objectiveStatus(store, input.id), integration: JSON.parse(canonical(receipt)) };
-          } catch (e) {
-            controller.signal.throwIfAborted();
-            const reason = `Final integration failed: ${e instanceof Error ? e.message.slice(0, 800) : "unknown error"}. Inspect evidence; do not weaken the acceptance checks.`;
+          const preGate = objectiveEvidenceGate(store, row.run);
+          if (preGate.status !== "PASS") {
+            const reason = `Objective evidence gate blocked: ${preGate.verifiedTasks}/${preGate.taskCount} tasks have durable accepted evidence; ${preGate.openConflicts} unresolved evidence conflict(s). Resolve/adjudicate evidence before completion.`;
             transition("NEEDS_ATTENTION", reason);
-            if (await attemptRecovery(reason)) { report(); continue; }
+          } else {
+            transition("VERIFYING"); report();
+            try {
+              assertOwner(); const receipt = await integrateSwarm(store, row.run, controller.signal);
+              assertOwner();
+              // Re-check after integration so evidence added while expensive checks
+              // were running cannot be bypassed by an earlier PASS snapshot.
+              const finalGate = objectiveEvidenceGate(store, row.run);
+              if (finalGate.status !== "PASS") {
+                const reason = `Objective evidence gate blocked: ${finalGate.verifiedTasks}/${finalGate.taskCount} tasks have durable accepted evidence; ${finalGate.openConflicts} unresolved evidence conflict(s). Resolve/adjudicate evidence before completion.`;
+                transition("NEEDS_ATTENTION", reason);
+              } else {
+                const integration = JSON.parse(canonical(receipt)) as Json;
+                const attestation = recordObjectiveCompletion(store, input.id, assertOwner(), integration, finalGate);
+                transition("COMPLETE"); report();
+                return { status: "PASS", objective: objectiveStatus(store, input.id), integration,
+                  completion: { attestation } };
+              }
+            } catch (e) {
+              controller.signal.throwIfAborted();
+              const reason = `Final integration failed: ${e instanceof Error ? e.message.slice(0, 800) : "unknown error"}. Inspect evidence; do not weaken the acceptance checks.`;
+              transition("NEEDS_ATTENTION", reason);
+              if (await attemptRecovery(reason)) { report(); continue; }
+            }
           }
         }
       } else if (runStatus === "FAIL") {
@@ -322,8 +423,15 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       // No model polling and no repeated failed verification. An explicit integrate
       // command can repair the last mile; revalidate its receipt before completion.
       if (runStatus === "PASS" && store.getMeta(`extension.swarm.integration.${row.run}`)) {
-        await integrateSwarm(store, row.run, controller.signal); transition("COMPLETE"); report();
-        return { status: "PASS", objective: objectiveStatus(store, input.id) };
+        const gate = objectiveEvidenceGate(store, row.run);
+        if (gate.status === "PASS") {
+          const receipt = await integrateSwarm(store, row.run, controller.signal);
+          const integration = JSON.parse(canonical(receipt)) as Json;
+          const attestation = recordObjectiveCompletion(store, input.id, assertOwner(), integration, gate);
+          transition("COMPLETE"); report();
+          return { status: "PASS", objective: objectiveStatus(store, input.id), integration,
+            completion: { attestation } };
+        }
       }
       const reportDelay = supervision?.reportEveryMs ?? 30000;
       const retry = row.run ? store.db.prepare(
