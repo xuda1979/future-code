@@ -21,6 +21,7 @@ import { superviseSwarm, objectiveStatus, objectiveEvidenceGate, installObjectiv
 import { recordEvidence } from "../../src/harness/foundry/evidenceFabric.ts";
 import { readObjectiveEpisode } from "../../src/harness/foundry/rndEpisodes.ts";
 import { reflectRun, readLatestObjectiveReflection } from "../../src/harness/foundry/rndReflection.ts";
+import { classifyIntervention, interventionHistory, interventionMemoryForFindings } from "../../src/harness/foundry/interventionMemory.ts";
 import { runSwarm } from "../../src/harness/foundry/swarm/host.ts";
 import { validateSwarmSpec, type SwarmSpec } from "../../src/harness/foundry/swarm/config.ts";
 import { fixture as swarmFixture, task as swarmTask, scripted, reply, signal, spec } from "./swarm-fixtures.ts";
@@ -393,6 +394,37 @@ test("transport classification excludes schema errors and handles bounded cause 
   assert.ok(!isTransportFailure(new SyntaxError("bad response JSON")));
   const cyclic: any = {}; cyclic.cause = cyclic; assert.equal(isTransportFailure(cyclic), false);
 });
+test("intervention classifier exposes structural strategy classes without task text", () => {
+  const source = [swarmTask("a"), { ...swarmTask("b"), dependencies: ["a"], contextBudget: 2000 }];
+  const target = [{ ...swarmTask("repair"), contextBudget: 500 }];
+  const descriptor: any = classifyIntervention(source, target);
+  assert.ok(descriptor.classes.includes("reduce_task_count"));
+  assert.ok(descriptor.classes.includes("reduce_graph_depth"));
+  assert.match(descriptor.interventionHash, /^[a-f0-9]{64}$/);
+  const encoded = canonical(descriptor);
+  assert.ok(!encoded.includes(source[0].goal));
+});
+
+test("intervention memory keeps small samples observational instead of calling them proven", async () => swarmFixture(async s => {
+  const now = Date.now();
+  // Seed one empirical observation. Aggregation must expose sample size and
+  // OBSERVED evidence level rather than convert one success into a policy.
+  s.db.exec(`CREATE TABLE IF NOT EXISTS rnd_intervention_effects(
+    id TEXT PRIMARY KEY, objective TEXT NOT NULL, source_run TEXT NOT NULL, target_run TEXT NOT NULL,
+    reflection_hash TEXT NOT NULL, finding TEXT NOT NULL, intervention_hash TEXT NOT NULL,
+    intervention_classes TEXT NOT NULL, outcome TEXT NOT NULL, evidence_hash TEXT NOT NULL,
+    domain TEXT NOT NULL, created REAL NOT NULL)`);
+  const evidence = s.artifact({ measured: true });
+  s.db.prepare(`INSERT INTO rnd_intervention_effects
+    (id,objective,source_run,target_run,reflection_hash,finding,intervention_hash,intervention_classes,outcome,evidence_hash,domain,created)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run("effect-1","o","r0","r1","f".repeat(64),"low_verified_yield",
+      "i".repeat(64), canonical(["reduce_task_count"]), "IMPROVED", evidence, "software-engineering", now);
+  const memory: any = interventionMemoryForFindings(s, ["low_verified_yield"]);
+  assert.equal(memory.findings.low_verified_yield[0].samples, 1);
+  assert.equal(memory.findings.low_verified_yield[0].evidenceLevel, "OBSERVED");
+  assert.equal(memory.findings.low_verified_yield[0].improved, 1);
+}));
+
 test("host reflection identifies repeated failures and productivity loss from measured execution", async () => swarmFixture(async s => {
   s.recipe.attempts = 4;
   const q = new Scheduler(s); const run = q.start([swarmTask()]);
@@ -461,6 +493,10 @@ test("bounded recovery planner versions the task graph and resumes the objective
   assert.equal(captured.episode.policyTransitions[1].action.kind, "COMPLETE");
   assert.ok(captured.episode.reflections.length >= 2);
   assert.ok(captured.episode.recoveries[0].reflectionHash);
+  const effects: any[] = interventionHistory(s, "auto-recover") as any[];
+  assert.ok(effects.length >= 1);
+  assert.equal(effects[0].outcome, "IMPROVED");
+  assert.ok(captured.episode.interventions.length >= 1);
 }, s => {
   s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
@@ -553,6 +589,7 @@ test("supervision uses the configured external API for bounded recovery by defau
       const packet = JSON.parse(body.messages[1].content);
       assert.equal(packet.hostReflection.type, "future-code-rnd-reflection");
       assert.match(packet.reflectionHash, /^[a-f0-9]{64}$/);
+      assert.equal(packet.interventionMemory.domain, "software-engineering");
       const findings = packet.hostReflection.findings.map((item: any) => item.code);
       return reply("", [{ name: "propose_recovery_plan", arguments: {
         decision: "replan", reason: "Replace the failed broad attempt with focused repair work", tasks: [repaired],
