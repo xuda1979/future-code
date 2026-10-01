@@ -91,6 +91,14 @@ export function installEvidenceFabricTables(store: Store): void {
     CREATE INDEX IF NOT EXISTS fabric_allocations_score
       ON fabric_allocations(run,score DESC,task);
   `);
+  for (const pack of builtinDomainPacks()) {
+    validateDomainPack(pack);
+    const hash = digest(pack);
+    const existing = store.db.prepare("SELECT hash FROM fabric_domain_packs WHERE name=?").get(pack.name);
+    invariant(!existing || existing.hash === hash, "built-in domain pack contract drift");
+    store.db.prepare("INSERT OR IGNORE INTO fabric_domain_packs(name,hash,json,created) VALUES(?,?,?,?)")
+      .run(pack.name, hash, canonical(pack), Date.now());
+  }
 }
 
 export function validateDomainPack(pack: DomainPack): void {
