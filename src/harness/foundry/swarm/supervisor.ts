@@ -12,13 +12,16 @@ import { inScope, validateSwarmTasks } from "./config.ts";
 import { createApiRecoveryPlanner } from "./recovery.ts";
 import { externalEffectSnapshot, objectiveJobUsage } from "./jobs.ts";
 import { buildObjectiveEpisode, installRndEpisodeTables, objectiveEpisodeStatus, persistObjectiveEpisode } from "../rndEpisodes.ts";
+import { installRndReflectionTables, latestObjectiveReflection, reflectRun } from "../rndReflection.ts";
 
 export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
 export interface RecoveryContext {
   objectiveId: string; goal: string; runId: string; reason: string; revision: number;
   tasks: Task[]; failures: { id: string; status: string; error: string | null }[];
+  reflectionHash?: string;
+  reflection?: Json;
 }
-export interface RecoveryPlan { reason: string; tasks: Task[] }
+export interface RecoveryPlan { reason: string; tasks: Task[]; addressedFindings?: string[] }
 export type RecoveryPlanner = (context: RecoveryContext, signal: AbortSignal) => Promise<RecoveryPlan | null>;
 
 export interface ObjectiveEvidenceGate {
@@ -105,23 +108,35 @@ export function installObjectives(store: Store): void {
     CREATE TABLE IF NOT EXISTS swarm_recovery_attempts(
       objective TEXT NOT NULL, run TEXT NOT NULL, revision INTEGER NOT NULL,
       state TEXT NOT NULL, detail TEXT NOT NULL, new_run TEXT, retry_at REAL,
-      created REAL NOT NULL, updated REAL NOT NULL, PRIMARY KEY(objective,run));
+      created REAL NOT NULL, updated REAL NOT NULL, reflection_hash TEXT, addressed_findings TEXT,
+      PRIMARY KEY(objective,run));
     CREATE TABLE IF NOT EXISTS swarm_objective_budgets(
       objective TEXT PRIMARY KEY, max_requests INTEGER NOT NULL, max_request_bytes INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS swarm_objective_completions(
       objective TEXT PRIMARY KEY, run TEXT NOT NULL, attestation TEXT NOT NULL,
       created REAL NOT NULL);`);
   installRndEpisodeTables(store);
+  installRndReflectionTables(store);
   const recoveryColumns = new Set(store.db.prepare("PRAGMA table_info(swarm_recovery_attempts)").all().map(r => String(r.name)));
   if (!recoveryColumns.has("retry_at"))
     store.db.exec("ALTER TABLE swarm_recovery_attempts ADD COLUMN retry_at REAL");
+  if (!recoveryColumns.has("reflection_hash"))
+    store.db.exec("ALTER TABLE swarm_recovery_attempts ADD COLUMN reflection_hash TEXT");
+  if (!recoveryColumns.has("addressed_findings"))
+    store.db.exec("ALTER TABLE swarm_recovery_attempts ADD COLUMN addressed_findings TEXT");
 }
 export function objectiveStatus(store: Store, id: string): Json {
   installObjectives(store); identifier(id);
   const r = store.db.prepare("SELECT id,goal,run,state,reason,updated,lease FROM swarm_objectives WHERE id=?").get(id);
   invariant(r, "unknown objective");
   const revision = store.db.prepare("SELECT MAX(revision) AS n FROM swarm_objective_revisions WHERE objective=?").get(id)?.n ?? 0;
-  const recovery = store.db.prepare("SELECT state,detail,new_run,retry_at,updated FROM swarm_recovery_attempts WHERE objective=? ORDER BY revision DESC LIMIT 1").get(id);
+  const recoveryRow = store.db.prepare("SELECT state,detail,new_run,retry_at,updated,reflection_hash,addressed_findings FROM swarm_recovery_attempts WHERE objective=? ORDER BY revision DESC LIMIT 1").get(id);
+  const recovery = recoveryRow ? {
+    state: recoveryRow.state, detail: recoveryRow.detail, new_run: recoveryRow.new_run,
+    retry_at: recoveryRow.retry_at, updated: recoveryRow.updated,
+    reflectionHash: recoveryRow.reflection_hash ?? null,
+    addressedFindings: recoveryRow.addressed_findings ? JSON.parse(String(recoveryRow.addressed_findings)) : [],
+  } : null;
   const budget = store.db.prepare("SELECT max_requests,max_request_bytes FROM swarm_objective_budgets WHERE objective=?").get(id);
   const completion = store.db.prepare(
     "SELECT run,attestation,created FROM swarm_objective_completions WHERE objective=?"
@@ -141,6 +156,7 @@ export function objectiveStatus(store: Store, id: string): Json {
     evidenceGate: evidenceGate as unknown as Json,
     jobBudget: jobBudget as unknown as Json,
     episode: objectiveEpisodeStatus(store, id),
+    reflection: latestObjectiveReflection(store, id),
     completion: (completion ?? null) as Json };
 }
 
@@ -173,6 +189,7 @@ function recordObjectiveCompletion(store: Store, objective: string, row: any,
     externalEffects.unresolved === gate.unresolvedExternalJobs,
     "objective external-effect gate changed before attestation");
   const externalEffectsManifest = store.artifact(externalEffects.records as unknown as Json);
+  const finalReflection = reflectRun(store, objective, String(row.run), "objective-complete", now);
   const episode = buildObjectiveEpisode(store, objective, integration, gate as unknown as Json);
   const attestation = JSON.parse(canonical({
     schema: 1,
@@ -188,6 +205,7 @@ function recordObjectiveCompletion(store: Store, objective: string, row: any,
       byTemplate: externalEffects.byTemplate,
       manifestHash: externalEffectsManifest,
     },
+    reflection: { reflectionHash: finalReflection.hash, sourceHash: finalReflection.sourceHash },
     episode: { episodeHash: episode.episodeHash, graphHash: episode.graphHash },
     integration,
   })) as Json;
@@ -314,22 +332,27 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     if (!existing && maxReplans !== undefined && used >= maxReplans) return false;
     const revision = existing ? existing.revision : used + 1;
     const tasks = store.readArtifact(row.plan) as unknown as Task[];
+    const reflected = existing?.reflection_hash
+      ? { hash: String(existing.reflection_hash), reflection: store.readArtifact(String(existing.reflection_hash)) as Json }
+      : reflectRun(store, input.id, String(row.run), reason);
     const failures = store.db.prepare("SELECT id,status,error FROM tasks WHERE run=? AND status<>'PASS' ORDER BY id LIMIT 200").all(row.run)
       .map(r => ({ id: String(r.id), status: String(r.status), error: r.error == null ? null : String(r.error).slice(0, 1024) }));
     if (!existing) store.transaction(() => {
       assertOwner(); const now = Date.now();
       store.db.prepare(`INSERT INTO swarm_recovery_attempts
-        (objective,run,revision,state,detail,new_run,retry_at,created,updated)
-        VALUES(?,?,?,?,?,NULL,NULL,?,?)`)
-        .run(input.id, row.run, revision, "STARTED", reason.slice(0, 2048), now, now);
-      store.event("objective.recovery.started", { id: input.id, run: row.run, revision, reason: reason.slice(0, 1024) }, row.run);
+        (objective,run,revision,state,detail,new_run,retry_at,created,updated,reflection_hash,addressed_findings)
+        VALUES(?,?,?,?,?,NULL,NULL,?,?,?,NULL)`)
+        .run(input.id, row.run, revision, "STARTED", reason.slice(0, 2048), now, now, reflected.hash);
+      store.event("objective.recovery.started", { id: input.id, run: row.run, revision,
+        reason: reason.slice(0, 1024), reflectionHash: reflected.hash }, row.run);
     });
     let proposal: RecoveryPlan | null = null;
     try {
       // STARTED is deliberately replayable: the planner has no execution authority
       // and no replacement run has been admitted yet. A controller crash can safely
       // repeat planning under the same bounded revision.
-      proposal = await planner({ objectiveId: input.id, goal: row.goal, runId: row.run, reason, revision, tasks, failures }, controller.signal);
+      proposal = await planner({ objectiveId: input.id, goal: row.goal, runId: row.run, reason, revision, tasks, failures,
+        reflectionHash: reflected.hash, reflection: reflected.reflection }, controller.signal);
       controller.signal.throwIfAborted();
       if (!proposal) {
         store.db.prepare("UPDATE swarm_recovery_attempts SET state='DECLINED',detail=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
@@ -354,6 +377,11 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       ));
       invariant(!priorStrategies.includes(proposalStrategy),
         "recovery plan repeats a previously failed execution strategy");
+      const addressedFindings = [...new Set(proposal.addressedFindings ?? [])].sort();
+      const knownFindings = new Set(Array.isArray((reflected.reflection as any).findings)
+        ? (reflected.reflection as any).findings.map((item: any) => String(item.code)) : []);
+      invariant(addressedFindings.every(code => knownFindings.has(code)),
+        "recovery plan claims an unknown reflection finding");
       const newPlan = store.artifact(JSON.parse(canonical(proposal.tasks)));
       const newRun = randomUUID();
       const source = store.db.prepare("SELECT recipe FROM runs WHERE id=?").get(row.run);
@@ -365,9 +393,11 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         const now = Date.now();
         store.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
           .run(input.id, revision, newPlan, newRun, proposal!.reason.slice(0, 2048), now);
-        store.db.prepare("UPDATE swarm_recovery_attempts SET state='PREPARED',detail=?,new_run=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
-          .run(proposal!.reason.slice(0, 2048), newRun, now, input.id, row.run);
-        store.event("objective.recovery.prepared", { id: input.id, fromRun: row.run, toRun: newRun, revision, plan: newPlan }, row.run);
+        store.db.prepare("UPDATE swarm_recovery_attempts SET state='PREPARED',detail=?,new_run=?,retry_at=NULL,updated=?,reflection_hash=?,addressed_findings=? WHERE objective=? AND run=?")
+          .run(proposal!.reason.slice(0, 2048), newRun, now, reflected.hash,
+            canonical(addressedFindings), input.id, row.run);
+        store.event("objective.recovery.prepared", { id: input.id, fromRun: row.run, toRun: newRun,
+          revision, plan: newPlan, reflectionHash: reflected.hash, addressedFindings }, row.run);
       });
       new Scheduler(store).start(proposal.tasks, source.recipe, Date.now(), newRun);
       return adoptPreparedRecovery(row, { state: "PREPARED", new_run: newRun, revision });

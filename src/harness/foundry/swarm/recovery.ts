@@ -39,8 +39,9 @@ const inputSchema: Json = {
     decision: { type: "string", enum: ["replan", "decline"] },
     reason: { type: "string" },
     tasks: { type: "array", items: taskSchema },
+    addressedFindings: { type: "array", uniqueItems: true, items: { type: "string" } },
   },
-  required: ["decision", "reason", "tasks"],
+  required: ["decision", "reason", "tasks", "addressedFindings"],
 };
 
 function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: PinnedSwarm): Json {
@@ -48,6 +49,8 @@ function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: Pinne
     "You are Future-Code's bounded recovery planner.",
     "Do not execute code and do not change model/provider settings, inference engines, KV caches, credentials, checks, protected paths, resource ceilings, or the objective.",
     "Use only the listed existing agent profiles. Prefer a smaller, materially different DAG that addresses the concrete failures.",
+    "The host reflection is measured from execution evidence, not model self-report. For every replan, explicitly name the reflection finding codes your new plan addresses; do not invent codes.",
+    "Use the reflection to change the causal strategy, decomposition, verification, or resource use. Do not merely paraphrase the retrospective.",
     "Do not widen file authority beyond the previous plan; the host enforces this independently.",
     "If there is no safe useful replan, decline.",
     "Call the recovery-plan tool exactly once.",
@@ -60,6 +63,8 @@ function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: Pinne
     failureReason: context.reason,
     failures: context.failures,
     previousTasks: context.tasks,
+    reflectionHash: context.reflectionHash ?? null,
+    hostReflection: context.reflection ?? null,
     allowedAgents: Object.keys(cfg.spec.agents).sort(),
     protectedPaths: cfg.spec.protectedPaths,
     taskLimit: cfg.spec.limits.tasks,
@@ -112,19 +117,30 @@ function toolInput(protocol: Protocol, raw: any): Record<string, unknown> {
   return calls[0].input;
 }
 
-function decodePlan(protocol: Protocol, raw: any): RecoveryPlan | null {
+function decodePlan(protocol: Protocol, raw: any, reflection?: Json): RecoveryPlan | null {
   const value = toolInput(protocol, raw);
   invariant(value.decision === "replan" || value.decision === "decline", "invalid recovery decision");
   invariant(typeof value.reason === "string" && value.reason.trim().length > 0 &&
     Buffer.byteLength(value.reason) <= 4096, "invalid recovery reason");
   invariant(Array.isArray(value.tasks), "invalid recovery tasks");
+  invariant(Array.isArray(value.addressedFindings) &&
+    value.addressedFindings.every(code => typeof code === "string" && code.length > 0) &&
+    new Set(value.addressedFindings).size === value.addressedFindings.length,
+    "invalid addressed reflection findings");
+  const available = new Set(Array.isArray((reflection as any)?.findings)
+    ? (reflection as any).findings.map((item: any) => String(item.code)) : []);
+  invariant(value.addressedFindings.every(code => available.has(String(code))),
+    "recovery planner referenced an unknown reflection finding");
   if (value.decision === "decline") {
     invariant(value.tasks.length === 0, "declined recovery must not include tasks");
     return null;
   }
   invariant(value.tasks.length > 0, "recovery replan requires tasks");
+  if (available.size > 0) invariant(value.addressedFindings.length > 0,
+    "recovery replan must address at least one measured reflection finding");
   canonical(value.tasks);
-  return { reason: value.reason, tasks: value.tasks as Task[] };
+  return { reason: value.reason, tasks: value.tasks as Task[],
+    addressedFindings: value.addressedFindings.map(String) };
 }
 
 function usageTokens(raw: any, protocol: Protocol): number | null {
@@ -168,7 +184,7 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
     const provider = digest({ quotaPool: profile.quotaPool ?? `${profile.url}#${profile.model}` });
     const replay = journal.cachedRun(context.runId, "__recovery__", body);
     if (replay !== null) {
-      const plan = decodePlan(profile.protocol, replay);
+      const plan = decodePlan(profile.protocol, replay, context.reflection);
       store.event("objective.recovery.model.replayed", {
         objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
         agent, provider, decision: plan ? "replan" : "decline",
@@ -207,7 +223,7 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
         }
         const raw = await boundedJson(response, cfg.spec.budget.maxToolOutputBytes);
         journal.complete(requestId, usageTokens(raw, profile.protocol), raw); recorded = true;
-        const plan = decodePlan(profile.protocol, raw);
+        const plan = decodePlan(profile.protocol, raw, context.reflection);
         store.event("objective.recovery.model.reply", {
           objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
           agent, provider, decision: plan ? "replan" : "decline",
