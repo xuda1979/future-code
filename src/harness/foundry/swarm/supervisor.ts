@@ -10,6 +10,7 @@ import type { Json, Task } from "../types.ts";
 import { integrateSwarm, loadSwarm, runSwarm } from "./host.ts";
 import { inScope, validateSwarmTasks } from "./config.ts";
 import { createApiRecoveryPlanner } from "./recovery.ts";
+import { externalEffectSnapshot, objectiveJobUsage } from "./jobs.ts";
 
 export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
 export interface RecoveryContext {
@@ -26,12 +27,15 @@ export interface ObjectiveEvidenceGate {
   missingTaskEvidence: string[];
   openConflicts: number;
   conflictIds: string[];
+  externalJobs: number;
+  unresolvedExternalJobs: number;
+  externalJobsByTemplate: Record<string, number>;
 }
 
 /** Host-owned completion gate. External models may propose work, but they never
  * get to declare an objective complete. Every task must have durable accepted
  * artifact/evidence, and unresolved contradictory evidence blocks completion. */
-export function objectiveEvidenceGate(store: Store, run: string): ObjectiveEvidenceGate {
+export function objectiveEvidenceGate(store: Store, run: string, objective?: string): ObjectiveEvidenceGate {
   ensureRunFabric(store, run);
   const counts = store.db.prepare(`SELECT COUNT(*) AS total,
     COALESCE(SUM(CASE WHEN status='PASS' AND artifact IS NOT NULL AND evidence IS NOT NULL THEN 1 ELSE 0 END),0) AS verified
@@ -45,13 +49,18 @@ export function objectiveEvidenceGate(store: Store, run: string): ObjectiveEvide
   const openConflicts = Number(store.db.prepare(
     "SELECT COUNT(*) AS n FROM fabric_conflicts WHERE run=? AND status='OPEN'"
   ).get(run)?.n ?? 0);
+  const externalEffects = externalEffectSnapshot(store, run, objective);
   return {
-    status: Number(counts.verified) === Number(counts.total) && openConflicts === 0 ? "PASS" : "BLOCKED",
+    status: Number(counts.verified) === Number(counts.total) && openConflicts === 0 &&
+      externalEffects.unresolved === 0 ? "PASS" : "BLOCKED",
     taskCount: Number(counts.total),
     verifiedTasks: Number(counts.verified),
     missingTaskEvidence,
     openConflicts,
     conflictIds: conflictRows.map(row => String(row.id)),
+    externalJobs: externalEffects.count,
+    unresolvedExternalJobs: externalEffects.unresolved,
+    externalJobsByTemplate: externalEffects.byTemplate,
   };
 }
 export function recoveryStrategySignature(tasks: Task[], defaultAgent?: string): string {
@@ -121,11 +130,14 @@ export function objectiveStatus(store: Store, id: string): Json {
       UNION SELECT run FROM swarm_objectives WHERE id=? AND run IS NOT NULL
     )`).get(id, id) ?? { requests: 0, request_bytes: 0 };
   const evidenceGate = r.run && store.db.prepare("SELECT 1 FROM runs WHERE id=?").get(r.run)
-    ? objectiveEvidenceGate(store, String(r.run)) : null;
+    ? objectiveEvidenceGate(store, String(r.run), id) : null;
+  const cfg = loadSwarm(store);
+  const jobBudget = objectiveJobUsage(store, cfg, id);
   return { ...(r as Record<string, Json>), revision, recovery: (recovery ?? null) as Json,
     budget: budget ? { maxRequests: budget.max_requests, maxRequestBytes: budget.max_request_bytes,
       usedRequests: usage.requests, usedRequestBytes: usage.request_bytes } : null,
     evidenceGate: evidenceGate as unknown as Json,
+    jobBudget: jobBudget as unknown as Json,
     completion: (completion ?? null) as Json };
 }
 
@@ -136,6 +148,12 @@ function recordObjectiveCompletion(store: Store, objective: string, row: any,
     WHERE objective=? ORDER BY revision`).all(objective).map(item => ({
       revision: Number(item.revision), plan: String(item.plan), run: String(item.run), reason: String(item.reason),
     }));
+  const externalEffects = externalEffectSnapshot(store, String(row.run), objective);
+  invariant(externalEffects.unresolved === 0, "objective completion has unresolved external effects");
+  invariant(externalEffects.count === gate.externalJobs &&
+    externalEffects.unresolved === gate.unresolvedExternalJobs,
+    "objective external-effect gate changed before attestation");
+  const externalEffectsManifest = store.artifact(externalEffects.records as unknown as Json);
   const attestation = JSON.parse(canonical({
     schema: 1,
     objective,
@@ -145,6 +163,11 @@ function recordObjectiveCompletion(store: Store, objective: string, row: any,
     planHash: String(row.plan),
     lineage,
     evidenceGate: gate,
+    externalEffects: {
+      count: externalEffects.count,
+      byTemplate: externalEffects.byTemplate,
+      manifestHash: externalEffectsManifest,
+    },
     integration,
   })) as Json;
   const hash = store.artifact(attestation);
@@ -381,9 +404,9 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
             row.reason.startsWith("Final integration failed:")) {
           if (await attemptRecovery(row.reason)) { report(); continue; }
         } else {
-          const preGate = objectiveEvidenceGate(store, row.run);
+          const preGate = objectiveEvidenceGate(store, row.run, input.id);
           if (preGate.status !== "PASS") {
-            const reason = `Objective evidence gate blocked: ${preGate.verifiedTasks}/${preGate.taskCount} tasks have durable accepted evidence; ${preGate.openConflicts} unresolved evidence conflict(s). Resolve/adjudicate evidence before completion.`;
+            const reason = `Objective evidence gate blocked: ${preGate.verifiedTasks}/${preGate.taskCount} tasks have durable accepted evidence; ${preGate.openConflicts} unresolved evidence conflict(s); ${preGate.unresolvedExternalJobs} unresolved external job(s). Resolve/adjudicate evidence and reconcile external effects before completion.`;
             transition("NEEDS_ATTENTION", reason);
           } else {
             transition("VERIFYING"); report();
@@ -392,9 +415,9 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
               assertOwner();
               // Re-check after integration so evidence added while expensive checks
               // were running cannot be bypassed by an earlier PASS snapshot.
-              const finalGate = objectiveEvidenceGate(store, row.run);
+              const finalGate = objectiveEvidenceGate(store, row.run, input.id);
               if (finalGate.status !== "PASS") {
-                const reason = `Objective evidence gate blocked: ${finalGate.verifiedTasks}/${finalGate.taskCount} tasks have durable accepted evidence; ${finalGate.openConflicts} unresolved evidence conflict(s). Resolve/adjudicate evidence before completion.`;
+                const reason = `Objective evidence gate blocked: ${finalGate.verifiedTasks}/${finalGate.taskCount} tasks have durable accepted evidence; ${finalGate.openConflicts} unresolved evidence conflict(s); ${finalGate.unresolvedExternalJobs} unresolved external job(s). Resolve/adjudicate evidence and reconcile external effects before completion.`;
                 transition("NEEDS_ATTENTION", reason);
               } else {
                 const integration = JSON.parse(canonical(receipt)) as Json;
@@ -423,11 +446,13 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       // No model polling and no repeated failed verification. An explicit integrate
       // command can repair the last mile; revalidate its receipt before completion.
       if (runStatus === "PASS" && store.getMeta(`extension.swarm.integration.${row.run}`)) {
-        const gate = objectiveEvidenceGate(store, row.run);
+        const gate = objectiveEvidenceGate(store, row.run, input.id);
         if (gate.status === "PASS") {
           const receipt = await integrateSwarm(store, row.run, controller.signal);
+          const finalGate = objectiveEvidenceGate(store, row.run, input.id);
+          if (finalGate.status !== "PASS") { report(); continue; }
           const integration = JSON.parse(canonical(receipt)) as Json;
-          const attestation = recordObjectiveCompletion(store, input.id, assertOwner(), integration, gate);
+          const attestation = recordObjectiveCompletion(store, input.id, assertOwner(), integration, finalGate);
           transition("COMPLETE"); report();
           return { status: "PASS", objective: objectiveStatus(store, input.id), integration,
             completion: { attestation } };

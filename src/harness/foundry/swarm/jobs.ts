@@ -2,6 +2,7 @@ import { DeferredAttemptError } from "../continuation.ts";
 import { FatalAttemptError } from "../errors.ts";
 import { checkPins } from "../commands.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
+import type { Store } from "../store.ts";
 import type { Capsule, Json } from "../types.ts";
 import type { PinnedSwarm, AgentProfile, JobTemplate } from "./config.ts";
 import { keys } from "./config.ts";
@@ -25,6 +26,97 @@ const defaultRPC: JobRPC = async (command, cfg, request, signal) => {
   invariant(result.code === 0, "job adapter failed; remote outcome may be unknown");
   try { return JSON.parse(result.stdout); } catch { throw new FatalAttemptError("MALFORMED_JOB_ADAPTER_REPLY"); }
 };
+
+
+function tableExists(store: Store, name: string): boolean {
+  return !!store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
+}
+
+function objectiveForRun(store: Store, run: string): string | null {
+  if (!tableExists(store, "swarm_objective_revisions") || !tableExists(store, "swarm_objectives")) return null;
+  const rows = store.db.prepare(`SELECT objective AS id FROM swarm_objective_revisions WHERE run=?
+    UNION SELECT id FROM swarm_objectives WHERE run=?`).all(run, run);
+  const ids = [...new Set(rows.map(row => String(row.id)))];
+  invariant(ids.length <= 1, "run belongs to multiple objectives");
+  return ids[0] ?? null;
+}
+
+const objectiveRunClause = `run IN (
+  SELECT run FROM swarm_objective_revisions WHERE objective=?
+  UNION SELECT run FROM swarm_objectives WHERE id=? AND run IS NOT NULL
+)`;
+
+export interface ObjectiveJobUsage {
+  template: string;
+  used: number;
+  unresolved: number;
+  maxPerRun: number;
+  maxObjectiveJobs: number;
+}
+
+export interface ExternalEffectSnapshot {
+  count: number;
+  unresolved: number;
+  byTemplate: Record<string, number>;
+  records: Json[];
+}
+
+/** Host-measured remote-compute consumption across the full durable objective
+ * lineage. It never trusts model-authored cost or completion claims. */
+export function objectiveJobUsage(store: Store, cfg: PinnedSwarm, objective: string): ObjectiveJobUsage[] {
+  const jobs = Object.entries(cfg.spec.jobs ?? {}).sort(([a], [b]) => a.localeCompare(b));
+  const measurable = tableExists(store, "research_jobs") &&
+    tableExists(store, "swarm_objective_revisions") && tableExists(store, "swarm_objectives");
+  return jobs.map(([template, spec]) => {
+    const row = measurable ? store.db.prepare(`SELECT COUNT(*) AS used,
+      COALESCE(SUM(CASE WHEN result_hash IS NULL THEN 1 ELSE 0 END),0) AS unresolved
+      FROM research_jobs WHERE template=? AND ${objectiveRunClause}`)
+      .get(template, objective, objective) : { used: 0, unresolved: 0 };
+    return {
+      template,
+      used: Number(row?.used ?? 0),
+      unresolved: Number(row?.unresolved ?? 0),
+      maxPerRun: spec.maxJobs,
+      maxObjectiveJobs: spec.maxObjectiveJobs ?? spec.maxJobs,
+    };
+  });
+}
+
+/** Deterministic external-effect ledger used by the objective completion gate
+ * and attestation. Terminal receipts are re-read so corrupted result or
+ * reconciliation artifacts fail closed. */
+export function externalEffectSnapshot(store: Store, run: string, objective?: string): ExternalEffectSnapshot {
+  if (!tableExists(store, "research_jobs"))
+    return { count: 0, unresolved: 0, byTemplate: {}, records: [] };
+  let rows: Record<string, any>[];
+  if (objective && tableExists(store, "swarm_objective_revisions") && tableExists(store, "swarm_objectives")) {
+    rows = store.db.prepare(`SELECT key,run,task,template,input_hash,job_id,status,result_hash,reconciliation_hash
+      FROM research_jobs WHERE ${objectiveRunClause} ORDER BY template,key`).all(objective, objective);
+  } else {
+    rows = store.db.prepare(`SELECT key,run,task,template,input_hash,job_id,status,result_hash,reconciliation_hash
+      FROM research_jobs WHERE run=? ORDER BY template,key`).all(run);
+  }
+  const byTemplate: Record<string, number> = {};
+  let unresolved = 0;
+  const records = rows.map(row => {
+    byTemplate[String(row.template)] = (byTemplate[String(row.template)] ?? 0) + 1;
+    if (row.result_hash == null) unresolved++;
+    else {
+      invariant(typeof row.reconciliation_hash === "string",
+        "terminal external job missing reconciliation proof");
+      store.readArtifact(String(row.result_hash));
+      store.readArtifact(String(row.reconciliation_hash));
+    }
+    return JSON.parse(canonical({
+      key: String(row.key), run: String(row.run), task: String(row.task),
+      template: String(row.template), inputHash: String(row.input_hash),
+      jobId: row.job_id == null ? null : String(row.job_id), status: String(row.status),
+      resultHash: row.result_hash == null ? null : String(row.result_hash),
+      reconciliationHash: row.reconciliation_hash == null ? null : String(row.reconciliation_hash),
+    })) as Json;
+  });
+  return { count: rows.length, unresolved, byTemplate, records };
+}
 
 /** Durable external jobs share Foundry's DB. No LLM is used to poll.
  * The adapter is trusted and pinned. ensure(key) MUST implement remote dedupe.
@@ -62,6 +154,7 @@ export class ResearchJobs {
     invariant(template && command && template.idempotentEnsure, "job adapter not pinned");
     checkPins(command); // Configuration drift is not a transient network failure.
     const store = this.journal.store; const input = call.arguments.input;
+    const objective = objectiveForRun(store, c.runId);
     invariant(Buffer.byteLength(canonical(input)) <= this.cfg.spec.budget.maxToolOutputBytes, "job input too large");
     const binding = digest({ command, template, input, base: this.cfg.baseCommit });
     const key = digest({ run: c.runId, task: c.task.id, call: call.id, name });
@@ -71,6 +164,13 @@ export class ResearchJobs {
       if (old) { invariant(old.input_hash === binding, "job replay input drift"); return old; }
       const count = store.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE run=? AND template=?").get(c.runId, name)!.n;
       if (count >= template.maxJobs) throw new FatalAttemptError("RUN_JOB_BUDGET_EXHAUSTED");
+      if (objective) {
+        const objectiveCount = Number(store.db.prepare(`SELECT COUNT(*) AS n FROM research_jobs
+          WHERE template=? AND ${objectiveRunClause}`).get(name, objective, objective)?.n ?? 0);
+        const objectiveLimit = template.maxObjectiveJobs ?? template.maxJobs;
+        if (objectiveCount >= objectiveLimit)
+          throw new FatalAttemptError("OBJECTIVE_JOB_BUDGET_EXHAUSTED");
+      }
       const live = store.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE template=? AND result_hash IS NULL").get(name)!.n;
       if (live >= template.maxConcurrent) throw new DeferredAttemptError("remote-job", Date.now() + template.pollMs, `Remote capacity busy for ${name}; no new job submitted`);
       const now = Date.now();
@@ -78,7 +178,7 @@ export class ResearchJobs {
         (key,run,task,template,input_hash,created,progress_at,progress_token,poll_at,failures,job_id,status,result_hash,updated,reconciliation_hash,progress_rank,stale_at)
         VALUES(?,?,?,?,?,?,?,NULL,0,0,NULL,'UNKNOWN',NULL,?,NULL,0,?)`)
         .run(key, c.runId, c.task.id, name, binding, now, now, now, now + template.staleMs);
-      store.event("job.intent", { key, template: name, inputHash: binding }, c.runId, c.task.id);
+      store.event("job.intent", { key, template: name, inputHash: binding, objective }, c.runId, c.task.id);
       return store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
     });
     if (row.stale_at == null) {

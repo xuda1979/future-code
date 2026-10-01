@@ -421,3 +421,31 @@ external models as they appear, but it continues to own persistence, budgets, ex
 effect reconciliation, evidence, verification, recovery, and the final completion
 decision. The product therefore does not depend on a particular model remaining weak.
 
+
+## Objective-wide external compute authority
+
+A supervised R&D objective owns remote-compute budgets across its entire recovery
+lineage. `JobTemplate.maxJobs` remains the per-run ceiling. The optional
+`maxObjectiveJobs` is the cumulative ceiling for that job template across every
+run/replan of one objective; when omitted it defaults to `maxJobs`. A recovery
+plan therefore cannot obtain a fresh GPU/NPU/HPC experiment budget merely by
+creating a new run.
+
+Admission is transactional: the host counts previously persisted job intents for
+the objective before creating another intent. Budget rejection occurs before the
+job adapter is called, so an external model cannot bypass the limit with retries
+or replanning.
+
+Objective completion also treats external jobs as evidence-bearing side effects:
+
+- every remote job in the objective lineage must have a terminal durable result;
+- terminal result and reconciliation artifacts are re-read and hash-verified;
+- unresolved/unknown remote effects block the host-owned completion gate;
+- the completion attestation binds a content-addressed external-effect manifest,
+  including job identity, template, input binding, terminal status, result hash,
+  and reconciliation hash.
+
+This is deliberately independent of provider intelligence. Claude, Codex,
+Gemini, Qwen, or another external API may propose experiments, but Future-Code
+owns the durable resource ceiling, reconciliation semantics, and final
+acceptance authority.
