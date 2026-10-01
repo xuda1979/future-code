@@ -20,6 +20,7 @@ import { FatalAttemptError } from "../../src/harness/foundry/errors.ts";
 import { superviseSwarm, objectiveStatus, objectiveEvidenceGate, installObjectives } from "../../src/harness/foundry/swarm/supervisor.ts";
 import { recordEvidence } from "../../src/harness/foundry/evidenceFabric.ts";
 import { readObjectiveEpisode } from "../../src/harness/foundry/rndEpisodes.ts";
+import { reflectRun, readLatestObjectiveReflection } from "../../src/harness/foundry/rndReflection.ts";
 import { runSwarm } from "../../src/harness/foundry/swarm/host.ts";
 import { validateSwarmSpec, type SwarmSpec } from "../../src/harness/foundry/swarm/config.ts";
 import { fixture as swarmFixture, task as swarmTask, scripted, reply, signal, spec } from "./swarm-fixtures.ts";
@@ -392,6 +393,29 @@ test("transport classification excludes schema errors and handles bounded cause 
   assert.ok(!isTransportFailure(new SyntaxError("bad response JSON")));
   const cyclic: any = {}; cyclic.cause = cyclic; assert.equal(isTransportFailure(cyclic), false);
 });
+test("host reflection identifies repeated failures and productivity loss from measured execution", async () => swarmFixture(async s => {
+  s.recipe.attempts = 4;
+  const q = new Scheduler(s); const run = q.start([swarmTask()]);
+  for (let i = 0; i < 3; i++) {
+    const lease = q.claim(run, `w-${i}`)!;
+    q.capsule(lease);
+    assert.equal(q.fail(lease, "same causal failure", { tokens: 10, costUsd: 0.1 }, Date.now(),
+      { fingerprint: "same-cause" }), true);
+  }
+  const reflected = reflectRun(s, "reflection-test", run, "objective failed");
+  const value: any = reflected.reflection;
+  const codes = value.findings.map((item: any) => item.code);
+  assert.ok(codes.includes("repeated_failure_loop"));
+  assert.ok(codes.includes("low_verified_yield"));
+  assert.equal(value.productivity.verifiedTasks, 0);
+  assert.equal(value.productivity.attempts, 3);
+  assert.match(reflected.hash, /^[a-f0-9]{64}$/);
+  assert.deepEqual((readLatestObjectiveReflection(s, "reflection-test") as any).reflectionHash, reflected.hash);
+  assert.throws(() => s.db.prepare(
+    "UPDATE rnd_run_reflections SET reflection_hash='tampered' WHERE objective='reflection-test'"
+  ).run(), /append-only R&D reflection/);
+}));
+
 test("an objective finishes only after integration and resumes without another model request", async () => swarmFixture(async (s, cfg, project) => {
   const script = scripted([() => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]), () => reply()]);
   const statuses: string[] = [];
@@ -420,7 +444,10 @@ test("bounded recovery planner versions the task graph and resumes the objective
       plannerCalls++;
       assert.equal(context.revision, 1);
       assert.ok(context.failures.some(f => f.status === "FAIL"));
-      return { reason: "Replace the failed broad attempt with a focused repair task", tasks: [repaired] };
+      assert.match(String(context.reflectionHash), /^[a-f0-9]{64}$/);
+      assert.equal((context.reflection as any).type, "future-code-rnd-reflection");
+      return { reason: "Replace the failed broad attempt with a focused repair task", tasks: [repaired],
+        addressedFindings: ((context.reflection as any).findings ?? []).slice(0, 1).map((item: any) => item.code) };
     },
   );
   assert.equal(result.status, "PASS"); assert.equal(result.objective.state, "COMPLETE");
@@ -432,6 +459,8 @@ test("bounded recovery planner versions the task graph and resumes the objective
   assert.equal(captured.episode.policyTransitions.length, 2);
   assert.equal(captured.episode.policyTransitions[0].action.kind, "REPLAN");
   assert.equal(captured.episode.policyTransitions[1].action.kind, "COMPLETE");
+  assert.ok(captured.episode.reflections.length >= 2);
+  assert.ok(captured.episode.recoveries[0].reflectionHash);
 }, s => {
   s.recipe.attempts = 1;
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
@@ -486,6 +515,10 @@ test("successful supervision persists a host-owned completion attestation", asyn
   assert.equal(attestation.externalEffects.count, 0);
   assert.match(attestation.externalEffects.manifestHash, /^[a-f0-9]{64}$/);
   assert.deepEqual(s.readArtifact(attestation.externalEffects.manifestHash), []);
+  assert.match(attestation.reflection.reflectionHash, /^[a-f0-9]{64}$/);
+  const finalReflection: any = s.readArtifact(attestation.reflection.reflectionHash);
+  assert.equal(finalReflection.type, "future-code-rnd-reflection");
+  assert.ok(finalReflection.productivity.verifiedTasks >= 1);
   assert.match(attestation.episode.episodeHash, /^[a-f0-9]{64}$/);
   assert.match(attestation.episode.graphHash, /^[a-f0-9]{64}$/);
   const captured: any = readObjectiveEpisode(s, "completion-attestation");
@@ -517,8 +550,13 @@ test("supervision uses the configured external API for bounded recovery by defau
     body => {
       assert.ok(Array.isArray(body.tools));
       assert.equal(body.tool_choice?.function?.name, "propose_recovery_plan");
+      const packet = JSON.parse(body.messages[1].content);
+      assert.equal(packet.hostReflection.type, "future-code-rnd-reflection");
+      assert.match(packet.reflectionHash, /^[a-f0-9]{64}$/);
+      const findings = packet.hostReflection.findings.map((item: any) => item.code);
       return reply("", [{ name: "propose_recovery_plan", arguments: {
         decision: "replan", reason: "Replace the failed broad attempt with focused repair work", tasks: [repaired],
+        addressedFindings: findings.slice(0, 1),
       } }]);
     },
     () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
@@ -718,15 +756,31 @@ test("recovery rejects cosmetic task renames that repeat a failed execution stra
   s.supervision = { reportEveryMs: 10, checkpointEveryMs: 1000, maxReplans: 1 };
 }));
 
+test("recovery planner cannot pretend to address findings that host reflection did not measure", async () => swarmFixture(async (s, cfg) => {
+  const root = swarmTask(); const run = new Scheduler(s).start([root]);
+  const context = { objectiveId: "reflection-binding", goal: "repair safely", runId: run,
+    reason: "failed", revision: 1, tasks: [root], failures: [{ id: root.id, status: "FAIL", error: "x" }],
+    reflectionHash: "1".repeat(64),
+    reflection: { findings: [{ code: "measured-problem", severity: "HIGH" }] } as any };
+  const planner = createApiRecoveryPlanner(s, cfg, (async () => reply("", [{
+    name: "propose_recovery_plan", arguments: {
+      decision: "replan", reason: "claim unrelated fix", tasks: [{ ...root, id: "repair" }],
+      addressedFindings: ["invented-problem"],
+    },
+  }])) as typeof fetch);
+  await assert.rejects(planner(context, signal()), /unknown reflection finding/);
+}));
+
 test("completed recovery API reply replays after crash without another external call", async () => swarmFixture(async (s, cfg) => {
   const root = swarmTask(); const run = new Scheduler(s).start([root]);
   const context = { objectiveId: "replay-recovery", goal: "repair safely", runId: run,
-    reason: "failed", revision: 1, tasks: [root], failures: [{ id: root.id, status: "FAIL", error: "x" }] };
+    reason: "failed", revision: 1, tasks: [root], failures: [{ id: root.id, status: "FAIL", error: "x" }],
+    reflection: { findings: [] } as any, reflectionHash: "0".repeat(64) };
   let calls = 0;
   const first = createApiRecoveryPlanner(s, cfg, (async () => {
     calls++;
     return reply("", [{ name: "propose_recovery_plan", arguments: {
-      decision: "decline", reason: "No safe structural change", tasks: [],
+      decision: "decline", reason: "No safe structural change", tasks: [], addressedFindings: [],
     } }]);
   }) as typeof fetch);
   assert.equal(await first(context, signal()), null);

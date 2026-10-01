@@ -4,6 +4,7 @@ import type { Store } from "./store.ts";
 import type { Json, Task } from "./types.ts";
 import type { PinnedSwarm } from "./swarm/config.ts";
 import { externalEffectSnapshot, objectiveJobUsage } from "./swarm/jobs.ts";
+import { reflectionHistory } from "./rndReflection.ts";
 
 const json = (value: unknown): Json => JSON.parse(canonical(value)) as Json;
 const hashText = (value: unknown): string => digest(value);
@@ -200,7 +201,8 @@ function eventKindCounts(store: Store, objective: string): Json {
 }
 
 function buildOutcomeGraph(objectiveRef: string, domain: string, revisions: Record<string, any>[],
-  recoveryRows: Record<string, any>[], externalJobs: Record<string, any>[], completionBinding: string): Json {
+  recoveryRows: Record<string, any>[], externalJobs: Record<string, any>[],
+  reflections: { run: string; hash: string; reflection: Json }[], completionBinding: string): Json {
   const nodes: Json[] = []; const edges: Json[] = [];
   const objectiveNode = `objective:${objectiveRef}`;
   nodes.push(json({ id: objectiveNode, type: "objective", domain, outcome: "PASS", completionBinding }));
@@ -255,6 +257,17 @@ function buildOutcomeGraph(objectiveRef: string, domain: string, revisions: Reco
   for (let i = 0; i + 1 < ordered.length; i++)
     edges.push(json({ from: revisionNodeByNumber.get(Number(ordered[i].revision))!,
       to: revisionNodeByNumber.get(Number(ordered[i + 1].revision))!, kind: "NEXT_REVISION" }));
+  for (const item of reflections) {
+    const runRef = runRefByRaw.get(item.run);
+    if (!runRef) continue;
+    const reflection: any = item.reflection;
+    const reflectionNode = `reflection:${item.hash}`;
+    nodes.push(json({ id: reflectionNode, type: "reflection",
+      findings: Array.isArray(reflection.findings)
+        ? reflection.findings.map((finding: any) => ({ code: finding.code, severity: finding.severity })) : [],
+      productivity: reflection.productivity ?? null }));
+    edges.push(json({ from: `run:${runRef}`, to: reflectionNode, kind: "REFLECTED_AS" }));
+  }
   for (const recovery of recoveryRows) {
     const sourceRef = runRefByRaw.get(String(recovery.run));
     if (!sourceRef) continue;
@@ -299,8 +312,9 @@ export function buildObjectiveEpisode(store: Store, objective: string, integrati
       tasks, requests: requestGroups(store, String(item.run)), resources: runResourceSummary(store, String(item.run)),
     };
   });
-  const recoveryRows = store.db.prepare(`SELECT run,revision,state,detail,new_run,created,updated
+  const recoveryRows = store.db.prepare(`SELECT run,revision,state,detail,new_run,created,updated,reflection_hash,addressed_findings
     FROM swarm_recovery_attempts WHERE objective=? ORDER BY revision,run`).all(objective);
+  const reflections = reflectionHistory(store, objective);
   const stateHashes = revisions.map(revision => digest({
     status: revision.status,
     tasks: (revision.tasks as Record<string, any>[]).map(task => ({
@@ -323,7 +337,7 @@ export function buildObjectiveEpisode(store: Store, objective: string, integrati
       runOutcome: String(revision.status), resources: revision.resources,
     });
   });
-  const graph = buildOutcomeGraph(objectiveRef, domain, revisions, recoveryRows, externalJobs, completionBinding);
+  const graph = buildOutcomeGraph(objectiveRef, domain, revisions, recoveryRows, externalJobs, reflections, completionBinding);
   const graphHash = store.artifact(graph);
   const episode = json({
     schema: 1, type: "future-code-rnd-episode",
@@ -338,8 +352,20 @@ export function buildObjectiveEpisode(store: Store, objective: string, integrati
     recoveries: recoveryRows.map(row => json({
       sourceRunRef: revisions.find(r => r.rawRun === String(row.run))?.runRef ?? digest(String(row.run)),
       revision: Number(row.revision), state: String(row.state), detailHash: digest(String(row.detail)),
+      reflectionHash: row.reflection_hash == null ? null : String(row.reflection_hash),
+      addressedFindings: row.addressed_findings ? JSON.parse(String(row.addressed_findings)) : [],
       targetRunRef: row.new_run == null ? null : revisions.find(r => r.rawRun === String(row.new_run))?.runRef ?? digest(String(row.new_run)),
     })),
+    reflections: reflections.map(item => {
+      const reflection: any = item.reflection;
+      return json({
+        runRef: revisions.find(r => r.rawRun === item.run)?.runRef ?? digest(item.run),
+        reflectionHash: item.hash,
+        findings: Array.isArray(reflection.findings)
+          ? reflection.findings.map((finding: any) => ({ code: finding.code, severity: finding.severity })) : [],
+        productivity: reflection.productivity ?? null,
+      });
+    }),
     policyTransitions,
     resources: objectiveResources(store, objective, externalJobs, cfg),
     eventKindCounts: eventKindCounts(store, objective),
