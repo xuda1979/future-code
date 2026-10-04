@@ -4,6 +4,9 @@
 \usepackage{amsmath,amsthm,newtxtext,newtxmath,microtype}
 \usepackage{booktabs,tabularx,array,graphicx,xcolor}
 \usepackage{algorithm,algpseudocode,enumitem}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit}
 \usepackage[font=small,labelfont=bf]{caption}
 \usepackage[hidelinks]{hyperref}
 % Allow URLs to break at any character (avoids underfull boxes in the bibliography).
@@ -11,48 +14,88 @@
 \def\UrlBreaks{\do\.\do\@\do\\\\\do\/\do\_\do\|\do\-\do\+\do\=\do\#\do\$\do\%\do\^\do\&\do\*\do\~\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z\do\A\do\B\do\C\do\D\do\E\do\F\do\G\do\H\do\I\do\J\do\K\do\L\do\M\do\N\do\O\do\P\do\Q\do\R\do\S\do\T\do\U\do\V\do\W\do\X\do\Y\do\Z}
 \makeatother
 \usepackage{fancyhdr}
-\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Research manuscript v5.0}\fancyfoot[C]{\thepage}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Manuscript revision 5.1}\fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}\setlength{\parskip}{3pt}\setlength{\emergencystretch}{2em}
 \newtheorem{theorem}{Theorem}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{lemma}[theorem]{Lemma}
 \theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
 \newcommand{\PASS}{\mathsf{PASS}}\newcommand{\FAIL}{\mathsf{FAIL}}\newcommand{\UNKNOWN}{\mathsf{UNKNOWN}}
 \newcommand{\E}{\mathbb E}\newcommand{\Prb}{\mathbb P}\newcommand{\ind}{\mathbf 1}\newcommand{\R}{\mathcal R}
 \DeclareMathOperator*{\argmin}{arg\,min}
-\hypersetup{pdftitle={Adaptive HACT: Service-Matched Verification Evidence and Deployment Boundaries},pdfauthor={Research manuscript; author information pending confirmation}}
-\title{\vspace{-9mm}\textbf{Adaptive HACT: Service-Matched Verification Evidence and Deployment Boundaries}}
-\author{Research manuscript\thanks{Author names and affiliations require confirmation before submission. Mathematical development, implementation, experiments, and writing were AI-assisted. This is a research artifact, not an accepted conference paper.}}
-\date{September 21, 2026 \quad | \quad Version 5.0}
+\hypersetup{pdftitle={Adaptive HACT: Hyperedge-Aware, Identity-Stable Verification Evidence for Agentic Systems},pdfauthor={Research manuscript; author information pending confirmation}}
+\title{\vspace{-9mm}\textbf{Adaptive HACT: Hyperedge-Aware, Identity-Stable Verification Evidence for Agentic Systems}}
+\author{Research manuscript\thanks{Author names and affiliations require confirmation before submission. Mathematical development, implementation, experiments, and writing were AI-assisted.}}
+\date{October 4, 2026 \quad | \quad Manuscript revision 5.1 \quad | \quad Artifact 5.0}
 \begin{document}
 \maketitle
 \begin{abstract}
-Agentic systems need a trustworthy answer to ``which declared checks hold on this exact candidate?'' without letting aggregation, display, or learning choices alter what is accepted. Adaptive HACT separates immutable check identities and acceptance predicates from the layout that aggregates their completion records: layouts are scored by full completion hyperedges rather than pairwise similarity, and generation fencing preserves conditional publication soundness across layout permutations. We make a learned-order compact balanced eight-ary tree the low-compilation-cost baseline, retain exact alphabetic dynamic programming as a reference, and relegate the slower, empirically inferior block compiler to an ablation. A fresh frozen-seed study of 27 train/validation/held-out workloads shows held-out padded-cost reductions of 23.43\%, 10.75\%, and 5.56\% at 128, 512, and 1,024 checks on clustered completions, while independent and global controls show essentially no improvement---evidence that ordering pays only where completions cluster. Re-aggregating twelve archived source candidates under three layouts (36 layout replays) reduces whole-epoch compressed bytes by 4.36--41.84\% versus original-order fixed8, yet remains larger than learned-order exact layouts; root-status inputs stay byte-identical across layouts. Rather than claiming that export savings cancel a different harness's verification overhead, we derive an explicit codec- and service-matched deployment test---a fail-closed planner that outputs the minimum profitable copies under declared goodput and extra-cost assumptions. BPE and physical-WAN measurements remain unavailable; we supply actual-tokenizer admission and authenticated TLS measurement tools without presenting local protocol tests as those missing experiments. The result identifies both a lower-cost implementation and a narrow, auditable operating region, not a universal agent or verification accelerator.
+Agentic software pipelines increasingly gate candidate changes on suites of tests, analyses, and policy checks, but the evidence supporting a commit decision can be much larger than the final verdict. Adaptive HACT asks whether that evidence can be reorganized for cheaper diagnostic delivery without changing the acceptance contract. The central abstraction is \emph{evidence-layout independence}: stable check identities and candidate/checker/environment bindings define semantics, while a separate layout plane only aggregates trusted completion records. Generation fencing makes authorization invariant to valid layout permutations and migrations. Because packet work depends on which \emph{sets} of checks become final together, we score recorded completion hyperedges rather than treat pairwise affinity as the cost model. The practical compiler uses a learned order with a compact balanced eight-ary tree; exact alphabetic dynamic programming is retained as a fixed-order reference. In 27 frozen train/validation/held-out workloads, clustered completions reduce held-out padded evidence by 23.43\%, 10.75\%, and 5.56\% at 128, 512, and 1,024 checks, with positive reductions in all nine clustered seeds; independent and global controls show essentially no benefit. Re-aggregating twelve archived source candidates reduces whole-epoch compressed bytes by 4.36--41.84\% versus original-order fixed8, while exact layouts remain 1.52--11.68\% smaller than the practical layout. Root-status text is identical across all twelve layout triples. A service-matched break-even model separates representation savings from the cost of adopting verification. The measured claim is therefore narrow: HACT reduces hierarchical verification-evidence cost when completion structure exists, while preserving the declared acceptance semantics; live-model quality, physical-WAN speedup, and provider token billing are outside the present evidence.
 \end{abstract}
-\noindent\textbf{Keywords:} bounded evidence; verification contracts; bandwidth-limited logging; completion hyperedges; cost-aware layout selection.
+\noindent\textbf{Keywords:} agentic systems; verification evidence; completion hyperedges; evidence-layout independence; bounded diagnostics; cost-aware layout selection.
 
 \section{Introduction}
-Many-agent systems need a reliable answer to ``which declared checks hold on this exact candidate?'' The answer must survive three independent pressures: per-check evidence volume grows with the registry; the evidence must travel over constrained links to supervisors, loggers, and reviewers; and whatever compresses or reorganizes that evidence must never change what is accepted. The agents' task graph and conversational organization need not be the layout that aggregates this evidence. HACT separates the two: immutable check identities determine the acceptance contract, while a bounded-packet tree represents intermediate results. A smaller tree transcript is not automatically a faster build, a better agent, or a smaller root-status prompt.
+Autonomous and multi-agent software systems can generate many candidate actions in parallel, but accepting a candidate is a different problem from generating it. A deployment gate may need evidence from tests, static analyzers, policy checks, environment probes, and integration checks. The final decision may be one bit, yet debugging, audit, and remote supervision can require a much larger transcript of intermediate evidence. That creates a representation problem: reorganizing the transcript may save bytes and retrieval work, but it must never change which checks are required or turn missing evidence into a pass.
 
-The distinction matters economically. Historical source timings were 39.69 versus 39.77 seconds for fixed and learned layouts. A separate small harness paid roughly five seconds per episode for strict verification compared with direct pytest. Meanwhile, a historical compressed loopback export saved approximately 2.21 seconds \emph{across twelve source streams}. These different cohorts cannot be combined into a measured end-to-end speedup, and neither observation justifies adding a strict wrapper solely to save transmission time.
+Adaptive HACT treats verification semantics and evidence representation as separate planes. The semantic plane binds a candidate to a registry of stable check identities and to the checker and environment that produced each result. The layout plane is free to permute those identities and aggregate their records into bounded packets. This separation creates a useful systems invariant: layout learning can change \emph{where evidence is stored and how much is emitted}, but not \emph{what must be true before authorization}.
 
-\paragraph{Three deployment decisions, not one.}
-A trusted root-status consumer needs neither a learned tree nor all intermediate packets. A deployment that \emph{already requires} protected verification and hierarchical evidence can compare fixed and learned layouts at marginal cost under that unchanged service. Adopting protected verification where ordinary pytest was sufficient is a different decision: its additional preparation and checking costs must be justified independently. We make this service distinction explicit in both the paper and a fail-closed planning API.
+\begin{figure}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  >=Latex,
+  box/.style={draw,rounded corners=2pt,align=center,minimum height=8mm,inner sep=3.2pt,font=\small},
+  sem/.style={box,fill=black!3},
+  lay/.style={box,fill=black!8},
+  svc/.style={box,fill=black!1},
+  arr/.style={->,line width=.6pt},
+  node distance=7mm and 9mm]
+  \node[sem] (contract) {Protected semantic contract\\candidate, registry, checker, environment};
+  \node[sem,right=of contract] (records) {Trusted canonical records\\stable $g_i$; $\PASS/\FAIL/\UNKNOWN$};
+  \node[sem,right=of records] (accept) {Acceptance predicate\\$A(e)$};
+  \draw[arr] (contract) -- (records);
+  \draw[arr] (records) -- (accept);
 
-\paragraph{The simpler compiler is now primary.}
-The prior block compiler was 1.54--5.34\% more expensive in held-out bytes than a compact balanced eight-ary tree on the same learned order. We therefore remove block DP from the practical path. The new default catalogue retains the incumbent and proposes a balanced tree on a training-learned average-linkage order; separate validation compares full-wave costs. Exact DP remains a useful conditional optimum and reference. It can still produce smaller evidence than the practical default, as our source replays show. Low fitting cost and lowest byte cost are different objectives.
+  \node[lay,below=10mm of contract] (history) {Historical completion waves\\hyperedges $W_{e,a}$};
+  \node[lay,right=of history] (compiler) {Layout compiler\\order $\pi$, tree $T$};
+  \node[lay,right=of compiler] (kernel) {Aggregation kernel\\generation fence};
+  \draw[arr] (history) -- (compiler);
+  \draw[arr] (compiler) -- (kernel);
+  \draw[arr] (records) -- (kernel);
+  \draw[arr,dashed] (kernel) -- node[right,font=\scriptsize]{authorization must imply $A(e)$} (accept);
 
-\paragraph{Contributions and evidence boundaries.}
-The substantive research contribution is hyperedge-scored, identity-preserving verification aggregation and its conditional guarantees. Concretely, this paper contributes:
+  \node[svc,below=9mm of history] (root) {Root status\\layout-invariant};
+  \node[svc,right=of root] (flat) {Flat ledger\\final per-check states};
+  \node[svc,right=of flat] (diag) {Hierarchical diagnostics\\HACT optimization target};
+  \draw[arr] (kernel) |- (root);
+  \draw[arr] (kernel) -- (flat);
+  \draw[arr] (kernel) -- (diag);
+\end{tikzpicture}}
+\caption{Adaptive HACT factors verification semantics from evidence representation. A valid layout may change aggregation cost and diagnostic hierarchy, but it cannot change the approved check set or the acceptance predicate. Root status and flat final ledgers are simpler services; HACT targets deployments that actually require hierarchical diagnostic evidence.}\label{fig:architecture}
+\end{figure}
+
+\paragraph{Evidence-layout independence.}
+The paper formalizes the invariant sketched in Figure~\ref{fig:architecture}. A semantic registry and candidate identity are authoritative. Layouts are advisory data structures over those identities. A generation change invalidates layout-specific publication tickets and forces reconstruction from canonical trusted records. Under the stated trust assumptions, Theorem~\ref{thm:safety} shows that every authorized layout yields the same acceptance decision. This makes representation learning compatible with a fail-closed gate.
+
+\paragraph{Why completion hyperedges matter.}
+Evidence cost is driven by refresh events: when a set of checks becomes final, every ancestor packet intersecting that set may need to be re-emitted. Marginal activation rates lose joint structure, and pairwise co-activity can still miss the probability that a larger subtree is touched. We therefore treat each completion wave as a hyperedge and score candidate layouts on the observed sets directly. Pairwise affinity is used only to propose an order; it is not substituted for the actual full-wave objective.
+
+\paragraph{Where HACT is useful.}
+There are three distinct services. A consumer needing only a trusted final verdict should use a root-status projection. A consumer needing final per-check states can often use a flat ledger. HACT addresses the third case: a system that already needs bounded hierarchical evidence for diagnostics, audit, or constrained delivery. This service distinction prevents a common accounting error---crediting evidence compression with the unrelated cost of introducing a stricter verifier.
+
+\paragraph{Contributions.}
+The paper makes four claims, each tied to a concrete proof or experiment:
 \begin{enumerate}[leftmargin=1.6em,itemsep=1pt,topsep=2pt]
-\item \textbf{A separation principle for verification evidence.} Immutable check identities and acceptance predicates are separated from the aggregation layout, so display and learning choices cannot alter what is accepted (Section~\ref{sec:model}; Theorem~\ref{thm:safety}). A parity construction (Proposition~\ref{prop:pairwise}) shows why pairwise similarity is insufficient for the full-wave objective.
-\item \textbf{A practical no-DP compiler with evidence-matched selection.} The practical catalogue uses average-linkage ordering plus a balanced eight-ary tree, retains the incumbent, and requires an explicit priced improvement before any switch (Section~\ref{sec:compiler}, \ref{sec:online}). The slower block compiler, empirically 1.54--5.34\% worse in held-out bytes, moves to an ablation.
-\item \textbf{Service- and codec-matched deployment accounting.} A fail-closed planning API rejects service mismatches and missing measurements, and turns assumed goodput and extra cost into an explicit minimum-profitable-copies test (Section~\ref{sec:delivery}; Table~\ref{tab:payback}).
-\item \textbf{A frozen, independently audited evaluation.} Twenty-seven fresh synthetic workloads, thirty-six archived-source layout replays and 131 audited summary comparisons quantify exactly where learning helps (clustered completions) and where it does not (independent and global controls) (Section~\ref{sec:v5evaluation}; Figure~\ref{fig:heldout}).
-\item \textbf{Honest boundary reporting.} BPE and physical-WAN measurements are absent; we supply actual-tokenizer admission and authenticated TLS measurement tools without presenting local protocol tests as those missing experiments.
+\item \textbf{A semantic/representation factorization.} We define evidence-layout independence and give a generation-fenced implementation whose local authorization is invariant to valid permutations and migrations (Section~\ref{sec:model}; Theorem~\ref{thm:safety}).
+\item \textbf{A hyperedge-sensitive cost model and compiler.} Full completion waves determine layout cost; Proposition~\ref{prop:pairwise} shows why pairwise affinity alone is insufficient. A practical no-DP compiler combines learned ordering with a balanced eight-ary tree, while exact alphabetic DP provides a fixed-order optimum for reference (Section~\ref{sec:compiler}).
+\item \textbf{Migration- and service-aware operation.} Layout changes pay an explicit installation price, and deployment accounting compares codec-matched services instead of mixing bytes, tokens, and unrelated harness time (Sections~\ref{sec:online} and~\ref{sec:delivery}).
+\item \textbf{Audited evidence with negative controls.} A frozen 27-workload study, 36 source-evidence replays, invariance checks, and independent arithmetic reconstruction identify both the structured regime where learning helps and the regimes where it does not (Section~\ref{sec:v5evaluation}).
 \end{enumerate}
-Clustering, balanced trees, alphabetic DP, compression, break-even arithmetic and TLS are established techniques, not new inventions claimed here. The artifact is a tested research implementation; its tests do not establish production readiness or top-conference acceptance.
+Clustering, balanced trees, alphabetic DP, compression, and break-even arithmetic are established ingredients. The contribution is their use under a verification-semantic invariant and a completion-hyperedge objective, together with evidence that distinguishes the useful regime from the null controls.
+
+\paragraph{Scope.}
+The experiments measure verification-evidence representation and local integration. They do not measure live-LLM coding quality, physical-WAN performance, or provider token billing. Those boundaries are collected in Section~\ref{sec:threats} instead of being repeatedly mixed into each positive result.
 
 \paragraph{Roadmap.}
-Section~\ref{sec:model} fixes the trust boundary and cost model. Sections~\ref{sec:compiler} and~\ref{sec:online} develop the practical compiler and online selection. Section~\ref{sec:safety} states the permutation-stability theorem. Sections~\ref{sec:delivery} and~\ref{sec:implementation} describe service-matched delivery, admission and cost accounting. Section~\ref{sec:v5evaluation} reports the frozen evaluation; Section~\ref{sec:conclusion} states the deployment recommendation and remaining limits. Appendices retain tracking-regret analysis, the compiler ablation, all separation constructions, and the archived v3/v4 evaluations.
+Section~\ref{sec:model} defines semantics and the cost model. Section~\ref{sec:compiler} develops the practical and exact-reference compilers; Section~\ref{sec:online} prices migration; Section~\ref{sec:safety} proves layout-independent local publication soundness. Sections~\ref{sec:implementation} and~\ref{sec:delivery} describe the implementation and service-matched accounting. Section~\ref{sec:v5evaluation} answers four evaluation questions, and Section~\ref{sec:conclusion} states the deployment implication.
 
 \section{Related Work and Positioning}
 \paragraph{Testing, impact analysis, and incremental computation.}
@@ -90,6 +133,11 @@ The acceptance predicate is independent of both permutations:
 \end{equation}
 An observed fail permits rejection before all checks finish. It does not assert coverage of the unexecuted remainder. Acceptance is relative to the approved predicates, not proof of all program behavior.
 
+\begin{definition}[Evidence-layout independence]\label{def:eli}
+Fix a candidate identity $e$, semantic registry $\R$, and canonical trusted record set $E$. A verifier is \emph{evidence-layout independent} if valid layouts over the same registry may change representation cost, retrieval structure, and packet timing but cannot change the semantic projection of $E$, and no layout can authorize unless $A(e)$ holds.
+\end{definition}
+Definition~\ref{def:eli} is deliberately local to the declared verification contract. It does not claim that the contract itself is complete or that the checker is uncompromised; those are trust assumptions stated explicitly in Theorem~\ref{thm:safety}.
+
 \subsection{Packet and lifecycle costs}
 Each internal node of arity $d$ emits a fixed-width packet
 \begin{equation}\label{eq:packet}
@@ -104,6 +152,8 @@ Let $W_{e,1},\ldots,W_{e,q_e}$ be the semantic IDs whose final records become av
  W(L)=\sum_v c(d_v).
 \end{equation}
 The first term constructs the full initially unknown tree. The CLI batches an executed prefix into groups of eight, flushing its final partial group. A successful strict epoch runs the whole registry. This conservative implementation does not reuse a pass across distinct source snapshots.
+
+We call each $W_{e,a}$ a \emph{completion hyperedge}: an arbitrary set of semantic obligations that becomes final between two refreshes. Equation~\eqref{eq:strict} consumes these sets directly through interval-hit events. Pairwise statistics may propose a permutation, but the scored objective remains higher-order.
 
 We separately study persistent-state refresh traces that omit $W(L)$ at each tick, as in a cache with correctly specified incremental dependencies. Each topology installation is still cold and explicitly priced. These traces evaluate the controller's cost model; they are not the strict candidate-gate timing experiment. They do not demonstrate safe dependency inference from arbitrary code.
 
@@ -210,7 +260,7 @@ A result token carries $(\mathrm{epoch},g_i,b_i)$, where $b_i$ binds the semanti
 Publication tickets additionally carry a monotone layout generation and layout hash. A layout switch revokes the issued ticket, advances the generation, and forces reconstruction. Returning to an earlier tree therefore cannot revive that tree's old ticket. An in-flight token may remain valid through a layout-only change, but a new candidate epoch fences it. Duplicate identical evidence is idempotent. Conflicting final records in one epoch revoke authorization: a recorded fail remains a fail; otherwise the obligation becomes unknown. Resolution requires a new epoch, not a more persuasive agent summary.
 
 \begin{theorem}[Layout-independent local publication soundness]\label{thm:safety}
-Assume complete approved predicates and dependency identities, a trusted checker executing immutable identified inputs, collision-resistant binding, and atomic local epoch/generation checks. For any sequence of valid layout permutations, any advisory learning outputs, and any delivered evidence order, authorization implies Equation~\eqref{eq:accept}. If each checker is sound for its declared predicate, those predicates hold on the authorized candidate.
+Assume complete approved predicates and dependency identities, a trusted checker executing immutable identified inputs, collision-resistant binding, and atomic local epoch/generation checks. For any sequence of valid layout permutations, any advisory learning outputs, and any delivered evidence order, authorization implies Equation~\eqref{eq:accept}. Moreover, two valid layouts reconstructed from the same canonical record set have identical root pass/fail/unknown counts and therefore the same semantic status projection. If each checker is sound for its declared predicate, the declared predicates hold on the authorized candidate.
 \end{theorem}
 \begin{proof}
 A canonical pass requires a current token for the same semantic ID and immutable identities. Permutation is a bijection, so rebuilding moves each such record to exactly one position without changing its meaning. Exact child partitioning preserves coverage and pass/fail/unknown counts by induction up the tree. The root can be authorized only with $(n,0,0)$ and matching current registry, epoch, generation, and layout. Old tickets fail those checks. Conflicts prevent authorization. No choice made by the learner writes trusted outcomes or changes the registry.\end{proof}
@@ -219,7 +269,7 @@ This is a conditional local guarantee, not remote attestation or distributed con
 \section{Implementation and Cost Accounting}\label{sec:implementation}
 The v5 artifact adds \texttt{practical.py}, \texttt{deployment.py}, \texttt{token\_budget.py} and \texttt{tls\_probe.py}. The practical CLI produces a balanced catalogue without calling either exact or block DP. The historical exact and block compilers remain separately callable. The existing stable-ID guard, priced window, codec and Future Code bridge are retained. The strict CLI compares protected input \emph{sets} and hashes, detecting added tests or configuration files as well as changed and deleted ones. Schema-2 contracts bind the approved checker and environment and refuse silent reuse of legacy contracts. Source manifests are checked before and after snapshotting and verification; mutation of an observed snapshot prevents a pass.
 
-The bridge runs as an ordinary subprocess acceptance gate in the unmodified Future Code v1.2 runtime. The supervisor still owns worker leases, private attempts, bounded contexts, and serialized integration. Non-pass exits cause candidate rejection. Detailed evidence and binary certificate packets live outside candidate write scopes; only a bounded JSON result card returns to the worker. The plug-in accepts a precompiled layout. The online selector and migration guard are separately integrated and stress-tested as a library path; a live, self-retuning hosted deployment was not evaluated.
+The bridge runs as an ordinary subprocess acceptance gate in the unmodified Future Code v1.2 runtime. The supervisor still owns worker leases, private attempts, bounded contexts, and serialized integration. Non-pass exits cause candidate rejection. Detailed evidence and binary certificate packets live outside candidate write scopes; only a bounded JSON result card returns to the worker. The plug-in accepts a precompiled layout. The online selector and migration guard are separately integrated and stress-tested as a library path; Section~\ref{sec:threats} states the remaining end-to-end deployment gaps.
 
 \begin{table}[t]\centering\small
 \caption{Separate ledgers avoid converting byte savings into unsupported latency or token claims.}
@@ -244,6 +294,4 @@ A different scalar objective could combine these quantities only with declared u
 \input{tracking_appendix.tex}
 \input{compiler_ablation.tex}
 \input{appendices.tex}
-\input{evaluation_v3_archive.tex}
-\input{evaluation_v4_archive.tex}
 \end{document}
