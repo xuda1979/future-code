@@ -13,6 +13,7 @@ import { SwarmDriver, verifierIdentity, workerIdentity } from "./driver.ts";
 import { remoteWorkerFleetBackend } from "./workerFleet.ts";
 import { SessionJournal } from "./session.ts";
 import { fabricStatus } from "../evidenceFabric.ts";
+import { claimGate } from "../claims.ts";
 import { git, LocalGitHands, orderedTasks, readPatchArtifact } from "./workspace.ts";
 const json = (value: unknown): Json => JSON.parse(canonical(value));
 const KEY = "extension.swarm";
@@ -108,6 +109,13 @@ interface IntegrationReceipt { run: string; base: string; tree: string; commit: 
 export async function integrateSwarm(store: Store, run: string, signal: AbortSignal): Promise<IntegrationReceipt> {
   const cfg = loadSwarm(store); const summary = new Scheduler(store).summary(run);
   invariant(summary.status === "PASS", "all tasks must pass before integration");
+  const assertKnowledgeGate = () => {
+    const claims = claimGate(store, run);
+    const open = Number(store.db.prepare("SELECT COUNT(*) AS n FROM fabric_conflicts WHERE run=? AND status='OPEN'").get(run)?.n ?? 0);
+    invariant(open === 0 && claims.openClaimConflicts === 0 && claims.staleClaims === 0,
+      "integration blocked by unresolved conflicts or stale claims");
+  };
+  assertKnowledgeGate();
   const ordered = orderedTasks(store, run);
   const binding = digest({ run, cfg, recipe: summary.recipeHash,
     artifacts: store.db.prepare("SELECT id,artifact,evidence FROM tasks WHERE run=? ORDER BY id").all(run) });
@@ -119,6 +127,7 @@ export async function integrateSwarm(store: Store, run: string, signal: AbortSig
     store.readArtifact(value.checksHash);
     invariant((await git(cfg, cfg.spec.project, ["rev-parse", `${value.commit}^{tree}`], signal)).trim() === value.tree, "integration commit drift");
     const refs = (await git(cfg, cfg.spec.project, ["for-each-ref", "--format=%(objectname)", value.branch], signal)).trim();
+    assertKnowledgeGate();
     if (!refs) await git(cfg, cfg.spec.project, ["update-ref", value.branch, value.commit, "0".repeat(value.commit.length)], signal);
     else invariant(refs === value.commit, "integration branch already points elsewhere; never overwrite it");
     store.transaction(() => store.event("swarm.integrated", value, run)); return value;

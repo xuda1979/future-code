@@ -23,6 +23,7 @@ export function compactHistory(history: Message[], budget: number): Message[] {
   throw new Error("CONTEXT_OVERFLOW: latest complete exchange cannot fit; split the task or admit more context");
 }
 export function inlineReceipt(receipt: string, value: Json, limit = 2048): string {
+  invariant(Number.isSafeInteger(limit) && limit > 0, "invalid inline receipt limit");
   const text = canonical(value);
   if (Buffer.byteLength(text, "utf8") <= limit) return text;
   return canonical({ receipt, truncated: true, preview: Buffer.from(text).subarray(0, Math.max(0, limit - 256)).toString("utf8"),

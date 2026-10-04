@@ -112,9 +112,8 @@ control plane is the bottleneck.
 
 ## Productization boundary
 
-The repository README identifies much of the mirrored CLI snapshot as research
-material from another product and does not provide a root license for that
-snapshot. Commercial productization should therefore separate the original
+The [source provenance record](../SOURCE_PROVENANCE.md) preserves the imported
+CLI snapshot boundary. This runtime change establishes no repository-wide license. Commercial productization should therefore separate the original
 Foundry/Swarm/Evidence-Fabric work into a clean repository with explicit
 provenance and licensing rather than treating the mirrored snapshot as a
 product codebase.

@@ -69,3 +69,34 @@ measured shortcoming
 
 This is the substrate for later offline policy evaluation and learned recovery policies
 without inventing a synthetic reward or treating missing measurements as success.
+
+## Contextual policy
+
+`contextualPolicy.ts` now stores the host-measured pre-intervention context
+alongside each effect. It binds domain, verifier, environment, model-profile
+identity, graph scale, context pressure, verified fraction, repeated failures,
+provider uncertainty, unresolved jobs and recipe parallelism. No raw project
+prose, credentials or model confidence are policy features.
+
+The recovery planner receives two distinct views:
+
+- Existing domain-wide outcome summaries: weak observational background.
+- Exact context-stratum recommendations: `CONSIDER`, `AVOID` or `ABSTAIN`, with
+  sample counts and 95% Wilson intervals for improvement and regression rates.
+
+Repeated source/target transition snapshots count once. Unknown outcomes cannot
+increase support; sparse or uncertain results trigger abstention. Interventions
+that reduce acceptance surface cannot become positive recommendations. Contexts
+with different verifier, environment or model identity never pool into one
+contextual recommendation.
+
+The source reflection is the exact immutable hash recorded when the planner
+acted. Later requests/reflections cannot contaminate that pre-treatment baseline.
+Only terminal target runs enter the learned observation set. Historical legacy
+rows lacking a recorded context remain domain summaries; they are not backfilled
+with invented context or silently promoted to contextual evidence.
+
+These statistics are advisory observational policy learning. They do not learn
+model weights, provide causal identification, guarantee productivity or authorize
+an otherwise invalid recovery plan. The host continues to enforce frozen scopes,
+checks, budgets, strategy novelty and objective completion.

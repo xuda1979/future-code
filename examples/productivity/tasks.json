@@ -1,0 +1,11 @@
+[
+  {
+    "id": "receipt-budget",
+    "goal": "Fix Future-Code inlineReceipt so invalid byte limits fail explicitly before encoding. Preserve valid receipt and truncation behavior.",
+    "acceptance": ["negative, zero, fractional, NaN and infinite limits throw invalid inline receipt limit", "valid small values and truncated receipts retain their documented behavior"],
+    "dependencies": [],
+    "writeScope": ["src/harness/foundry/swarm/context.ts"],
+    "readScope": ["src/harness/foundry/swarm/context.ts", "src/harness/foundry/kernel.ts"],
+    "input": {"check": "receipt-budget", "implementation": "inlineReceipt"}
+  }
+]

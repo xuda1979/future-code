@@ -1,278 +1,124 @@
+# Future-Code
 
+[中文](README.zh.md)
 
----
+Future-Code is a runtime for sustained software development and research using
+external LLM APIs. Models propose plans, code, tools and hypotheses. The kernel
+controls execution authority; independent checks determine acceptance.
 
-## Research Context
+**Models propose. Evidence decides. Future-Code enforces.**
 
-This repository is maintained by a **university student** studying:
+## Architecture
 
-- software supply-chain exposure and build artifact leaks
-- secure software engineering practices
-- agentic developer tooling architecture
-- defensive analysis of real-world CLI systems
-
-This archive is intended to support:
-
-- educational study
-- security research practice
-- architecture review
-- discussion of packaging and release-process failures
-
-It does **not** claim ownership of the original code, and it should not be interpreted as an official Future repository.
-
----
-
-## How the Public Snapshot Became Accessible
-
-[Chaofan Shou (@Fried_rice)](https://x.com/Fried_rice) publicly noted that Future Code source material was reachable through a `.map` file exposed in the npm package:
-
-> **"Future code source code has been leaked via a map file in their npm registry!"**
->
-> — [@Fried_rice, March 31, 2026](https://x.com/Fried_rice/status/2038894956459290963)
-
-The published source map referenced unobfuscated TypeScript sources hosted in Future's R2 storage bucket, which made the `src/` snapshot publicly downloadable.
-
----
-
-## Repository Scope
-
-Future Code is Future's CLI for interacting with Future from the terminal to perform software engineering tasks such as editing files, running commands, searching codebases, and coordinating workflows.
-
-This repository contains a mirrored `src/` snapshot for research and analysis.
-
-- **Public exposure identified on**: 2026-03-31
-- **Language**: TypeScript
-- **Runtime**: Bun
-- **Terminal UI**: React + [Ink](https://github.com/vadimdemedes/ink)
-- **Scale**: ~1,900 files, 512,000+ lines of code
-
----
-
-## Directory Structure
-
-```text
-src/
-├── main.tsx                 # Entrypoint orchestration (Commander.js-based CLI path)
-├── commands.ts              # Command registry
-├── tools.ts                 # Tool registry
-├── Tool.ts                  # Tool type definitions
-├── QueryEngine.ts           # LLM query engine
-├── context.ts               # System/user context collection
-├── cost-tracker.ts          # Token cost tracking
-│
-├── commands/                # Slash command implementations (~50)
-├── tools/                   # Agent tool implementations (~40)
-├── components/              # Ink UI components (~140)
-├── hooks/                   # React hooks
-├── services/                # External service integrations
-├── screens/                 # Full-screen UIs (Doctor, REPL, Resume)
-├── types/                   # TypeScript type definitions
-├── utils/                   # Utility functions
-│
-├── bridge/                  # IDE and remote-control bridge
-├── coordinator/             # Multi-agent coordinator
-├── plugins/                 # Plugin system
-├── skills/                  # Skill system
-├── keybindings/             # Keybinding configuration
-├── vim/                     # Vim mode
-├── voice/                   # Voice input
-├── remote/                  # Remote sessions
-├── server/                  # Server mode
-├── memdir/                  # Persistent memory directory
-├── tasks/                   # Task management
-├── state/                   # State management
-├── migrations/              # Config migrations
-├── schemas/                 # Config schemas (Zod)
-├── entrypoints/             # Initialization logic
-├── ink/                     # Ink renderer wrapper
-├── buddy/                   # Companion sprite
-├── native-ts/               # Native TypeScript utilities
-├── outputStyles/            # Output styling
-├── query/                   # Query pipeline
-└── upstreamproxy/           # Proxy configuration
+```mermaid
+flowchart TD
+    Objective["Human objective and acceptance contract"] --> Cognition["Cognitive plane: external LLMs"]
+    Cognition -->|"Proposal<T>"| Kernel["Sovereign kernel: admit, reject, defer"]
+    Kernel --> Execution["Execution: worktrees, tools, remote jobs"]
+    Execution --> Evidence["Evidence plane: observations, receipts, claims"]
+    Evidence --> Verification["Independent verification and adjudication"]
+    Verification -->|"verified outcomes"| Learning["Reflection and contextual intervention policy"]
+    Learning --> Cognition
+    Verification -->|"acceptance evidence"| Kernel
 ```
 
----
+| Boundary | Responsibility | Implementation |
+|---|---|---|
+| Cognition | Open-ended reasoning, decomposition, code and hypotheses | `src/harness/foundry/swarm/model.ts`, `recovery.ts` |
+| Authority | Proposal admission, frozen contracts, DAG, scopes, budgets, leases and recovery | `src/harness/foundry/` |
+| Evidence | Append-only observations, immutable artifacts, retractable claims, conflicts and independent adjudication | `store.ts`, `evidenceFabric.ts`, `claims.ts`, `adjudication.ts` |
+| Learning | Host-measured reflection and contextual intervention recommendations | `rndReflection.ts`, `interventionMemory.ts`, `contextualPolicy.ts` |
 
-## Architecture Summary
+A model's final answer cannot mark a task PASS, increase authority, change a
+verifier or erase history. Scheduler algorithms and constraint checks remain
+host-owned. Policy recommendations cannot bypass admission or verification.
 
-### 1. Tool System (`src/tools/`)
+## Capabilities
 
-Every tool Future Code can invoke is implemented as a self-contained module. Each tool defines its input schema, permission model, and execution logic.
+- Durable task DAGs, bounded child spawning, lease fencing and crash recovery.
+- Scoped worktrees, pinned checks, final integration and resumable agent journals.
+- External job identity, reconciliation and cumulative objective budgets.
+- Content-addressed artifacts and immutable event/evidence histories.
+- Versioned hypotheses with retraction, dependency invalidation and explicit conflicts.
+- Contextual recovery recommendations with sample counts, uncertainty and abstention.
+- Paired real-project evaluation with wall time, model requests, quality gates and nullable cost.
 
-| Tool | Description |
-|---|---|
-| `BashTool` | Shell command execution |
-| `FileReadTool` | File reading (images, PDFs, notebooks) |
-| `FileWriteTool` | File creation / overwrite |
-| `FileEditTool` | Partial file modification (string replacement) |
-| `GlobTool` | File pattern matching search |
-| `GrepTool` | ripgrep-based content search |
-| `WebFetchTool` | Fetch URL content |
-| `WebSearchTool` | Web search |
-| `AgentTool` | Sub-agent spawning |
-| `SkillTool` | Skill execution |
-| `MCPTool` | MCP server tool invocation |
-| `LSPTool` | Language Server Protocol integration |
-| `NotebookEditTool` | Jupyter notebook editing |
-| `TaskCreateTool` / `TaskUpdateTool` | Task creation and management |
-| `SendMessageTool` | Inter-agent messaging |
-| `TeamCreateTool` / `TeamDeleteTool` | Team agent management |
-| `EnterPlanModeTool` / `ExitPlanModeTool` | Plan mode toggle |
-| `EnterWorktreeTool` / `ExitWorktreeTool` | Git worktree isolation |
-| `ToolSearchTool` | Deferred tool discovery |
-| `CronCreateTool` | Scheduled trigger creation |
-| `RemoteTriggerTool` | Remote trigger |
-| `SleepTool` | Proactive mode wait |
-| `SyntheticOutputTool` | Structured output generation |
+These mechanisms govern the Foundry/Swarm entrypoints. The older terminal CLI
+and HACT research implementations remain separate code paths.
 
-### 2. Command System (`src/commands/`)
+## Quick start
 
-User-facing slash commands invoked with `/` prefix.
+The core uses Node >=22.16 on Linux/macOS/WSL, built-in SQLite and TypeScript
+stripping. The core commands below need no npm installation or model credential.
+Run them from the repository root:
 
-| Command | Description |
-|---|---|
-| `/commit` | Create a git commit |
-| `/review` | Code review |
-| `/compact` | Context compression |
-| `/mcp` | MCP server management |
-| `/config` | Settings management |
-| `/doctor` | Environment diagnostics |
-| `/login` / `/logout` | Authentication |
-| `/memory` | Persistent memory management |
-| `/skills` | Skill management |
-| `/tasks` | Task management |
-| `/vim` | Vim mode toggle |
-| `/diff` | View changes |
-| `/cost` | Check usage cost |
-| `/theme` | Change theme |
-| `/context` | Context visualization |
-| `/pr_comments` | View PR comments |
-| `/resume` | Restore previous session |
-| `/share` | Share session |
-| `/desktop` | Desktop app handoff |
-| `/mobile` | Mobile app handoff |
-
-### 3. Service Layer (`src/services/`)
-
-| Service | Description |
-|---|---|
-| `api/` | Future API client, file API, bootstrap |
-| `mcp/` | Model Context Protocol server connection and management |
-| `oauth/` | OAuth 2.0 authentication flow |
-| `lsp/` | Language Server Protocol manager |
-| `analytics/` | GrowthBook-based feature flags and analytics |
-| `plugins/` | Plugin loader |
-| `compact/` | Conversation context compression |
-| `policyLimits/` | Organization policy limits |
-| `remoteManagedSettings/` | Remote managed settings |
-| `extractMemories/` | Automatic memory extraction |
-| `tokenEstimation.ts` | Token count estimation |
-| `teamMemorySync/` | Team memory synchronization |
-
-### 4. Bridge System (`src/bridge/`)
-
-A bidirectional communication layer connecting IDE extensions (VS Code, JetBrains) with the Future Code CLI.
-
-- `bridgeMain.ts` — Bridge main loop
-- `bridgeMessaging.ts` — Message protocol
-- `bridgePermissionCallbacks.ts` — Permission callbacks
-- `replBridge.ts` — REPL session bridge
-- `jwtUtils.ts` — JWT-based authentication
-- `sessionRunner.ts` — Session execution management
-
-### 5. Permission System (`src/hooks/toolPermission/`)
-
-Checks permissions on every tool invocation. Either prompts the user for approval/denial or automatically resolves based on the configured permission mode (`default`, `plan`, `bypassPermissions`, `auto`, etc.).
-
-### 6. Feature Flags
-
-Dead code elimination via Bun's `bun:bundle` feature flags:
-
-```typescript
-import { feature } from 'bun:bundle'
-
-// Inactive code is completely stripped at build time
-const voiceCommand = feature('VOICE_MODE')
-  ? require('./commands/voice/index.js').default
-  : null
+```sh
+node scripts/test-foundry.mjs
+node --experimental-strip-types src/harness/foundry/cli.ts init --spec examples/foundry/spec.json
+node --experimental-strip-types src/harness/foundry/cli.ts run --tasks examples/foundry/tasks.json --allow-exec
+node --experimental-strip-types src/harness/foundry/cli.ts status
 ```
 
-Notable flags: `PROACTIVE`, `KAIROS`, `BRIDGE_MODE`, `DAEMON`, `VOICE_MODE`, `AGENT_TRIGGERS`, `MONITOR_TOOL`
+The example uses deterministic worker/checker programs. Use a fresh `--root DIR`
+for a new contract; initialization does not overwrite an existing harness.
 
----
+For external-API coding agents, adapt `examples/swarm/spec.json` with your project,
+provider URL, model ID, credential environment name and independent checks:
 
-## Key Files in Detail
-
-### `QueryEngine.ts` (~46K lines)
-
-The core engine for LLM API calls. Handles streaming responses, tool-call loops, thinking mode, retry logic, and token counting.
-
-### `Tool.ts` (~29K lines)
-
-Defines base types and interfaces for all tools — input schemas, permission models, and progress state types.
-
-### `commands.ts` (~25K lines)
-
-Manages registration and execution of all slash commands. Uses conditional imports to load different command sets per environment.
-
-### `main.tsx`
-
-Commander.js-based CLI parser and React/Ink renderer initialization. At startup, it overlaps MDM settings, keychain prefetch, and GrowthBook initialization for faster boot.
-
----
-
-## Tech Stack
-
-| Category | Technology |
-|---|---|
-| Runtime | [Bun](https://bun.sh) |
-| Language | TypeScript (strict) |
-| Terminal UI | [React](https://react.dev) + [Ink](https://github.com/vadimdemedes/ink) |
-| CLI Parsing | [Commander.js](https://github.com/tj/commander.js) (extra-typings) |
-| Schema Validation | [Zod v4](https://zod.dev) |
-| Code Search | [ripgrep](https://github.com/BurntSushi/ripgrep) |
-| Protocols | [MCP SDK](https://modelcontextprotocol.io), LSP |
-| API | [Future SDK](https://docs.future.com) |
-| Telemetry | OpenTelemetry + gRPC |
-| Feature Flags | GrowthBook |
-| Auth | OAuth 2.0, JWT, macOS Keychain |
-
----
-
-## Notable Design Patterns
-
-### Parallel Prefetch
-
-Startup time is optimized by prefetching MDM settings, keychain reads, and API preconnect in parallel before heavy module evaluation begins.
-
-```typescript
-// main.tsx — fired as side-effects before other imports
-startMdmRawRead()
-startKeychainPrefetch()
+```sh
+node --experimental-strip-types src/harness/foundry/swarm/cli.ts init --spec YOUR_SPEC.json --allow-exec
+node --experimental-strip-types src/harness/foundry/swarm/cli.ts run --tasks YOUR_TASKS.json --allow-exec
+node --experimental-strip-types src/harness/foundry/swarm/cli.ts integrate --run RUN_ID --allow-exec
 ```
 
-### Lazy Loading
+`supervise --objective ID --goal FILE --tasks FILE --allow-exec` keeps a durable
+objective attached through execution, bounded recovery and final verification.
+`objective`, `episode`, `reflection`, `claims` and `status` expose saved evidence.
+Model requests use the configured external service and its quotas. Future-Code
+has no control over provider KV caches, batching or inference engines.
 
-Heavy modules (OpenTelemetry, gRPC, analytics, and some feature-gated subsystems) are deferred via dynamic `import()` until actually needed.
+## Verification and productivity
 
-### Agent Swarms
+```sh
+node scripts/test-correctness.mjs
+node scripts/test-resilience.mjs
+node scripts/test-foundry.mjs
+node scripts/test-swarm.mjs
+node scripts/test-commands.mjs
+```
 
-Sub-agents are spawned via `AgentTool`, with `coordinator/` handling multi-agent orchestration. `TeamCreateTool` enables team-level parallel work.
+[Real-project evaluation](docs/agent-platform/REAL_PROJECT_EVALUATION.md) describes
+matched baseline/candidate trials and report provenance. Offline fixtures measure
+host behavior; live-model productivity requires actual external-API trials.
+Missing token or dollar measurements remain unknown.
 
-### Skill System
+## Documentation
 
-Reusable workflows defined in `skills/` are executed through `SkillTool`. Users can add custom skills.
+| Topic | Guide |
+|---|---|
+| Architectural principles and trust boundaries | [Sovereign kernel](docs/agent-platform/SOVEREIGN_KERNEL.md) |
+| Claims, evidence, conflicts and adjudication | [Knowledge protocol](docs/agent-platform/KNOWLEDGE_PROTOCOL.md) |
+| Frozen contracts and recipe experiments | [Foundry](docs/agent-platform/FOUNDRY.md) |
+| External-API agents and durable sessions | [Swarm](docs/agent-platform/SWARM.md) |
+| Recovery and remote compute | [Resilient R&D](docs/agent-platform/RESILIENT_RND.md) |
+| Evidence and allocation | [Evidence Fabric](docs/agent-platform/EVIDENCE_FABRIC.md) |
+| Measured self-reflection | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
+| Empirical strategy learning | [Intervention memory](docs/agent-platform/INTERVENTION_MEMORY.md) |
+| Current regression and real-source evidence | [Validation](docs/agent-platform/SOVEREIGN_VALIDATION.md) |
+| Full terminal CLI setup | [Linux deployment](DEPLOY-LINUX.md), [onboarding](ONBOARDING.md) |
 
-### Plugin Architecture
+## Repository map
 
-Built-in and third-party plugins are loaded through the `plugins/` subsystem.
+| Path | Contents |
+|---|---|
+| `src/harness/foundry/` | Governed runtime and public host API |
+| `src/harness/foundry/swarm/` | External model adapter, tools, workspace and objective supervisor |
+| `tests/`, `scripts/` | Regression gates and evaluation tools |
+| `examples/` | Offline examples and operator configuration |
+| `docs/agent-platform/` | System contracts and operating guides |
+| `src/` outside Foundry | Terminal CLI and existing integrations |
+| `paper/`, `hact-paper/` | Research manuscripts and experiments |
 
----
-
-## Research / Ownership Disclaimer
-
-- This repository is an **educational and defensive security research archive** maintained by a university student.
-- It exists to study source exposure, packaging failures, and the architecture of modern agentic CLI systems.
-- The original Future Code source remains the property of **Future**.
-- This repository is **not affiliated with, endorsed by, or maintained by Future**.
+[Source provenance](docs/SOURCE_PROVENANCE.md) records the imported-source
+boundary. Existing source notices remain applicable; documentation changes do
+not assign ownership or grant a repository-wide license.

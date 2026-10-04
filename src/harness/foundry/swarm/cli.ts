@@ -11,6 +11,7 @@ import { ResearchJobs, type JobReply } from "./jobs.ts";
 import { SessionJournal } from "./session.ts";
 import { readObjectiveEpisode } from "../rndEpisodes.ts";
 import { readLatestObjectiveReflection } from "../rndReflection.ts";
+import { adjudicateClaim, claimsForGoals, claimRevalidationTask, retractClaim } from "../claims.ts";
 export const help = `Foundry Swarm: durable coding agents on the existing Foundry kernel
   init --spec FILE --allow-exec
   run --tasks FILE --allow-exec
@@ -19,6 +20,10 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   objective --objective ID
   episode --objective ID
   reflection --objective ID
+  claims --run ID --task ID [--after CLAIM_ID]
+  claim-revalidation-task --run ID --claim ID
+  claim-retract --run ID --claim ID --version N --reason TEXT --allow-exec
+  claim-adjudicate --run ID --claim ID --version N --evidence ID --allow-exec
   status [--run ID] [--task-after TASK_ID]
   receipt --hash HASH [--offset N] [--length N]
   events --run ID --task ID [--after N]
@@ -42,15 +47,15 @@ export function tokenize(text: string): string[] {
 function file(path: string): any { invariant(statSync(path).size <= 32 * 1024 * 1024, "JSON input exceeds 32 MiB"); return JSON.parse(readFileSync(path, "utf8")); }
 export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal, onProgress: HealthObserver = r => console.error(formatHealth(r))): Promise<Json> {
   const cmd = argv[0] ?? "help"; if (cmd === "help") return { help };
-  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec"]);
+  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence"]);
   for (let i = 1; i < argv.length; i++) {
     const k = argv[i]; invariant(allowed.has(k) && !opts.has(k), `unknown/duplicate option ${k}`);
     if (k === "--allow-exec") opts.set(k, "true");
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "status", "receipt", "events", "job-reconcile", "integrate"].includes(cmd), "unknown swarm command");
-  if (["init", "run", "resume", "supervise", "job-reconcile", "integrate"].includes(cmd)) need("--allow-exec");
+  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "status", "receipt", "events", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate"].includes(cmd), "unknown swarm command");
+  if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
     switch (cmd) {
@@ -67,6 +72,10 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
       case "objective": return objectiveStatus(store, need("--objective"));
       case "episode": return readObjectiveEpisode(store, need("--objective"));
       case "reflection": return readLatestObjectiveReflection(store, need("--objective"));
+      case "claims": return JSON.parse(canonical({ claims: claimsForGoals(store, need("--run"), [need("--task")], opts.get("--after")) }));
+      case "claim-revalidation-task": return JSON.parse(canonical(claimRevalidationTask(store, need("--run"), need("--claim"))));
+      case "claim-retract": return JSON.parse(canonical(retractClaim(store, need("--run"), need("--claim"), Number(need("--version")), need("--reason"))));
+      case "claim-adjudicate": return JSON.parse(canonical(adjudicateClaim(store, need("--run"), need("--claim"), Number(need("--version")), need("--evidence"))));
       case "status": return swarmStatus(store, opts.get("--run"), opts.get("--task-after"));
       case "receipt": {
         const offset = Number(opts.get("--offset") ?? 0); const length = Number(opts.get("--length") ?? 4096);
