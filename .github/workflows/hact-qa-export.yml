@@ -1,0 +1,20 @@
+name: Export HACT QA artifact
+on:
+  push:
+    branches: [paper/hact-top-journal-v6]
+    paths: [".github/workflows/hact-qa-export.yml"]
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: paper/hact-top-journal-v6
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hact-v6-qa
+          path: |
+            hact-paper/Adaptive_HACT_v5/paper/main.pdf
+            hact-paper/Adaptive_HACT_v5/paper/qa-v6-montage.png
+            hact-paper/Adaptive_HACT_v5/paper/pdfinfo-v6.txt
+          if-no-files-found: error
