@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
 import { installContinuationTables } from "./continuation.ts";
 import { installEvidenceFabricTables } from "./evidenceFabric.ts";
+import { installProposalTables } from "./proposals.ts";
+import { installClaimTables } from "./claims.ts";
 import { canonical, digest, invariant, validateContract, validateRecipe } from "./kernel.ts";
 import type { Contract, Json, Recipe, PinnedCommand } from "./types.ts";
 
@@ -44,6 +46,8 @@ export class Store {
         rebuilds INTEGER NOT NULL, built_at REAL NOT NULL, source_hash TEXT, source_version INTEGER);
       CREATE TABLE IF NOT EXISTS attempts(run TEXT NOT NULL, task TEXT NOT NULL, fence INTEGER NOT NULL, started REAL NOT NULL, ended REAL, status TEXT NOT NULL, tokens REAL, cost REAL, duration REAL, PRIMARY KEY(run,task,fence));
       CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL, kind TEXT NOT NULL, run TEXT, task TEXT, payload TEXT NOT NULL);
+      CREATE TRIGGER IF NOT EXISTS events_immutable_update BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT,'append-only events'); END;
+      CREATE TRIGGER IF NOT EXISTS events_immutable_delete BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT,'append-only events'); END;
       CREATE TABLE IF NOT EXISTS attempt_telemetry(run TEXT NOT NULL, task TEXT NOT NULL, fence INTEGER NOT NULL,
         context_bytes INTEGER, progress_count INTEGER NOT NULL DEFAULT 0, last_progress_at REAL, failure_fingerprint TEXT,
         PRIMARY KEY(run,task,fence));
@@ -61,7 +65,8 @@ export class Store {
     const metaCols = new Set(db.prepare("PRAGMA table_info(scheduler_index_meta)").all().map(r => String(r.name)));
     if (!metaCols.has("source_hash")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_hash TEXT");
     if (!metaCols.has("source_version")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_version INTEGER");
-    const store = new Store(root, db); installContinuationTables(store); installEvidenceFabricTables(store); return store;
+    const store = new Store(root, db); installContinuationTables(store); installEvidenceFabricTables(store);
+    installProposalTables(store); installClaimTables(store); return store;
   }
   transaction<T>(fn: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");

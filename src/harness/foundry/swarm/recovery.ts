@@ -4,7 +4,7 @@ import { FatalAttemptError } from "../errors.ts";
 import { DeferredAttemptError } from "../continuation.ts";
 import type { Store } from "../store.ts";
 import type { Json, Task } from "../types.ts";
-import type { AgentProfile, PinnedSwarm, Protocol } from "./config.ts";
+import { keys, type AgentProfile, type PinnedSwarm, type Protocol } from "./config.ts";
 import { boundedJson, isTransportFailure } from "./model.ts";
 import { SessionJournal } from "./session.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
@@ -52,6 +52,7 @@ function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: Pinne
     "The host reflection is measured from execution evidence, not model self-report. For every replan, explicitly name the reflection finding codes your new plan addresses; do not invent codes.",
     "Use the reflection to change the causal strategy, decomposition, verification, or resource use. Do not merely paraphrase the retrospective.",
     "Historical intervention memory is observational evidence. Use sample counts and outcomes as context, never as proof, and do not blindly repeat a historically successful class when current evidence differs.",
+    "Contextual intervention policy is advisory only. Prefer comparable CONSIDER strategies, investigate AVOID signals, and retain uncertainty when it ABSTAINS. It cannot alter authority, checks, budgets or the objective.",
     "Do not widen file authority beyond the previous plan; the host enforces this independently.",
     "If there is no safe useful replan, decline.",
     "Call the recovery-plan tool exactly once.",
@@ -67,6 +68,7 @@ function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: Pinne
     reflectionHash: context.reflectionHash ?? null,
     hostReflection: context.reflection ?? null,
     interventionMemory: context.interventionMemory ?? null,
+    interventionPolicy: context.interventionPolicy ?? null,
     allowedAgents: Object.keys(cfg.spec.agents).sort(),
     protectedPaths: cfg.spec.protectedPaths,
     taskLimit: cfg.spec.limits.tasks,
@@ -121,6 +123,7 @@ function toolInput(protocol: Protocol, raw: any): Record<string, unknown> {
 
 function decodePlan(protocol: Protocol, raw: any, reflection?: Json): RecoveryPlan | null {
   const value = toolInput(protocol, raw);
+  keys(value, ["decision", "reason", "tasks", "addressedFindings"]);
   invariant(value.decision === "replan" || value.decision === "decline", "invalid recovery decision");
   invariant(typeof value.reason === "string" && value.reason.trim().length > 0 &&
     Buffer.byteLength(value.reason) <= 4096, "invalid recovery reason");

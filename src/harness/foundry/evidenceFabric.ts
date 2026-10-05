@@ -1,6 +1,7 @@
 import { canonical, digest, invariant } from "./kernel.ts";
 import type { Store } from "./store.ts";
 import type { Json, Measurement, Task } from "./types.ts";
+import { acceptedDiscriminator, recordAdjudication } from "./adjudication.ts";
 
 export type EvidenceVerdict = "PASS" | "FAIL" | "UNKNOWN";
 export type GoalStatus = "OPEN" | "VERIFIED" | "REJECTED" | "CONFLICTED";
@@ -91,6 +92,10 @@ export function installEvidenceFabricTables(store: Store): void {
     CREATE INDEX IF NOT EXISTS fabric_allocations_score
       ON fabric_allocations(run,score DESC,task);
   `);
+  store.db.exec(`CREATE TRIGGER IF NOT EXISTS fabric_evidence_immutable_update BEFORE UPDATE ON fabric_evidence
+    BEGIN SELECT RAISE(ABORT,'append-only evidence'); END;
+    CREATE TRIGGER IF NOT EXISTS fabric_evidence_immutable_delete BEFORE DELETE ON fabric_evidence
+    BEGIN SELECT RAISE(ABORT,'append-only evidence'); END;`);
   for (const pack of builtinDomainPacks()) {
     validateDomainPack(pack);
     const hash = digest(pack);
@@ -428,25 +433,30 @@ export function recordTaskFailure(store: Store, run: string, task: Task,
 
 export function resolveConflict(store: Store, conflictId: string, resolutionEvidence: string,
   now = Date.now()): void {
-  const conflict = store.db.prepare(
-    "SELECT run,goal,status FROM fabric_conflicts WHERE id=?"
-  ).get(conflictId);
-  invariant(conflict && conflict.status === "OPEN", "unknown or resolved evidence conflict");
-  const evidence = store.db.prepare(
-    "SELECT run,goal,verdict FROM fabric_evidence WHERE id=?"
-  ).get(resolutionEvidence);
-  invariant(evidence && evidence.run === conflict.run && evidence.goal === conflict.goal,
-    "conflict resolution evidence binding mismatch");
-  store.db.prepare(`UPDATE fabric_conflicts SET status='RESOLVED',
-    resolution_evidence=?,resolved=? WHERE id=?`).run(resolutionEvidence, now, conflictId);
-  const open = Number(store.db.prepare(
-    "SELECT COUNT(*) AS n FROM fabric_conflicts WHERE run=? AND goal=? AND status='OPEN'"
-  ).get(conflict.run, conflict.goal)?.n ?? 0);
-  if (!open) store.db.prepare("UPDATE fabric_goals SET status=?,updated=? WHERE run=? AND id=?")
-    .run(evidence.verdict === "PASS" ? "VERIFIED" : evidence.verdict === "FAIL" ? "REJECTED" : "OPEN",
-      now, conflict.run, conflict.goal);
-  store.event("fabric.conflict.resolved",
-    { conflictId, goal: conflict.goal, resolutionEvidence }, conflict.run);
+  store.transaction(() => {
+    const conflict = store.db.prepare(
+      "SELECT run,goal,status,left_evidence,right_evidence,adjudication_task FROM fabric_conflicts WHERE id=?"
+    ).get(conflictId);
+    invariant(conflict && conflict.status === "OPEN", "unknown or resolved evidence conflict");
+    const discriminator = acceptedDiscriminator(store, conflict.run, resolutionEvidence);
+    const judgment = discriminator.artifact?.conflictJudgment;
+    invariant(discriminator.task.id === conflict.adjudication_task &&
+      discriminator.checks.some(check => check.id === "conflict-adjudication" && check.verdict === "PASS"), "missing conflict-adjudication check");
+    invariant(judgment?.conflictId === conflictId && ["PASS", "FAIL"].includes(judgment.verdict) &&
+      canonical(judgment.evidenceIds?.slice().sort()) === canonical([conflict.left_evidence, conflict.right_evidence].sort()),
+      "conflict resolution evidence binding mismatch");
+    store.db.prepare(`UPDATE fabric_conflicts SET status='RESOLVED',
+      resolution_evidence=?,resolved=? WHERE id=?`).run(resolutionEvidence, now, conflictId);
+    const open = Number(store.db.prepare(
+      "SELECT COUNT(*) AS n FROM fabric_conflicts WHERE run=? AND goal=? AND status='OPEN'"
+    ).get(conflict.run, conflict.goal)?.n ?? 0);
+    if (!open) store.db.prepare("UPDATE fabric_goals SET status=?,updated=? WHERE run=? AND id=?")
+        .run(judgment.verdict === "PASS" ? "VERIFIED" : "REJECTED",
+        now, conflict.run, conflict.goal);
+    store.event("fabric.conflict.resolved",
+      { conflictId, goal: conflict.goal, resolutionEvidence }, conflict.run);
+    recordAdjudication(store, conflict.run, `evidence-conflict:${conflictId}`, resolutionEvidence, discriminator, now);
+  });
 }
 
 export function adjudicationTask(store: Store, conflictId: string,
@@ -461,7 +471,7 @@ export function adjudicationTask(store: Store, conflictId: string,
     invariant(row, "missing conflict evidence"); return row;
   });
   const dependencies = [...new Set(evidence.map(row => row.task).filter((id): id is string =>
-    typeof id === "string" && !!store.db.prepare("SELECT 1 FROM tasks WHERE run=? AND id=?")
+    typeof id === "string" && id !== conflict.goal && !!store.db.prepare("SELECT 1 FROM tasks WHERE run=? AND id=?")
       .get(conflict.run, id)))];
   const task: Task = {
     id: `adjudicate-${String(conflictId).slice(0, 12)}`,

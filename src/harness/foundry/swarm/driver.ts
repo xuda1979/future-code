@@ -12,6 +12,9 @@ import { HttpBrain } from "./model.ts";
 import { SessionJournal, type Thread } from "./session.ts";
 import { localGitBackend, type HandsBackend } from "./workspace.ts";
 import { toolEffectContract } from "./toolEffects.ts";
+import { requireAdmission, submitProposal } from "../proposals.ts";
+import { claimsForGoals, proposeClaim, proposeClaimConflict, type ClaimInput } from "../claims.ts";
+import { validateToolProposal } from "./toolAdmission.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -79,6 +82,19 @@ export class SwarmDriver implements Driver {
     }
     const hands = this.backend.open(this.store, this.cfg, c, profile, signal, t.state.patchHash);
     const budget = this.cfg.spec.budget;
+    const admitCall = (call: Call) => {
+      const kind = call.name === "spawn_tasks" ? "SPAWN" : call.name === "propose_claim" ? "CLAIM" :
+        call.name === "propose_conflict" ? "CONFLICT" : "TOOL_CALL";
+      const proposal = submitProposal(this.store, kind, call, c, `agent:${c.task.agent ?? this.cfg.spec.defaultAgent}:turn:${t.state.turns}`);
+      requireAdmission(this.store, proposal, value => validateToolProposal(c, this.cfg, profile, value));
+      return proposal.id;
+    };
+    const admitReply = (message: typeof t.state.history[number]) => {
+      const proposal = submitProposal(this.store, "RESPONSE", message, c, `agent:${c.task.agent ?? this.cfg.spec.defaultAgent}:turn:${t.state.turns}`);
+      return requireAdmission(this.store, proposal, value => {
+        invariant(value.role === "assistant" && typeof value.content === "string", "invalid response proposal");
+      });
+    };
     const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg, this.jobRpc) : null;
     t.state.lastCheckAt ??= Date.now();
     const limit = t.state.contextLimit!;
@@ -104,6 +120,7 @@ export class SwarmDriver implements Driver {
             t.state.toolCalls += fresh.length;
             t.state.pending = null;
             t.state.pendingBatch = remoteBatch.map(call => call.id);
+            for (const call of remoteBatch) admitCall(call);
             for (const call of fresh) {
               invariant(profile.tools.includes(call.name as any), "tool not allowed");
               const effect = toolEffectContract(this.cfg, call.name as any, call.arguments);
@@ -164,13 +181,15 @@ export class SwarmDriver implements Driver {
               t.state.toolCalls++;
             }
             t.state.pending = call;
-            invariant(profile.tools.includes(call.name as any), "tool not allowed");
-            const effect = toolEffectContract(this.cfg, call.name as any, call.arguments);
-            this.journal.checkpoint(t, "tool.effect", { callId: call.id, ...effect });
-            this.journal.checkpoint(t, "tool.intent", call);
             let result: Json;
+            let admitted = false;
             control?.activity?.(`tool:${call.name}`);
             try {
+              const proposalId = admitCall(call);
+              admitted = true;
+              const effect = toolEffectContract(this.cfg, call.name as any, call.arguments);
+              this.journal.checkpoint(t, "tool.effect", { callId: call.id, proposalId, ...effect });
+              this.journal.checkpoint(t, "tool.intent", call);
               if (call.name === "spawn_tasks") {
                 const policy = this.cfg.spec.supervision?.dynamicDAG;
                 invariant(policy, "dynamic DAG spawning is not configured");
@@ -219,6 +238,16 @@ export class SwarmDriver implements Driver {
               } else if (call.name === "run_job") {
                 invariant(jobs, "no remote job templates configured");
                 result = await jobs.execute(c, profile, call, signal);
+              } else if (call.name === "propose_claim") {
+                result = toJson(proposeClaim(this.store, c.runId, c.task.id, call.arguments as unknown as ClaimInput, proposalId));
+              } else if (call.name === "propose_conflict") {
+                const a = call.arguments;
+                result = { conflictId: proposeClaimConflict(this.store, c.runId, c.task.id,
+                  a.leftClaim as string, a.rightClaim as string, proposalId), status: "OPEN" };
+              } else if (call.name === "read_claims") {
+                const a = call.arguments;
+                const claims = claimsForGoals(this.store, c.runId, [c.task.id, ...c.task.dependencies], a.after as string | undefined, a.limit as number | undefined);
+                result = toJson({ claims, nextAfter: claims.at(-1)?.id ?? a.after ?? "" });
               } else if (call.name === "recall") {
                 const a = call.arguments; keys(a, [], ["receipt", "offset", "length", "historyAfter", "limit"]);
                 if (a.receipt !== undefined) {
@@ -239,12 +268,12 @@ export class SwarmDriver implements Driver {
               result = { error: e instanceof Error ? e.message.slice(0, 2048) : "tool error" };
             }
             // Snapshot even a failed tool: a trusted command may have partially edited files.
-            if (["write_file", "edit_file", "delete_file", "run_check"].includes(call.name)) {
+            if (admitted && ["write_file", "edit_file", "delete_file", "run_check"].includes(call.name)) {
               const patch = await hands.snapshot();
               if (patch !== t.state.patchHash) control?.progress(`patch:${patch}`);
               t.state.patchHash = patch;
             }
-            if (call.name === "run_check") { t.state.lastCheckAt = Date.now(); control?.checked?.(); }
+            if (admitted && call.name === "run_check") { t.state.lastCheckAt = Date.now(); control?.checked?.(); }
             const receipt = this.journal.receipt(c, result);
             t.state.history.push({ role: "tool", callId: call.id, content: inlineReceipt(receipt, result) });
             t.state.pending = null; this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
@@ -257,7 +286,7 @@ export class SwarmDriver implements Driver {
         // before adding recovery notes or periodic-check feedback.
         const replay = this.brain.replay(c, profile, t.state.history, budget, limit, t.state.turns);
         if (replay) {
-          t.state.history = [...replay.history, replay.turn.message]; t.state.turns++;
+          t.state.history = [...replay.history, admitReply(replay.turn.message)]; t.state.turns++;
           this.journal.checkpoint(t, "model.reply", replay.turn.message);
           control?.activity?.("model:replay"); continue;
         }
@@ -292,7 +321,7 @@ export class SwarmDriver implements Driver {
         this.journal.checkpoint(t, "model.intent", { step: t.state.turns });
         control?.activity?.("model:request");
         const next = await this.brain.next(c, profile, t.state.history, budget, limit, signal, t.state.turns);
-        t.state.history = [...next.history, next.turn.message]; t.state.turns++;
+        t.state.history = [...next.history, admitReply(next.turn.message)]; t.state.turns++;
         this.journal.checkpoint(t, "model.reply", next.turn.message);
         control?.activity?.("model:reply");
       }

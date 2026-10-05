@@ -15,6 +15,12 @@ export interface ToolEffectContract {
 }
 
 const fixed: Partial<Record<ToolName, ToolEffectContract>> = {
+  read_claims: { tool: "read_claims", effect: "read", replay: "safe", idempotency: "none",
+    compensation: "none", risk: "low", rationale: "bounded scoped claim projection" },
+  propose_claim: { tool: "propose_claim", effect: "control-plane", replay: "state-bound", idempotency: "call-id",
+    compensation: "none", risk: "medium", rationale: "append a versioned hypothesis under host ownership and revision checks" },
+  propose_conflict: { tool: "propose_conflict", effect: "control-plane", replay: "safe", idempotency: "call-id",
+    compensation: "none", risk: "medium", rationale: "version-bound conflict identity; only independent evidence resolves it" },
   list_files: { tool: "list_files", effect: "read", replay: "safe", idempotency: "none",
     compensation: "none", risk: "low", rationale: "bounded project metadata read" },
   read_file: { tool: "read_file", effect: "read", replay: "safe", idempotency: "none",

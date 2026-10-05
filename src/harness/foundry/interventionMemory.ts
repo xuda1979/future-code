@@ -1,6 +1,7 @@
 import { canonical, digest, invariant } from "./kernel.ts";
 import type { Store } from "./store.ts";
 import type { Json, Task } from "./types.ts";
+import { installContextualPolicyTables, recoveryFeatures, recordInterventionContext } from "./contextualPolicy.ts";
 
 export type InterventionOutcome = "IMPROVED" | "NO_CLEAR_GAIN" | "REGRESSED" | "UNKNOWN";
 
@@ -20,6 +21,7 @@ export function installInterventionMemoryTables(store: Store): void {
       BEFORE UPDATE ON rnd_intervention_effects BEGIN SELECT RAISE(ABORT,'append-only intervention evidence'); END;
     CREATE TRIGGER IF NOT EXISTS rnd_intervention_effects_immutable_delete
       BEFORE DELETE ON rnd_intervention_effects BEGIN SELECT RAISE(ABORT,'append-only intervention evidence'); END;`);
+  installContextualPolicyTables(store);
 }
 
 function graphDepth(tasks: Task[]): number {
@@ -140,12 +142,16 @@ export function evaluateInterventionOutcomes(store: Store, objective: string, no
       AND r.addressed_findings IS NOT NULL ORDER BY r.revision`).all(objective);
   let inserted = 0;
   for (const row of recoveries) {
-    const sourceReflection = reflectionForRun(store, objective, String(row.source_run));
+    // Use the exact evidence seen by the planner, not a later reflection that
+    // contains the recovery request itself or other post-treatment observations.
+    const sourceReflection = { hash: String(row.reflection_hash), value: store.readArtifact(String(row.reflection_hash)) as any };
     const targetReflection = reflectionForRun(store, objective, String(row.new_run));
     if (!sourceReflection || !targetReflection) continue;
+    if (!["PASS", "FAIL"].includes(String(targetReflection.value.productivity?.runStatus))) continue;
     const sourceTasks = store.readArtifact(String(row.source_plan)) as unknown as Task[];
     const targetTasks = store.readArtifact(String(row.target_plan)) as unknown as Task[];
     const intervention: any = classifyIntervention(sourceTasks, targetTasks);
+    const features = recoveryFeatures(store, String(row.source_run), sourceTasks, sourceReflection.value);
     const comparison = classifyOutcome(sourceReflection.value.productivity, targetReflection.value.productivity);
     const evidence = json({
       sourceReflectionHash: sourceReflection.hash, targetReflectionHash: targetReflection.hash,
@@ -165,6 +171,7 @@ export function evaluateInterventionOutcomes(store: Store, objective: string, no
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, objective, row.source_run, row.new_run,
           sourceReflection.hash, finding, intervention.interventionHash, canonical(intervention.classes),
           comparison.outcome, evidenceHash, domain, now);
+      recordInterventionContext(store, id, features);
       if (Number(result?.changes ?? 0) > 0) inserted++;
     }
   }

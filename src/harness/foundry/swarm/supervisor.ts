@@ -8,12 +8,15 @@ import { Scheduler } from "../scheduler.ts";
 import type { Store } from "../store.ts";
 import type { Json, Task } from "../types.ts";
 import { integrateSwarm, loadSwarm, runSwarm } from "./host.ts";
-import { inScope, validateSwarmTasks } from "./config.ts";
+import { inScope, keys, validateSwarmTasks } from "./config.ts";
 import { createApiRecoveryPlanner } from "./recovery.ts";
 import { externalEffectSnapshot, objectiveJobUsage } from "./jobs.ts";
 import { buildObjectiveEpisode, installRndEpisodeTables, objectiveEpisodeStatus, persistObjectiveEpisode } from "../rndEpisodes.ts";
 import { installRndReflectionTables, latestObjectiveReflection, reflectRun } from "../rndReflection.ts";
 import { evaluateInterventionOutcomes, installInterventionMemoryTables, interventionMemoryForFindings } from "../interventionMemory.ts";
+import { requireAdmission, submitProposal } from "../proposals.ts";
+import { claimGate } from "../claims.ts";
+import { contextualInterventionPolicy, recoveryFeatures } from "../contextualPolicy.ts";
 
 export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
 export interface RecoveryContext {
@@ -22,6 +25,7 @@ export interface RecoveryContext {
   reflectionHash?: string;
   reflection?: Json;
   interventionMemory?: Json;
+  interventionPolicy?: Json;
 }
 export interface RecoveryPlan { reason: string; tasks: Task[]; addressedFindings?: string[] }
 export type RecoveryPlanner = (context: RecoveryContext, signal: AbortSignal) => Promise<RecoveryPlan | null>;
@@ -33,6 +37,8 @@ export interface ObjectiveEvidenceGate {
   missingTaskEvidence: string[];
   openConflicts: number;
   conflictIds: string[];
+  openClaimConflicts: number;
+  staleClaims: number;
   externalJobs: number;
   unresolvedExternalJobs: number;
   externalJobsByTemplate: Record<string, number>;
@@ -56,14 +62,16 @@ export function objectiveEvidenceGate(store: Store, run: string, objective?: str
     "SELECT COUNT(*) AS n FROM fabric_conflicts WHERE run=? AND status='OPEN'"
   ).get(run)?.n ?? 0);
   const externalEffects = externalEffectSnapshot(store, run, objective);
+  const claims = claimGate(store, run);
   return {
     status: Number(counts.verified) === Number(counts.total) && openConflicts === 0 &&
-      externalEffects.unresolved === 0 ? "PASS" : "BLOCKED",
+      externalEffects.unresolved === 0 && claims.openClaimConflicts === 0 && claims.staleClaims === 0 ? "PASS" : "BLOCKED",
     taskCount: Number(counts.total),
     verifiedTasks: Number(counts.verified),
     missingTaskEvidence,
     openConflicts,
     conflictIds: conflictRows.map(row => String(row.id)),
+    ...claims,
     externalJobs: externalEffects.count,
     unresolvedExternalJobs: externalEffects.unresolved,
     externalJobsByTemplate: externalEffects.byTemplate,
@@ -343,6 +351,8 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     const findingCodes = Array.isArray((reflected.reflection as any).findings)
       ? (reflected.reflection as any).findings.map((item: any) => String(item.code)) : [];
     const interventionMemory = interventionMemoryForFindings(store, findingCodes);
+    const interventionPolicy = contextualInterventionPolicy(store, findingCodes,
+      recoveryFeatures(store, String(row.run), tasks, reflected.reflection));
     const failures = store.db.prepare("SELECT id,status,error FROM tasks WHERE run=? AND status<>'PASS' ORDER BY id LIMIT 200").all(row.run)
       .map(r => ({ id: String(r.id), status: String(r.status), error: r.error == null ? null : String(r.error).slice(0, 1024) }));
     if (!existing) store.transaction(() => {
@@ -360,36 +370,42 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       // and no replacement run has been admitted yet. A controller crash can safely
       // repeat planning under the same bounded revision.
       proposal = await planner({ objectiveId: input.id, goal: row.goal, runId: row.run, reason, revision, tasks, failures,
-        reflectionHash: reflected.hash, reflection: reflected.reflection, interventionMemory }, controller.signal);
+        reflectionHash: reflected.hash, reflection: reflected.reflection, interventionMemory, interventionPolicy }, controller.signal);
       controller.signal.throwIfAborted();
       if (!proposal) {
         store.db.prepare("UPDATE swarm_recovery_attempts SET state='DECLINED',detail=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
           .run("planner returned no safe recovery plan", Date.now(), input.id, row.run);
         return false;
       }
-      invariant(typeof proposal.reason === "string" && proposal.reason.trim().length > 0 && Buffer.byteLength(proposal.reason) <= 4096, "invalid recovery reason");
-      validateTasks(store.contract(), proposal.tasks); validateSwarmTasks(cfg.spec, proposal.tasks);
-      const writeAuthority = tasks.flatMap(task => task.writeScope);
-      const readAuthority = [...writeAuthority, ...tasks.flatMap(task => task.readScope ?? [])];
-      for (const task of proposal.tasks) {
-        for (const path of task.writeScope)
-          invariant(inScope(path, writeAuthority), "recovery plan widens write authority");
-        for (const path of task.readScope ?? [])
-          invariant(inScope(path, readAuthority), "recovery plan widens read authority");
-      }
-      const proposalStrategy = recoveryStrategySignature(proposal.tasks, cfg.spec.defaultAgent);
-      const priorStrategies = store.db.prepare(
-        "SELECT plan FROM swarm_objective_revisions WHERE objective=? ORDER BY revision"
-      ).all(input.id).map(row => recoveryStrategySignature(
-        store.readArtifact(String(row.plan)) as unknown as Task[], cfg.spec.defaultAgent
-      ));
-      invariant(!priorStrategies.includes(proposalStrategy),
-        "recovery plan repeats a previously failed execution strategy");
+      const envelope = submitProposal(store, "RECOVERY", proposal, String(row.run), `recovery:${input.id}:${revision}`);
+      proposal = requireAdmission(store, envelope, proposal => {
+        keys(proposal, ["reason", "tasks"], ["addressedFindings"]);
+        const current = assertOwner(); invariant(current.run === row.run, "objective changed during recovery planning");
+        invariant(typeof proposal.reason === "string" && proposal.reason.trim().length > 0 && Buffer.byteLength(proposal.reason) <= 4096, "invalid recovery reason");
+        validateTasks(store.contract(), proposal.tasks); validateSwarmTasks(cfg.spec, proposal.tasks);
+        const writeAuthority = tasks.flatMap(task => task.writeScope);
+        const readAuthority = [...writeAuthority, ...tasks.flatMap(task => task.readScope ?? [])];
+        for (const task of proposal.tasks) {
+          for (const path of task.writeScope)
+            invariant(inScope(path, writeAuthority), "recovery plan widens write authority");
+          for (const path of task.readScope ?? [])
+            invariant(inScope(path, readAuthority), "recovery plan widens read authority");
+        }
+        const proposalStrategy = recoveryStrategySignature(proposal.tasks, cfg.spec.defaultAgent);
+        const priorStrategies = store.db.prepare(
+          "SELECT plan FROM swarm_objective_revisions WHERE objective=? ORDER BY revision"
+        ).all(input.id).map(row => recoveryStrategySignature(
+          store.readArtifact(String(row.plan)) as unknown as Task[], cfg.spec.defaultAgent
+        ));
+        invariant(!priorStrategies.includes(proposalStrategy),
+          "recovery plan repeats a previously failed execution strategy");
+        const addressedFindings = [...new Set(proposal.addressedFindings ?? [])].sort();
+        const knownFindings = new Set(Array.isArray((reflected.reflection as any).findings)
+          ? (reflected.reflection as any).findings.map((item: any) => String(item.code)) : []);
+        invariant(addressedFindings.every(code => knownFindings.has(code)),
+          "recovery plan claims an unknown reflection finding");
+      });
       const addressedFindings = [...new Set(proposal.addressedFindings ?? [])].sort();
-      const knownFindings = new Set(Array.isArray((reflected.reflection as any).findings)
-        ? (reflected.reflection as any).findings.map((item: any) => String(item.code)) : []);
-      invariant(addressedFindings.every(code => knownFindings.has(code)),
-        "recovery plan claims an unknown reflection finding");
       const newPlan = store.artifact(JSON.parse(canonical(proposal.tasks)));
       const newRun = randomUUID();
       const source = store.db.prepare("SELECT recipe FROM runs WHERE id=?").get(row.run);
@@ -467,7 +483,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         } else {
           const preGate = objectiveEvidenceGate(store, row.run, input.id);
           if (preGate.status !== "PASS") {
-            const reason = `Objective evidence gate blocked: ${preGate.verifiedTasks}/${preGate.taskCount} tasks have durable accepted evidence; ${preGate.openConflicts} unresolved evidence conflict(s); ${preGate.unresolvedExternalJobs} unresolved external job(s). Resolve/adjudicate evidence and reconcile external effects before completion.`;
+            const reason = `Objective evidence gate blocked: ${preGate.verifiedTasks}/${preGate.taskCount} tasks have durable accepted evidence; ${preGate.openConflicts + preGate.openClaimConflicts} unresolved conflict(s); ${preGate.staleClaims} stale claim(s); ${preGate.unresolvedExternalJobs} unresolved external job(s). Resolve/adjudicate evidence and reconcile external effects before completion.`;
             transition("NEEDS_ATTENTION", reason);
           } else {
             transition("VERIFYING"); report();
@@ -478,7 +494,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
               // were running cannot be bypassed by an earlier PASS snapshot.
               const finalGate = objectiveEvidenceGate(store, row.run, input.id);
               if (finalGate.status !== "PASS") {
-                const reason = `Objective evidence gate blocked: ${finalGate.verifiedTasks}/${finalGate.taskCount} tasks have durable accepted evidence; ${finalGate.openConflicts} unresolved evidence conflict(s); ${finalGate.unresolvedExternalJobs} unresolved external job(s). Resolve/adjudicate evidence and reconcile external effects before completion.`;
+                const reason = `Objective evidence gate blocked: ${finalGate.verifiedTasks}/${finalGate.taskCount} tasks have durable accepted evidence; ${finalGate.openConflicts + finalGate.openClaimConflicts} unresolved conflict(s); ${finalGate.staleClaims} stale claim(s); ${finalGate.unresolvedExternalJobs} unresolved external job(s). Resolve/adjudicate evidence and reconcile external effects before completion.`;
                 transition("NEEDS_ATTENTION", reason);
               } else {
                 const integration = JSON.parse(canonical(receipt)) as Json;
