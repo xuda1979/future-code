@@ -1,0 +1,58 @@
+{
+  "schema": "hact-v6-journal-experiment-contract-1",
+  "frozen_date": "2026-10-06",
+  "objective": "Strengthen Adaptive HACT for journal review with disjoint-seed replication, baseline adequacy, and distribution-shift robustness without changing the v5 primary claim after observing outcomes.",
+  "baseline": "Original-order compact balanced tree under the existing byte contract.",
+  "hypotheses": [
+    "H1: validated learned ordering reduces held-out padded evidence cost on clustered completion waves across all three registry sizes.",
+    "H2: the learned method exceeds marginal-frequency and validated-random-order baselines on clustered completion waves.",
+    "H3: incumbent fallback limits false-positive deployment on independent and global controls.",
+    "H4: a layout learned before a latent cluster permutation shift loses value, while retuning on post-shift data restores a material fraction of the oracle-order benefit."
+  ],
+  "normal": {
+    "n": [128, 512, 1024],
+    "families": ["cluster", "independent", "global"],
+    "seeds": [56101,56102,56103,56104,56105,56106,56107,56108,56109,56110,56111,56112,56113,56114,56115,56116,56117,56118,56119,56120],
+    "train_epochs": 128,
+    "validation_epochs": 128,
+    "heldout_epochs": 256,
+    "fanout": 8,
+    "random_order_baselines": 8,
+    "random_seed_offset": 710000
+  },
+  "shift": {
+    "n": [128, 512, 1024],
+    "seeds": [56201,56202,56203,56204,56205,56206,56207,56208,56209,56210,56211,56212,56213,56214,56215,56216,56217,56218,56219,56220],
+    "family": "cluster",
+    "train_epochs_A": 128,
+    "validation_epochs_A": 128,
+    "train_epochs_B": 128,
+    "validation_epochs_B": 128,
+    "heldout_epochs_B": 256,
+    "fanout": 8,
+    "second_regime_seed_offset": 910000
+  },
+  "statistics": {
+    "unit": "seed-level workload",
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 20261006,
+    "interval": "percentile 95% bootstrap interval for the seed-level mean",
+    "positive_threshold_percent": 1e-9,
+    "regression_threshold_percent": -1e-9
+  },
+  "baselines": {
+    "incumbent": "Original-order compact balanced 8-ary tree.",
+    "learned": "Average-linkage order from pairwise Jaccard affinity, compact balanced 8-ary tree; validation chooses between this proposal and incumbent.",
+    "marginal": "Descending marginal completion-frequency order with the same balanced tree; validation chooses between this proposal and incumbent.",
+    "random_validated": "Incumbent plus eight independently sampled random orders; validation chooses with incumbent-favoring ties.",
+    "oracle_latent": "Generator latent cluster order with the same balanced tree; ceiling diagnostic only.",
+    "validation_ablation": "Always deploy the learned proposal, omitting the validation/incumbent fallback."
+  },
+  "non_goals": [
+    "No claim of physical-WAN speedup.",
+    "No claim of live-LLM quality improvement.",
+    "No provider token or billing claim.",
+    "No post-hoc seed or baseline replacement after results are observed."
+  ],
+  "experiment_id": "hact-v6-journal-extension-20261006"
+}
