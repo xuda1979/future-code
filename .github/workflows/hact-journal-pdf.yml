@@ -17,6 +17,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: paper/hact-top-journal-v6
+      - name: Regenerate journal figure
+        run: |
+          python -m pip install -q matplotlib
+          python hact-paper/Adaptive_HACT_v5/paper/make_v6_figure.py
       - name: Compile PDF
         uses: xu-cheng/latex-action@v3
         with:
@@ -60,7 +64,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add hact-paper/Adaptive_HACT_v5/paper/main.pdf hact-paper/Adaptive_HACT_v5/paper/pdfinfo-v6.txt hact-paper/Adaptive_HACT_v5/paper/qa-v6-montage.png
+          git add hact-paper/Adaptive_HACT_v5/paper/main.pdf hact-paper/Adaptive_HACT_v5/paper/pdfinfo-v6.txt hact-paper/Adaptive_HACT_v5/paper/qa-v6-montage.png hact-paper/Adaptive_HACT_v5/paper/figures/v6_journal_extension.pdf
           git commit -m "docs: rebuild and preflight HACT journal PDF"
           git fetch origin paper/hact-top-journal-v6
           git rebase origin/paper/hact-top-journal-v6
