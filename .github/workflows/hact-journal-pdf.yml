@@ -1,0 +1,67 @@
+name: Build HACT journal PDF
+on:
+  push:
+    branches: [paper/hact-top-journal-v6]
+    paths:
+      - "hact-paper/Adaptive_HACT_v5/paper/**.tex"
+      - "hact-paper/Adaptive_HACT_v5/paper/generated_v6/**"
+      - "hact-paper/Adaptive_HACT_v5/paper/figures/**"
+      - ".github/workflows/hact-journal-pdf.yml"
+permissions:
+  contents: write
+jobs:
+  build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: paper/hact-top-journal-v6
+      - name: Compile PDF
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: hact-paper/Adaptive_HACT_v5/paper
+          args: -pdf -interaction=nonstopmode -halt-on-error
+      - name: PDF preflight and render
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils
+          python -m pip install pillow
+          cd hact-paper/Adaptive_HACT_v5/paper
+          pdfinfo main.pdf > pdfinfo-v6.txt
+          mkdir -p qa-v6
+          pdftoppm -png -r 105 main.pdf qa-v6/page >/dev/null 2>&1
+          python - <<'PY'
+          from PIL import Image, ImageOps, ImageDraw
+          from pathlib import Path
+          paths=sorted(Path("qa-v6").glob("page-*.png"))
+          ims=[Image.open(p).convert("RGB") for p in paths]
+          tw=280
+          thumbs=[]
+          for i,im in enumerate(ims,1):
+              h=round(im.height*tw/im.width)
+              t=im.resize((tw,h))
+              canvas=Image.new("RGB",(tw+8,h+30),"white")
+              canvas.paste(t,(4,24))
+              ImageDraw.Draw(canvas).text((6,5),f"Page {i}",fill="black")
+              thumbs.append(canvas)
+          cols=4; rows=(len(thumbs)+cols-1)//cols
+          cw=max(x.width for x in thumbs); ch=max(x.height for x in thumbs)
+          sheet=Image.new("RGB",(cols*cw,rows*ch),"white")
+          for idx,im in enumerate(thumbs):
+              sheet.paste(im,((idx%cols)*cw,(idx//cols)*ch))
+          sheet.save("qa-v6-montage.png")
+          print("rendered_pages",len(paths))
+          PY
+          grep -E "Pages:|Page size:|Encrypted:|File size:" pdfinfo-v6.txt
+          ! grep -E "LaTeX Warning: (Reference|Citation).*undefined|There were undefined references|Overfull \\\\hbox|Overfull \\\\vbox" main.log
+      - name: Commit PDF and QA
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add hact-paper/Adaptive_HACT_v5/paper/main.pdf hact-paper/Adaptive_HACT_v5/paper/pdfinfo-v6.txt hact-paper/Adaptive_HACT_v5/paper/qa-v6-montage.png
+          git commit -m "docs: rebuild and preflight HACT journal PDF"
+          git fetch origin paper/hact-top-journal-v6
+          git rebase origin/paper/hact-top-journal-v6
+          git push origin HEAD:paper/hact-top-journal-v6
