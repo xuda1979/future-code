@@ -24,7 +24,7 @@ def compact_coverage(order,fanout):
         layer=parents
     return nodes
 def independent_cost(order,episodes,fanout):
-    cov=compact_coverage(order,fanout); total=sum(p for _,p in cov)
+    cov=compact_coverage(order,fanout); total=len(episodes)*sum(p for _,p in cov)
     for ep in episodes:
         for wave in ep:
             wm=0
