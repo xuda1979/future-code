@@ -6,6 +6,8 @@ import type { AgentProfile, Protocol, ProviderRoute, SwarmBudget, ToolName } fro
 import { bytes, compactHistory, type Call, type Message } from "./context.ts";
 import { SessionJournal } from "./session.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
+import { transientStatus } from "./providerRecovery.ts";
+import { abortable, boundedFetch, discardResponse } from "./transport.ts";
 
 export interface Turn { message: Message; tokens: number | null; truncated: boolean }
 export interface ToolDefinition { name: ToolName; description: string; schema: Record<string, Json> }
@@ -112,15 +114,15 @@ export function requestBody(profile: AgentProfile, history: Message[], budget: S
     system: [{ type: "text", text: profile.system, ...(profile.promptCache ? { cache_control: { type: "ephemeral" } } : {}) }],
     messages, tools: tools.map(t => ({ name: t.name, description: t.description, input_schema: t.schema })) });
 }
-export async function boundedJson(response: Response, maxBytes: number): Promise<Json> {
+export async function boundedJson(response: Response, maxBytes: number, signal?: AbortSignal): Promise<Json> {
   invariant(response.body, "missing response body"); const reader = response.body.getReader();
   const chunks: Uint8Array[] = []; let n = 0;
   try {
     for (;;) {
-      const item = await reader.read(); if (item.done) break;
+      const item = await (signal ? abortable(reader.read(), signal) : reader.read()); if (item.done) break;
       n += item.value.byteLength; invariant(n <= maxBytes, "provider response exceeds output budget"); chunks.push(item.value);
     }
-  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+  } finally { void reader.cancel().catch(() => {}); reader.releaseLock(); }
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 export class HttpBrain {
@@ -159,44 +161,46 @@ export class HttpBrain {
       ...(profile.fallbacks ?? []),
     ];
     type Outcome = { index: number; kind: "success"; turn: Turn } |
-      { index: number; kind: "failure"; transient: boolean; error: Error } |
+      { index: number; kind: "failure"; transient: boolean; error: Error; wakeAt?: number } |
       { index: number; kind: "lost" };
     const controllers = routes.map(() => new AbortController());
     const pending = new Map<number, Promise<Outcome>>();
     const call = async (index: number): Promise<Outcome> => {
       const route = routes[index]; const controller = controllers[index];
-      const combined = createCombinedAbortSignal(signal, {
-        signalB: controller.signal,
-        timeoutMs: budget.requestTimeoutMs,
-      });
-      const routeSignal = combined.signal;
+      const admission = createCombinedAbortSignal(signal, { signalB: controller.signal });
+      let combined: ReturnType<typeof createCombinedAbortSignal> | undefined;
       const headers: Record<string, string> = { "content-type": "application/json" };
       if (profile.protocol === "anthropic") headers["anthropic-version"] = "2023-06-01";
       if (route.keyEnv) {
         const key = process.env[route.keyEnv];
-        if (!key) return { index, kind: "failure", transient: false,
-          error: new FatalAttemptError(`Missing credential environment: ${route.keyEnv}`) };
+        if (!key) {
+          admission.cleanup();
+          return { index, kind: "failure", transient: false,
+            error: new FatalAttemptError(`Missing credential environment: ${route.keyEnv}`) };
+        }
         headers[profile.protocol === "anthropic" ? "x-api-key" : "authorization"] =
           profile.protocol === "anthropic" ? key : `Bearer ${key}`;
       }
       const provider = digest({ quotaPool: route.quotaPool ?? `${route.url}#${route.model}` });
       let id: string | null = null; let completed = false;
       try {
-        id = await this.journal.reserve(c, provider, body, budget, routeSignal);
-        const response = await this.fetcher(route.url, {
-          method: "POST", headers, body: canonical(body), redirect: "error", signal: routeSignal,
+        id = await this.journal.reserve(c, provider, body, budget, admission.signal);
+        combined = createCombinedAbortSignal(admission.signal, { timeoutMs: budget.requestTimeoutMs });
+        const response = await boundedFetch(this.fetcher, route.url, {
+          method: "POST", headers, body: canonical(body), redirect: "error", signal: combined.signal,
         });
         if (!response.ok) {
-          await response.body?.cancel();
+          discardResponse(response);
           this.journal.complete(id, null, { httpStatus: response.status }); completed = true;
-          const transient = [408, 425, 429, 500, 502, 503, 504, 529].includes(response.status);
-          if ([429, 503, 529].includes(response.status)) this.journal.cooldown(provider, 1000);
-          return { index, kind: "failure", transient,
+          const transient = transientStatus(response.status);
+          const wakeAt = transient ? this.journal.providerFailure(id, response.headers.get("retry-after"), response.status) : undefined;
+          return { index, kind: "failure", transient, wakeAt,
             error: transient ? new Error(`Provider HTTP ${response.status}`) :
               new FatalAttemptError(`Model HTTP ${response.status}; route configuration requires attention`) };
         }
-        const raw = await boundedJson(response, budget.maxToolOutputBytes);
+        const raw = await boundedJson(response, budget.maxToolOutputBytes, combined.signal);
         const turn = decodeTurn(profile.protocol, raw);
+        this.journal.providerSuccess(id);
         if (turn.truncated) {
           this.journal.complete(id, turn.tokens, raw); completed = true;
           return { index, kind: "failure", transient: false,
@@ -208,11 +212,13 @@ export class HttpBrain {
         if (id && !completed) { this.journal.complete(id, null, null); completed = true; }
         if (controller.signal.aborted && !signal.aborted) return { index, kind: "lost" };
         if (signal.aborted) throw signal.reason ?? new Error("aborted");
-        const transient = isTransportFailure(error);
-        return { index, kind: "failure", transient,
+        const deferred = error instanceof DeferredAttemptError;
+        const transient = deferred || isTransportFailure(error) || combined?.signal.aborted === true;
+        const wakeAt = deferred ? error.wakeAt : transient && id ? this.journal.providerFailure(id) : undefined;
+        return { index, kind: "failure", transient, wakeAt,
           error: error instanceof Error ? error : new Error(String(error)) };
       } finally {
-        combined.cleanup();
+        combined?.cleanup(); admission.cleanup();
       }
     };
     const launch = (index: number) => {
@@ -225,39 +231,43 @@ export class HttpBrain {
       timer = setTimeout(() => resolve({ index: -1, kind: "hedge" }), profile.hedgeAfterMs ?? 250);
     });
     const failures: Extract<Outcome, { kind: "failure" }>[] = [];
-    for (;;) {
-      const candidates: Promise<Outcome | { index: -1; kind: "hedge" }>[] = [...pending.values()];
-      if (hedgeReady) candidates.push(hedgeReady);
-      const outcome = await Promise.race(candidates);
-      if (outcome.kind === "hedge") {
-        hedgeReady = null; timer = null; fallbacksLaunched = true;
-        for (let i = 1; i < routes.length; i++) launch(i);
-        continue;
+    try {
+      for (;;) {
+        const candidates: Promise<Outcome | { index: -1; kind: "hedge" }>[] = [...pending.values()];
+        if (hedgeReady) candidates.push(hedgeReady);
+        const outcome = await Promise.race(candidates);
+        if (outcome.kind === "hedge") {
+          hedgeReady = null; timer = null; fallbacksLaunched = true;
+          for (let i = 1; i < routes.length; i++) launch(i);
+          continue;
+        }
+        pending.delete(outcome.index);
+        if (outcome.kind === "success") {
+          for (let i = 0; i < controllers.length; i++) if (i !== outcome.index) controllers[i].abort();
+          await Promise.allSettled([...pending.values()]);
+          signal.throwIfAborted(); this.journal.assertLease(c);
+          this.journal.store.event("model.hedge.won",
+            { route: outcome.index, routes: routes.length, hedgeAfterMs: profile.hedgeAfterMs ?? 250 },
+            c.runId, c.task.id);
+          return { turn: outcome.turn, history: projection };
+        }
+        if (outcome.kind === "failure") failures.push(outcome);
+        if (!fallbacksLaunched && outcome.index === 0) {
+          if (timer) clearTimeout(timer); timer = null; hedgeReady = null; fallbacksLaunched = true;
+          for (let i = 1; i < routes.length; i++) launch(i);
+        }
+        if (!pending.size && fallbacksLaunched) break;
       }
-      pending.delete(outcome.index);
-      if (outcome.kind === "success") {
-        if (timer) clearTimeout(timer);
-        for (let i = 0; i < controllers.length; i++) if (i !== outcome.index) controllers[i].abort();
-        await Promise.allSettled([...pending.values()]);
-        signal.throwIfAborted(); this.journal.assertLease(c);
-        this.journal.store.event("model.hedge.won",
-          { route: outcome.index, routes: routes.length, hedgeAfterMs: profile.hedgeAfterMs ?? 250 },
-          c.runId, c.task.id);
-        return { turn: outcome.turn, history: projection };
-      }
-      if (outcome.kind === "failure") failures.push(outcome);
-      if (!fallbacksLaunched && outcome.index === 0) {
-        if (timer) clearTimeout(timer); timer = null; hedgeReady = null; fallbacksLaunched = true;
-        for (let i = 1; i < routes.length; i++) launch(i);
-      }
-      if (!pending.size && fallbacksLaunched) break;
+    } finally {
+      if (timer) clearTimeout(timer);
+      for (const controller of controllers) controller.abort();
+      await Promise.allSettled([...pending.values()]);
     }
-    if (timer) clearTimeout(timer);
     const allFatal = failures.length > 0 && failures.every(x => !x.transient);
     if (allFatal) throw failures[0].error;
-    const n = this.journal.usage(c.runId, c.task.id).requests;
+    const wakes = failures.filter(x => x.transient && x.wakeAt !== undefined).map(x => x.wakeAt!);
     throw new DeferredAttemptError("provider",
-      Date.now() + Math.min(60000, 1000 * 2 ** Math.min(Math.max(0, n - 1), 6)),
+      wakes.length ? Math.max(Date.now(), Math.min(...wakes)) : Date.now() + 1000,
       "All configured external model routes were unavailable; resume scheduled");
   }
 
@@ -273,46 +283,37 @@ export class HttpBrain {
       headers[profile.protocol === "anthropic" ? "x-api-key" : "authorization"] = profile.protocol === "anthropic" ? key : `Bearer ${key}`;
     }
     const provider = digest({ quotaPool: profile.quotaPool ?? `${profile.url}#${profile.model}` });
-    for (let retry = 0; retry < 2; retry++) {
-      const id = await this.journal.reserve(c, provider, body, budget, signal);
-      let completed = false;
-      const combined = createCombinedAbortSignal(signal, {
-        timeoutMs: budget.requestTimeoutMs,
-      });
-      try {
-        const response = await this.fetcher(profile.url, { method: "POST", headers, body: canonical(body), redirect: "error", signal: combined.signal });
-        if (!response.ok) {
-          await response.body?.cancel();
-          // Error bodies may contain credentials or upstream internals. Do not log them.
-          this.journal.complete(id, null, { httpStatus: response.status }); completed = true;
-          if ([429, 503, 529].includes(response.status) && retry === 0) {
-            const h = response.headers.get("retry-after"); const parsed = h ? Number(h) : NaN;
-            const date = h ? Date.parse(h) - Date.now() : NaN;
-            const ms = Number.isFinite(parsed) ? parsed * 1000 : Number.isFinite(date) ? date : 1000;
-            this.journal.cooldown(provider, Math.min(60000, Math.max(100, ms))); continue;
-          }
-          if ([408, 425, 429, 500, 502, 503, 504, 529].includes(response.status)) {
-            const n = this.journal.usage(c.runId, c.task.id).requests;
-            throw new DeferredAttemptError("provider", Date.now() + Math.min(60000, 1000 * 2 ** Math.min(n - 1, 6)), `Provider HTTP ${response.status}; resume scheduled`);
-          }
-          throw new FatalAttemptError(`Model HTTP ${response.status}; credentials/configuration require attention`);
-        }
-        const raw = await boundedJson(response, budget.maxToolOutputBytes);
-        const turn = decodeTurn(profile.protocol, raw);
-        this.journal.complete(id, turn.tokens, raw, step); completed = true;
-        signal.throwIfAborted(); this.journal.assertLease(c);
-        if (turn.truncated) throw new FatalAttemptError("Model output truncated; admit more output or split task");
-        return { turn, history: projection };
-      } catch (e) {
-        signal.throwIfAborted();
-        if (isTransportFailure(e)) throw new DeferredAttemptError("provider", Date.now() + Math.min(60000, 1000 * 2 ** Math.min(this.journal.usage(c.runId, c.task.id).requests - 1, 6)), "Provider transport unavailable; replay-safe continuation scheduled");
-        throw e;
-      } finally {
-        combined.cleanup();
-        if (!completed) this.journal.complete(id, null, null);
+    const id = await this.journal.reserve(c, provider, body, budget, signal);
+    let completed = false;
+    const combined = createCombinedAbortSignal(signal, { timeoutMs: budget.requestTimeoutMs });
+    try {
+      const response = await boundedFetch(this.fetcher, profile.url, { method: "POST", headers, body: canonical(body), redirect: "error", signal: combined.signal });
+      if (!response.ok) {
+        discardResponse(response);
+        // Error bodies may contain credentials or upstream internals. Do not log them.
+        this.journal.complete(id, null, { httpStatus: response.status }); completed = true;
+        if (transientStatus(response.status))
+          throw new DeferredAttemptError("provider", this.journal.providerFailure(id, response.headers.get("retry-after"), response.status),
+            `Provider HTTP ${response.status}; resume scheduled`);
+        throw new FatalAttemptError(`Model HTTP ${response.status}; credentials/configuration require attention`);
       }
+      const raw = await boundedJson(response, budget.maxToolOutputBytes, combined.signal);
+      const turn = decodeTurn(profile.protocol, raw);
+      this.journal.complete(id, turn.tokens, raw, step); completed = true;
+      signal.throwIfAborted(); this.journal.assertLease(c);
+      this.journal.providerSuccess(id);
+      if (turn.truncated) throw new FatalAttemptError("Model output truncated; admit more output or split task");
+      return { turn, history: projection };
+    } catch (e) {
+      signal.throwIfAborted();
+      if (e instanceof DeferredAttemptError) throw e;
+      if (isTransportFailure(e) || combined.signal.aborted)
+        throw new DeferredAttemptError("provider", this.journal.providerFailure(id), "Provider transport unavailable; replay-safe continuation scheduled");
+      throw e;
+    } finally {
+      combined.cleanup();
+      if (!completed) this.journal.complete(id, null, null);
     }
-    throw new Error("model retry budget exhausted");
   }
 }
 

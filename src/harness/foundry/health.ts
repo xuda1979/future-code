@@ -2,12 +2,14 @@ import { invariant } from "./kernel.ts";
 import type { Store } from "./store.ts";
 import { schedulerIndexCurrent, schedulerIndexStats, type SchedulerIndexStats } from "./schedulerIndex.ts";
 import { fabricStatus } from "./evidenceFabric.ts";
+import { providerRecoveryStatus, type ProviderCircuit } from "./swarm/providerRecovery.ts";
 
 export interface HealthReport {
   runId: string; at: number; status: string; elapsedMs: number;
   counts: Record<string, number>; waiting: number;
   scheduler: SchedulerIndexStats | null;
-  provider: { active: number; done: number; unknown: number; requests: number; requestBytes: number; tokens: number | null } | null;
+  provider: { active: number; done: number; unknown: number; requests: number; requestBytes: number; tokens: number | null;
+    coolingPools: number; nextRetryAt: number | null; circuits: ProviderCircuit[]; circuitsTruncated: boolean } | null;
   remoteJobs: { active: number; stalled: number; terminal: number; unattestedTerminal: number } | null;
   fabric: { goals: number; evidence: number; openConflicts: number; experiences: number;
     topAllocations: { task: string; score: number }[] };
@@ -48,7 +50,8 @@ export function runHealth(store: Store, runId: string, now = Date.now()): Health
       FROM agent_requests WHERE run=?`).get(runId)!;
     return { active: Number(row.active ?? 0), done: Number(row.done ?? 0), unknown: Number(row.unknown ?? 0),
       requests: Number(row.requests ?? 0), requestBytes: Number(row.request_bytes ?? 0),
-      tokens: Number(row.missing ?? 0) ? null : Number(row.tokens ?? 0) };
+      tokens: Number(row.missing ?? 0) ? null : Number(row.tokens ?? 0),
+      ...providerRecoveryStatus(store, runId, now) };
   })() : null;
 
   const hasJobs = !!store.db.prepare(
@@ -97,7 +100,7 @@ export function formatHealth(r: HealthReport): string {
   const age = (n: number | null) => n === null ? "none" : `${Math.floor(n / 1000)}s ago`;
   const head = `[swarm ${r.runId}] ${r.status} | accepted=${r.counts.PASS ?? 0} active=${r.counts.RUNNING ?? 0} waiting=${r.waiting} failed=${r.counts.FAIL ?? 0} | elapsed=${Math.floor(r.elapsedMs / 1000)}s`;
   const queue = r.scheduler ? `queue runnable=${r.scheduler.runnable} deps=${r.scheduler.dependencyBlocked} delayed=${r.scheduler.delayed} indexed=${r.scheduler.indexedTasks}` : "queue index=unavailable";
-  const provider = r.provider ? `provider active=${r.provider.active} requests=${r.provider.requests} unknown=${r.provider.unknown}` : "provider no-ledger";
+  const provider = r.provider ? `provider active=${r.provider.active} requests=${r.provider.requests} unknown=${r.provider.unknown} cooling=${r.provider.coolingPools}${r.provider.nextRetryAt === null ? "" : " retry=" + new Date(r.provider.nextRetryAt).toISOString()}` : "provider no-ledger";
   const jobs = r.remoteJobs ? `jobs active=${r.remoteJobs.active} stalled=${r.remoteJobs.stalled} terminal=${r.remoteJobs.terminal} unattested=${r.remoteJobs.unattestedTerminal}` : "jobs none";
   const fabric = `fabric goals=${r.fabric.goals} evidence=${r.fabric.evidence} conflicts=${r.fabric.openConflicts} experience=${r.fabric.experiences}`;
   const integrity = `integrity index=${r.integrity.schedulerIndexCurrent ? "current" : "DRIFT"} graph=${r.integrity.graphVersion} indexed=${r.integrity.indexedVersion ?? "none"}`;

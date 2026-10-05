@@ -353,12 +353,13 @@ test("job and supervision configuration reject unsafe bounds/capabilities", () =
   insecure.agents.coder.url = "http://127.0.0.1:8000/v1/chat/completions"; insecure.agents.coder.keyEnv = "MODEL_API_KEY";
   assert.doesNotThrow(() => validateSwarmSpec(insecure));
 });
-test("transient provider responses yield without resetting the run request ledger", async () => swarmFixture(async (s, cfg) => {
+test("transient provider responses yield without resetting the run request ledger", async t => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); let l = q.claim(run, "w")!; const j = new SessionJournal(s);
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
   let n = 0; const brain = new HttpBrain(j, (async () => ++n <= 5 ? new Response(null, { status: 500 }) : reply()) as typeof fetch);
   for (let i = 0; i < 5; i++) {
     await assert.rejects(brain.next(q.capsule(l), cfg.spec.agents.coder, [{ role: "user", content: "task" }], cfg.spec.budget, 32768, signal()), e => {
-      assert.ok(e instanceof DeferredAttemptError); q.defer(l, new DeferredAttemptError("provider", Date.now(), e.message)); return true;
+      assert.ok(e instanceof DeferredAttemptError); q.defer(l, e); t.mock.timers.tick(e.wakeAt - Date.now()); return true;
     });
     l = q.claim(run, "w")!;
   }

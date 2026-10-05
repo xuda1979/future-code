@@ -1,6 +1,7 @@
 import { invariant } from "./kernel.ts";
 import type { Store } from "./store.ts";
 import type { Lease, Measurement } from "./types.ts";
+import { providerWaitRecovered } from "./swarm/providerRecovery.ts";
 
 /** Yield a durable continuation, not a failed implementation attempt.
  * A deadline only bounds the current episode; it never cancels a remote job. */
@@ -33,6 +34,8 @@ export function installContinuationTables(store: Store): void {
 
 /** Caller owns the transaction and has already checked the current lease. */
 export function persistContinuation(store: Store, lease: Lease, error: DeferredAttemptError, measurement: Measurement, now: number): void {
+  const recovered = error.kind === "provider" && providerWaitRecovered(store, lease.runId, lease.taskId, lease.fence, error.wakeAt, now);
+  const wake = recovered ? now : Math.max(now, error.wakeAt);
   const a = store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(lease.runId, lease.taskId, lease.fence)!;
   store.db.prepare("UPDATE attempts SET status='DEFERRED',ended=?,duration=?,tokens=?,cost=? WHERE run=? AND task=? AND fence=?")
     .run(now, Math.max(0, now - a.started), measurement.tokens, measurement.costUsd, lease.runId, lease.taskId, lease.fence);
@@ -40,7 +43,7 @@ export function persistContinuation(store: Store, lease: Lease, error: DeferredA
     .run(error.message.slice(0, 1024), lease.runId, lease.taskId);
   store.db.prepare(`INSERT INTO task_waits VALUES(?,?,?,?,?) ON CONFLICT(run,task)
     DO UPDATE SET wake=excluded.wake,kind=excluded.kind,reason=excluded.reason`)
-    .run(lease.runId, lease.taskId, Math.max(now, error.wakeAt), error.kind, error.message.slice(0, 1024));
-  store.event("task.deferred", { fence: lease.fence, wakeAt: Math.max(now, error.wakeAt), kind: error.kind,
+    .run(lease.runId, lease.taskId, wake, error.kind, error.message.slice(0, 1024));
+  store.event("task.deferred", { fence: lease.fence, wakeAt: wake, kind: error.kind,
     reason: error.message.slice(0, 1024) }, lease.runId, lease.taskId);
 }

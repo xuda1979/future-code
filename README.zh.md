@@ -93,6 +93,7 @@ node scripts/test-commands.mjs
 | 冻结契约与运行方案实验 | [Foundry](docs/agent-platform/FOUNDRY.md) |
 | 外部 API 智能体与会话 | [Swarm](docs/agent-platform/SWARM.md) |
 | 恢复与远程计算 | [Resilient R&D](docs/agent-platform/RESILIENT_RND.md) |
+| API 冷却、恢复探测与传输超时 | [外部 API 恢复](docs/agent-platform/PROVIDER_RECOVERY.md) |
 | 证据与资源分配 | [Evidence Fabric](docs/agent-platform/EVIDENCE_FABRIC.md) |
 | 基于证据的反思 | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
 | 干预效果与策略学习 | [Intervention memory](docs/agent-platform/INTERVENTION_MEMORY.md) |
