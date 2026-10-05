@@ -379,7 +379,7 @@ def write_generated(summary):
                 f' & {cell(item["methods"]["marginal_reduction"])}'
                 f' & {cell(item["methods"]["random_reduction"])}'
                 f' & {cell(item["methods"]["oracle_reduction"])}'
-                f' & {item["methods"]["practical_reduction"]["regressions"]}/20 \\\n'
+                f' & {item["methods"]["practical_reduction"]["regressions"]}/20 \\\\\n'
             )
     with (GEN / "nulls.tex").open("w") as handle:
         for n in (128, 512, 1024):
@@ -391,7 +391,7 @@ def write_generated(summary):
                     f'{n:,} & {kind} & {method["mean"]:.3f}'
                     f' & [{lo:.3f},{hi:.3f}]'
                     f' & {item["practical_changed"]}/20'
-                    f' & {method["regressions"]}/20 \\\n'
+                    f' & {method["regressions"]}/20 \\\\\n'
                 )
     with (GEN / "shift.tex").open("w") as handle:
         for item in summary["shift"]:
@@ -400,7 +400,7 @@ def write_generated(summary):
                 f' & {cell(item["methods"]["retuned_reduction"])}'
                 f' & {cell(item["methods"]["oracle_reduction"])}'
                 f' & {item["methods"]["stale_reduction"]["regressions"]}/20'
-                f' & {item["methods"]["retuned_reduction"]["regressions"]}/20 \\\n'
+                f' & {item["methods"]["retuned_reduction"]["regressions"]}/20 \\\\\n'
             )
 
 
