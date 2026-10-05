@@ -1,74 +1,71 @@
-\section{Evaluation of the Practical Revision}\label{sec:v5evaluation}
-\subsection{Provenance and frozen questions}
-The v5 contract was saved before the new runs. It fixes three sizes (128, 512, 1,024), three completion families (clustered, independent, global), and three seeds (55011--55013). Each of the 27 workloads has 128 training epochs, 128 validation epochs and 256 held-out epochs. Random draws are sequential disjoint samples; deterministic global observations naturally coincide. The catalogue is fit only on training data, selected on validation, and reported on held-out data. Cold strict-epoch construction is included in every objective. The nine size/family summaries use seed means and observed ranges, not episode-pooled significance tests.
+\section{Evaluation}\label{sec:v5evaluation}
+\subsection{Questions, data, and provenance}
+The evaluation is organized around four questions rather than around successive artifact revisions:
+\begin{table}[H]\centering\small
+\caption{Research questions and the evidence used to answer them.}\label{tab:rqs}
+\begin{tabularx}{\linewidth}{@{}p{.06\linewidth}>{\raggedright\arraybackslash}p{.27\linewidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{.26\linewidth}@{}}\toprule
+RQ & Question & Evidence & Main observation\\\midrule
+RQ1 & When does learned ordering reduce evidence cost? & 27 frozen synthetic workloads; separate train, validation, and held-out epochs & Benefit appears on clustered completion structure, not on independent/global controls.\\
+RQ2 & What is traded for the practical no-DP compiler? & 36 replays of 12 archived source candidates under fixed8, learned balanced, and learned exact & Balanced is simpler and smaller than fixed8; exact retains a 1.52--11.68\% compressed-byte advantage.\\
+RQ3 & Does changing layout change semantic output? & Verdict/count comparisons, authorization checks, and root-status equality across all replay triples & Semantic results agree; root status is byte-identical in 12/12 triples.\\
+RQ4 & When can evidence savings repay extra work? & Codec-matched bytes plus 27 declared sensitivity scenarios & Break-even depends on goodput, repetition, and extra cost; no universal latency claim follows.\\\bottomrule
+\end{tabularx}
+\end{table}
 
-A separate study re-aggregates twelve archived source candidates under three layouts, producing 36 layout replays. All use the same original-order trusted check records, the same executed sequence and batches of eight. Average-linkage orders were learned on the earlier training cohort and frozen before these candidates. None of these replays is a fresh checker execution, independent code repair, or new agent trial. Historical v3/v4 data remain in Appendices~\ref{app:v3evidence} and~\ref{app:v4evidence}, with their original cohort identities.
+The frozen v5 contract fixes three registry sizes (128, 512, 1,024), three completion families (clustered, independent, global), and three seeds (55011--55013). Each of the 27 workloads contains 128 training epochs, 128 validation epochs, and 256 held-out epochs. Random draws are sequential disjoint samples; deterministic global observations naturally coincide. The catalogue is fit only on training data, selected on validation, and reported on held-out data. Cold strict-epoch construction is included in every objective. The nine size/family summaries report seed means and observed ranges; with three seeds per cell we do not turn episode counts into pseudo-replicated confidence claims.
 
-\subsection{Practical default without exact or block DP}
-\begin{table}[t]\centering\small
-\caption{New v5 synthetic study. Reduction is selected-layout held-out padded cost relative to the original-order balanced incumbent; positive is better. Fit includes affinity/order learning and catalogue construction, not validation scoring. Three seeds per row; ranges are descriptive.}\label{tab:v5practical}
+The source study re-aggregates twelve archived candidates, four each from NetworkX, Toolz, and Future Code, under three layouts. All three representations consume the same trusted check records, execution sequence, and batches of eight. The 36 outputs are layout replays, not fresh checker executions or new autonomous repairs. Historical v3/v4 records remain in the artifact under their original versioned provenance; they are not merged into the v5 empirical counts.
+
+\subsection{RQ1: learned ordering helps only when completion structure exists}
+\begin{table}[H]\centering\small
+\caption{Frozen synthetic study. Reduction is selected-layout held-out padded cost relative to original-order balanced fixed8; positive is better. Fit includes affinity/order learning and catalogue construction, not validation scoring. Ranges are over three seeds.}\label{tab:v5practical}
 \begin{tabular}{@{}rlrrrr@{}}\toprule
 Checks & Family & Mean (\%) & Range (\%) & Fit median (s) & Changed\\\midrule
 \csname @@input\endcsname generated_v5/practical.tex
 \bottomrule\end{tabular}
 \end{table}
 
-\begin{figure}[t]\centering
-\includegraphics[width=.72\linewidth]{figures/v5_heldout.pdf}
-\caption{Held-out padded-cost reduction of the learned balanced eight-ary layout against original-order fixed8 across the frozen v5 seeds (three per cell). Bars show the seed mean; whiskers span the observed seed range. Learning pays only on clustered completions; independent and global controls show no systematic reduction.}\label{fig:heldout}
+\begin{figure}[H]\centering
+\includegraphics[width=.82\linewidth]{figures/v5_heldout.pdf}
+\caption{Held-out padded-cost reduction versus original-order fixed8. Marks show the seed mean and whiskers the observed three-seed range. All nine clustered seeds improve; the null controls show no systematic benefit.}\label{fig:heldout}
 \end{figure}
 
-On clustered completions, mean held-out reductions are 23.43\%, 10.75\% and 5.56\% as registry size increases (Figure~\ref{fig:heldout}). Global updates give no reduction; independent updates give zero except for one of the three 512-check seeds, whose small gain produces a 0.07\% mean. These controls do not support universal value from ordering. The selected method includes no DP, and a regression test makes any call to the exact fitting helper fail on this path.
+Clustered completions yield mean held-out reductions of 23.43\%, 10.75\%, and 5.56\% at 128, 512, and 1,024 checks. More importantly than the means, every clustered seed is positive: the observed ranges are 22.40--24.45\%, 10.06--11.13\%, and 5.16--5.80\%. Global updates yield exactly zero improvement in all three sizes. Independent updates yield zero except for one 512-check seed, producing a 0.07\% mean and a 0.00--0.20\% range. The experiment therefore supports a conditional claim: ordering is useful when completion waves contain stable locality, and the validation stage can retain the incumbent when they do not.
 
-The full catalogue fit median at 1,024 checks remains about 3 seconds; order learning is not free. The fixed construction can reuse a previously approved order in linear work, but no linear-time claim is made for the full learned pipeline. The smaller percentage at larger registries is consistent with substantial layout-independent cold construction in this benchmark; it should not be interpreted as a learned scaling law.
+The practical path invokes no tree DP. At 1,024 checks, catalogue fitting still takes about three seconds on the recorded host, so learned layouts belong off the agent's per-action path and should be cached. The decreasing percentage with registry size is consistent with substantial layout-independent cold construction in this fixture; it is not presented as a scaling law.
 
-An initial execution exceeded its 120-second tool limit after saving 26 complete records. No process remained; explicit resume skipped those exact records and completed the remaining frozen seed without changing data or selection. All 27 observations and the interruption record are retained.
+The first synthetic execution exceeded its tool time limit after persisting 26 complete records. No worker remained; explicit resume skipped those immutable records and completed the final frozen case without changing inputs, selection, or seeds. The interruption record remains part of the artifact provenance.
 
-\subsection{Source-evidence replays: simplicity is not byte optimality}
-\begin{table}[t]\centering\small
-\caption{New serialization of twelve archived source candidates, four per project. The first three columns compare learned-order balanced8 with original-order fixed8. The last column compares learned balanced with learned exact after epoch compression: positive is a penalty. All include the codec's application framing.}\label{tab:v5replay}
+\subsection{RQ2--RQ3: simplicity, remaining headroom, and semantic invariance}
+\begin{table}[H]\centering\small
+\caption{Re-serialization of twelve archived source candidates. The first three columns compare learned balanced8 with original-order fixed8. The last column is the learned-balanced penalty relative to learned exact after whole-epoch compression.}\label{tab:v5replay}
 \begin{tabular}{@{}lrrrr@{}}\toprule
-Project & Padded saving & Canonical saving & Epoch saving & vs.\ exact\\
+Project & Padded saving & Canonical saving & Epoch saving & vs. exact\\
  & (\%) & (\%) & (\%) & penalty (\%)\\\midrule
 \csname @@input\endcsname generated_v5/replay.tex
 \bottomrule\end{tabular}
 \end{table}
-Learned balanced layouts reduce whole-epoch compressed bytes by 41.84\% for NetworkX~\cite{networkx}, 4.36\% for Toolz~\cite{toolz} and 18.53\% for Future Code. These are \emph{not} the larger v4 exact-layout savings relabeled as results of the new default. The balanced representation remains larger than learned exact in every project here. Exact fitting may therefore be appropriate when amortized delivery justifies its additional compilation; the practical default trades that potential gain for simpler fitting.
 
-Across the twelve cases, batch-compressed application bytes are 416,046 for fixed8, 299,081 for learned balanced and 278,831 for the re-serialized learned exact layout. Semantic counts, verdicts and local authorization agree across all 36 replays. Their provenance binds the archived check records by digest. Serialization includes newly bound layout/run metadata; numerical bytes need not exactly reproduce a prior archive's compressibility. The independent audit checks actual emitted bytes rather than substituting earlier totals.
+Learned balanced layouts reduce whole-epoch compressed bytes by 41.84\% for NetworkX~\cite{networkx}, 4.36\% for Toolz~\cite{toolz}, and 18.53\% for Future Code. Across all twelve candidates, batch-compressed application bytes fall from 416,046 for fixed8 to 299,081 for learned balanced. Learned exact uses 278,831 bytes, leaving 11.68\%, 1.52\%, and 6.67\% project-level headroom relative to balanced. The practical compiler is therefore a Pareto choice: it removes cubic tree synthesis from the default path while deliberately giving up some byte optimality available to the fixed-order exact reference.
 
-Root-status text is identical in all twelve triples and occupies 593--594 UTF-8 bytes. Exhaustive diagnostic pages total 148 for fixed8, 95 for learned balanced and 87 for learned exact. The new default therefore uses 35.81\% fewer pages than fixed8, not v4's 41.22\% exact-layout reduction. The largest emitted page is 16,364 bytes under a 16,384-byte limit. Reading every page is a specified exhaustive diagnostic service, not observed LLM behavior. There is no measured token reduction; root token equality follows from identical text for a fixed tokenizer, but no numerical BPE counts are asserted.
+Semantic counts, verdicts, and local authorization agree across all 36 replays. Root-status text is byte-identical in every layout triple and occupies 593--594 UTF-8 bytes, directly validating the negative control in Equation~\eqref{eq:rootcontext}. Exhaustive diagnostic pages total 148 for fixed8, 95 for learned balanced, and 87 for learned exact, so the practical layout uses 35.81\% fewer pages than fixed8. The largest page is 16,364 bytes under a 16,384-byte cap. These page counts describe an exhaustive diagnostic service; they do not imply that a model will request every page.
 
-\subsection{Codec-matched deployment scenarios, not measured speedups}
-The measured fixed-to-balanced compressed byte difference is 116,965 per twelve-candidate cohort. Equation~\eqref{eq:latency} gives 1.784744 seconds of gross delivery saving per cohort copy at an \emph{assumed} 64 KiB/s goodput, with $E=0$. This is arithmetic from replayed byte sizes, not the older 2.21-second measured loopback saving of a different layout.
+\subsection{RQ4: break-even depends on the deployed service}
+The fixed-to-balanced whole-epoch compressed difference is 116,965 bytes per twelve-candidate cohort. Under the explicitly assumed goodput of 64 KiB/s and $E=0$, Equation~\eqref{eq:latency} converts that difference to 1.784744 seconds of gross delivery time per cohort copy. This is service-model arithmetic from measured bytes, not a measured WAN speedup.
 
-\begin{table}[t]\centering\small
-\caption{Conditional minimum profitable copies of the \emph{same twelve-candidate cohort} with whole-epoch compression. $E=0$ is an assumption. The columns assume extra cost per candidate, paid once; cohort costs are 0.6, 6 and 60 seconds. These are not measured strict-wrapper overheads.}\label{tab:payback}
+\begin{table}[H]\centering\small
+\caption{Conditional minimum profitable copies of the same twelve-candidate cohort for whole-epoch compression, assuming $E=0$. Column headers are extra work per candidate; corresponding one-time cohort costs are 0.6, 6, and 60 seconds.}\label{tab:payback}
 \begin{tabular}{@{}lrrr@{}}\toprule
-Assumed goodput & 0.05 s/candidate & 0.5 s/candidate & 5 s/candidate\\\midrule
+Assumed goodput & 0.05 s & 0.5 s & 5 s\\\midrule
 8 KiB/s & 1 & 1 & 5\\
 64 KiB/s & 1 & 4 & 34\\
 1 MiB/s & 6 & 54 & 538\\\bottomrule
 \end{tabular}
 \end{table}
-The 5-second column is a deliberately declared sensitivity scenario, not an estimate transferred from the historical harness. At 64 KiB/s and one export per candidate, the assumed 60 seconds of cohort overhead overwhelms the approximately 1.785-second delivery saving. Repeated delivery might change the equation, but the application must actually require it. With new candidates on each repetition, preparation recurs and cannot be amortized as the same $C$. All 27 scenarios (three codecs, three rates, three overhead assumptions) are available, including negative outcomes; Figure~\ref{fig:planning} visualizes all three codecs. The planner rejects mismatched services and missing measurements rather than inventing a benefit.
 
-\begin{figure}[t]\centering
-\includegraphics[width=.98\linewidth]{figures/v5_planning.pdf}
-\caption{Minimum profitable copies of one twelve-candidate cohort for each codec, goodput and assumed extra cost (all 27 planning scenarios; darker means more copies are needed before learning pays). Table~\ref{tab:payback} gives the batch-zlib panel numerically. Adoption is plausible at low goodput with small overhead; at high goodput or large overhead, the unchanged incumbent is the rational choice. These are declared sensitivity scenarios, not measurements.}\label{fig:planning}
-\end{figure}
+The table exposes the operating region rather than selecting a universal winner. At 64 KiB/s, for example, an assumed 60 seconds of extra cohort work requires 34 repetitions of the same delivery service before modeled savings become strictly positive. New candidates incur new preparation and cannot reuse that amortization. The artifact stores 27 scenarios spanning three codecs, three rates, and three extra-cost assumptions; negative outcomes are retained, and mismatched or incomplete services return \texttt{INCOMPARABLE} or \texttt{UNKNOWN} rather than an invented benefit.
 
-\subsection{Historical controls remain controls}
-The earlier 288 loopback transfers belong to v4, use application pacing rather than real WAN conditions, and are not rerun or relabeled as v5 trials. For twelve compressed fixed/exact exports at 64 KiB/s, their measured totals were 6.624 and 4.413 seconds. The larger uncompressed totals were 33.499 and 18.954 seconds. Compression of fixed8 was more impactful than selecting an uncompressed learned layout. None of those durations is an IP/TLS throughput measurement or predicts a loss-prone path.
+\subsection{Controls, software validation, and independent reconstruction}
+Historical controls remain useful only in their original roles. Earlier receiver-paced loopback experiments showed that compression itself can dominate layout choice, and earlier harness timings showed no end-to-end speedup from the strict wrapper. Because those measurements use different cohorts and services, this manuscript does not subtract them from the new replay data. The block compiler's historical 1.54--5.34\% held-out penalty to same-order balanced8 is retained as the ablation that motivated the simpler default.
 
-The original 39.69/39.77-second checker totals and 12.98/18.11/18.12-second median direct/fixed/learned harness durations remain negative controls. They came from different source/harness fixtures, so this paper does not subtract their times across cohorts. The historical window-controller and block-compiler evidence is retained unchanged. Block DP's 1.54--5.34\% penalty to same-order balanced8 is the reason it is now an ablation, not a contribution advertised as deployment acceleration.
-
-\subsection{Unmeasured endpoints and tested interfaces}
-Both requested BPE encodings, \texttt{cl100k\_base} and \texttt{o200k\_base}, remain \texttt{UNKNOWN}: the software was absent, package/vocabulary fetches failed, and a connector-retrieved build artifact was expired. No substitute tokenizer, model alias or byte division was used. The measurement tool records exact content-only counts when a real encoding is available; its unit tests use explicitly labeled toy counters only to validate admission logic.
-
-No two authorized remote measurement hosts or designated live model endpoint were available. Physical-WAN and hosted-LLM trial counts are zero. The new TLS utility's local compatibility tests check transport integrity, certificate rejection and bounded framing; they do not measure WAN jitter/loss or close the agent-evaluation gap. A reproducible deployment protocol is supplied, rather than a claimed remote experiment.
-
-\subsection{Software and independent audit}
-The v5 prototype passes 329 tests, including 76 new cases; the existing version-equality assertion is updated to require 5.0.0 consistently in runtime and package metadata. A duplicate test-module basename and the initially inconsistent version were corrected without weakening behavior checks; failure logs are retained. New tests cover no-DP compilation, service mismatch, missing costs, exact break-even, whole-text token admission, TLS trust failures and deliberate data tampering.
-
-A separate auditor imports no producer optimizer, selector or codec. It reconstructs full-initialization and wave costs for all 27 workloads, checks 36 serialized replays against original evidence digests and verdicts, reconstructs all codec byte sizes and diagnostic pages, and independently checks 27 planning scenarios and 131 summary comparisons. These checks validate recorded arithmetic and provenance, not third-party security certification. Release verification separately records extracted-source tests, the unchanged Future Code suite, installed-source hashes and archive integrity.
+The v5 prototype passes 329 tests, including 76 new cases, while the unchanged Future Code suite passes 263 tests separately. New tests cover no-DP practical compilation, service mismatch, missing costs, exact break-even, whole-text token admission, TLS trust failures, stable-ID migration, and deliberate data tampering. A separate auditor imports no producer optimizer, selector, or codec and independently reconstructs initialization/wave costs for all 27 workloads, all 36 serialized replays, codec sizes, diagnostic pages, 27 planning scenarios, and 131 summary numerical comparisons. This is independent arithmetic and provenance reconstruction, not third-party certification.
