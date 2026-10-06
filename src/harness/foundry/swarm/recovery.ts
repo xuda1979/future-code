@@ -1,4 +1,3 @@
-import { setTimeout as delay } from "node:timers/promises";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { FatalAttemptError } from "../errors.ts";
 import { DeferredAttemptError } from "../continuation.ts";
@@ -9,8 +8,9 @@ import { boundedJson, isTransportFailure } from "./model.ts";
 import { SessionJournal } from "./session.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
 import type { RecoveryContext, RecoveryPlan, RecoveryPlanner } from "./supervisor.ts";
+import { transientStatus } from "./providerRecovery.ts";
+import { boundedFetch, discardResponse } from "./transport.ts";
 
-const TRANSIENT = new Set([408, 425, 429, 500, 502, 503, 504, 529]);
 const TOOL = "propose_recovery_plan";
 
 const taskSchema: Json = {
@@ -197,60 +197,50 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
       }, context.runId);
       return plan;
     }
-    for (let attempt = 0; attempt < 2; attempt++) {
-      signal.throwIfAborted();
-      const requestId = await journal.reserveRun(context.runId, "__recovery__", provider, body, cfg.spec.budget, signal);
-      let recorded = false;
-      store.event("objective.recovery.model.request", {
-        objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
-        agent, provider, attempt: attempt + 1, requestBytes: Buffer.byteLength(encoded),
-      }, context.runId);
-      const combined = createCombinedAbortSignal(signal, {
-        timeoutMs: cfg.spec.budget.requestTimeoutMs,
+    signal.throwIfAborted();
+    const requestHeaders = headers(profile);
+    const requestId = await journal.reserveRun(context.runId, "__recovery__", provider, body, cfg.spec.budget, signal);
+    let recorded = false;
+    store.event("objective.recovery.model.request", {
+      objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
+      agent, provider, requestBytes: Buffer.byteLength(encoded),
+    }, context.runId);
+    const combined = createCombinedAbortSignal(signal, {
+      timeoutMs: cfg.spec.budget.requestTimeoutMs,
+    });
+    try {
+      const response = await boundedFetch(fetcher, profile.url, {
+        method: "POST", headers: requestHeaders, body: encoded, redirect: "error",
+        signal: combined.signal,
       });
-      try {
-        const response = await fetcher(profile.url, {
-          method: "POST", headers: headers(profile), body: encoded, redirect: "error",
-          signal: combined.signal,
-        });
-        if (!response.ok) {
-          await response.body?.cancel();
-          journal.complete(requestId, null, null); recorded = true;
-          if (TRANSIENT.has(response.status) && attempt === 0) {
-            journal.cooldown(provider, 250);
-            await delay(250, undefined, { signal });
-            continue;
-          }
-          if (TRANSIENT.has(response.status))
-            throw new DeferredAttemptError("provider", Date.now() + 2000,
-              `Recovery model HTTP ${response.status}; retry scheduled`);
-          throw new FatalAttemptError(`Recovery model HTTP ${response.status}; provider/configuration requires attention`);
-        }
-        const raw = await boundedJson(response, cfg.spec.budget.maxToolOutputBytes);
-        journal.complete(requestId, usageTokens(raw, profile.protocol), raw); recorded = true;
-        const plan = decodePlan(profile.protocol, raw, context.reflection);
-        store.event("objective.recovery.model.reply", {
-          objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
-          agent, provider, decision: plan ? "replan" : "decline",
-          proposalHash: digest(plan ?? { declined: true }),
-        }, context.runId);
-        return plan;
-      } catch (error) {
-        if (!recorded) journal.complete(requestId, null, null);
-        signal.throwIfAborted();
-        if (attempt === 0 && isTransportFailure(error)) {
-          journal.cooldown(provider, 250);
-          await delay(250, undefined, { signal });
-          continue;
-        }
-        if (isTransportFailure(error))
-          throw new DeferredAttemptError("provider", Date.now() + 2000,
-            "Recovery provider transport unavailable; retry scheduled");
-        throw error;
-      } finally {
-        combined.cleanup();
+      if (!response.ok) {
+        discardResponse(response);
+        journal.complete(requestId, null, null); recorded = true;
+        if (transientStatus(response.status))
+          throw new DeferredAttemptError("provider", journal.providerFailure(requestId, response.headers.get("retry-after"), response.status),
+            `Recovery model HTTP ${response.status}; retry scheduled`);
+        throw new FatalAttemptError(`Recovery model HTTP ${response.status}; provider/configuration requires attention`);
       }
+      const raw = await boundedJson(response, cfg.spec.budget.maxToolOutputBytes, combined.signal);
+      journal.complete(requestId, usageTokens(raw, profile.protocol), raw); recorded = true;
+      const plan = decodePlan(profile.protocol, raw, context.reflection);
+      journal.providerSuccess(requestId);
+      store.event("objective.recovery.model.reply", {
+        objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
+        agent, provider, decision: plan ? "replan" : "decline",
+        proposalHash: digest(plan ?? { declined: true }),
+      }, context.runId);
+      return plan;
+    } catch (error) {
+      if (!recorded) journal.complete(requestId, null, null);
+      signal.throwIfAborted();
+      if (error instanceof DeferredAttemptError) throw error;
+      if (isTransportFailure(error) || combined.signal.aborted)
+        throw new DeferredAttemptError("provider", journal.providerFailure(requestId),
+          "Recovery provider transport unavailable; retry scheduled");
+      throw error;
+    } finally {
+      combined.cleanup();
     }
-    throw new Error("recovery planner retry budget exhausted");
   };
 }

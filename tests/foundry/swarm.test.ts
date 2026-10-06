@@ -7,6 +7,7 @@ import { Store } from "../../src/harness/foundry/store.ts";
 import { Scheduler } from "../../src/harness/foundry/scheduler.ts";
 import { digest, canonical } from "../../src/harness/foundry/kernel.ts";
 import { FatalAttemptError } from "../../src/harness/foundry/errors.ts";
+import { DeferredAttemptError } from "../../src/harness/foundry/continuation.ts";
 import { validateSwarmSpec, validateSwarmTasks, safePath } from "../../src/harness/foundry/swarm/config.ts";
 import { compactHistory, inlineReceipt, type Message } from "../../src/harness/foundry/swarm/context.ts";
 import { decodeTurn, requestBody, HttpBrain } from "../../src/harness/foundry/swarm/model.ts";
@@ -179,9 +180,13 @@ test("HTTP adapter keeps credentials out of persisted requests and honors redire
     assert.ok(!canonical(s.readArtifact(row.request)).includes("test-only-never-real"));
   } finally { delete process.env.SWARM_FIXTURE_KEY; }
 }));
-test("rate-limit retries are metered and a shared cooldown is stored", async () => fixture(async (s, cfg) => {
+test("rate-limit continuations are metered and a shared cooldown is stored", async t => fixture(async (s, cfg) => {
   const { c } = lease(s); const j = new SessionJournal(s); let n = 0;
   const brain = new HttpBrain(j, (async () => ++n === 1 ? new Response(null, { status: 429, headers: { "retry-after": "0" } }) : reply()) as typeof fetch);
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  await assert.rejects(brain.next(c, cfg.spec.agents.coder, [{ role: "user", content: "task" }], cfg.spec.budget, 32768, signal()), error => {
+    assert.ok(error instanceof DeferredAttemptError); t.mock.timers.tick(error.wakeAt - Date.now()); return true;
+  });
   await brain.next(c, cfg.spec.agents.coder, [{ role: "user", content: "task" }], cfg.spec.budget, 32768, signal());
   assert.equal(n, 2); assert.equal(j.usage(c.runId).unknownRequests, 1); assert.equal(j.usage(c.runId).knownTokens, 15);
   assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM agent_cooldowns").get()!.n, 1);

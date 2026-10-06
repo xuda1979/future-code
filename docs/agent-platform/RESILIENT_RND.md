@@ -123,6 +123,11 @@ must match on resume. A short supervisor lease prevents two owners driving the
 same objective; a crash can require waiting for its 30-second lease to expire.
 Worker leases continue to fence late results.
 
+[External API recovery](PROVIDER_RECOVERY.md) persists shared cooldowns, admits
+one recovery probe per quota pool, and releases worker slots while waiting.
+The same policy applies to recovery planning and configured fallback routes.
+Health reports include the next provider retry deadline.
+
 `COMPLETE` requires independently verified task outputs plus final merged-tree
 checks. Integration creates a new `refs/heads/swarm/RUN_ID` branch; it does not
 modify main, checkout, force-update or push. Cached evidence is revalidated.

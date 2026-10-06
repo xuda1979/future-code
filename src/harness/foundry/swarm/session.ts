@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { FatalAttemptError } from "../errors.ts";
+import { DeferredAttemptError } from "../continuation.ts";
 import { Store } from "../store.ts";
 import type { Capsule, Json, Verification } from "../types.ts";
 import type { Call, Message } from "./context.ts";
 import type { SwarmBudget } from "./config.ts";
+import { ProviderRecovery } from "./providerRecovery.ts";
 
 export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
 export interface ThreadState {
@@ -76,6 +78,7 @@ function objectiveRequestBudget(store: Store, run: string, incomingBytes: number
 /** Same Foundry database and artifact store, not a second scheduler. */
 export class SessionJournal {
   readonly store: Store;
+  readonly providerRecovery: ProviderRecovery;
   constructor(store: Store) {
     this.store = store;
     store.db.exec(`
@@ -95,6 +98,7 @@ export class SessionJournal {
       CREATE TABLE IF NOT EXISTS agent_replies(run TEXT NOT NULL, task TEXT NOT NULL, step INTEGER NOT NULL, body TEXT NOT NULL, response TEXT NOT NULL, PRIMARY KEY(run,task,step));
       CREATE TABLE IF NOT EXISTS agent_cooldowns(provider TEXT PRIMARY KEY, until_ms REAL NOT NULL);
     `);
+    this.providerRecovery = new ProviderRecovery(store);
   }
   assertLease(c: Capsule, now = Date.now()): void {
     const task = this.store.db.prepare("SELECT status,fence,deadline FROM tasks WHERE run=? AND id=?").get(c.runId, c.task.id);
@@ -203,15 +207,18 @@ export class SessionJournal {
         const used = this.store.db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM agent_requests WHERE run=?").get(c.runId)!;
         if (used.n >= budget.maxRequests || used.bytes + count > budget.maxRequestBytes) throw new FatalAttemptError("RUN_REQUEST_BUDGET_EXHAUSTED");
         objectiveRequestBudget(this.store, c.runId, count);
-        const cooldown = this.store.db.prepare("SELECT until_ms FROM agent_cooldowns WHERE provider=?").get(provider)?.until_ms ?? 0;
+        const wake = this.providerRecovery.ready(provider, c.runId, c.task.id, c.fence, now);
+        if (wake !== null) return { wake };
         const live = this.store.db.prepare("SELECT COUNT(*) AS n FROM agent_requests WHERE provider=? AND status='ACTIVE'").get(provider)!.n;
-        if (cooldown > now || live >= budget.modelConcurrency) return null;
+        if (live >= budget.modelConcurrency) return null;
         const id = randomUUID();
         this.store.db.prepare("INSERT INTO agent_requests VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',NULL,NULL)")
           .run(id, c.runId, c.task.id, c.fence, provider, count, request, now, now + budget.requestTimeoutMs);
+        this.providerRecovery.admit(id, provider);
         return id;
       });
-      if (id) return id;
+      if (typeof id === "string") return id;
+      if (id) throw new DeferredAttemptError("provider", id.wake, "Provider cooldown or recovery probe; durable resume scheduled");
       // Same-process releases wake waiters immediately; the timeout is only a
       // bounded fallback for another process sharing the SQLite store.
       await waitPermit(provider, signal);
@@ -234,15 +241,18 @@ export class SessionJournal {
         if (used.n >= budget.maxRequests || used.bytes + count > budget.maxRequestBytes)
           throw new FatalAttemptError("RUN_REQUEST_BUDGET_EXHAUSTED");
         objectiveRequestBudget(this.store, run, count);
-        const cooldown = this.store.db.prepare("SELECT until_ms FROM agent_cooldowns WHERE provider=?").get(provider)?.until_ms ?? 0;
+        const wake = this.providerRecovery.ready(provider, run, task, 0, now);
+        if (wake !== null) return { wake };
         const live = this.store.db.prepare("SELECT COUNT(*) AS n FROM agent_requests WHERE provider=? AND status='ACTIVE'").get(provider)!.n;
-        if (cooldown > now || live >= budget.modelConcurrency) return null;
+        if (live >= budget.modelConcurrency) return null;
         const id = randomUUID();
         this.store.db.prepare("INSERT INTO agent_requests VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',NULL,NULL)")
           .run(id, run, task, 0, provider, count, request, now, now + budget.requestTimeoutMs);
+        this.providerRecovery.admit(id, provider);
         return id;
       });
-      if (id) return id;
+      if (typeof id === "string") return id;
+      if (id) throw new DeferredAttemptError("provider", id.wake, "Recovery provider cooldown or probe; durable retry scheduled");
       // Same-process releases wake waiters immediately; the timeout is only a
       // bounded fallback for another process sharing the SQLite store.
       await waitPermit(provider, signal);
@@ -252,9 +262,11 @@ export class SessionJournal {
    * Used for crash-safe recovery planning; replay consumes no new request budget. */
   cachedRun(run: string, task: string, body: Json): Json | null {
     const request = digest(body);
-    const row = this.store.db.prepare(`SELECT response FROM agent_requests
-      WHERE run=? AND task=? AND request=? AND status='DONE' AND response IS NOT NULL
-      ORDER BY started DESC LIMIT 1`).get(run, task, request);
+    const row = this.store.db.prepare(`SELECT r.response FROM agent_requests r
+      LEFT JOIN agent_provider_admissions a ON a.request=r.id
+      WHERE r.run=? AND r.task=? AND r.request=? AND r.status='DONE' AND r.response IS NOT NULL
+        AND (a.outcome IS NULL OR a.outcome='SUCCESS')
+      ORDER BY r.started DESC,r.id DESC LIMIT 1`).get(run, task, request);
     return row?.response ? this.store.readArtifact(String(row.response)) : null;
   }
 
@@ -303,6 +315,16 @@ export class SessionJournal {
       .run(provider, Date.now() + ms);
     // Wake local waiters so they can observe the updated cooldown and choose
     // the bounded fallback interval instead of spinning.
+    notifyPermit(provider);
+  }
+  providerFailure(id: string, retryAfter: string | null = null, status: number | null = null): number {
+    const wake = this.providerRecovery.failure(id, retryAfter, status);
+    const provider = String(this.store.db.prepare("SELECT provider FROM agent_requests WHERE id=?").get(id)!.provider);
+    notifyPermit(provider); return wake;
+  }
+  providerSuccess(id: string): void {
+    this.providerRecovery.success(id);
+    const provider = String(this.store.db.prepare("SELECT provider FROM agent_requests WHERE id=?").get(id)!.provider);
     notifyPermit(provider);
   }
   usage(run: string, task?: string, fence?: number): { requests: number; requestBytes: number; knownTokens: number; unknownRequests: number; tokens: number | null } {

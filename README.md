@@ -101,6 +101,7 @@ Missing token or dollar measurements remain unknown.
 | Frozen contracts and recipe experiments | [Foundry](docs/agent-platform/FOUNDRY.md) |
 | External-API agents and durable sessions | [Swarm](docs/agent-platform/SWARM.md) |
 | Recovery and remote compute | [Resilient R&D](docs/agent-platform/RESILIENT_RND.md) |
+| Provider cooldowns, recovery probes and bounded transport | [External API recovery](docs/agent-platform/PROVIDER_RECOVERY.md) |
 | Evidence and allocation | [Evidence Fabric](docs/agent-platform/EVIDENCE_FABRIC.md) |
 | Measured self-reflection | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
 | Empirical strategy learning | [Intervention memory](docs/agent-platform/INTERVENTION_MEMORY.md) |
