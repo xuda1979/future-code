@@ -1,4 +1,5 @@
 import type { Command } from '../../commands.js'
+import { enableAutoGoal, pauseAutoGoal, resumeAutoGoal, readAutoGoal } from './auto.ts'
 
 const goal: Command = {
   type: 'prompt',
@@ -9,6 +10,24 @@ const goal: Command = {
   contentLength: 200,
   source: 'builtin',
   async getPromptForCommand(args: string) {
+    const value = args.trim()
+    if (value === '--status') {
+      const state = readAutoGoal()
+      return [{ type: 'text' as const, text: state ? JSON.stringify(state, null, 2) : 'No autonomous goal is configured.' }]
+    }
+    if (value === '--pause') {
+      const state = pauseAutoGoal()
+      return [{ type: 'text' as const, text: state ? 'Autonomous goal paused.' : 'No autonomous goal is configured.' }]
+    }
+    if (value === '--resume') {
+      const state = resumeAutoGoal()
+      return [{ type: 'text' as const, text: state ? 'Autonomous goal resumed with a new bounded continuation batch.' : 'No autonomous goal is configured.' }]
+    }
+    if (value.startsWith('--auto ')) {
+      const goal = value.slice('--auto '.length).trim()
+      const state = enableAutoGoal(goal)
+      return [{ type: 'text' as const, text: `Autonomous goal armed (up to ${state.maxContinuations} automatic continuation turns before pause). The host continues after completed model turns; operator review is required before declaring acceptance.\n\nGOAL: ${goal}\n\nWrite the goal and an explicit Status: in_progress to .future-code/goal.md now. Work on the highest-impact next step. After independent checks succeed, set Status: completed. Do not request permission for dangerous actions implicitly; honor approval boundaries.` }]
+    }
     if (!args || !args.trim()) {
       return [{ type: 'text' as const, text: `Read the current goal from .future-code/goal.md if it exists. If it exists, summarize the current goal and the progress made so far. If it does not exist, tell the user that no goal has been set yet and suggest they use /goal <description> to set one.` }]
     }
