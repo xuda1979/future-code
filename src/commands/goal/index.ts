@@ -1,5 +1,5 @@
 import type { Command } from '../../commands.js'
-import { enableAutoGoal, pauseAutoGoal, resumeAutoGoal, readAutoGoal } from './auto.js'
+import { enableAutoGoal, pauseAutoGoal, resumeAutoGoal, readAutoGoal } from './auto.ts'
 
 const goal: Command = {
   type: 'prompt',
