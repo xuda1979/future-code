@@ -1,0 +1,43 @@
+\section{Additional Strong-Baseline Audit (V7)}\label{sec:v7baseline}
+\subsection{Contract: archived observations, new controls}
+To challenge the choice of baseline rather than improve a favorable benchmark by editorial selection, we added a preregistered offline audit against two additional permutation families and an explicit flat-ledger representation. The inputs are the frozen v5 training/validation/held-out waves and the twelve previously executed checker traces. This audit introduces \emph{no} fresh checker execution, live agent run, physical-WAN transfer, or measured provider-token usage. The program and tamper tests are in \texttt{experiments\_v7}, \texttt{tests\_v7}, and the machine-readable GitHub Actions artifact. The new control results must not be counted as independent project replications of the v5 runs.
+
+\paragraph{Permutation controls.}
+A frequency-order baseline sorts semantic IDs by the marginal number of training-wave occurrences, retaining canonical-ID tie breaks. The selected learned layout is fixed by the original separate validation cohort. Eight deterministic random permutations are generated using case-specific SHA-256-seeded randomness, then scored only on held-out epochs. Their median is a random-order control; their best result is an \emph{unavailable-at-deployment hindsight oracle}, not a trained or proposed selector. Every candidate uses the same eight-ary tree, packet price, cold-construction cost, and held-out completion waves. The audit independently recomputes all published v5 held-out layout totals and aborts on a mismatch.
+
+\begin{table}[t]\centering\small
+\caption{Additional held-out comparison against original-order balanced8. Mean percentage reduction over three seeds; positive is smaller. HACT is the original validation-selected learned layout. Random best is a hindsight-only diagnostic, never used for selection. No confidence interval is inferred from three seeds.}\label{tab:v7strong}
+\begin{tabular}{@{}rlrrrr@{}}\toprule
+Checks & Family & HACT (\%) & Frequency (\%) & Random median (\%) & Random oracle (\%)\\\midrule
+128 & clustered & 23.43 & 13.91 & -0.23 & 1.39\\
+512 & clustered & 10.75 & 5.03 & -0.06 & 0.28\\
+1024 & clustered & 5.56 & 1.96 & 0.00 & 0.07\\
+128 & independent & 0.00 & 0.00 & -0.04 & 0.22\\
+512 & independent & 0.07 & -0.04 & 0.03 & 0.11\\
+1024 & independent & 0.00 & 0.03 & 0.01 & 0.08\\
+128 & global & 0.00 & 0.00 & 0.00 & 0.00\\
+512 & global & 0.00 & 0.00 & 0.00 & 0.00\\
+1024 & global & 0.00 & 0.00 & 0.00 & 0.00\\\bottomrule
+\end{tabular}
+\end{table}
+The learned layout wins against these simple permutation controls in every clustered size. At the 1,024-check independent control, the frequency ordering obtains a small positive improvement even though the validation-selected HACT layout retains its incumbent; we do not reselect on this held-out fact. The global updates provide no ordering advantage, as expected. These data strengthen the conclusion that \emph{structured completion locality}, not arbitrary reordering, explains the primary synthetic effect.
+
+\subsection{Flat-ledger and status-only controls}
+A well-designed flat event ledger is a credible alternative to a hierarchical certificate stream. We therefore serialize the stable registry, candidate/checker/environment identity, each recorded eight-check completion batch, and the final status into canonical JSON, then compress the whole ledger with DEFLATE level six. Failed and incomplete checker runs remain in the cohort: checks never executed are represented as unresolved members of the full registry, not silently removed. The archived evidence SHA-256 digest is checked before serialization. The layout-invariant root-status projection remains a second, even smaller, negative control.
+
+\begin{table}[t]\centering\small
+\caption{Retrospective source replay, four archived cases per project. Totals are whole-stream compressed application bytes. \emph{Service capabilities differ}: flat is a semantic-ID event ledger without HACT's internal certificate packets; root-only provides no diagnostics. The flat serialization also lacks HACT's fixed 40-byte per-case framing addition. This table is a representation sanity check, \emph{not} a fair end-to-end speedup comparison.}\label{tab:v7flat}
+\begin{tabular}{@{}lrrr@{}}\toprule
+Project & Flat leaf ledger (B) & Fixed HACT (B) & Learned HACT (B)\\\midrule
+NetworkX & 24,097 & 223,577 & 130,029\\
+Toolz & 10,130 & 86,398 & 82,634\\
+Future Code & 16,273 & 106,071 & 86,418\\\bottomrule
+\end{tabular}
+\end{table}
+
+The flat ledger is substantially smaller because it does not deliver the same hierarchical evidence service. This is nonetheless an important negative result for product adoption: a deployment needing only final per-check states should start with a flat indexed ledger, and one needing only PASS/FAIL should start with the root projection. HACT is justified only where the consumer actually needs intermediate bounded hierarchical diagnostics. A matched indexed-ledger query interface, including on-demand aggregate computation, data structure maintenance and diagnostic latency, is still required to establish whether HACT is superior for that service.
+
+\subsection{Safety falsification and the live-evidence gap}
+An additional adversarial property test enumerates all $3^4$ PASS/FAIL/UNKNOWN assignments across three valid permutations of a four-obligation registry and checks identical canonical verdict/count projections. Separate tests verify that migrating after authorization invalidates the old ticket and that conflicting same-epoch evidence cannot be resurrected through migration. These are bounded implementation checks, not formal verification of arbitrary distributed executions; Theorem~\ref{thm:safety} retains its trusted-runner, atomic-fencing, and complete-contract assumptions.
+
+We separately publish the \texttt{V7\_LIVE\_EVALUATION\_PROTOCOL} with frozen research questions, comparable diagnostic APIs, randomized paired blocking, at least three independent repetitions, quality-matched baselines, verifier/provenance requirements and explicitly defined UNKNOWN results. \emph{This prospective study has not run.} In particular, no statistically supported claim about end-to-end agent productivity, billed model tokens, or physical WAN latency follows from the present retrospective evidence.
