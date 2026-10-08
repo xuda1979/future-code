@@ -1,0 +1,55 @@
+name: Agent productivity benchmark (offline integrity)
+on:
+  pull_request:
+    paths:
+      - scripts/compare-agent-productivity.mjs
+      - scripts/prepare-agent-comparison-fixture.mjs
+      - tests/foundry/agent-comparison*.test.mjs
+      - examples/agent-comparison/**
+      - .github/workflows/agent-productivity-offline.yml
+  workflow_dispatch:
+jobs:
+  comparator-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: node --test tests/foundry/agent-comparison.test.mjs tests/foundry/agent-comparison-fixture.test.mjs
+      - run: node --check scripts/compare-agent-productivity.mjs
+      - run: node --check scripts/prepare-agent-comparison-fixture.mjs
+      - run: python3 -m py_compile examples/agent-comparison/research_check.py
+      - name: Keep the comparison suite project-independent
+        run: |
+          if grep -RniE 'xuda1979|quantum.gpt|aihuanxin' scripts/compare-agent-productivity.mjs scripts/prepare-agent-comparison-fixture.mjs examples/agent-comparison/README.md examples/agent-comparison/fixtures; then
+            echo 'Project-specific content is not allowed in the general R&D benchmark'
+            exit 1
+          fi
+  self-contained-regression-controls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Create a frozen, standalone research Git fixture
+        run: node scripts/prepare-agent-comparison-fixture.mjs --out "$RUNNER_TEMP/research-benchmark"
+      - name: Confirm all four known defects reproduce
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONDONTWRITEBYTECODE=1
+          cd "$RUNNER_TEMP/research-benchmark/research-project"
+          for case_id in metrics-fidelity manifest-integrity candidate-completeness job-idempotence; do
+            set +e
+            python3 "$GITHUB_WORKSPACE/examples/agent-comparison/research_check.py" "$case_id" > "$RUNNER_TEMP/$case_id.log" 2>&1
+            status=$?
+            set -e
+            if [ "$status" -ne 1 ] || ! grep -Fq "RED_CONTROL_$case_id" "$RUNNER_TEMP/$case_id.log"; then
+              cat "$RUNNER_TEMP/$case_id.log"
+              echo "Invalid red control for $case_id (exit=$status)"
+              exit 1
+            fi
+          done
+          test -z "$(git status --porcelain)"
