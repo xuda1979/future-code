@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "status": "UNMEASURED_HYPOTHESES",
+  "scenarios": [
+    {
+      "id": "single-60-second-local-task",
+      "hypothesis": "Single agent, identical model/tool work; 1 second of additional Future-Code coordination",
+      "workHours": 0.016666666666666666,
+      "serialFraction": 1,
+      "baseline": {
+        "workers": 1,
+        "coordinationHours": 0.00005555555555555556,
+        "lostWorkHours": 0,
+        "verifiedCompletionProbability": 0.99
+      },
+      "futureCode": {
+        "workers": 1,
+        "coordinationHours": 0.0003333333333333333,
+        "lostWorkHours": 0,
+        "verifiedCompletionProbability": 0.99
+      }
+    },
+    {
+      "id": "long-rnd-single-agent-baseline",
+      "hypothesis": "Independent phases and avoided failed-job rework; assumes reference uses one effective worker",
+      "workHours": 200,
+      "serialFraction": 0.25,
+      "baseline": {
+        "workers": 1,
+        "coordinationHours": 4,
+        "lostWorkHours": 55,
+        "verifiedCompletionProbability": 0.8
+      },
+      "futureCode": {
+        "workers": 5,
+        "coordinationHours": 12,
+        "lostWorkHours": 12,
+        "verifiedCompletionProbability": 0.8
+      }
+    },
+    {
+      "id": "long-rnd-strong-multi-agent-competitor",
+      "hypothesis": "Both runtimes use five effective workers and similar recovery; no large Future-Code advantage",
+      "workHours": 200,
+      "serialFraction": 0.25,
+      "baseline": {
+        "workers": 5,
+        "coordinationHours": 10,
+        "lostWorkHours": 12,
+        "verifiedCompletionProbability": 0.8
+      },
+      "futureCode": {
+        "workers": 5,
+        "coordinationHours": 12,
+        "lostWorkHours": 12,
+        "verifiedCompletionProbability": 0.8
+      }
+    }
+  ]
+}
