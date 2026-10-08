@@ -1,0 +1,26 @@
+name: Productivity frontier contract
+on:
+  pull_request:
+    paths:
+      - src/harness/foundry/productivityTheory.ts
+      - src/harness/foundry/swarm/cli.ts
+      - scripts/model-productivity-frontier.mjs
+      - tests/foundry/productivity-theory.test.mjs
+      - examples/productivity/productivity-scenarios.json
+      - docs/agent-platform/PRODUCTIVITY_FRONTIER.md
+      - .github/workflows/productivity-frontier.yml
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: node --experimental-strip-types --test tests/foundry/productivity-theory.test.mjs
+      - run: node --experimental-strip-types scripts/model-productivity-frontier.mjs > /tmp/productivity-frontier.json
+      - name: Check forecast is not presented as observed
+        run: |
+          node -e 'const f=require("/tmp/productivity-frontier.json"); if(f.status!=="FORECAST_ONLY_NOT_BENCHMARK"||f.cases.length!==3||f.cases.some(x=>x.forecast.kind!=="CONDITIONAL_FORECAST_ONLY"))process.exit(1)'
+      - run: node scripts/test-commands.mjs
