@@ -107,6 +107,7 @@ Missing token or dollar measurements remain unknown.
 | Empirical strategy learning | [Intervention memory](docs/agent-platform/INTERVENTION_MEMORY.md) |
 | Current regression and real-source evidence | [Validation](docs/agent-platform/SOVEREIGN_VALIDATION.md) |
 | Full terminal CLI setup | [Linux deployment](DEPLOY-LINUX.md), [onboarding](ONBOARDING.md) |
+| Release technical reports and patent disclosure | [Release documents](docs/release/README.md) |
 
 ## Repository map
 
