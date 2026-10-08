@@ -9,6 +9,7 @@ import type { Json, Task } from "../types.ts";
 import { initializeSwarm, integrateSwarm, loadSwarm, runSwarm, swarmStatus } from "./host.ts";
 import { ResearchJobs, type JobReply } from "./jobs.ts";
 import { SessionJournal } from "./session.ts";
+import { recommendExecutionLane } from "../productivityTheory.ts";
 import { readObjectiveEpisode } from "../rndEpisodes.ts";
 import { readLatestObjectiveReflection } from "../rndReflection.ts";
 import { adjudicateClaim, claimsForGoals, claimRevalidationTask, retractClaim } from "../claims.ts";
@@ -24,6 +25,7 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   claim-revalidation-task --run ID --claim ID
   claim-retract --run ID --claim ID --version N --reason TEXT --allow-exec
   claim-adjudicate --run ID --claim ID --version N --evidence ID --allow-exec
+  recommend --tasks FILE (advisory: direct vs supervised; no execution)
   status [--run ID] [--task-after TASK_ID]
   receipt --hash HASH [--offset N] [--length N]
   events --run ID --task ID [--after N]
@@ -54,7 +56,7 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "status", "receipt", "events", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate"].includes(cmd), "unknown swarm command");
+  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "receipt", "events", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate"].includes(cmd), "unknown swarm command");
   if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
@@ -76,6 +78,11 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
       case "claim-revalidation-task": return JSON.parse(canonical(claimRevalidationTask(store, need("--run"), need("--claim"))));
       case "claim-retract": return JSON.parse(canonical(retractClaim(store, need("--run"), need("--claim"), Number(need("--version")), need("--reason"))));
       case "claim-adjudicate": return JSON.parse(canonical(adjudicateClaim(store, need("--run"), need("--claim"), Number(need("--version")), need("--evidence"))));
+      case "recommend": {
+        const tasks = file(need("--tasks")) as Task[];
+        const cfg = loadSwarm(store);
+        return JSON.parse(canonical(recommendExecutionLane(tasks, cfg.spec)));
+      }
       case "status": return swarmStatus(store, opts.get("--run"), opts.get("--task-after"));
       case "receipt": {
         const offset = Number(opts.get("--offset") ?? 0); const length = Number(opts.get("--length") ?? 4096);
