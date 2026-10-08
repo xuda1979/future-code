@@ -47,12 +47,17 @@ def test_invalid_wave_refused():
         _validate_split(a)
 
 
-def test_flat_requires_all_obligations():
+def test_flat_preserves_unexecuted_as_unknown():
     evidence = {"registry": ["a", "b"], "executed": ["a"], "records": {
         "a": {"status": "PASS"}}}
     report = {"snapshot": "s", "checker": "c", "environment": "e", "registry_hash": "r",
-              "counts": [2,0,0], "verdict": "PASS", "locally_authorized": True}
-    with pytest.raises(ValueError, match="incomplete"):
+              "required": 2, "executed": 1,
+              "counts": [1, 0, 1], "verdict": "UNKNOWN", "locally_authorized": False}
+    packets = _flat_serialization(evidence, report)
+    assert b'"registry_ids":["a","b"]' in packets[0]
+    assert b'"verdict":"UNKNOWN"' in packets[-1]
+    evidence["executed"] = ["foreign"]
+    with pytest.raises(ValueError, match="foreign"):
         _flat_serialization(evidence, report)
 
 
