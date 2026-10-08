@@ -138,6 +138,8 @@ class ProxyLatencyPolicyTest(unittest.TestCase):
             upstream_url="https://example.invalid/v1/chat/completions",
             upstream_token="Bearer test",
             appcode="",
+            insecure=False,
+            verify_context=None,
             insecure_context=None,
         )
 
