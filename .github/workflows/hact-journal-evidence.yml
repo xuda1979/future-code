@@ -1,0 +1,36 @@
+name: HACT journal evidence audit
+on:
+  pull_request:
+    paths:
+      - "hact-paper/Adaptive_HACT_v5/experiments_v7/**"
+      - "hact-paper/Adaptive_HACT_v5/tests_v7/**"
+      - "hact-paper/Adaptive_HACT_v5/docs/V7_EVIDENCE_CONTRACT.md"
+      - ".github/workflows/hact-journal-evidence.yml"
+permissions:
+  contents: read
+jobs:
+  v7-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: hact-paper/Adaptive_HACT_v5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Python dependencies
+        run: |
+          python -m pip install numpy==2.3.5 pytest==9.0.2
+      - name: V7 independent gates
+        run: |
+          PYTHONPATH=. python -m pytest -q tests_v7
+      - name: Recompute frozen source and synthetic controls
+        run: |
+          PYTHONPATH=. python -m experiments_v7.strong_baselines --output "$RUNNER_TEMP/hact-v7-comparisons.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hact-v7-strong-baselines
+          path: ${{ runner.temp }}/hact-v7-comparisons.json
+          if-no-files-found: error
