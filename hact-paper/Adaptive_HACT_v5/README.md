@@ -1,8 +1,14 @@
-# Adaptive HACT empirical artifact v5.0 / journal manuscript v6.0
+# Adaptive HACT empirical artifact v5.0 / journal manuscript v7.0
 
 **Journal framing:** Verification-Evidence Virtualization for Long-Horizon Agentic Software Engineering
 
-Start with `paper/main.pdf`, `paper/SUBMISSION_NOTES_V6.md`, `docs/RESPONSE_TO_REVIEWERS.md`, and `docs/V5_OPERATING_GUIDE.md`. The empirical records remain the frozen v5 artifact; manuscript v6 strengthens theory, positioning, and presentation without relabeling old evidence as new trials. This is a research artifact, not a production security service or an accepted paper.
+Start with `paper/main.pdf`, `paper/SUBMISSION_NOTES_V7.md`, `docs/RESPONSE_TO_REVIEWERS.md`, and `docs/V5_OPERATING_GUIDE.md`. The empirical records remain the frozen v5 artifact; manuscript v7 strengthens theory, positioning, and retrospective control baselines without relabeling old evidence as new trials. This is a research artifact, not a production security service or an accepted paper.
+
+## New v7 strong-baseline audit
+
+The v7 journal manuscript includes train-fitted marginal-frequency and seeded random-order controls plus an explicitly non-equivalent compressed flat event ledger. The flat ledger is much smaller but does not supply HACT's intermediate hierarchical certificates; this is a negative control against overclaiming universal compression or speedup. The CI job `HACT journal evidence audit` produces a machine-readable retrospective result artifact. No live-agent or physical-WAN evidence is claimed.
+
+See `docs/V7_EVIDENCE_CONTRACT.md`, `docs/V7_LIVE_EVALUATION_PROTOCOL.md`, and `paper/SUBMISSION_NOTES_V7.md`.
 
 ## Practical recommendation
 
