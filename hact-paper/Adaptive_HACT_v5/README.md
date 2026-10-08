@@ -1,10 +1,8 @@
-# Adaptive HACT v5.0
+# Adaptive HACT empirical artifact v5.0 / journal manuscript v6.0
 
-**Service-Matched Verification Evidence and Deployment Boundaries**
+**Journal framing:** Verification-Evidence Virtualization for Long-Horizon Agentic Software Engineering
 
-Start with `paper/main.pdf`, `docs/RESPONSE_TO_REVIEWERS.md`, and
-`docs/V5_OPERATING_GUIDE.md`. This is a research artifact, not a production
-security service or an accepted conference paper.
+Start with `paper/main.pdf`, `paper/SUBMISSION_NOTES_V6.md`, `docs/RESPONSE_TO_REVIEWERS.md`, and `docs/V5_OPERATING_GUIDE.md`. The empirical records remain the frozen v5 artifact; manuscript v6 strengthens theory, positioning, and presentation without relabeling old evidence as new trials. This is a research artifact, not a production security service or an accepted paper.
 
 ## Practical recommendation
 

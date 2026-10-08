@@ -1,7 +1,8 @@
 \documentclass[11pt]{article}
 \usepackage[a4paper,margin=24mm]{geometry}
 \usepackage[T1]{fontenc}
-\usepackage{amsmath,amsthm,newtxtext,newtxmath,microtype}
+\usepackage{amsmath,amssymb,amsthm,microtype}
+\usepackage{lmodern}
 \usepackage{booktabs,tabularx,array,graphicx,xcolor}
 \usepackage{algorithm,algpseudocode,enumitem}
 \usepackage{float}
@@ -14,28 +15,40 @@
 \def\UrlBreaks{\do\.\do\@\do\\\\\do\/\do\_\do\|\do\-\do\+\do\=\do\#\do\$\do\%\do\^\do\&\do\*\do\~\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z\do\A\do\B\do\C\do\D\do\E\do\F\do\G\do\H\do\I\do\J\do\K\do\L\do\M\do\N\do\O\do\P\do\Q\do\R\do\S\do\T\do\U\do\V\do\W\do\X\do\Y\do\Z}
 \makeatother
 \usepackage{fancyhdr}
-\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Manuscript revision 5.1}\fancyfoot[C]{\thepage}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Journal manuscript v6.0}\fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}\setlength{\parskip}{3pt}\setlength{\emergencystretch}{2em}
 \newtheorem{theorem}{Theorem}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{lemma}[theorem]{Lemma}
 \theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
 \newcommand{\PASS}{\mathsf{PASS}}\newcommand{\FAIL}{\mathsf{FAIL}}\newcommand{\UNKNOWN}{\mathsf{UNKNOWN}}
 \newcommand{\E}{\mathbb E}\newcommand{\Prb}{\mathbb P}\newcommand{\ind}{\mathbf 1}\newcommand{\R}{\mathcal R}
 \DeclareMathOperator*{\argmin}{arg\,min}
-\hypersetup{pdftitle={Adaptive HACT: Hyperedge-Aware, Identity-Stable Verification Evidence for Agentic Systems},pdfauthor={Research manuscript; author information pending confirmation}}
-\title{\vspace{-9mm}\textbf{Adaptive HACT: Hyperedge-Aware, Identity-Stable Verification Evidence for Agentic Systems}}
-\author{Research manuscript\thanks{Author names and affiliations require confirmation before submission. Mathematical development, implementation, experiments, and writing were AI-assisted.}}
-\date{October 4, 2026 \quad | \quad Manuscript revision 5.1 \quad | \quad Artifact 5.0}
+\hypersetup{pdftitle={Adaptive HACT: Verification-Evidence Virtualization for Long-Horizon Agentic Software Engineering},pdfauthor={Anonymous for review}}
+\title{\vspace{-9mm}\textbf{Adaptive HACT: Verification-Evidence Virtualization for Long-Horizon Agentic Software Engineering}}
+\author{Anonymous for review}
+\date{October 2026 \quad | \quad Journal manuscript v6.0 \quad | \quad Empirical artifact v5.0}
 \begin{document}
 \maketitle
 \begin{abstract}
-Agentic software pipelines increasingly gate candidate changes on suites of tests, analyses, and policy checks, but the evidence supporting a commit decision can be much larger than the final verdict. Adaptive HACT asks whether that evidence can be reorganized for cheaper diagnostic delivery without changing the acceptance contract. The central abstraction is \emph{evidence-layout independence}: stable check identities and candidate/checker/environment bindings define semantics, while a separate layout plane only aggregates trusted completion records. Generation fencing makes authorization invariant to valid layout permutations and migrations. Because packet work depends on which \emph{sets} of checks become final together, we score recorded completion hyperedges rather than treat pairwise affinity as the cost model. The practical compiler uses a learned order with a compact balanced eight-ary tree; exact alphabetic dynamic programming is retained as a fixed-order reference. In 27 frozen train/validation/held-out workloads, clustered completions reduce held-out padded evidence by 23.43\%, 10.75\%, and 5.56\% at 128, 512, and 1,024 checks, with positive reductions in all nine clustered seeds; independent and global controls show essentially no benefit. Re-aggregating twelve archived source candidates reduces whole-epoch compressed bytes by 4.36--41.84\% versus original-order fixed8, while exact layouts remain 1.52--11.68\% smaller than the practical layout. Root-status text is identical across all twelve layout triples. A service-matched break-even model separates representation savings from the cost of adopting verification. The measured claim is therefore narrow: HACT reduces hierarchical verification-evidence cost when completion structure exists, while preserving the declared acceptance semantics; live-model quality, physical-WAN speedup, and provider token billing are outside the present evidence.
+Long-horizon software agents can generate candidate changes faster than humans can audit the evidence required to accept them. The resulting bottleneck is increasingly a systems problem: tests, policy checks, environment probes, remote-job receipts, and integration gates produce large, repeated evidence streams, yet changing how that evidence is organized must never change acceptance semantics. We introduce \emph{verification-evidence virtualization}, a separation between a protected semantic plane (candidate identity, required checks, checker/environment bindings, and canonical outcomes) and an adaptive layout plane that only reorganizes trusted evidence for bounded delivery and diagnosis. Adaptive HACT realizes this abstraction with identity-stable certificate trees, generation-fenced migration, and a higher-order completion-hyperedge objective. We prove that valid layout permutations cannot authorize a candidate unless the protected acceptance predicate holds. We also prove by construction that singleton and pairwise co-activity statistics are insufficient to determine hierarchical activation cost, motivating direct scoring of observed completion sets rather than pairwise affinity alone. A practical compiler learns only an order, instantiates a balanced eight-ary tree, and uses held-out validation to retain the incumbent when structure is absent; exact alphabetic dynamic programming remains an offline reference. Across 27 frozen workloads, learned layouts reduce held-out padded evidence by 23.43\%, 10.75\%, and 5.56\% at 128, 512, and 1,024 checks for clustered completion structure, while independent/global controls show essentially no benefit. Re-aggregation of 12 archived source candidates reduces whole-epoch compressed evidence by 4.36--41.84\% and exhaustive diagnostic pages from 148 to 95, while root-status text remains identical across all layout triples. The result is deliberately scoped: HACT is an evidence-plane optimization for systems that already require hierarchical verification; it is not a claim of improved model reasoning, universal agent speedup, provider token reduction, or physical-WAN latency reduction.
 \end{abstract}
-\noindent\textbf{Keywords:} agentic systems; verification evidence; completion hyperedges; evidence-layout independence; bounded diagnostics; cost-aware layout selection.
+\noindent\textbf{Keywords:} agentic software engineering; verification evidence; runtime assurance; completion hyperedges; adaptive data structures; evidence virtualization; long-horizon agents.
 
 \section{Introduction}
-Autonomous and multi-agent software systems can generate many candidate actions in parallel, but accepting a candidate is a different problem from generating it. A deployment gate may need evidence from tests, static analyzers, policy checks, environment probes, and integration checks. The final decision may be one bit, yet debugging, audit, and remote supervision can require a much larger transcript of intermediate evidence. That creates a representation problem: reorganizing the transcript may save bytes and retrieval work, but it must never change which checks are required or turn missing evidence into a pass.
+Software-engineering agents have progressed from single-shot code generation to repository navigation, tool use, test execution, and multi-step repair. SWE-bench made repository-level issue resolution measurable~\cite{swebench}; SWE-agent, OpenHands, and Agentless subsequently demonstrated how strongly agent interfaces, orchestration, and disciplined non-agentic baselines affect observed capability~\cite{sweagent,openhands,agentless}. More recent long-horizon evaluation such as SWE-EVO exposes a harder regime in which tasks span many files, repeated revisions, and substantially longer trajectories~\cite{sweevo}. In that regime, generation is only one part of the engineering problem: a system must also preserve the evidence that justifies accepting intermediate and final actions.
 
-Adaptive HACT treats verification semantics and evidence representation as separate planes. The semantic plane binds a candidate to a registry of stable check identities and to the checker and environment that produced each result. The layout plane is free to permute those identities and aggregate their records into bounded packets. This separation creates a useful systems invariant: layout learning can change \emph{where evidence is stored and how much is emitted}, but not \emph{what must be true before authorization}.
+Verification-first approaches are therefore becoming central to agentic software engineering. Recent work treats verifiability as a first-class system property and instruments agent traces with contracts, replay, fault injection, and governance~\cite{verificationdriven,aiware,traceassurance}. These directions address what should be verified and how an agent should be constrained. This paper asks a complementary systems question:
+
+\begin{quote}
+\emph{Once a verification contract exists, how can a long-running agent system reorganize, migrate, and deliver the resulting evidence efficiently without giving the adaptive representation any authority to weaken that contract?}
+\end{quote}
+
+A final decision may be one bit, but operators and downstream agents often need bounded diagnostic slices, replayable proof of which obligations completed, and a way to identify the first failed region. A flat ledger is excellent for final per-check state, yet repeated delivery of hierarchical diagnostic context can be substantially larger. A learned hierarchy can reduce that cost, but only if the learned layout is prevented from redefining what counts as complete.
+
+We call the required separation \textbf{verification-evidence virtualization}. Stable semantic identities, candidate/checker/environment bindings, and canonical outcomes form a protected plane. An adaptive layout is a replaceable view over those identities. Migration changes a generation number and invalidates layout-specific publication tickets; the acceptance predicate is computed from canonical records, never from tree shape.
+
+Adaptive HACT (Hyperedge-Aware Certificate Trees) is one realization of this architecture. Its second key idea is that evidence cost is driven by \emph{sets} of checks that become final together. Pairwise similarity is easy to estimate, but it can lose exactly the higher-order structure that determines whether a subtree must be refreshed. HACT therefore treats observed completion waves as hyperedges and scores candidate layouts against those sets directly. Pairwise affinity is only a proposal mechanism.
+
+The third idea is deployment discipline. HACT should not be sold as "compression makes agents faster." If a consumer needs only a verdict, a root projection is better. If it needs only final statuses, a flat ledger may be better. HACT targets systems that already need bounded hierarchical evidence for remote supervision, diagnosis, audit, or retrieval. We therefore separate representation savings from the independent cost of running stronger verification and report explicit break-even accounting.
 
 \begin{figure}[t]
 \centering
@@ -82,14 +95,15 @@ Evidence cost is driven by refresh events: when a set of checks becomes final, e
 There are three distinct services. A consumer needing only a trusted final verdict should use a root-status projection. A consumer needing final per-check states can often use a flat ledger. HACT addresses the third case: a system that already needs bounded hierarchical evidence for diagnostics, audit, or constrained delivery. This service distinction prevents a common accounting error---crediting evidence compression with the unrelated cost of introducing a stricter verifier.
 
 \paragraph{Contributions.}
-The paper makes four claims, each tied to a concrete proof or experiment:
+This journal revision makes five contributions:
 \begin{enumerate}[leftmargin=1.6em,itemsep=1pt,topsep=2pt]
-\item \textbf{A semantic/representation factorization.} We define evidence-layout independence and give a generation-fenced implementation whose local authorization is invariant to valid permutations and migrations (Section~\ref{sec:model}; Theorem~\ref{thm:safety}).
-\item \textbf{A hyperedge-sensitive cost model and compiler.} Full completion waves determine layout cost; Proposition~\ref{prop:pairwise} shows why pairwise affinity alone is insufficient. A practical no-DP compiler combines learned ordering with a balanced eight-ary tree, while exact alphabetic DP provides a fixed-order optimum for reference (Section~\ref{sec:compiler}).
-\item \textbf{Migration- and service-aware operation.} Layout changes pay an explicit installation price, and deployment accounting compares codec-matched services instead of mixing bytes, tokens, and unrelated harness time (Sections~\ref{sec:online} and~\ref{sec:delivery}).
-\item \textbf{Audited evidence with negative controls.} A frozen 27-workload study, 36 source-evidence replays, invariance checks, and independent arithmetic reconstruction identify both the structured regime where learning helps and the regimes where it does not (Section~\ref{sec:v5evaluation}).
+\item \textbf{Verification-evidence virtualization.} We formalize a two-plane architecture in which semantic obligations are protected and representation is adaptive. Layout learning may change bytes, pages, and retrieval structure, but never the required evidence.
+\item \textbf{Layout-invariant authorization.} We give an identity-stable, generation-fenced construction and prove that valid layouts cannot authorize a candidate unless the protected acceptance predicate holds.
+\item \textbf{A genuinely higher-order cost model.} Completion waves are modeled as hyperedges. Proposition~\ref{prop:pairwise} constructs two workloads with identical singleton and pairwise statistics but different subtree-activation probabilities, showing that pairwise co-activity cannot in general determine the objective.
+\item \textbf{A practical compiler with safe abstention.} The default path learns an order, builds a compact balanced tree, and selects on held-out validation against the incumbent. Exact alphabetic DP is an offline reference rather than hidden runtime work.
+\item \textbf{Evidence-bounded evaluation and deployment accounting.} Frozen workloads, source-evidence replays, semantic-invariance checks, negative controls, independent numerical reconstruction, and service-matched break-even analysis identify both the useful regime and the regimes where HACT should not be used.
 \end{enumerate}
-Clustering, balanced trees, alphabetic DP, compression, and break-even arithmetic are established ingredients. The contribution is their use under a verification-semantic invariant and a completion-hyperedge objective, together with evidence that distinguishes the useful regime from the null controls.
+Clustering, balanced trees, alphabetic DP, compression, and break-even arithmetic are established ingredients. The novel systems contribution is their composition under a protected semantic/layout boundary and a completion-hyperedge objective, together with migration fencing and evidence that distinguishes structured from null regimes.
 
 \paragraph{Scope.}
 The experiments measure verification-evidence representation and local integration. They do not measure live-LLM coding quality, physical-WAN performance, or provider token billing. Those boundaries are collected in Section~\ref{sec:threats} instead of being repeatedly mixed into each positive result.
@@ -98,6 +112,9 @@ The experiments measure verification-evidence representation and local integrati
 Section~\ref{sec:model} defines semantics and the cost model. Section~\ref{sec:compiler} develops the practical and exact-reference compilers; Section~\ref{sec:online} prices migration; Section~\ref{sec:safety} proves layout-independent local publication soundness. Sections~\ref{sec:implementation} and~\ref{sec:delivery} describe the implementation and service-matched accounting. Section~\ref{sec:v5evaluation} answers four evaluation questions, and Section~\ref{sec:conclusion} states the deployment implication.
 
 \section{Related Work and Positioning}
+\paragraph{Agentic software engineering and long-horizon verification.}
+SWE-bench and subsequent software-agent systems made repository-level repair measurable~\cite{swebench,sweagent,openhands,agentless}; SWE-EVO extends the problem toward longer, multi-file software evolution~\cite{sweevo}. Verification-driven and verification-first AI engineering argue that scalable checks, replay, and governance must be designed into the system rather than appended after generation~\cite{verificationdriven,aiware,traceassurance}. HACT does not compete on solve rate. It addresses the evidence substrate required once an orchestrator already performs rigorous verification over a long horizon.
+
 \paragraph{Testing, impact analysis, and incremental computation.}
 Test prioritization seeks earlier fault exposure~\cite{rothermel}; regression-test selection uses change dependencies~\cite{ekstazi,namerts}. The earlier IC-HACT ranker uses controlled mutation outcomes to prioritize checks, an instance of established fault-exposure methods. It is held fixed in the new source comparisons. Self-adjusting computation and build-system research already formalize dependency-aware recomputation~\cite{acar,build}. In contrast to test selection, our strict pass requires the entire approved registry on the identified candidate. We do not reproduce NameRTS or Ekstazi and claim no superiority over them.
 
@@ -133,8 +150,8 @@ The acceptance predicate is independent of both permutations:
 \end{equation}
 An observed fail permits rejection before all checks finish. It does not assert coverage of the unexecuted remainder. Acceptance is relative to the approved predicates, not proof of all program behavior.
 
-\begin{definition}[Evidence-layout independence]\label{def:eli}
-Fix a candidate identity $e$, semantic registry $\R$, and canonical trusted record set $E$. A verifier is \emph{evidence-layout independent} if valid layouts over the same registry may change representation cost, retrieval structure, and packet timing but cannot change the semantic projection of $E$, and no layout can authorize unless $A(e)$ holds.
+\begin{definition}[Verification-evidence virtualization]\label{def:eli}
+Fix a candidate identity $e$, semantic registry $\R$, and canonical trusted record set $E$. A verifier is \emph{verification-evidence virtualized} if valid layouts over the same registry may change representation cost, retrieval structure, and packet timing but cannot change the semantic projection of $E$, and no layout can authorize unless $A(e)$ holds. We use \emph{evidence-layout independence} for the corresponding authorization invariant.
 \end{definition}
 Definition~\ref{def:eli} is deliberately local to the declared verification contract. It does not claim that the contract itself is complete or that the checker is uncompromised; those are trust assumptions stated explicitly in Theorem~\ref{thm:safety}.
 
