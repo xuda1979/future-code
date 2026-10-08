@@ -27,8 +27,8 @@ test('fixture is a standalone pinned and clean R&D Git project', t => {
   assert.equal(f.config.repository, resolve(f.project));
   assert.equal(f.config.cases.length, 4);
   assert.deepEqual(new Set(f.config.cases.map(c => c.tier)), new Set(['simple', 'medium', 'research']));
-  assert(!JSON.stringify(f.config).includes('quantum-gpt'));
-  assert(!JSON.stringify(f.config).includes('xuda1979'));
+  assert(!JSON.stringify(f.config).includes('repository_full_name'));
+  assert(!JSON.stringify(f.config).includes('project-specific-provider'));
 });
 test('all four independent negative controls reproduce and preserve clean input', t => {
   const f = setup(t);
