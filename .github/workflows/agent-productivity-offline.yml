@@ -1,0 +1,47 @@
+name: Agent productivity benchmark (offline integrity)
+on:
+  pull_request:
+    paths:
+      - scripts/compare-agent-productivity.mjs
+      - tests/foundry/agent-comparison.test.mjs
+      - examples/agent-comparison/**
+      - .github/workflows/agent-productivity-offline.yml
+  workflow_dispatch:
+jobs:
+  comparator-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: node --test tests/foundry/agent-comparison.test.mjs
+      - run: node --check scripts/compare-agent-productivity.mjs
+      - run: python3 -m py_compile examples/agent-comparison/quantum_gpt_check.py
+  frozen-quantum-gpt-negative-controls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: xuda1979/quantum-gpt
+          ref: 147fe54b2c74b83ef0784c459faf95fd073428a5
+          path: quantum-gpt
+          persist-credentials: false
+      - name: Verify exact pinned research source
+        run: |
+          test "$(git -C quantum-gpt rev-parse HEAD)" = 147fe54b2c74b83ef0784c459faf95fd073428a5
+      - name: Confirm three existing defects reproduce (not a productivity measurement)
+        run: |
+          set -euo pipefail
+          for case_id in compare-runs holdout-manifest candidate-completeness; do
+            set +e
+            ( cd quantum-gpt && PYTHONDONTWRITEBYTECODE=1 python3 ../examples/agent-comparison/quantum_gpt_check.py "$case_id" ) > "red-$case_id.log" 2>&1
+            status=$?
+            set -e
+            if [ "$status" -ne 1 ] || ! grep -Fq "RED_CONTROL_$case_id" "red-$case_id.log"; then
+              cat "red-$case_id.log"
+              echo "Expected distinct regression failure for $case_id, observed exit $status"
+              exit 1
+            fi
+          done
