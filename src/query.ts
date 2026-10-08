@@ -111,6 +111,7 @@ import {
 import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
 import { shouldRecoverSilentResponse } from './utils/responseLiveness.js'
+import { takeAutoGoalContinuation } from './commands/goal/auto.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
@@ -1408,6 +1409,34 @@ async function* queryLoop(
         }
       }
 
+      // A completed model turn is not a completed explicitly opted-in R&D goal.
+      // Never override stop hooks, tool permission gates, API errors, or a
+      // caller's explicit maxTurns boundary. Durable batch counters prevent
+      // runaway paid inference across CLI restarts.
+      const goalContinuation = takeAutoGoalContinuation({
+        mainThread: querySource === 'repl_main_thread' && !toolUseContext.agentId,
+        withinTurnBudget: maxTurns === undefined || turnCount < maxTurns,
+      })
+      if (goalContinuation) {
+        state = {
+          messages: [
+            ...messagesForQuery,
+            ...assistantMessages,
+            createUserMessage({ content: goalContinuation, isMeta: true }),
+          ],
+          toolUseContext,
+          autoCompactTracking: tracking,
+          maxOutputTokensRecoveryCount: 0,
+          silentResponseRecoveryCount,
+          hasAttemptedReactiveCompact: false,
+          maxOutputTokensOverride: undefined,
+          pendingToolUseSummary: undefined,
+          stopHookActive: undefined,
+          turnCount: turnCount + 1,
+          transition: { reason: 'goal_auto_continuation' } as Continue,
+        }
+        continue
+      }
       return { reason: 'completed' }
     }
 
