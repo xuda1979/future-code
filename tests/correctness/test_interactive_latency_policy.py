@@ -101,7 +101,20 @@ class LauncherLatencyPolicyTest(unittest.TestCase):
 class ProxyLatencyPolicyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # These tests assert the proxy's *default* policy. Operator profiles
+        # legitimately override it (e.g. the CMRI LiteLLM gateway rejects
+        # reasoning fields, so cmri.env exports
+        # HUANXIN_GLM52_SEND_REASONING_PARAMS=0), so scrub inherited HUANXIN_*
+        # overrides — both the call-time reads and the module-level constants
+        # captured by load_proxy() — and restore them when the class finishes.
+        cls._saved_huanxin_env = {k: v for k, v in os.environ.items() if k.startswith("HUANXIN_")}
+        for key in cls._saved_huanxin_env:
+            os.environ.pop(key, None)
         cls.proxy = load_proxy()
+
+    @classmethod
+    def tearDownClass(cls):
+        os.environ.update(cls._saved_huanxin_env)
 
     def test_glm52_respects_client_effort(self):
         server = SimpleNamespace(model_name="glm5.2", max_input_chars=100000)
