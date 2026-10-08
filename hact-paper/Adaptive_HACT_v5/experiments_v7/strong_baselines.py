@@ -113,10 +113,13 @@ def _flat_serialization(evidence: dict, report: dict):
     records = evidence["records"]
     if len(set(registry)) != len(registry) or len(set(executed)) != len(executed):
         raise ValueError("duplicate semantic obligation or completion")
-    if set(executed) != set(registry) or set(records) != set(registry):
-        raise ValueError("incomplete archived checker records")
+    if (not set(executed).issubset(set(registry)) or
+            not set(executed).issubset(set(records))):
+        raise ValueError("incomplete or foreign archived checker records")
+    if len(executed) != report["executed"] or len(registry) != report["required"]:
+        raise ValueError("archived execution/count contract mismatch")
     binding = {k: report[k] for k in ("snapshot", "checker", "environment", "registry_hash")}
-    stream = [canonical({"schema": "flat-evidence-1", "kind": "contract", "required": len(registry), **binding}) + b"\n"]
+    stream = [canonical({"schema": "flat-evidence-1", "kind": "contract", "required": len(registry), "registry_ids": registry, **binding}) + b"\n"]
     for start in range(0, len(executed), 8):
         # Same actual completion batch boundaries as v5 HACT source replay.
         batch = [{"id": g, "status": records[g]["status"], "trace": digest(records[g])}
