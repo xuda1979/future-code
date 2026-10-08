@@ -50,8 +50,19 @@ set -u
 API_KEY="${FUTURE_CODE_API_KEY:-${DEEPSEEK_API_KEY:-}}"
 BASE_URL="${FUTURE_CODE_BASE_URL:-${DEEPSEEK_BASE_URL:-}}"
 MODEL="${FUTURE_CODE_MODEL:-${DEEPSEEK_MODEL_NAME:-GLM-5.3}}"
+SMALL_MODEL="${FUTURE_CODE_SMALL_MODEL:-${FUTURE_SMALL_FAST_MODEL:-${DEEPSEEK_SMALL_MODEL_NAME:-$MODEL}}}"
+SUBAGENT_MODEL="${FUTURE_CODE_SUBAGENT_MODEL:-$SMALL_MODEL}"
+EFFORT="${FUTURE_CODE_EFFORT_LEVEL:-${DEEPSEEK_EFFORT_LEVEL:-medium}}"
 APPCODE="${FUTURE_CODE_APPCODE:-${DEEPSEEK_APPCODE:-}}"
 MAX_INPUT_CHARS="${FUTURE_CODE_MAX_INPUT_CHARS:-${MAX_INPUT_CHARS:-440000}}"
+
+case "$EFFORT" in
+  low|medium|high|max) ;;
+  *)
+    echo "error: FUTURE_CODE_EFFORT_LEVEL must be one of low, medium, high, max (got '$EFFORT')" >&2
+    exit 2
+    ;;
+esac
 
 if [[ -z "$API_KEY" ]]; then
   echo "error: API key is not set in $CONFIG_FILE" >&2
@@ -166,10 +177,15 @@ export FUTURE_BASE_URL="$ENDPOINT"
 unset FUTURE_AUTH_TOKEN
 export FUTURE_API_KEY="$local_key"
 export FUTURE_MODEL="$MODEL"
-export FUTURE_SMALL_FAST_MODEL="$MODEL"
-export FUTURE_DEFAULT_HAIKU_MODEL="$MODEL"
-export FUTURE_DEFAULT_SONNET_MODEL="$MODEL"
-export FUTURE_DEFAULT_OPUS_MODEL="$MODEL"
-export FUTURE_CODE_SUBAGENT_MODEL="$MODEL"
-export FUTURE_CODE_EFFORT_LEVEL="max"
-exec "$BIN" --model "$MODEL" --effort max "$@"
+# Preserve explicitly configured role models instead of collapsing every role
+# onto the main model. This lets cheap helper/subagent work use a faster route.
+export FUTURE_SMALL_FAST_MODEL="$SMALL_MODEL"
+export FUTURE_DEFAULT_HAIKU_MODEL="${FUTURE_DEFAULT_HAIKU_MODEL:-$SMALL_MODEL}"
+export FUTURE_DEFAULT_SONNET_MODEL="${FUTURE_DEFAULT_SONNET_MODEL:-$MODEL}"
+export FUTURE_DEFAULT_OPUS_MODEL="${FUTURE_DEFAULT_OPUS_MODEL:-$MODEL}"
+export FUTURE_CODE_SUBAGENT_MODEL="$SUBAGENT_MODEL"
+# Interactive sessions should fail visibly rather than sleep/retry forever.
+# Durable Foundry/Swarm objectives have their own replay-safe provider recovery.
+export FUTURE_CODE_UNATTENDED_RETRY="${FUTURE_CODE_UNATTENDED_RETRY:-0}"
+export FUTURE_CODE_EFFORT_LEVEL="$EFFORT"
+exec "$BIN" --model "$MODEL" --effort "$EFFORT" "$@"

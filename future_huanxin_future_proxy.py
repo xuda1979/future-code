@@ -527,7 +527,13 @@ def build_upstream_body(server: ThreadingHTTPServer, body: dict[str, Any], force
     send_reasoning_params = os.environ.get("HUANXIN_GLM52_SEND_REASONING_PARAMS", "1").strip().lower() in _TRUTHY
     if is_glm52 and send_reasoning_params:
         upstream_body["thinking"] = {"type": "enabled"}
-        upstream_body["reasoning_effort"] = "max"
+        output_config = body.get("output_config")
+        requested_effort = output_config.get("effort") if isinstance(output_config, dict) else None
+        if requested_effort not in {"low", "medium", "high", "max"}:
+            requested_effort = os.environ.get("HUANXIN_GLM52_REASONING_EFFORT", "max").strip().lower()
+        if requested_effort not in {"low", "medium", "high", "max"}:
+            requested_effort = "max"
+        upstream_body["reasoning_effort"] = requested_effort
     tools = convert_tools(body.get("tools"))
     if tools:
         upstream_body["tools"] = tools
@@ -657,7 +663,9 @@ def is_retryable_payload(status: int, payload: dict[str, Any]) -> bool:
 
 
 def _retry_config() -> tuple[int, float]:
-    tries = max(1, int(os.environ.get("HUANXIN_GLM52_RETRIES", "6")))
+    # One proxy layer owns transient retries. Three attempts absorb ordinary
+    # Huanxin flakiness without turning an interactive request into a long stall.
+    tries = max(1, int(os.environ.get("HUANXIN_GLM52_RETRIES", "3")))
     base = float(os.environ.get("HUANXIN_GLM52_RETRY_BASE", "0.8"))
     return tries, base
 
@@ -674,22 +682,24 @@ def _retry_config() -> tuple[int, float]:
 import threading as _threading
 import time as _time_mod
 
-# Global minimum spacing between upstream calls (seconds). Tune via env.
-_UPSTREAM_MIN_SPACING = float(os.environ.get("HUANXIN_GLM52_MIN_SPACING", "0.8"))
+# GLM 5.2 needs ingress pacing; newer/non-GLM routes should not inherit that
+# fixed latency unless the operator explicitly configures it.
+_GLM52_UPSTREAM_MIN_SPACING = float(os.environ.get("HUANXIN_GLM52_MIN_SPACING", "0.8"))
+_DEFAULT_UPSTREAM_MIN_SPACING = float(os.environ.get("HUANXIN_UPSTREAM_MIN_SPACING", "0"))
 _last_upstream_call_at = 0.0
 _spacing_lock = _threading.Lock()
 
 
-def _reserve_upstream_slot() -> None:
-    """Block until at least _UPSTREAM_MIN_SPACING seconds have passed since the
-    last upstream call. Serialises requests across threads so concurrent proxy
-    clients don't burst the upstream rate limit. Maximum wait is capped to
-    avoid deadlock when a prior request hangs."""
+def _reserve_upstream_slot(server: ThreadingHTTPServer) -> None:
+    """Apply only the minimum spacing required by the selected upstream route."""
     global _last_upstream_call_at
+    min_spacing = _GLM52_UPSTREAM_MIN_SPACING if server_is_glm52(server) else _DEFAULT_UPSTREAM_MIN_SPACING
+    if min_spacing <= 0:
+        return
     max_wait = float(os.environ.get("HUANXIN_GLM52_SPACING_MAX_WAIT", "10.0"))
     with _spacing_lock:
         now = _time_mod.monotonic()
-        wait = _UPSTREAM_MIN_SPACING - (now - _last_upstream_call_at)
+        wait = min_spacing - (now - _last_upstream_call_at)
         if wait > 0:
             _time_mod.sleep(min(wait, max_wait))
         _last_upstream_call_at = _time_mod.monotonic()
@@ -757,7 +767,7 @@ def upstream_chat(server: ThreadingHTTPServer, body: dict[str, Any]) -> tuple[in
     tries, base = _retry_config()
     status, payload = HTTPStatus.BAD_GATEWAY, {"error": {"message": "no attempt", "type": "upstream_connection_error"}}
     for attempt in range(tries):
-        _reserve_upstream_slot()
+        _reserve_upstream_slot(server)
         status, payload = _upstream_chat_once(server, request)
         if status < 400:
             _circuit_record_success()
@@ -1245,13 +1255,14 @@ class Handler(BaseHTTPRequestHandler):
     def stream_live(self, server: ThreadingHTTPServer, body: dict[str, Any]) -> bool:
         """Stream the upstream response to the client in real time.
 
-        Returns True if the response was handled (headers sent). Returns False only if
-        the upstream could not be reached before any bytes were sent, so the caller can
-        fall back to the buffered path (which handles errors and compaction fallbacks).
+        Returns True when this method handled either the stream or its terminal
+        connection error. A failed streaming attempt must not fall through into
+        a second buffered retry loop for the same request.
         """
         upstream_body = build_upstream_body(server, body, force_stream=True)
         if upstream_body is None:
-            return False
+            write_json(self, HTTPStatus.BAD_REQUEST, {"error": {"message": "missing messages", "type": "invalid_request_error"}})
+            return True
         request = build_upstream_request(server, upstream_body)
         context, insecure = upstream_context(server)
 
@@ -1262,7 +1273,7 @@ class Handler(BaseHTTPRequestHandler):
         tries, base = _retry_config()
         resp = None
         for attempt in range(tries):
-            _reserve_upstream_slot()
+            _reserve_upstream_slot(server)
             try:
                 resp = urllib.request.urlopen(request, timeout=int(os.environ.get("HUANXIN_GLM52_UPSTREAM_TIMEOUT", "60")), context=context)
                 _circuit_record_success()
@@ -1286,22 +1297,41 @@ class Handler(BaseHTTPRequestHandler):
                     time.sleep(delay)
                     continue
                 _circuit_record_failure()
-                return False  # non-retryable / exhausted -> buffered path reports the error
+                write_json(self, exc.code, payload)
+                return True
             except Exception as exc:
                 if not insecure and _is_expired_cert_error(exc):
                     try:
                         resp = urllib.request.urlopen(request, timeout=int(os.environ.get("HUANXIN_GLM52_UPSTREAM_TIMEOUT", "60")), context=server.insecure_context)  # type: ignore[attr-defined]
                         break
                     except Exception:
-                        return False
+                        write_json(self, HTTPStatus.BAD_GATEWAY, {
+                            "error": {
+                                "message": "Huanxin inference gateway unavailable after TLS fallback",
+                                "type": "upstream_connection_error",
+                            }
+                        })
+                        return True
                 if attempt + 1 < tries:
                     delay = min(base * (2 ** attempt), 8.0)
                     debug_log("stream conn error attempt=%s/%s sleep=%.1fs: %r" % (attempt + 1, tries, delay, exc))
                     time.sleep(delay)
                     continue
-                return False
+                write_json(self, HTTPStatus.BAD_GATEWAY, {
+                    "error": {
+                        "message": "Huanxin inference gateway unavailable after bounded streaming retries",
+                        "type": "upstream_connection_error",
+                    }
+                })
+                return True
         if resp is None:
-            return False
+            write_json(self, HTTPStatus.BAD_GATEWAY, {
+                "error": {
+                    "message": "Huanxin inference gateway returned no response",
+                    "type": "upstream_connection_error",
+                }
+            })
+            return True
 
         content_type = resp.headers.get("Content-Type", "")
         if "text/event-stream" not in content_type:
