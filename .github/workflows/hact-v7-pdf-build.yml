@@ -40,4 +40,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add hact-paper/Adaptive_HACT_v5/paper/main.pdf
           git commit -m "paper: compile HACT v7 journal manuscript PDF"
+          git fetch origin "${GITHUB_REF_NAME}"
+          git rebase "origin/${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
