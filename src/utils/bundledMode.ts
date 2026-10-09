@@ -11,12 +11,20 @@ export function isRunningWithBun(): boolean {
 
 /**
  * Detects if running as a Bun-compiled standalone executable.
- * This checks for embedded files which are present in compiled binaries.
+ * Compiled JS does not appear in Bun.embeddedFiles, so an asset-free binary
+ * can have an empty array. Older Bun versions expose only the virtual URL.
  */
 export function isInBundledMode(): boolean {
-  return (
-    typeof Bun !== 'undefined' &&
-    Array.isArray(Bun.embeddedFiles) &&
-    Bun.embeddedFiles.length > 0
+  if (typeof Bun === 'undefined') return false
+
+  const runtime = Bun as typeof Bun & { isStandaloneExecutable?: boolean }
+  if (typeof runtime.isStandaloneExecutable === 'boolean') {
+    return runtime.isStandaloneExecutable
+  }
+
+  // Earlier supported Bun builds predate isStandaloneExecutable. Use this URL,
+  // not argv[1] or the executable name (both can also describe source runs).
+  return /^file:\/\/\/(?:\$bunfs\/|[A-Za-z]:\/(?:\$bunfs|~BUN)\/)/.test(
+    import.meta.url,
   )
 }
