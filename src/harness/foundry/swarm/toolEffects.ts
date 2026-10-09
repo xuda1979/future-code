@@ -27,6 +27,8 @@ const fixed: Partial<Record<ToolName, ToolEffectContract>> = {
     compensation: "none", risk: "low", rationale: "bounded scoped file read" },
   recall: { tool: "recall", effect: "read", replay: "safe", idempotency: "none",
     compensation: "none", risk: "low", rationale: "durable receipt read" },
+  save_progress: { tool: "save_progress", effect: "control-plane", replay: "state-bound", idempotency: "call-id",
+    compensation: "none", risk: "low", rationale: "durable agent-authored note; never authoritative verification evidence" },
   write_file: { tool: "write_file", effect: "workspace-write", replay: "state-bound", idempotency: "call-id",
     compensation: "snapshot-rollback", risk: "medium", rationale: "mutates private worktree; host snapshots after call" },
   edit_file: { tool: "edit_file", effect: "workspace-write", replay: "state-bound", idempotency: "call-id",

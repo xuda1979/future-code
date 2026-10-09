@@ -8,7 +8,11 @@ import { toolEffectContract } from "./toolEffects.ts";
 /** Validate the advertised finite schema before any tool can produce effects. */
 function shape(value: any, schema: any): void {
   if (!schema || !Object.keys(schema).length) { canonical(value); return; }
-  if (schema.type === "string") invariant(typeof value === "string", "tool field must be text");
+  if (schema.type === "string") {
+    invariant(typeof value === "string", "tool field must be text");
+    invariant((schema.minLength === undefined || value.length >= schema.minLength) &&
+      (schema.maxLength === undefined || value.length <= schema.maxLength), "tool text length out of bounds");
+  }
   if (schema.type === "number" || schema.type === "integer") {
     invariant(typeof value === "number" && Number.isFinite(value) && (schema.type !== "integer" || Number.isSafeInteger(value)), "invalid tool number");
     invariant((schema.minimum === undefined || value >= schema.minimum) && (schema.maximum === undefined || value <= schema.maximum), "tool number out of bounds");
