@@ -49,6 +49,14 @@ setDefaultEnv('DISABLE_TELEMETRY', '1');
 setDefaultEnv('NODE_ENV', 'production');
 
 // Now hand off to the real CLI entrypoint (unless we are only listing models).
-if (!listModelsOnly) {
+if (!listModelsOnly && process.argv[2] === '--ops') {
+  import('../ops/cli.mjs').then(({ handleOps }) => {
+    const controller = new AbortController();
+    process.once('SIGINT', () => controller.abort());
+    process.once('SIGTERM', () => controller.abort());
+    return handleOps(process.argv.slice(3), process.cwd(), controller.signal)
+      .then(value => console.log(JSON.stringify(value, null, 2)));
+  }).catch(error => { console.error(error); process.exitCode = 1; });
+} else if (!listModelsOnly) {
   import('./cli.tsx');
 }
