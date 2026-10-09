@@ -63,7 +63,7 @@ const getRipgrepConfig = memoize((): RipgrepConfig => {
   if (isInBundledMode()) {
     const { cmd: systemPath } = findExecutable('rg', [])
     if (systemPath !== 'rg') return { mode: 'system', command: 'rg', args: [] }
-    throw new Error('ripgrep not installed: install rg or supply a binary with an embedded rg applet')
+    throw new Error('ripgrep executable unavailable: install rg on PATH or supply a binary with an embedded rg applet. Shell aliases and functions are not executable files.')
   }
 
   const rgRoot = path.resolve(__dirname, 'vendor', 'ripgrep')
@@ -73,7 +73,7 @@ const getRipgrepConfig = memoize((): RipgrepConfig => {
       : path.resolve(rgRoot, `${process.arch}-${process.platform}`, 'rg')
 
   if (!isInBundledMode() && !existsSync(command)) {
-    throw new Error('ripgrep binary unavailable: install rg on PATH or package vendor/ripgrep for this platform')
+    throw new Error('ripgrep executable unavailable: install rg on PATH or package vendor/ripgrep for this platform. Shell aliases and functions are not executable files.')
   }
   return { mode: 'builtin', command, args: [] }
 })
@@ -547,15 +547,26 @@ let ripgrepStatus: {
  * Returns current configuration immediately, with working status if available
  */
 export function getRipgrepStatus(): {
-  mode: 'system' | 'builtin' | 'embedded'
+  mode: 'system' | 'builtin' | 'embedded' | 'unavailable'
   path: string
   working: boolean | null // null if not yet tested
+  error?: string
 } {
-  const config = getRipgrepConfig()
-  return {
-    mode: config.mode,
-    path: config.command,
-    working: ripgrepStatus?.working ?? null,
+  try {
+    const config = getRipgrepConfig()
+    return {
+      mode: config.mode,
+      path: config.command,
+      working: ripgrepStatus?.working ?? null,
+    }
+  } catch (error) {
+    // /doctor must remain usable to diagnose a missing executable.
+    return {
+      mode: 'unavailable',
+      path: '',
+      working: false,
+      error: error instanceof Error ? error.message : String(error),
+    }
   }
 }
 

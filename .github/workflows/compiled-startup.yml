@@ -1,0 +1,33 @@
+name: Compiled startup regression
+on:
+  pull_request:
+    paths:
+      - 'src/utils/bundledMode.ts'
+      - 'src/utils/ripgrep.ts'
+      - 'src/utils/sandbox/**'
+      - 'src/utils/bash/ShellSnapshot.ts'
+      - 'src/utils/doctorDiagnostic.ts'
+      - 'src/screens/Doctor.tsx'
+      - 'tests/startup/**'
+      - '.github/workflows/compiled-startup.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  startup:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        bun: ['1.2.23', '1.4.2']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ matrix.bun }}
+      - run: bun test tests/startup/compiled-startup.test.ts

@@ -156,6 +156,13 @@ export function shouldAllowManagedSandboxDomainsOnly(): boolean {
   )
 }
 
+function getSandboxRipgrepConfig(settings: SettingsJson) {
+  // An explicit sandbox command must work even if the default rg is absent.
+  if (settings.sandbox?.ripgrep) return settings.sandbox.ripgrep
+  const { rgPath, rgArgs, argv0 } = ripgrepCommand()
+  return { command: rgPath, args: rgArgs, argv0 }
+}
+
 function shouldAllowManagedReadPathsOnly(): boolean {
   return (
     getSettingsForSource('policySettings')?.sandbox?.filesystem
@@ -349,12 +356,7 @@ export function convertToSandboxRuntimeConfig(
   }
   // Ripgrep config for sandbox. User settings take priority; otherwise pass our rg.
   // In embedded mode (argv0='rg' dispatch), sandbox-runtime spawns with argv0 set.
-  const { rgPath, rgArgs, argv0 } = ripgrepCommand()
-  const ripgrepConfig = settings.sandbox?.ripgrep ?? {
-    command: rgPath,
-    args: rgArgs,
-    argv0,
-  }
+  const ripgrepConfig = getSandboxRipgrepConfig(settings)
 
   return {
     network: {
@@ -448,13 +450,25 @@ async function detectWorktreeMainRepoPath(cwd: string): Promise<string | null> {
  * Check if dependencies are available (memoized)
  * Returns { errors, warnings } - errors mean sandbox cannot run
  */
-const checkDependencies = memoize((): SandboxDependencyCheck => {
-  const { rgPath, rgArgs } = ripgrepCommand()
-  return BaseSandboxManager.checkDependencies({
-    command: rgPath,
-    args: rgArgs,
-  })
-})
+const checkDependenciesForSettings = memoize(
+  (settings: SettingsJson): SandboxDependencyCheck =>
+    BaseSandboxManager.checkDependencies(getSandboxRipgrepConfig(settings)),
+)
+
+function checkDependencies(): SandboxDependencyCheck {
+  try {
+    return checkDependenciesForSettings(getSettings_DEPRECATED())
+  } catch (error) {
+    // Availability is a status query, including during REPL render and
+    // /sandbox diagnostics. Missing rg must not throw out of these callers.
+    // getSandboxUnavailableReason surfaces this; failIfUnavailable still
+    // causes the REPL/print startup guard to refuse unsandboxed execution.
+    return {
+      errors: [`Sandbox dependency check failed: ${errorMessage(error)}`],
+      warnings: [],
+    }
+  }
+}
 
 function getSandboxEnabledSetting(): boolean {
   try {
@@ -530,11 +544,12 @@ function isPlatformInEnabledList(): boolean {
  * This checks the user's enabled setting, platform support, and enabledPlatforms restriction
  */
 function isSandboxingEnabled(): boolean {
-  if (!isSupportedPlatform()) {
+  // Don't resolve optional executables when sandboxing was never enabled.
+  if (!getSandboxEnabledSetting()) {
     return false
   }
 
-  if (checkDependencies().errors.length > 0) {
+  if (!isSupportedPlatform()) {
     return false
   }
 
@@ -543,7 +558,7 @@ function isSandboxingEnabled(): boolean {
     return false
   }
 
-  return getSandboxEnabledSetting()
+  return checkDependencies().errors.length === 0
 }
 
 /**
@@ -813,7 +828,7 @@ async function reset(): Promise<void> {
   bareGitRepoScrubPaths.length = 0
 
   // Clear memoized caches
-  checkDependencies.cache.clear?.()
+  checkDependenciesForSettings.cache.clear?.()
   isSupportedPlatform.cache.clear?.()
   initializationPromise = undefined
 

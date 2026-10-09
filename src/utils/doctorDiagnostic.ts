@@ -65,7 +65,7 @@ export type DiagnosticInfo = {
   packageManager?: string
   ripgrepStatus: {
     working: boolean
-    mode: 'system' | 'builtin' | 'embedded'
+    mode: 'system' | 'builtin' | 'embedded' | 'unavailable'
     systemPath: string | null
   }
 }
@@ -587,6 +587,9 @@ export async function getDoctorDiagnostic(): Promise<DiagnosticInfo> {
 
   // Get ripgrep status and configuration
   const ripgrepStatusRaw = getRipgrepStatus()
+  if (ripgrepStatusRaw.error) {
+    warnings.push({ issue: 'Search unavailable', fix: ripgrepStatusRaw.error })
+  }
 
   // Provide simple ripgrep status info
   const ripgrepStatus = {
