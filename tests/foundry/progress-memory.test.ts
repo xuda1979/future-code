@@ -65,4 +65,4 @@ test("save_progress tool rejects unowned receipts without accepting agent assert
   ]);
   const result: any = await runSwarm(s, [task()], signal(), undefined, mock.fetcher);
   assert.equal(result.status, "FAIL"); // unchanged project still fails independent behavior check
-}, s => { s.agents.coder.tools.push("save_progress"); }));
+}, s => { s.agents.coder.tools.push("save_progress"); s.recipe.attempts = 1; }));
