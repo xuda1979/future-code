@@ -2,6 +2,7 @@ import type { ChildProcess, ExecFileException } from 'child_process'
 import { execFile, spawn } from 'child_process'
 import memoize from 'lodash-es/memoize.js'
 import { homedir } from 'os'
+import { existsSync } from 'node:fs'
 import * as path from 'path'
 import { logEvent } from 'src/services/analytics/index.js'
 import { fileURLToPath } from 'url'
@@ -71,6 +72,9 @@ const getRipgrepConfig = memoize((): RipgrepConfig => {
       ? path.resolve(rgRoot, `${process.arch}-win32`, 'rg.exe')
       : path.resolve(rgRoot, `${process.arch}-${process.platform}`, 'rg')
 
+  if (!isInBundledMode() && !existsSync(command)) {
+    throw new Error('ripgrep binary unavailable: install rg on PATH or package vendor/ripgrep for this platform')
+  }
   return { mode: 'builtin', command, args: [] }
 })
 
