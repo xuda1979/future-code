@@ -4,7 +4,7 @@ import { FatalAttemptError } from "../errors.ts";
 import { DeferredAttemptError } from "../continuation.ts";
 import { Store } from "../store.ts";
 import type { Capsule, Json, Verification } from "../types.ts";
-import type { Call, Message } from "./context.ts";
+import type { Call, Message, ProgressCheckpoint } from "./context.ts";
 import type { SwarmBudget } from "./config.ts";
 import { ProviderRecovery } from "./providerRecovery.ts";
 
@@ -14,6 +14,7 @@ export interface ThreadState {
   lastCheckAt?: number;
   recoveryNote?: string;
   history: Message[];
+  progress?: ProgressCheckpoint;
   turns: number;
   toolCalls: number;
   patchHash: string | null;
@@ -160,6 +161,10 @@ export class SessionJournal {
       this.store.db.prepare("INSERT OR IGNORE INTO agent_receipts VALUES(?,?,?)").run(c.runId, c.task.id, hash);
     });
     return hash;
+  }
+  ownsReceipt(c: Capsule, hash: string): boolean {
+    return /^[a-f0-9]{64}$/.test(hash) && !!this.store.db.prepare(
+      "SELECT 1 FROM agent_receipts WHERE run=? AND task=? AND hash=?").get(c.runId, c.task.id, hash);
   }
   recall(c: Capsule, hash: string, offset = 0, length = 4096): Json {
     invariant(Number.isSafeInteger(offset) && offset >= 0 && Number.isSafeInteger(length) && length > 0 && length <= 8192, "invalid recall range");
