@@ -1,0 +1,27 @@
+name: Commercial preview (offline contract)
+on:
+  push:
+    branches: [commercial]
+  pull_request:
+    branches: [commercial]
+jobs:
+  commercial:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Syntax checks
+        run: |
+          node --check src/commercial/evaluation.mjs
+          node --check src/commercial/readiness.mjs
+          node --check src/commercial/cli.mjs
+      - name: Commercial contract tests
+        run: node scripts/test-commercial.mjs
+      - name: Offline fixture only
+        run: |
+          node src/commercial/cli.mjs demo > /tmp/commercial-offline-result.json
+          node -e "const r=require('/tmp/commercial-offline-result.json');if(r.decision!=='OFFLINE_BOUNDARY_ONLY'||r.observedSpeedup!==null)process.exit(1)"
