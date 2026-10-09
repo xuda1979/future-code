@@ -49,13 +49,20 @@ const getRipgrepConfig = memoize((): RipgrepConfig => {
 
   // In bundled (native) mode, ripgrep is statically compiled into bun-internal
   // and dispatches based on argv[0]. We spawn ourselves with argv0='rg'.
-  if (isInBundledMode()) {
+  // A plain Bun --compile binary may not contain an embedded rg applet.
+  // Never dispatch a nonexistent applet or /$bunfs vendor path.
+  if (isInBundledMode() && isEnvTruthy(process.env.FUTURE_EMBEDDED_RIPGREP)) {
     return {
       mode: 'embedded',
       command: process.execPath,
       args: ['--no-config'],
       argv0: 'rg',
     }
+  }
+  if (isInBundledMode()) {
+    const { cmd: systemPath } = findExecutable('rg', [])
+    if (systemPath !== 'rg') return { mode: 'system', command: 'rg', args: [] }
+    throw new Error('ripgrep not installed: install rg or supply a binary with an embedded rg applet')
   }
 
   const rgRoot = path.resolve(__dirname, 'vendor', 'ripgrep')
