@@ -7,7 +7,7 @@ import { spawnTasks } from "../dynamicDag.ts";
 import type { Store } from "../store.ts";
 import type { AttemptControl, Capsule, Driver, Json, Task, Verification, WorkerResult, Lease, Measurement } from "../types.ts";
 import { keys, validateSwarmTasks, type PinnedSwarm } from "./config.ts";
-import { inlineReceipt, type Call } from "./context.ts";
+import { inlineReceipt, type Call, type ProgressCheckpoint } from "./context.ts";
 import { HttpBrain } from "./model.ts";
 import { SessionJournal, type Thread } from "./session.ts";
 import { localGitBackend, type HandsBackend } from "./workspace.ts";
@@ -52,6 +52,7 @@ export class SwarmDriver implements Driver {
       task: c.task, dependencies: c.dependencies,
       contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. " +
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
+        (profile.tools.includes("save_progress") ? "Before long context retirement, call save_progress with concise current findings, blockers, exact next step, and owned evidence receipts; notes remain unverified. " : "") +
         (profile.tools.includes("run_job") ? "For independent experiments, issue every ready run_job call in one assistant turn so the host can launch them concurrently; do not wait for one experiment before proposing another independent one. " : "") +
         "Do not edit harness infrastructure outside the declared task scope." }) }],
       turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null,
@@ -248,6 +249,15 @@ export class SwarmDriver implements Driver {
                 const a = call.arguments;
                 const claims = claimsForGoals(this.store, c.runId, [c.task.id, ...c.task.dependencies], a.after as string | undefined, a.limit as number | undefined);
                 result = toJson({ claims, nextAfter: claims.at(-1)?.id ?? a.after ?? "" });
+              } else if (call.name === "save_progress") {
+                const a = call.arguments;
+                const receipts = a.receipts as string[];
+                invariant(receipts.every(hash => this.journal.ownsReceipt(c, hash)), "unowned progress receipt");
+                const progress: ProgressCheckpoint = { summary: a.summary as string,
+                  nextAction: a.nextAction as string, receipts,
+                  patchHash: t.state.patchHash, atTurn: t.state.turns };
+                t.state.progress = progress;
+                result = { saved: true, trust: "UNVERIFIED_AGENT_NOTE_NOT_ACCEPTANCE", turn: progress.atTurn };
               } else if (call.name === "recall") {
                 const a = call.arguments; keys(a, [], ["receipt", "offset", "length", "historyAfter", "limit"]);
                 if (a.receipt !== undefined) {
@@ -284,7 +294,7 @@ export class SwarmDriver implements Driver {
         // The provider response and thread checkpoint are separate commits.
         // After a crash, consume the saved reply under its ORIGINAL request hash
         // before adding recovery notes or periodic-check feedback.
-        const replay = this.brain.replay(c, profile, t.state.history, budget, limit, t.state.turns);
+        const replay = this.brain.replay(c, profile, t.state.history, budget, limit, t.state.turns, t.state.progress ?? null);
         if (replay) {
           t.state.history = [...replay.history, admitReply(replay.turn.message)]; t.state.turns++;
           this.journal.checkpoint(t, "model.reply", replay.turn.message);
@@ -320,7 +330,7 @@ export class SwarmDriver implements Driver {
         if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
         this.journal.checkpoint(t, "model.intent", { step: t.state.turns });
         control?.activity?.("model:request");
-        const next = await this.brain.next(c, profile, t.state.history, budget, limit, signal, t.state.turns);
+        const next = await this.brain.next(c, profile, t.state.history, budget, limit, signal, t.state.turns, t.state.progress ?? null);
         t.state.history = [...next.history, admitReply(next.turn.message)]; t.state.turns++;
         this.journal.checkpoint(t, "model.reply", next.turn.message);
         control?.activity?.("model:reply");
