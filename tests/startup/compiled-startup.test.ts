@@ -1,6 +1,6 @@
 // Run: bun test tests/startup/compiled-startup.test.ts
 import { beforeAll, afterAll, test, expect } from 'bun:test'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join, resolve, basename } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -138,6 +138,7 @@ test('real executable on PATH still resolves and search spawns it', () => {
 test('embedded applet dispatch requires explicit build capability', () => {
   const value = read('command', {}, { FUTURE_EMBEDDED_RIPGREP: '1' })
   expect(value.argv0).toBe('rg')
-  expect(value.rgPath).toBe(binary)
+  // macOS resolves /var to /private/var in process.execPath.
+  expect(realpathSync(value.rgPath)).toBe(realpathSync(binary))
   expect(value.rgArgs).toEqual(['--no-config'])
 })
