@@ -1,5 +1,6 @@
 import { canonical, digest, invariant } from "./kernel.ts";
 import { compilePlan } from "./productivity.ts";
+import { learnedDurationHints } from "./adaptiveScheduling.ts";
 import type { Store } from "./store.ts";
 import type { Recipe, Task } from "./types.ts";
 
@@ -44,7 +45,9 @@ export function rebuildSchedulerIndex(store: Store, runId: string, recipe: Recip
   now = Date.now()): void {
   const { status, runtime, edges, sourceHash } = source(store, runId);
   const graphVersion = Number(store.db.prepare("SELECT graph_version FROM runs WHERE id=?").get(runId)?.graph_version ?? 0);
-  const plan = compilePlan(runtime, recipe, store.contract().limits.contextBytes);
+  const hints = learnedDurationHints(store, runtime, recipe, now);
+  const plan = compilePlan(hints.tasks, recipe.scheduling === "adaptive-critical-path"
+    ? { ...recipe, scheduling: "critical-path" } : recipe, store.contract().limits.contextBytes);
   const previous = store.db.prepare("SELECT rebuilds FROM scheduler_index_meta WHERE run=?").get(runId);
   store.db.prepare("DELETE FROM scheduler_edges WHERE run=?").run(runId);
   store.db.prepare("DELETE FROM scheduler_nodes WHERE run=?").run(runId);
@@ -72,7 +75,8 @@ export function rebuildSchedulerIndex(store: Store, runId: string, recipe: Recip
       rebuilds=excluded.rebuilds,built_at=excluded.built_at,source_hash=excluded.source_hash,source_version=excluded.source_version`)
     .run(runId, runtime.length, edges.length, (previous?.rebuilds ?? 0) + 1, now, sourceHash, graphVersion);
   store.event("scheduler.index.rebuilt",
-    { tasks: runtime.length, edges: edges.length, rebuild: (previous?.rebuilds ?? 0) + 1, sourceHash, graphVersion },
+    { tasks: runtime.length, edges: edges.length, rebuild: (previous?.rebuilds ?? 0) + 1, sourceHash, graphVersion,
+      learnedTasks: hints.matchedTasks, durationSamples: hints.usedObservations },
     runId);
 }
 
