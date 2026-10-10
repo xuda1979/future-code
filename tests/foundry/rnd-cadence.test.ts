@@ -7,16 +7,22 @@ import { checkpointInputKey, shouldRunExploratoryCheckpoint } from "../../src/ha
 import { SessionJournal } from "../../src/harness/foundry/swarm/session.ts";
 import { fixture, task, signal } from "./swarm-fixtures.ts";
 
-test("remote polls stay fast initially then back off under unchanged observations", () => {
-  const policy = { pollMs: 100 };
+test("remote polls preserve fixed cadence unless idle backoff is configured", () => {
+  for (const idlePolls of [0, 1, 2, 3, 100]) {
+    assert.equal(nextRemotePollMs({ pollMs: 100 }, idlePolls), 100);
+  }
+  const policy = { pollMs: 100, maxPollMs: 1600 };
   assert.equal(nextRemotePollMs(policy, 0), 100);
   assert.equal(nextRemotePollMs(policy, 1), 100);
   assert.equal(nextRemotePollMs(policy, 2), 200);
   assert.equal(nextRemotePollMs(policy, 3), 400);
   assert.equal(nextRemotePollMs(policy, 100), 1600);
   assert.equal(nextRemotePollMs({ pollMs: 100, maxPollMs: 500 }, 4), 500);
-  assert.equal(nextRemotePollMs({ pollMs: 5000 }, 20), 60000);
+  assert.equal(nextRemotePollMs({ pollMs: 5000, maxPollMs: 60000 }, 20), 60000);
   assert.equal(nextRemotePollMs({ pollMs: 120000 }, 20), 120000);
+  for (const idlePolls of [-1, 0.5, NaN, Infinity]) {
+    assert.equal(nextRemotePollMs(policy, idlePolls), 100);
+  }
 });
 
 test("only delayed roots gain long idle waits; runnable or leased work retains low latency", async () => fixture(async s => {
@@ -28,8 +34,10 @@ test("only delayed roots gain long idle waits; runnable or leased work retains l
   assert.equal(scheduler.suggestIdleWaitMs(run, 25, now), 25, "running work may finish in another process");
   const wake = Date.now() + 20000;
   scheduler.defer(lease, new DeferredAttemptError("remote-job", wake, "remote compute running"));
-  assert.equal(scheduler.suggestIdleWaitMs(run, 25, wake - 15000), 5000, "known future wake avoids hot scanning");
+  assert.equal(scheduler.suggestIdleWaitMs(run, 25, wake - 60000), 30000, "long waits retain a bounded rescan interval");
+  assert.equal(scheduler.suggestIdleWaitMs(run, 25, wake - 15000), 15000, "known future wake avoids hot scanning");
   assert.equal(scheduler.suggestIdleWaitMs(run, 25, wake - 60), 60, "near-term wake is not delayed");
+  assert.equal(scheduler.suggestIdleWaitMs(run, 25, wake - 1), 25, "short waits retain the fallback interval");
   assert.equal(scheduler.suggestIdleWaitMs(run, 25, wake + 1), 25, "ready again at wake");
 }));
 
