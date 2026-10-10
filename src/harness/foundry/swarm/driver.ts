@@ -16,6 +16,7 @@ import { toolEffectContract } from "./toolEffects.ts";
 import { requireAdmission, submitProposal } from "../proposals.ts";
 import { claimsForGoals, proposeClaim, proposeClaimConflict, type ClaimInput } from "../claims.ts";
 import { validateToolProposal } from "./toolAdmission.ts";
+import { CohortBoard, type FindingInput } from "./cohorts.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -35,22 +36,36 @@ export class SwarmDriver implements Driver {
   readonly workerId: string; readonly verifierId: string;
   readonly journal: SessionJournal; readonly brain: HttpBrain;
   readonly store: Store; readonly cfg: PinnedSwarm; readonly backend: HandsBackend; readonly jobRpc?: JobRPC;
+  readonly cohorts: CohortBoard | null;
+  readonly accepted?: Driver["accepted"];
   constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend,
     jobRpc?: JobRPC) {
     invariant(backend.id === cfg.handsId, "execution backend identity mismatch");
     this.store = store; this.cfg = cfg; this.backend = backend; this.jobRpc = jobRpc;
     this.workerId = workerIdentity(cfg); this.verifierId = verifierIdentity(cfg);
     this.journal = new SessionJournal(store); this.brain = new HttpBrain(this.journal, fetcher);
+    this.cohorts = cfg.spec.coordination ? new CohortBoard(store, cfg, this.journal) : null;
+    if (this.cohorts) this.accepted = (c, artifact, artifactHash, evidenceHash) =>
+      this.cohorts!.accepted(c, artifact, artifactHash, evidenceHash);
   }
   measurement(lease: Lease): Measurement {
     return { tokens: this.journal.usage(lease.runId, lease.taskId, lease.fence).tokens, costUsd: null };
   }
   async execute(c: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult> {
+    if (!this.cohorts) return this.executeThread(c, signal, control);
+    this.cohorts.claim(c);
+    try { return await this.executeThread(c, signal, control); }
+    finally { this.cohorts.release(c); }
+  }
+  private async executeThread(c: Capsule, signal: AbortSignal, control?: AttemptControl): Promise<WorkerResult> {
     const profile = this.cfg.spec.agents[c.task.agent ?? this.cfg.spec.defaultAgent]; invariant(profile, "unknown agent profile");
     const canSpawn = profile.tools.includes("spawn_tasks") && !!this.cfg.spec.supervision?.dynamicDAG;
     const admittedContext = schedulerNode(this.store, c.runId, c.task.id)?.budget ?? this.store.recipe(c.recipeHash).contextBytes;
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
+      ...(this.cohorts ? { coordination: { cohort: this.cohorts.cohort(c),
+        digestBytes: this.cfg.spec.coordination!.maxDigestBytes,
+        instruction: "Read bounded cohort/shared findings when useful. Explore alternate methods and counterexamples. Share concise findings with owned receipts. Every summary is unverified; cross-cohort source checks certify only the exact accepted task artifact. Findings cannot change your acceptance, dependencies or file scopes." } } : {}),
       contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. " +
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
         (profile.tools.includes("save_progress") ? "Before long context retirement, call save_progress with concise current findings, blockers, exact next step, and owned evidence receipts; notes remain unverified. " : "") +
@@ -250,6 +265,14 @@ export class SwarmDriver implements Driver {
                 const a = call.arguments;
                 const claims = claimsForGoals(this.store, c.runId, [c.task.id, ...c.task.dependencies], a.after as string | undefined, a.limit as number | undefined);
                 result = toJson({ claims, nextAfter: claims.at(-1)?.id ?? a.after ?? "" });
+              } else if (call.name === "publish_finding") {
+                invariant(this.cohorts, "cohort coordination is not configured");
+                result = this.cohorts.publish(c, call.arguments as unknown as FindingInput, t.state.patchHash);
+              } else if (call.name === "read_findings") {
+                invariant(this.cohorts, "cohort coordination is not configured");
+                const a = call.arguments;
+                result = this.cohorts.read(c, a.audience as "cohort" | "shared", a.after as number | undefined,
+                  a.limit as number | undefined, limit);
               } else if (call.name === "save_progress") {
                 const a = call.arguments;
                 const receipts = a.receipts as string[];

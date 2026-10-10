@@ -330,3 +330,9 @@ Do not promote merely because more agents were busy or the mock fixture sped up.
 For source rollback, use a dedicated feature branch and revert its patch commit.
 Do not discard unrelated local changes. Preserve or retire the new state root
 explicitly; never overwrite an old contract as part of rollback.
+# Cohort coordination
+
+Optional research groups provide bounded notes, acceptance-gated cross-group
+references and execution caps. See [Cohort coordination](COHORT_COORDINATION.md)
+for configuration, context controls and the distinction between accepted task
+artifacts and unverified summaries.

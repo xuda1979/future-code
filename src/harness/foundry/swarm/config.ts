@@ -3,7 +3,7 @@ import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { identifier, invariant, positive, validateContract, validateRecipe } from "../kernel.ts";
 import type { CommandSpec, Contract, PinnedCommand, Recipe, SpawnPolicy, Task } from "../types.ts";
 
-export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "run_job", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict"] as const;
+export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "run_job", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict", "publish_finding", "read_findings"] as const;
 export type ToolName = typeof TOOLS[number];
 export type Protocol = "anthropic" | "chat-completions";
 export interface ProviderRoute {
@@ -14,6 +14,8 @@ export interface ProviderRoute {
   quotaPool?: string;
 }
 export interface AgentProfile {
+  /** Host-assigned research group; many task instances may use one profile. */
+  cohort?: string;
   protocol: Protocol;
   url: string;
   model: string;
@@ -87,6 +89,12 @@ export interface SupervisionPolicy {
   dynamicDAG?: SpawnPolicy;
 }
 export interface SwarmSpec {
+  /** Explicit authority to share bounded notes, never private thread transcripts. */
+  coordination?: {
+    cohorts: Record<string, { maxConcurrent: number }>;
+    maxFindingsPerTask: number;
+    maxDigestBytes: number;
+  };
   jobs?: Record<string, JobTemplate>;
   /** Evidence-Fabric semantic contract. Defaults to software-engineering. */
   domainPack?: "software-engineering" | "ml-research" | "scientific-computing";
@@ -132,7 +140,7 @@ function names(names: string[], known: string[], label: string): void {
   invariant(Array.isArray(names) && names.length > 0 && new Set(names).size === names.length && names.every(n => known.includes(n)), `invalid ${label}`);
 }
 export function validateSwarmSpec(s: SwarmSpec): void {
-  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack"]);
+  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack", "coordination"]);
   invariant(s.schema === 1 && typeof s.name === "string" && !!s.name.trim(), "invalid swarm identity");
   invariant(typeof s.project === "string" && s.project.length > 0, "missing project");
   invariant(s.domainPack === undefined ||
@@ -157,7 +165,13 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   invariant(s.integrationChecks.every(n => s.checks[n].replaySafe), "integration checks must be replay-safe");
   for (const [id, a] of Object.entries(s.agents)) {
     identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"],
-      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs"]);
+      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs", "cohort"]);
+    if (a.cohort !== undefined) {
+      identifier(a.cohort);
+      invariant(s.coordination && Object.hasOwn(s.coordination.cohorts, a.cohort), "unknown agent cohort");
+    }
+    if (a.tools.some(tool => ["publish_finding", "read_findings"].includes(tool)))
+      invariant(s.coordination && a.cohort, "finding tools require an assigned cohort");
     invariant(["anthropic", "chat-completions"].includes(a.protocol), "unsupported provider protocol");
     const validateRoute = (route: ProviderRoute, label: string, strictShape = true) => {
       if (strictShape) keys(route, ["url", "model"], ["keyEnv", "allowHttp", "quotaPool"]);
@@ -199,6 +213,21 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     if (a.tools.includes("spawn_tasks"))
       invariant(s.supervision?.dynamicDAG, "spawn_tasks requires supervision.dynamicDAG");
     invariant(a.checks.every(n => s.checks[n].replaySafe), "independent verification checks must be replay-safe");
+  }
+  if (s.coordination) {
+    const p = s.coordination;
+    keys(p, ["cohorts", "maxFindingsPerTask", "maxDigestBytes"]);
+    keys(p.cohorts, [], Object.keys(p.cohorts));
+    positive(Object.keys(p.cohorts).length, 32, "cohort count");
+    for (const [id, cohort] of Object.entries(p.cohorts)) {
+      identifier(id); keys(cohort, ["maxConcurrent"]);
+      positive(cohort.maxConcurrent, s.limits.parallelism, "cohort concurrency");
+      invariant(Object.values(s.agents).some(agent => agent.cohort === id), "empty cohort roster");
+    }
+    invariant(Object.values(s.agents).every(agent => agent.cohort), "coordination requires all profiles to have a cohort");
+    positive(p.maxFindingsPerTask, 32, "finding count");
+    invariant(Number.isSafeInteger(p.maxDigestBytes) && p.maxDigestBytes >= 4096 &&
+      p.maxDigestBytes <= Math.min(65536, Math.floor(s.recipe.contextBytes / 2)), "invalid finding digest bytes");
   }
   if (s.supervision) {
     keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["checkpointCadence", "snapshotReads", "maxReplans", "maxObjectiveRequests", "maxObjectiveRequestBytes", "recoveryBackoffMs", "recoveryAgent", "dynamicDAG"]);

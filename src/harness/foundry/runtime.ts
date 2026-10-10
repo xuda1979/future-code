@@ -65,7 +65,8 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
     if (controller.signal.aborted) throw controller.signal.reason;
     const evidence = { contractHash: lease.contractHash, recipeHash: lease.recipeHash, verifierId: driver.verifierId,
       taskHash: digest(capsule.task), artifactHash: digest(result.artifact), verification: JSON.parse(canonical(check)), metrics } as Json;
-    scheduler.finish(lease, result.artifact, evidence, measured);
+    scheduler.finish(lease, result.artifact, evidence, measured, Date.now(), driver.accepted
+      ? (artifactHash, evidenceHash) => driver.accepted!(capsule, result.artifact, artifactHash, evidenceHash) : undefined);
   };
   // Abort races also cover a buggy adapter that never resolves. Its late output
   // is fenced off. Resource cancellation still requires the adapter to cooperate.
