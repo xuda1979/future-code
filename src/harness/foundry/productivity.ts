@@ -66,8 +66,11 @@ export function projectDependency(source: Json, pointers: readonly string[]): Js
   return selected;
 }
 
-/** Bounded novelty detector. A heartbeat or alternating repeated messages do
- *  not constitute progress. This is a liveness heuristic, not verification. */
+/** Bounded *recent* novelty detector. A repeated heartbeat never advances
+ * liveness; unlike a lifetime-only set, a sufficiently long legitimate attempt
+ * cannot permanently lose progress at its 1024th distinct checkpoint.
+ * This remains a heuristic: neither novelty nor liveness implies acceptance,
+ * and the absolute attempt deadline is enforced independently. */
 export class ProgressWindow {
   private readonly seen = new Set<string>();
   private last: number;
@@ -75,7 +78,8 @@ export class ProgressWindow {
   observe(fingerprint: string, now: number): boolean {
     invariant(typeof fingerprint === "string" && fingerprint.length > 0 &&
       Buffer.byteLength(fingerprint, "utf8") <= 256, "invalid progress fingerprint");
-    if (this.seen.has(fingerprint) || this.seen.size >= 1024) return false;
+    if (this.seen.has(fingerprint)) return false;
+    if (this.seen.size >= 1024) this.seen.delete(this.seen.values().next().value!);
     this.seen.add(fingerprint); this.last = Math.max(this.last, now); return true;
   }
   idleMs(now: number): number { return Math.max(0, now - this.last); }
