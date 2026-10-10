@@ -40,8 +40,10 @@ still represent worker time and can overlap.
 file/list operations safe on a stable workspace. A backend advertising writes
 must reconstruct the preceding durable snapshot and replay an interrupted group
 without leaking external effects. Missing capabilities retain serial I/O and
-one snapshot per edit. The existing remote worker fleet keeps its serial path;
-its per-call failover contract does not yet guarantee whole-group rollback.
+one snapshot per edit. The fleet's optional `Hands.batch` transaction replays
+the entire admitted group, including its snapshot, when switching workers.
+Remote host groups are bounded to 32 calls. See
+[remote batch recovery](REMOTE_TOOL_BATCHING.md).
 No model flag can enable these capabilities.
 
 There is no cross-turn read cache: a later read must observe intervening edits.

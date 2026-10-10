@@ -1,11 +1,13 @@
-import { digest, invariant } from "../kernel.ts";
+import { randomUUID } from "node:crypto";
+import { canonical, digest, invariant } from "../kernel.ts";
 import { invoke } from "../commands.ts";
 import { DeferredAttemptError } from "../continuation.ts";
+import { FatalAttemptError } from "../errors.ts";
 import type { Capsule, Json, Verification } from "../types.ts";
 import type { Store } from "../store.ts";
 import type { AgentProfile, PinnedSwarm } from "./config.ts";
 import type { Call } from "./context.ts";
-import { orderedTasks, patchText, readPatchArtifact, verifyPatch, type Hands, type HandsBackend } from "./workspace.ts";
+import { orderedTasks, patchText, readPatchArtifact, verifyPatch, type Hands, type HandsBackend, type WorkspaceBatchResult } from "./workspace.ts";
 
 interface WorkerReply { ok: boolean; result?: Json; patch?: string; error?: string }
 interface WorkerLease { worker: string; workspace: string; deadline: number }
@@ -20,7 +22,9 @@ function install(store: Store): void {
       worker TEXT PRIMARY KEY, failures INTEGER NOT NULL, quarantine_until REAL, updated REAL NOT NULL);`);
 }
 function workspaceId(c: Capsule): string {
-  return digest({ run: c.runId, task: c.task.id, fence: c.fence, contract: c.contractHash, recipe: c.recipeHash });
+  // A replacement must never reuse a private tree with unpublished edits,
+  // even when the coordinator restarts under the same task fence.
+  return digest({ run: c.runId, task: c.task.id, fence: c.fence, contract: c.contractHash, recipe: c.recipeHash, generation: randomUUID() });
 }
 function spawnedRoots(store: Store, c: Capsule): string[] {
   return store.db.prepare("SELECT child FROM spawn_edges WHERE run=? AND parent=? ORDER BY child")
@@ -55,8 +59,9 @@ function workerFailed(store: Store, worker: string, reason: unknown): void {
     });
   });
 }
-function releaseLease(store: Store, c: Capsule): void {
-  store.db.prepare("DELETE FROM swarm_worker_leases WHERE run=? AND task=? AND fence=?").run(c.runId, c.task.id, c.fence);
+function releaseLease(store: Store, c: Capsule, workspace?: string): void {
+  store.db.prepare(`DELETE FROM swarm_worker_leases WHERE run=? AND task=? AND fence=?${workspace ? " AND workspace=?" : ""}`)
+    .run(c.runId, c.task.id, c.fence, ...(workspace ? [workspace] : []));
 }
 function claimLease(store: Store, cfg: PinnedSwarm, c: Capsule, exclude = new Set<string>()): WorkerLease {
   install(store); const now = Date.now();
@@ -68,9 +73,12 @@ function claimLease(store: Store, cfg: PinnedSwarm, c: Capsule, exclude = new Se
     store.db.prepare("DELETE FROM swarm_worker_leases WHERE deadline<=?").run(now);
     const existing = store.db.prepare("SELECT worker,workspace,deadline FROM swarm_worker_leases WHERE run=? AND task=? AND fence=?")
       .get(c.runId, c.task.id, c.fence);
-    if (existing && !exclude.has(String(existing.worker))) return {
-      worker: String(existing.worker), workspace: String(existing.workspace), deadline: Number(existing.deadline),
-    };
+    if (existing && !exclude.has(String(existing.worker))) {
+      const workspace = workspaceId(c);
+      store.db.prepare("UPDATE swarm_worker_leases SET workspace=? WHERE run=? AND task=? AND fence=?")
+        .run(workspace, c.runId, c.task.id, c.fence);
+      return { worker: String(existing.worker), workspace, deadline: Number(existing.deadline) };
+    }
     if (existing) releaseLease(store, c);
     const eligible = workers.filter(id => !exclude.has(id)).map(id => {
       const health = workerHealth(store, id);
@@ -102,13 +110,24 @@ function claimLease(store: Store, cfg: PinnedSwarm, c: Capsule, exclude = new Se
 }
 
 class RemoteHands implements Hands {
+  readonly batchPolicy = { reads: 4, writes: true, maxCalls: 32 };
   readonly store: Store; readonly cfg: PinnedSwarm; readonly c: Capsule; readonly profile: AgentProfile; readonly signal: AbortSignal;
   private lease: WorkerLease | null = null;
   private prepared = false;
+  private supportsBatch = false;
+  private tail: Promise<void> = Promise.resolve();
+  private closed = false;
   private restorePatch: string | null;
   private failedWorkers = new Set<string>();
   constructor(store: Store, cfg: PinnedSwarm, c: Capsule, profile: AgentProfile, signal: AbortSignal, restore: string | null) {
     this.store = store; this.cfg = cfg; this.c = c; this.profile = profile; this.signal = signal; this.restorePatch = restore;
+  }
+  private exclusive<T>(work: () => Promise<T>): Promise<T> {
+    const result = this.tail.then(() => {
+      invariant(!this.closed, "remote workspace disposed"); this.signal.throwIfAborted(); return work();
+    });
+    this.tail = result.then(() => {}, () => {});
+    return result;
   }
   private dependencies(): string[] {
     const roots = [...this.c.task.dependencies, ...spawnedRoots(this.store, this.c)];
@@ -125,21 +144,21 @@ class RemoteHands implements Hands {
     if (!this.lease) this.lease = claimLease(this.store, this.cfg, this.c, this.failedWorkers);
     return this.lease;
   }
-  private async rpc(request: Json): Promise<WorkerReply> {
+  private async rpc(lease: WorkerLease, request: Json): Promise<WorkerReply> {
     this.signal.throwIfAborted();
-    const lease = this.ensureLease();
     const id = lease.worker; const spec = this.cfg.spec.workers?.[id]; const command = this.cfg.workerAdapters?.[id];
     invariant(spec && command, "execution worker configuration missing");
+    invariant(Buffer.byteLength(canonical(request)) <= 64 * 1024 * 1024, "remote request exceeds protocol budget");
     const result = await invoke(command, request, spec.maxRpcBytes, this.signal) as WorkerReply;
     invariant(result && typeof result === "object" && typeof result.ok === "boolean", "invalid worker reply");
     return result;
   }
-  private async prepare(): Promise<void> {
+  private async prepare(lease: WorkerLease): Promise<void> {
     if (this.prepared) return;
-    const lease = this.ensureLease();
-    const reply = await this.rpc({
+    const reply = await this.rpc(lease, {
       schema: 1, op: "prepare", workspace: lease.workspace, baseCommit: this.cfg.baseCommit,
-      dependencyPatches: this.dependencies(), restorePatch: this.restorePatch,
+      dependencyPatches: this.dependencies(), restorePatch: this.restorePatch === null ? null
+        : patchText(this.store, this.restorePatch, this.cfg.spec.budget.maxPatchBytes),
       task: { writeScope: this.c.task.writeScope, readScope: this.c.task.readScope ?? [] },
       protectedPaths: this.cfg.spec.protectedPaths, allowedChecks: this.profile.checks,
       limits: { toolTimeoutMs: this.cfg.spec.budget.toolTimeoutMs,
@@ -149,50 +168,102 @@ class RemoteHands implements Hands {
     // durable RPC-failure streak until useful tool/snapshot traffic succeeds;
     // otherwise prepare -> tool-failure loops can keep a broken host healthy forever.
     invariant(reply.ok, reply.error ?? "remote worker prepare failed"); this.prepared = true;
+    this.supportsBatch = (reply.result as any)?.capabilities?.workspaceBatch === 1;
   }
-  private async failover(error: unknown): Promise<void> {
-    const prior = this.lease?.worker;
+  private failover(lease: WorkerLease, error: unknown): void {
+    const prior = lease.worker;
     if (prior) {
       this.failedWorkers.add(prior);
       workerFailed(this.store, prior, error);
     }
-    releaseLease(this.store, this.c); this.lease = null; this.prepared = false;
+    releaseLease(this.store, this.c, lease.workspace); this.lease = null; this.prepared = false; this.supportsBatch = false;
     this.store.event("worker.failed_over", { from: prior ?? null, reason: error instanceof Error ? error.message.slice(0, 512) : "worker RPC failed" },
       this.c.runId, this.c.task.id);
   }
-  async tool(call: Call): Promise<Json> {
+  private async retry<T>(work: (lease: WorkerLease) => Promise<T>): Promise<T> {
     for (;;) {
+      const lease = this.ensureLease();
       try {
-        await this.prepare();
-        const reply = await this.rpc({ schema: 1, op: "tool", workspace: this.lease!.workspace, call });
-        workerSucceeded(this.store, this.lease!.worker);
-        if (!reply.ok) return { error: reply.error ?? "remote tool failed" };
-        return reply.result ?? null;
+        await this.prepare(lease); return await work(lease);
       } catch (e) {
-        if (e instanceof DeferredAttemptError) throw e;
-        await this.failover(e);
+        this.signal.throwIfAborted();
+        if (e instanceof DeferredAttemptError || e instanceof FatalAttemptError) throw e;
+        this.failover(lease, e);
         if (this.failedWorkers.size >= Object.keys(this.cfg.spec.workers ?? {}).length) throw e;
       }
     }
   }
-  async snapshot(): Promise<string> {
-    await this.prepare();
-    // Do not fail over inside snapshot. A mutating tool may already have
-    // succeeded on this worker; if snapshot transport fails, the enclosing
-    // attempt must retry the still-pending tool from the last durable patch.
-    const reply = await this.rpc({ schema: 1, op: "snapshot", workspace: this.lease!.workspace });
-    if (reply.ok && typeof reply.patch === "string") workerSucceeded(this.store, this.lease!.worker);
+  tool(call: Call): Promise<Json> {
+    return this.exclusive(() => this.retry(async lease => {
+      const reply = await this.rpc(lease, { schema: 1, op: "tool", workspace: lease.workspace, call });
+      workerSucceeded(this.store, lease.worker);
+      return reply.ok ? reply.result ?? null : { error: reply.error ?? "remote tool failed" };
+    }));
+  }
+  private savePatch(reply: WorkerReply): string {
     invariant(reply.ok && typeof reply.patch === "string", reply.error ?? "remote snapshot failed");
     invariant(Buffer.byteLength(reply.patch) <= this.cfg.spec.budget.maxPatchBytes, "remote patch exceeds budget");
-    this.restorePatch = this.store.artifact(reply.patch);
-    return this.restorePatch;
+    return this.store.artifact(reply.patch);
+  }
+  batch(kind: "read" | "workspace-write", calls: Call[]): Promise<WorkspaceBatchResult> {
+    invariant(["read", "workspace-write"].includes(kind) && calls.length > 0 && calls.length <= 32 && calls.every(c =>
+      (kind === "read" ? ["read_file", "list_files"] : ["write_file", "edit_file", "delete_file"]).includes(c.name)),
+    "invalid remote workspace batch");
+    return this.exclusive(() => this.retry(async lease => {
+      const results: Json[] = []; let patchHash: string | undefined;
+      if (this.supportsBatch) {
+        // Bound aggregate JSON replies as well as each individual tool. Split
+        // RPCs remain one replay unit and never promote an intermediate patch.
+        const bytes = this.cfg.spec.workers![lease.worker]!.maxRpcBytes;
+        const budget = this.cfg.spec.budget;
+        const reserve = kind === "workspace-write" ? 6 * budget.maxPatchBytes + 4096 : 4096;
+        const perCall = kind === "read" ? 6 * budget.maxToolOutputBytes + 1024 : 1024;
+        const width = Math.max(1, Math.min(32, Math.floor((bytes - reserve) / perCall)));
+        for (let offset = 0; offset < calls.length; offset += width) {
+          const chunk = calls.slice(offset, offset + width);
+          const reply = await this.rpc(lease, { schema: 1, op: "batch", workspace: lease.workspace, kind, calls: chunk });
+          invariant(reply.ok, reply.error ?? "remote batch failed");
+          const rows = (reply.result as any)?.results;
+          invariant(Array.isArray(rows) && rows.length === chunk.length &&
+            rows.every((row, i) => row?.callId === chunk[i]!.id && Object.hasOwn(row, "result")), "invalid remote batch results");
+          results.push(...rows.map(row => row.result));
+          if (kind === "workspace-write") patchHash = this.savePatch(reply);
+        }
+      } else {
+        // Old workers retain serial wire I/O. Failover still replays every
+        // admitted call from the last committed patch, rather than one edit.
+        for (const call of calls) {
+          const reply = await this.rpc(lease, { schema: 1, op: "tool", workspace: lease.workspace, call });
+          results.push(reply.ok ? reply.result ?? null : { error: reply.error ?? "remote tool failed" });
+        }
+        if (kind === "workspace-write") patchHash = this.savePatch(await this.rpc(lease, { schema: 1, op: "snapshot", workspace: lease.workspace }));
+      }
+      this.signal.throwIfAborted(); workerSucceeded(this.store, lease.worker);
+      if (patchHash !== undefined) this.restorePatch = patchHash;
+      this.store.event("worker.batch", { worker: lease.worker, kind, calls: calls.length, protocol: this.supportsBatch ? "batch-v1" : "serial-v1" },
+        this.c.runId, this.c.task.id);
+      return { results, ...(patchHash === undefined ? {} : { patchHash }) };
+    }));
+  }
+  snapshot(): Promise<string> {
+    return this.exclusive(async () => {
+      const lease = this.ensureLease(); await this.prepare(lease);
+      // A single mutating tool may already have succeeded here. Its enclosing
+      // attempt must retry from the last durable patch if snapshot is lost.
+      const reply = await this.rpc(lease, { schema: 1, op: "snapshot", workspace: lease.workspace });
+      this.restorePatch = this.savePatch(reply); workerSucceeded(this.store, lease.worker);
+      return this.restorePatch;
+    });
   }
   async dispose(): Promise<void> {
+    this.closed = true; await this.tail;
     if (this.lease) {
-      try { await this.rpc({ schema: 1, op: "dispose", workspace: this.lease.workspace }); }
+      const lease = this.lease;
+      try { await this.rpc(lease, { schema: 1, op: "dispose", workspace: lease.workspace }); }
       catch { /* disposable remote workspace; lease release is authoritative */ }
+      releaseLease(this.store, this.c, lease.workspace);
     }
-    releaseLease(this.store, this.c); this.lease = null; this.prepared = false;
+    this.lease = null; this.prepared = false;
   }
 }
 

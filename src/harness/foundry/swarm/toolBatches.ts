@@ -1,14 +1,14 @@
 import { performance } from "node:perf_hooks";
 import { DeferredAttemptError } from "../continuation.ts";
 import { FatalAttemptError } from "../errors.ts";
-import { canonical } from "../kernel.ts";
+import { canonical, invariant } from "../kernel.ts";
 import type { AttemptControl, Json } from "../types.ts";
 import type { Call } from "./context.ts";
 import { inlineReceipt } from "./context.ts";
 import type { PinnedSwarm } from "./config.ts";
 import type { SessionJournal, Thread } from "./session.ts";
 import { toolEffectContract } from "./toolEffects.ts";
-import type { Hands } from "./workspace.ts";
+import type { Hands, WorkspaceBatchResult } from "./workspace.ts";
 
 export interface ToolBatch {
   kind: "read" | "workspace-write" | "run_job";
@@ -31,8 +31,14 @@ export function nextToolBatch(calls: Call[], hands: Hands): ToolBatch | null {
   const compatible = (c: Call) => kind === "run_job" ? c.name === "run_job" :
     (kind === "read" ? reads : writes).has(c.name);
   const end = calls.findIndex(c => !compatible(c));
-  const group = end < 0 ? calls : calls.slice(0, end);
-  return group.length > 1 ? { kind, calls: group, concurrency: kind === "read" ? concurrentReads : kind === "run_job" ? 8 : 1 } : null;
+  let group = end < 0 ? calls : calls.slice(0, end);
+  const maxCalls = policy?.maxCalls;
+  if (kind !== "run_job" && maxCalls !== undefined && Number.isSafeInteger(maxCalls) && maxCalls > 0)
+    group = group.slice(0, maxCalls);
+  // A remote transaction also coalesces one edit with its snapshot into one
+  // RPC. Backends without that transaction retain the single-call path.
+  return group.length > 1 || (kind === "workspace-write" && !!hands.batch)
+    ? { kind, calls: group, concurrency: kind === "read" ? concurrentReads : kind === "run_job" ? 8 : 1 } : null;
 }
 
 interface BatchExecution {
@@ -40,6 +46,7 @@ interface BatchExecution {
   signal: AbortSignal; control?: AttemptControl;
   admit(call: Call): string;
   execute(call: Call): Promise<Json>;
+  executeBatch?(calls: Call[]): Promise<WorkspaceBatchResult>;
   snapshot(): Promise<string>;
 }
 
@@ -76,6 +83,7 @@ export async function executeToolBatch(o: BatchExecution): Promise<void> {
   control?.activity?.(`${batch.kind === "run_job" ? "remote-batch" : "tool-batch"}:launch:${batch.calls.length}`);
   const results: PromiseSettledResult<Json>[] = new Array(batch.calls.length);
   const inFlight = new Map<string, Promise<Json>>();
+  let batchPatch: string | undefined;
   let cursor = 0, executions = 0, stopped = false;
   const worker = async () => {
     for (;;) {
@@ -106,9 +114,33 @@ export async function executeToolBatch(o: BatchExecution): Promise<void> {
   };
   // Drain every launched worker even if a host callback throws. Disposal or
   // retry must not race an older in-flight read or external job RPC.
-  const workers = await Promise.allSettled(Array.from({ length: Math.min(batch.concurrency, batch.calls.length) }, worker));
-  const failedWorker = workers.find(w => w.status === "rejected");
-  if (failedWorker?.status === "rejected") throw failedWorker.reason;
+  if (o.executeBatch && batch.kind !== "run_job") {
+    const unique: Call[] = [], owners = new Map<string, number>(), indices: number[] = [];
+    for (const [i, call] of batch.calls.entries()) {
+      if (rejected.has(call.id)) { results[i] = { status: "rejected", reason: rejected.get(call.id) }; continue; }
+      const key = batch.kind === "read" ? canonical({ name: call.name, arguments: call.arguments }) : call.id;
+      let index = owners.get(key);
+      if (index === undefined) { index = unique.length; owners.set(key, index); unique.push(call); }
+      indices[i] = index;
+    }
+    if (unique.length) {
+      signal.throwIfAborted(); journal.assertLease(c);
+      for (const call of unique) control?.activity?.(`tool:${call.name}`);
+      // Transport/snapshot failure aborts the whole group. No partial receipts
+      // can make replay skip edits that disappeared with the failed worker.
+      const outcome = await o.executeBatch(unique);
+      invariant(Array.isArray(outcome.results) && outcome.results.length === unique.length, "invalid backend batch results");
+      if (batch.kind === "workspace-write") invariant(typeof outcome.patchHash === "string", "write batch patch missing");
+      executions = unique.length; batchPatch = outcome.patchHash;
+      for (const call of unique) control?.activity?.(`completed:${call.name}`);
+      for (const [i] of batch.calls.entries()) if (!results[i])
+        results[i] = { status: "fulfilled", value: outcome.results[indices[i]!]! };
+    }
+  } else {
+    const workers = await Promise.allSettled(Array.from({ length: Math.min(batch.concurrency, batch.calls.length) }, worker));
+    const failedWorker = workers.find(w => w.status === "rejected");
+    if (failedWorker?.status === "rejected") throw failedWorker.reason;
+  }
   signal.throwIfAborted(); journal.assertLease(c);
   if (batch.kind === "workspace-write") {
     const interrupted = results.find(r => r?.status === "rejected" &&
@@ -118,7 +150,7 @@ export async function executeToolBatch(o: BatchExecution): Promise<void> {
   // Includes partially applied failed edits; scope validation still rejects
   // any illegal delta. Never publish write results without the exact patch.
   if (batch.kind === "workspace-write" && rejected.size < batch.calls.length) {
-    const patch = await o.snapshot();
+    const patch = batchPatch ?? await o.snapshot();
     if (patch !== t.state.patchHash) control?.progress(`patch:${patch}`);
     t.state.patchHash = patch;
   }
