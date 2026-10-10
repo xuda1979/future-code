@@ -1,0 +1,2738 @@
+{
+  "schema": 1,
+  "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+  "baselineCommit": "92a34fce2020a58dc356f114e4133e0adeb9c984",
+  "sourceAndTestHashes": {
+    "scripts/test-swarm.mjs": "533f1f0c4d206483cf28a15a77aff45bde6db786195ad83eb95bbc59a7d9f106",
+    "src/harness/foundry/swarm/driver.ts": "ef747e1061dac258cbfeb6eb6c7f27c38b623df18195fcbb09acfed36a961be1",
+    "src/harness/foundry/swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+    "src/harness/foundry/swarm/workspace.ts": "f65eba45fab67a5f40e35e082d7f404d31e19119f1a1888df065d54c50138840",
+    "scripts/bench-tool-batching.mjs": "004084a078ff3c3338db96ab722f6ee45282f452297364653b9d3bb8cf1f69b7",
+    "src/harness/foundry/swarm/toolBatches.ts": "1f1a63d85b5b76b2a4fd337f044ac2ffdb2da5e4763ac6bc8f5d1f7354523af0",
+    "tests/foundry/tool-batching.test.ts": "b1064bcf8a53786b09354b0bc6b4a265133c05d5020ae546fd8c8be8938b467c"
+  },
+  "validationRuntime": "v24.19.0",
+  "order": [
+    "baseline",
+    "candidate",
+    "candidate",
+    "baseline"
+  ],
+  "simulatedReadDelayMs": 40,
+  "summary": {
+    "short": {
+      "baseline": {
+        "samples": 20,
+        "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+        "medianMs": 118.85346199999958,
+        "p90Ms": 195.82171300000027,
+        "medianSnapshotCalls": 1.0,
+        "medianReadExecutions": 0.0,
+        "medianReadServiceWindowMs": null
+      },
+      "candidate": {
+        "samples": 20,
+        "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+        "medianMs": 126.41321399999981,
+        "p90Ms": 214.618606,
+        "medianSnapshotCalls": 1.0,
+        "medianReadExecutions": 0.0,
+        "medianReadServiceWindowMs": null
+      },
+      "candidateMedianRatio": 1.06360565247986
+    },
+    "edits": {
+      "baseline": {
+        "samples": 20,
+        "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+        "medianMs": 346.3427069999998,
+        "p90Ms": 445.5262499999999,
+        "medianSnapshotCalls": 12.0,
+        "medianReadExecutions": 0.0,
+        "medianReadServiceWindowMs": null
+      },
+      "candidate": {
+        "samples": 20,
+        "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+        "medianMs": 183.30125950000024,
+        "p90Ms": 220.61758399999985,
+        "medianSnapshotCalls": 1.0,
+        "medianReadExecutions": 0.0,
+        "medianReadServiceWindowMs": null
+      },
+      "candidateMedianRatio": 0.5292482151212162
+    },
+    "reads": {
+      "baseline": {
+        "samples": 20,
+        "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+        "medianMs": 564.7961315000002,
+        "p90Ms": 604.619749,
+        "medianSnapshotCalls": 1.0,
+        "medianReadExecutions": 10.0,
+        "medianReadServiceWindowMs": 439.41203799999994
+      },
+      "candidate": {
+        "samples": 20,
+        "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+        "medianMs": 231.61590950000004,
+        "p90Ms": 265.3796970000003,
+        "medianSnapshotCalls": 1.0,
+        "medianReadExecutions": 8.0,
+        "medianReadServiceWindowMs": 82.24537149999992
+      },
+      "candidateMedianRatio": 0.4100876344263699
+    }
+  },
+  "rawReports": [
+    {
+      "arm": "baseline",
+      "report": {
+        "schema": 1,
+        "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+        "generatedAt": "2026-10-10T11:03:22.179Z",
+        "runtime": {
+          "node": "v24.19.0",
+          "platform": "linux",
+          "arch": "x64",
+          "cpu": "AMD EPYC 9V74 80-Core Processor"
+        },
+        "simulatedReadDelayMs": 40,
+        "liveLLMCalls": 0,
+        "sourceHashes": {
+          "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+          "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+          "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+          "swarm/driver.ts": "c37795f1f5e254cd9ea28481eea8f97136bb76f5d7b38391caee5f6a6da883b0",
+          "swarm/workspace.ts": "971c13a9a61069fae8104b0f16e7f9883699216cdb8baa38f4419f1bf7e94f8f",
+          "swarm/session.ts": "9e1c868f164d40231ab3c076fb4bfa4857ea70d921024915955ee0c6eb4a6e35"
+        },
+        "summary": {
+          "short": {
+            "samples": 10,
+            "medianMs": 119.8771284999998,
+            "medianSnapshotCalls": 1,
+            "medianReadExecutions": 0,
+            "medianReadServiceWindowMs": null
+          },
+          "edits": {
+            "samples": 10,
+            "medianMs": 341.5825870000001,
+            "medianSnapshotCalls": 12,
+            "medianReadExecutions": 0,
+            "medianReadServiceWindowMs": null
+          },
+          "reads": {
+            "samples": 10,
+            "medianMs": 558.3901740000001,
+            "medianSnapshotCalls": 1,
+            "medianReadExecutions": 10,
+            "medianReadServiceWindowMs": 436.22839050000016
+          }
+        },
+        "samples": [
+          {
+            "case": "short",
+            "repetition": 0,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 273.321429,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 0,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 405.840013,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 0,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 575.258476,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 440.343879,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 1,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 125.30422200000021,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 1,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 379.94143499999973,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 1,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 576.941503,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 436.8786500000001,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 2,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 130.99749900000006,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 2,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 359.696152,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 2,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 604.619749,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 435.6526170000002,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 3,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 126.02019799999971,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 3,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 379.09118899999976,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 3,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 552.6806919999999,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 436.8041640000001,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 4,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 122.3447900000001,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 4,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 323.4690220000002,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 4,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 549.3758390000003,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 433.33747399999993,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 5,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 107.02787400000034,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 5,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 280.3469100000002,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 5,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 542.1235910000005,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 437.5752849999999,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 6,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 97.76457800000026,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 6,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 301.1542009999994,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 6,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 543.198958,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 434.454839,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 7,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 88.41343700000016,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 7,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 254.73540799999955,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 7,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 564.0996560000003,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 433.0587829999995,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 8,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 117.4094669999995,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 8,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 443.56562999999915,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 8,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 564.2947660000009,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 442.45534600000065,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 9,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 102.59279199999946,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 9,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 269.0969729999997,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 9,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 541.0469219999995,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 435.2891500000005,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          }
+        ]
+      }
+    },
+    {
+      "arm": "candidate",
+      "report": {
+        "schema": 1,
+        "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+        "generatedAt": "2026-10-10T11:03:27.799Z",
+        "runtime": {
+          "node": "v24.19.0",
+          "platform": "linux",
+          "arch": "x64",
+          "cpu": "AMD EPYC 9V74 80-Core Processor"
+        },
+        "simulatedReadDelayMs": 40,
+        "liveLLMCalls": 0,
+        "sourceHashes": {
+          "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+          "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+          "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+          "swarm/driver.ts": "ef747e1061dac258cbfeb6eb6c7f27c38b623df18195fcbb09acfed36a961be1",
+          "swarm/workspace.ts": "f65eba45fab67a5f40e35e082d7f404d31e19119f1a1888df065d54c50138840",
+          "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+          "swarm/toolBatches.ts": "1f1a63d85b5b76b2a4fd337f044ac2ffdb2da5e4763ac6bc8f5d1f7354523af0"
+        },
+        "summary": {
+          "short": {
+            "samples": 10,
+            "medianMs": 113.17764499999998,
+            "medianSnapshotCalls": 1,
+            "medianReadExecutions": 0,
+            "medianReadServiceWindowMs": null
+          },
+          "edits": {
+            "samples": 10,
+            "medianMs": 176.69512050000026,
+            "medianSnapshotCalls": 1,
+            "medianReadExecutions": 0,
+            "medianReadServiceWindowMs": null
+          },
+          "reads": {
+            "samples": 10,
+            "medianMs": 221.6087725,
+            "medianSnapshotCalls": 1,
+            "medianReadExecutions": 8,
+            "medianReadServiceWindowMs": 82.2237070000001
+          }
+        },
+        "samples": [
+          {
+            "case": "short",
+            "repetition": 0,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 262.969924,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 0,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 218.30197499999997,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 0,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 247.31292999999994,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 85.446461,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 1,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 141.74380799999994,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 1,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 189.29437499999995,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 1,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 235.42525100000012,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 83.01394099999993,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 2,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 126.26551399999994,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 2,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 186.96371,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 2,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 225.20047999999997,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 81.69018100000017,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 3,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 116.90510700000004,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 3,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 181.62461800000028,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 3,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 239.76212099999975,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 82.52870100000018,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 4,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 120.2442390000001,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 4,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 171.76562300000023,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 4,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 218.017065,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 81.63123700000006,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 5,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 109.45018299999992,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 5,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 158.12452500000018,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 5,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 225.6755350000003,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 83.0243089999999,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 6,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 104.00405999999975,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 6,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 160.15356399999973,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 6,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 211.2269140000003,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 81.45015300000023,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 7,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 102.03809900000033,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 7,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 149.2355979999993,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 7,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 208.56940300000042,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 81.91871300000003,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 8,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 99.0194249999995,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 8,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 156.902067,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 8,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 201.5619340000003,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 82.61866999999984,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 9,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 98.23395100000016,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 9,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 184.9371600000004,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 9,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 210.56096700000035,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 81.60183899999993,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          }
+        ]
+      }
+    },
+    {
+      "arm": "candidate",
+      "report": {
+        "schema": 1,
+        "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+        "generatedAt": "2026-10-10T11:03:34.375Z",
+        "runtime": {
+          "node": "v24.19.0",
+          "platform": "linux",
+          "arch": "x64",
+          "cpu": "AMD EPYC 9V74 80-Core Processor"
+        },
+        "simulatedReadDelayMs": 40,
+        "liveLLMCalls": 0,
+        "sourceHashes": {
+          "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+          "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+          "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+          "swarm/driver.ts": "ef747e1061dac258cbfeb6eb6c7f27c38b623df18195fcbb09acfed36a961be1",
+          "swarm/workspace.ts": "f65eba45fab67a5f40e35e082d7f404d31e19119f1a1888df065d54c50138840",
+          "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+          "swarm/toolBatches.ts": "1f1a63d85b5b76b2a4fd337f044ac2ffdb2da5e4763ac6bc8f5d1f7354523af0"
+        },
+        "summary": {
+          "short": {
+            "samples": 10,
+            "medianMs": 136.3937894999999,
+            "medianSnapshotCalls": 1,
+            "medianReadExecutions": 0,
+            "medianReadServiceWindowMs": null
+          },
+          "edits": {
+            "samples": 10,
+            "medianMs": 199.49199249999947,
+            "medianSnapshotCalls": 1,
+            "medianReadExecutions": 0,
+            "medianReadServiceWindowMs": null
+          },
+          "reads": {
+            "samples": 10,
+            "medianMs": 251.2451769999999,
+            "medianSnapshotCalls": 1,
+            "medianReadExecutions": 8,
+            "medianReadServiceWindowMs": 82.24537149999992
+          }
+        },
+        "samples": [
+          {
+            "case": "short",
+            "repetition": 0,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 299.244427,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 0,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 227.2391829999999,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 0,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 282.031661,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 83.3558250000001,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 1,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 149.05513199999996,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 1,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 220.61758399999985,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 1,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 251.82186699999988,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 83.12857799999983,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 2,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 214.618606,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 2,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 288.461716,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 2,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 305.32108400000016,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 82.4177410000002,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 3,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 164.95344999999998,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 3,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 206.5773079999999,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 3,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 247.83705899999995,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 82.377927,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 4,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 138.67018800000005,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 4,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 170.25416499999983,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 4,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 223.436647,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 82.74659800000018,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 5,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 117.63392000000022,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 5,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 181.66535900000008,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 5,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 252.12399899999946,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 81.6861429999999,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 6,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 134.11739099999977,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 6,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 202.5309559999996,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 6,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 250.6684869999999,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 82.02560499999981,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 7,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 126.56091399999968,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 7,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 173.70801399999982,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 7,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 217.83175399999982,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 82.11281599999984,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 8,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 117.89248099999986,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 8,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 196.45302899999933,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 8,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 227.80656799999997,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 81.84187699999984,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 9,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 127.44550000000072,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 9,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 178.3316960000002,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 9,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 265.3796970000003,
+            "snapshotCalls": 1,
+            "readExecutions": 8,
+            "peakReads": 4,
+            "simulatedReadServiceWindowMs": 81.64966700000059,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          }
+        ]
+      }
+    },
+    {
+      "arm": "baseline",
+      "report": {
+        "schema": 1,
+        "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+        "generatedAt": "2026-10-10T11:03:45.772Z",
+        "runtime": {
+          "node": "v24.19.0",
+          "platform": "linux",
+          "arch": "x64",
+          "cpu": "AMD EPYC 9V74 80-Core Processor"
+        },
+        "simulatedReadDelayMs": 40,
+        "liveLLMCalls": 0,
+        "sourceHashes": {
+          "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+          "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+          "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+          "swarm/driver.ts": "c37795f1f5e254cd9ea28481eea8f97136bb76f5d7b38391caee5f6a6da883b0",
+          "swarm/workspace.ts": "971c13a9a61069fae8104b0f16e7f9883699216cdb8baa38f4419f1bf7e94f8f",
+          "swarm/session.ts": "9e1c868f164d40231ab3c076fb4bfa4857ea70d921024915955ee0c6eb4a6e35"
+        },
+        "summary": {
+          "short": {
+            "samples": 10,
+            "medianMs": 117.88332300000002,
+            "medianSnapshotCalls": 1,
+            "medianReadExecutions": 0,
+            "medianReadServiceWindowMs": null
+          },
+          "edits": {
+            "samples": 10,
+            "medianMs": 346.3427069999998,
+            "medianSnapshotCalls": 12,
+            "medianReadExecutions": 0,
+            "medianReadServiceWindowMs": null
+          },
+          "reads": {
+            "samples": 10,
+            "medianMs": 578.0754660000002,
+            "medianSnapshotCalls": 1,
+            "medianReadExecutions": 10,
+            "medianReadServiceWindowMs": 444.76949649999983
+          }
+        },
+        "samples": [
+          {
+            "case": "short",
+            "repetition": 0,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 297.04483500000003,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 0,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 436.97778200000005,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 0,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 621.7356970000001,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 475.56211200000007,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 1,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 129.48370599999998,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 1,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 454.9835679999999,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 1,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 611.77911,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 449.22666800000025,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 2,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 141.68995199999972,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 2,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 457.6992399999999,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 2,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 602.5816089999998,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 445.181282,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 3,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 195.82171300000027,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 3,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 445.5262499999999,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 3,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 577.8849869999995,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 444.35771099999965,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 4,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 113.799892,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 4,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 306.7533829999993,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 4,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 549.749382,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 438.48019699999986,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 5,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 115.46918900000037,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 5,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 304.05537600000025,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 5,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 564.7932839999994,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 446.1354280000005,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 6,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 120.29745699999967,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 6,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 353.92611899999974,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 6,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 561.1232479999999,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 441.7269719999995,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 7,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 109.3338449999992,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 7,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 338.75929499999984,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 7,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 564.798979000001,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 443.2625689999986,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 8,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 114.34929899999952,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 8,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 331.51257599999917,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 8,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 578.265945000001,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 455.3542660000003,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "short",
+            "repetition": 9,
+            "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+            "elapsedMs": 109.78505099999893,
+            "snapshotCalls": 1,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "edits",
+            "repetition": 9,
+            "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+            "elapsedMs": 294.512130000001,
+            "snapshotCalls": 12,
+            "readExecutions": 0,
+            "peakReads": 0,
+            "simulatedReadServiceWindowMs": null,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          },
+          {
+            "case": "reads",
+            "repetition": 9,
+            "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+            "elapsedMs": 589.8832869999987,
+            "snapshotCalls": 1,
+            "readExecutions": 10,
+            "peakReads": 1,
+            "simulatedReadServiceWindowMs": 437.58042899999964,
+            "mockProviderRequests": 2,
+            "independentlyAccepted": 1
+          }
+        ]
+      }
+    }
+  ],
+  "preliminaryReports": {
+    "note": "Earlier five-repetition rounds are retained for transparency. Their candidate hash predates worker-draining and the final single-call block cleanup; current-source comparisons use the final ten-repetition rounds above. Short-task timings varied across rounds; no short-task speedup is claimed.",
+    "raw": [
+      {
+        "arm": "baseline",
+        "report": {
+          "schema": 1,
+          "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+          "generatedAt": "2026-10-10T11:00:33.029Z",
+          "runtime": {
+            "node": "v24.19.0",
+            "platform": "linux",
+            "arch": "x64",
+            "cpu": "AMD EPYC 9V74 80-Core Processor"
+          },
+          "simulatedReadDelayMs": 40,
+          "liveLLMCalls": 0,
+          "sourceHashes": {
+            "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+            "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+            "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+            "swarm/driver.ts": "c37795f1f5e254cd9ea28481eea8f97136bb76f5d7b38391caee5f6a6da883b0",
+            "swarm/workspace.ts": "971c13a9a61069fae8104b0f16e7f9883699216cdb8baa38f4419f1bf7e94f8f",
+            "swarm/session.ts": "9e1c868f164d40231ab3c076fb4bfa4857ea70d921024915955ee0c6eb4a6e35"
+          },
+          "summary": {
+            "short": {
+              "samples": 5,
+              "medianMs": 145.2125689999998,
+              "medianSnapshotCalls": 1,
+              "medianReadExecutions": 0,
+              "medianReadServiceWindowMs": null
+            },
+            "edits": {
+              "samples": 5,
+              "medianMs": 350.00208699999985,
+              "medianSnapshotCalls": 12,
+              "medianReadExecutions": 0,
+              "medianReadServiceWindowMs": null
+            },
+            "reads": {
+              "samples": 5,
+              "medianMs": 580.379484,
+              "medianSnapshotCalls": 1,
+              "medianReadExecutions": 10,
+              "medianReadServiceWindowMs": 433.76323200000013
+            }
+          },
+          "samples": [
+            {
+              "case": "short",
+              "repetition": 0,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 251.84664500000008,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 0,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 397.234911,
+              "snapshotCalls": 12,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 0,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 580.379484,
+              "snapshotCalls": 1,
+              "readExecutions": 10,
+              "peakReads": 1,
+              "simulatedReadServiceWindowMs": 433.76323200000013,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 1,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 116.16294200000016,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 1,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 444.95562399999994,
+              "snapshotCalls": 12,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 1,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 605.818749,
+              "snapshotCalls": 1,
+              "readExecutions": 10,
+              "peakReads": 1,
+              "simulatedReadServiceWindowMs": 444.34634000000005,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 2,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 198.40741000000025,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 2,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 350.00208699999985,
+              "snapshotCalls": 12,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 2,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 665.0501329999997,
+              "snapshotCalls": 1,
+              "readExecutions": 10,
+              "peakReads": 1,
+              "simulatedReadServiceWindowMs": 437.48644699999977,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 3,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 145.2125689999998,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 3,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 300.4318110000004,
+              "snapshotCalls": 12,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 3,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 539.7818559999996,
+              "snapshotCalls": 1,
+              "readExecutions": 10,
+              "peakReads": 1,
+              "simulatedReadServiceWindowMs": 432.8698940000004,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 4,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 121.67461800000001,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 4,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 247.10776299999998,
+              "snapshotCalls": 12,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 4,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 518.1336849999998,
+              "snapshotCalls": 1,
+              "readExecutions": 10,
+              "peakReads": 1,
+              "simulatedReadServiceWindowMs": 429.38384700000006,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            }
+          ]
+        }
+      },
+      {
+        "arm": "candidate",
+        "report": {
+          "schema": 1,
+          "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+          "generatedAt": "2026-10-10T11:00:36.585Z",
+          "runtime": {
+            "node": "v24.19.0",
+            "platform": "linux",
+            "arch": "x64",
+            "cpu": "AMD EPYC 9V74 80-Core Processor"
+          },
+          "simulatedReadDelayMs": 40,
+          "liveLLMCalls": 0,
+          "sourceHashes": {
+            "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+            "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+            "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+            "swarm/driver.ts": "9bf188a887c0b6b249bccb2b4f37910dadc0b5bd5afcf8317d8f6e70b6d3f408",
+            "swarm/workspace.ts": "f65eba45fab67a5f40e35e082d7f404d31e19119f1a1888df065d54c50138840",
+            "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+            "swarm/toolBatches.ts": "7d950f608281faffd2d36f932c63c22ba59e353307bb4da1715df1200d8e9417"
+          },
+          "summary": {
+            "short": {
+              "samples": 5,
+              "medianMs": 142.35424899999998,
+              "medianSnapshotCalls": 1,
+              "medianReadExecutions": 0,
+              "medianReadServiceWindowMs": null
+            },
+            "edits": {
+              "samples": 5,
+              "medianMs": 234.40502500000002,
+              "medianSnapshotCalls": 1,
+              "medianReadExecutions": 0,
+              "medianReadServiceWindowMs": null
+            },
+            "reads": {
+              "samples": 5,
+              "medianMs": 252.4002449999998,
+              "medianSnapshotCalls": 1,
+              "medianReadExecutions": 8,
+              "medianReadServiceWindowMs": 82.84646099999998
+            }
+          },
+          "samples": [
+            {
+              "case": "short",
+              "repetition": 0,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 261.89922399999995,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 0,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 189.54818899999998,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 0,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 246.37124300000005,
+              "snapshotCalls": 1,
+              "readExecutions": 8,
+              "peakReads": 4,
+              "simulatedReadServiceWindowMs": 82.84646099999998,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 1,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 140.17589199999986,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 1,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 243.374143,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 1,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 281.22956899999986,
+              "snapshotCalls": 1,
+              "readExecutions": 8,
+              "peakReads": 4,
+              "simulatedReadServiceWindowMs": 83.12221199999999,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 2,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 159.61305800000014,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 2,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 254.906201,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 2,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 253.66204500000003,
+              "snapshotCalls": 1,
+              "readExecutions": 8,
+              "peakReads": 4,
+              "simulatedReadServiceWindowMs": 83.20567699999992,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 3,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 134.71445499999982,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 3,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 234.40502500000002,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 3,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 252.4002449999998,
+              "snapshotCalls": 1,
+              "readExecutions": 8,
+              "peakReads": 4,
+              "simulatedReadServiceWindowMs": 82.40618899999981,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 4,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 142.35424899999998,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 4,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 205.21611600000006,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 4,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 222.3559620000001,
+              "snapshotCalls": 1,
+              "readExecutions": 8,
+              "peakReads": 4,
+              "simulatedReadServiceWindowMs": 81.91999799999985,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            }
+          ]
+        }
+      },
+      {
+        "arm": "candidate",
+        "report": {
+          "schema": 1,
+          "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+          "generatedAt": "2026-10-10T11:00:40.359Z",
+          "runtime": {
+            "node": "v24.19.0",
+            "platform": "linux",
+            "arch": "x64",
+            "cpu": "AMD EPYC 9V74 80-Core Processor"
+          },
+          "simulatedReadDelayMs": 40,
+          "liveLLMCalls": 0,
+          "sourceHashes": {
+            "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+            "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+            "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+            "swarm/driver.ts": "9bf188a887c0b6b249bccb2b4f37910dadc0b5bd5afcf8317d8f6e70b6d3f408",
+            "swarm/workspace.ts": "f65eba45fab67a5f40e35e082d7f404d31e19119f1a1888df065d54c50138840",
+            "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+            "swarm/toolBatches.ts": "7d950f608281faffd2d36f932c63c22ba59e353307bb4da1715df1200d8e9417"
+          },
+          "summary": {
+            "short": {
+              "samples": 5,
+              "medianMs": 170.8581650000001,
+              "medianSnapshotCalls": 1,
+              "medianReadExecutions": 0,
+              "medianReadServiceWindowMs": null
+            },
+            "edits": {
+              "samples": 5,
+              "medianMs": 210.48684900000035,
+              "medianSnapshotCalls": 1,
+              "medianReadExecutions": 0,
+              "medianReadServiceWindowMs": null
+            },
+            "reads": {
+              "samples": 5,
+              "medianMs": 252.74169900000015,
+              "medianSnapshotCalls": 1,
+              "medianReadExecutions": 8,
+              "medianReadServiceWindowMs": 82.540121
+            }
+          },
+          "samples": [
+            {
+              "case": "short",
+              "repetition": 0,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 327.328728,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 0,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 202.25703700000008,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 0,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 250.40342899999996,
+              "snapshotCalls": 1,
+              "readExecutions": 8,
+              "peakReads": 4,
+              "simulatedReadServiceWindowMs": 83.66034100000002,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 1,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 170.8581650000001,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 1,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 245.5924890000001,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 1,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 254.48888399999987,
+              "snapshotCalls": 1,
+              "readExecutions": 8,
+              "peakReads": 4,
+              "simulatedReadServiceWindowMs": 82.540121,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 2,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 159.22605699999986,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 2,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 252.4827929999999,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 2,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 286.18493499999977,
+              "snapshotCalls": 1,
+              "readExecutions": 8,
+              "peakReads": 4,
+              "simulatedReadServiceWindowMs": 83.06133800000043,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 3,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 176.25753200000008,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 3,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 210.48684900000035,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 3,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 252.74169900000015,
+              "snapshotCalls": 1,
+              "readExecutions": 8,
+              "peakReads": 4,
+              "simulatedReadServiceWindowMs": 82.3923490000002,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 4,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 124.28331099999969,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 4,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 187.09615099999974,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 4,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 222.1763050000004,
+              "snapshotCalls": 1,
+              "readExecutions": 8,
+              "peakReads": 4,
+              "simulatedReadServiceWindowMs": 81.84204599999975,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            }
+          ]
+        }
+      },
+      {
+        "arm": "baseline",
+        "report": {
+          "schema": 1,
+          "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+          "generatedAt": "2026-10-10T11:00:46.506Z",
+          "runtime": {
+            "node": "v24.19.0",
+            "platform": "linux",
+            "arch": "x64",
+            "cpu": "AMD EPYC 9V74 80-Core Processor"
+          },
+          "simulatedReadDelayMs": 40,
+          "liveLLMCalls": 0,
+          "sourceHashes": {
+            "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+            "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+            "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+            "swarm/driver.ts": "c37795f1f5e254cd9ea28481eea8f97136bb76f5d7b38391caee5f6a6da883b0",
+            "swarm/workspace.ts": "971c13a9a61069fae8104b0f16e7f9883699216cdb8baa38f4419f1bf7e94f8f",
+            "swarm/session.ts": "9e1c868f164d40231ab3c076fb4bfa4857ea70d921024915955ee0c6eb4a6e35"
+          },
+          "summary": {
+            "short": {
+              "samples": 5,
+              "medianMs": 136.63374499999986,
+              "medianSnapshotCalls": 1,
+              "medianReadExecutions": 0,
+              "medianReadServiceWindowMs": null
+            },
+            "edits": {
+              "samples": 5,
+              "medianMs": 378.0264010000001,
+              "medianSnapshotCalls": 12,
+              "medianReadExecutions": 0,
+              "medianReadServiceWindowMs": null
+            },
+            "reads": {
+              "samples": 5,
+              "medianMs": 588.0342099999998,
+              "medianSnapshotCalls": 1,
+              "medianReadExecutions": 10,
+              "medianReadServiceWindowMs": 438.1641329999993
+            }
+          },
+          "samples": [
+            {
+              "case": "short",
+              "repetition": 0,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 311.89441299999993,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 0,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 428.802595,
+              "snapshotCalls": 12,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 0,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 620.53568,
+              "snapshotCalls": 1,
+              "readExecutions": 10,
+              "peakReads": 1,
+              "simulatedReadServiceWindowMs": 438.013858,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 1,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 136.63374499999986,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 1,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 459.40876000000026,
+              "snapshotCalls": 12,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 1,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 601.3304370000001,
+              "snapshotCalls": 1,
+              "readExecutions": 10,
+              "peakReads": 1,
+              "simulatedReadServiceWindowMs": 445.76083000000017,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 2,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 138.44194700000025,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 2,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 378.0264010000001,
+              "snapshotCalls": 12,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 2,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 587.269425,
+              "snapshotCalls": 1,
+              "readExecutions": 10,
+              "peakReads": 1,
+              "simulatedReadServiceWindowMs": 442.1826189999997,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 3,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 127.57499199999984,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 3,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 290.55934700000034,
+              "snapshotCalls": 12,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 3,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 588.0342099999998,
+              "snapshotCalls": 1,
+              "readExecutions": 10,
+              "peakReads": 1,
+              "simulatedReadServiceWindowMs": 437.2675499999996,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "short",
+              "repetition": 4,
+              "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+              "elapsedMs": 120.73067700000047,
+              "snapshotCalls": 1,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "edits",
+              "repetition": 4,
+              "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+              "elapsedMs": 366.7614199999998,
+              "snapshotCalls": 12,
+              "readExecutions": 0,
+              "peakReads": 0,
+              "simulatedReadServiceWindowMs": null,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            },
+            {
+              "case": "reads",
+              "repetition": 4,
+              "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+              "elapsedMs": 574.8000810000003,
+              "snapshotCalls": 1,
+              "readExecutions": 10,
+              "peakReads": 1,
+              "simulatedReadServiceWindowMs": 438.1641329999993,
+              "mockProviderRequests": 2,
+              "independentlyAccepted": 1
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "gates": [
+    {
+      "command": "node --experimental-strip-types --test tests/foundry/tool-batching.test.ts",
+      "exitCode": 0,
+      "node": {
+        "tests": 11,
+        "pass": 11,
+        "fail": 0,
+        "cancelled": 0
+      },
+      "pythonSuites": [],
+      "logSha256": "5e0373eb7d2c477d5e7d23e6fc6a79ddcd6456377a404576159e43b4fb9b3151"
+    },
+    {
+      "command": "node scripts/test-correctness.mjs",
+      "exitCode": 0,
+      "node": {
+        "tests": 62,
+        "pass": 62,
+        "fail": 0,
+        "cancelled": 0
+      },
+      "pythonSuites": [
+        15,
+        7
+      ],
+      "logSha256": "79786c8cd8cd94fdcc5566caf0cc4a679c18686f608fcdaccec67bb66861dce7"
+    },
+    {
+      "command": "node scripts/test-resilience.mjs",
+      "exitCode": 0,
+      "node": {
+        "tests": 158,
+        "pass": 158,
+        "fail": 0,
+        "cancelled": 0
+      },
+      "pythonSuites": [
+        7
+      ],
+      "logSha256": "a8bfa9f052539a7ad9a601b472e1bf3b2350808dc22a7b7f7105060c8bc91e1d"
+    },
+    {
+      "command": "node scripts/test-foundry.mjs",
+      "exitCode": 0,
+      "node": {
+        "tests": 414,
+        "pass": 414,
+        "fail": 0,
+        "cancelled": 0
+      },
+      "pythonSuites": [],
+      "logSha256": "a34a4aea0babc5fe97cfca81c7eb86815d9a348b84f14f2d610803f16d158aec"
+    },
+    {
+      "command": "node scripts/test-swarm.mjs",
+      "exitCode": 0,
+      "node": {
+        "tests": 139,
+        "pass": 139,
+        "fail": 0,
+        "cancelled": 0
+      },
+      "pythonSuites": [],
+      "logSha256": "6bbbd609f57915a93a27af7495b2680bd036be794c3ad51ef0868263acb8725f"
+    },
+    {
+      "command": "node scripts/test-commands.mjs",
+      "exitCode": 0,
+      "node": {
+        "tests": 99,
+        "pass": 99,
+        "fail": 0,
+        "cancelled": 0
+      },
+      "pythonSuites": [],
+      "logSha256": "34a9b19ff93da5ad2aab01de40b7703421f89ceb119a0517d0073e1d126e04ee"
+    }
+  ],
+  "liveLLMCalls": 0,
+  "liveProductivityComparison": null,
+  "limitations": [
+    "Read service latency is simulated; worktrees, durable journals and independent checks are real.",
+    "Twenty samples per arm per case do not establish live R&D superiority or statistical equivalence on short tasks.",
+    "Short-task median rose by about 7.6 ms (6.4%); both versions used one edit snapshot and two scripted provider requests.",
+    "The existing remote fleet remains serial until its backend can guarantee safe concurrent reads and whole-batch write replay.",
+    "This change governs Foundry/Swarm; the terminal query path already has a separate concurrent tool executor."
+  ]
+}

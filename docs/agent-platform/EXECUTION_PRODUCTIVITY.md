@@ -4,6 +4,10 @@ Foundry/Swarm now closes six runtime gaps behind sustained R&D productivity.
 The changes use external model APIs and general task/job contracts; they add no
 project-specific training, hardware or acceptance logic.
 
+The subsequent [tool batching](TOOL_BATCHING.md) change bounds parallel reads,
+coalesces ordered private edits into one replayable snapshot, and preserves
+effect boundaries before remote job batches.
+
 | Direction | Runtime change | Observable result |
 |---|---|---|
 | Autonomous continuation | Commit-driven notifications, generation checks before waiting, cross-process SQLite `data_version` checks | A newly eligible task or reconciled objective interrupts idle supervision |
