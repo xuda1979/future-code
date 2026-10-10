@@ -62,7 +62,7 @@ export function validateRecipe(c: Contract, p: Recipe): void {
   if (p.priorityContextShare !== undefined) {
     invariant(typeof p.priorityContextShare === "number" && Number.isFinite(p.priorityContextShare) && p.priorityContextShare >= 0 && p.priorityContextShare <= 1, "invalid priorityContextShare");
   }
-  invariant(p.scheduling === undefined || ["priority", "critical-path"].includes(p.scheduling), "invalid scheduling");
+  invariant(p.scheduling === undefined || ["priority", "critical-path", "adaptive-critical-path"].includes(p.scheduling), "invalid scheduling");
   if (p.maxInFlightContextBytes !== undefined) positive(p.maxInFlightContextBytes,
     c.limits.parallelism * c.limits.contextBytes, "in-flight context ceiling");
   if (p.noProgressMs !== undefined) positive(p.noProgressMs, p.timeoutMs, "no-progress deadline");
