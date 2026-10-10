@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   enableAutoGoal, pauseAutoGoal, readAutoGoal, resumeAutoGoal,
-  takeAutoGoalContinuation, AUTO_GOAL_BATCH_LIMIT,
+  takeAutoGoalContinuation, decideAutoGoalContinuation, parkActiveAutoGoal, AUTO_GOAL_BATCH_LIMIT, MAX_AUTO_GOAL_CONTINUATIONS,
 } from "../../src/commands/goal/auto.ts";
 
 function fixture(fn: (dir: string) => void): void {
@@ -71,4 +71,48 @@ test("corrupt goal state fails closed: cannot cause unbounded model turns", () =
 test("state lives within the designated working directory", () => fixture(dir => {
   enableAutoGoal("Scoped work", dir);
   assert.equal(JSON.parse(readFileSync(join(dir, ".future-code", "goal-autonomy.json"), "utf8")).goal, "Scoped work");
+}));
+
+test("explicitly authorized long goals cross the historical 32-turn limit", () => fixture(dir => {
+  enableAutoGoal("Long research objective", dir, 64);
+  for (let i = 0; i < 40; i++) assert.equal(decideAutoGoalContinuation({
+    cwd: dir, mainThread: true, withinTurnBudget: true,
+  }).kind, "CONTINUE");
+  assert.equal(readAutoGoal(dir)?.state, "ACTIVE");
+  assert.equal(readAutoGoal(dir)?.totalContinuations, 40);
+}));
+
+test("exhaustion yields visible BLOCKED state and preserves counters", () => fixture(dir => {
+  enableAutoGoal("Cost-bounded objective", dir, 2);
+  assert.ok(take(dir)); assert.ok(take(dir));
+  const decision = decideAutoGoalContinuation({cwd: dir, mainThread: true, withinTurnBudget: true});
+  assert.equal(decision.kind, "BLOCKED");
+  if (decision.kind === "BLOCKED") assert.match(decision.reason, /budget exhausted/i);
+  assert.equal(readAutoGoal(dir)?.totalContinuations, 2);
+  assert.equal(readAutoGoal(dir)?.state, "PAUSED");
+}));
+
+test("caller limit or API failure is a durable and explicit blocker", () => fixture(dir => {
+  enableAutoGoal("Must not silently stop", dir, 100);
+  const decision = decideAutoGoalContinuation({cwd: dir, mainThread: true, withinTurnBudget: false});
+  assert.equal(decision.kind, "BLOCKED");
+  assert.match(readAutoGoal(dir)!.reason!, /max-turns/i);
+  resumeAutoGoal(dir);
+  assert.match(parkActiveAutoGoal("API temporarily unavailable", dir)!, /API temporarily/);
+  assert.equal(take(dir), null);
+  assert.equal(readAutoGoal(dir)?.state, "PAUSED");
+}));
+
+test("unsafe or corrupt state returns explicit diagnostic without inference", () => fixture(dir => {
+  enableAutoGoal("Safe fail closed", dir);
+  writeFileSync(join(dir, ".future-code", "goal-autonomy.json"), "{not json");
+  const decision = decideAutoGoalContinuation({cwd: dir, mainThread: true, withinTurnBudget: true});
+  assert.equal(decision.kind, "BLOCKED");
+  if (decision.kind === "BLOCKED") assert.match(decision.reason, /state unavailable/i);
+}));
+
+test("long-run ceiling still requires explicit finite authorization", () => fixture(dir => {
+  assert.throws(() => enableAutoGoal("Unbounded", dir, Infinity), /limit/);
+  assert.throws(() => enableAutoGoal("Too large", dir, MAX_AUTO_GOAL_CONTINUATIONS + 1), /limit/);
+  assert.equal(enableAutoGoal("Authorized", dir, 512).maxContinuations, 512);
 }));
