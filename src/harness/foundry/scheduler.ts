@@ -179,6 +179,23 @@ export class Scheduler {
       return leases;
     });
   }
+  /** Avoid repeatedly scanning a remotely delayed DAG. Never sleep past the
+   * earliest durable wake; active/runnable tasks keep the existing fast path.
+   * The caller can interrupt this wait on cancellation. */
+  suggestIdleWaitMs(runId: string, fallbackMs: number, now = Date.now()): number {
+    const active = this.store.db.prepare(
+      "SELECT 1 FROM tasks WHERE run=? AND status='RUNNING' LIMIT 1").get(runId);
+    if (active) return fallbackMs;
+    const runnable = this.store.db.prepare(`SELECT 1 FROM tasks t
+      LEFT JOIN task_waits w ON w.run=t.run AND w.task=t.id
+      WHERE t.run=? AND t.status='READY' AND (w.wake IS NULL OR w.wake<=?) LIMIT 1`).get(runId, now);
+    if (runnable) return fallbackMs;
+    const wake = this.store.db.prepare(`SELECT MIN(w.wake) AS next FROM task_waits w
+      JOIN tasks t ON t.run=w.run AND t.id=w.task
+      WHERE w.run=? AND t.status='READY' AND w.wake>?`).get(runId, now)?.next;
+    if (wake == null) return fallbackMs;
+    return Math.max(fallbackMs, Math.min(30000, Math.ceil(Number(wake) - now)));
+  }
   private failureCount(run: string, task: string): number {
     return this.store.db.prepare("SELECT COUNT(*) AS n FROM attempts WHERE run=? AND task=? AND status IN ('FAIL','EXPIRED')").get(run, task)!.n;
   }
