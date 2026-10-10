@@ -187,8 +187,9 @@ export class Scheduler {
       "SELECT 1 FROM tasks WHERE run=? AND status='RUNNING' LIMIT 1").get(runId);
     if (active) return fallbackMs;
     const runnable = this.store.db.prepare(`SELECT 1 FROM tasks t
+      JOIN scheduler_nodes n ON n.run=t.run AND n.task=t.id
       LEFT JOIN task_waits w ON w.run=t.run AND w.task=t.id
-      WHERE t.run=? AND t.status='READY' AND (w.wake IS NULL OR w.wake<=?) LIMIT 1`).get(runId, now);
+      WHERE t.run=? AND n.remaining=0 AND t.status='READY' AND (w.wake IS NULL OR w.wake<=?) LIMIT 1`).get(runId, now);
     if (runnable) return fallbackMs;
     const wake = this.store.db.prepare(`SELECT MIN(w.wake) AS next FROM task_waits w
       JOIN tasks t ON t.run=w.run AND t.id=w.task
