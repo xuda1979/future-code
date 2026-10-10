@@ -31,7 +31,7 @@ export interface Recipe {
    *  the context budget. Defaults to 0 (equal allocation). */
   priorityContextShare?: number;
   /** Explicit opt-in: old recipe hashes retain priority-first scheduling. */
-  scheduling?: "priority" | "critical-path";
+  scheduling?: "priority" | "critical-path" | "adaptive-critical-path";
   /** Sum of reserved capsule budgets, not provider token usage or RAM. */
   maxInFlightContextBytes?: number;
   /** Idle deadline for adapters that report distinct progress fingerprints. */
