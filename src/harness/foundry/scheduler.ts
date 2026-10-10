@@ -1,5 +1,6 @@
 import { DeferredAttemptError, persistContinuation } from "./continuation.ts";
 import { randomUUID } from "node:crypto";
+import { shouldRerankAfter } from "./adaptiveScheduling.ts";
 import { Store } from "./store.ts";
 import { conflicts, digest, encodeCapsule, invariant, validMeasurement, validateTasks, validateEvidence, progressDensity } from "./kernel.ts";
 import { accessConflicts, compilePlan, projectDependency } from "./productivity.ts";
@@ -265,6 +266,20 @@ export class Scheduler {
       this.store.db.prepare("UPDATE tasks SET status='PASS',artifact=?,evidence=?,owner=NULL,deadline=NULL WHERE run=? AND id=?").run(artifactHash, evidenceHash, lease.runId, lease.taskId);
       releaseDependents(this.store, lease.runId, lease.taskId);
       recordTaskAccepted(this.store, lease.runId, task, artifactHash, evidenceHash, measurement, now);
+      // Adapt only at exponentially spaced milestones on sufficiently large DAGs.
+      // No history read or index rebuild is added to the default/short path.
+      if (this.store.recipe(lease.recipeHash).scheduling === "adaptive-critical-path") {
+        const count = this.store.db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE run=? AND status='PASS'")
+          .get(lease.runId)!.n as number;
+        if (shouldRerankAfter(count)) {
+          const total = this.store.db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE run=?")
+            .get(lease.runId)!.n as number;
+          if (total >= 8) {
+            rebuildSchedulerIndex(this.store, lease.runId, this.store.recipe(lease.recipeHash), now);
+            refreshRunAllocations(this.store, lease.runId, now);
+          }
+        }
+      }
       this.store.event("task.accepted", { fence: lease.fence, artifactHash, evidenceHash }, lease.runId, lease.taskId); return true;
     });
   }
