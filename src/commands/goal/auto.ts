@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 // Explicit opt-in only. A normal /goal is a tracking prompt, not permission to
 // issue unbounded paid API requests. The counter is durable across restarts.
 export const AUTO_GOAL_BATCH_LIMIT = 32;
+// Larger budgets require explicit per-goal operator authorization.
+export const MAX_AUTO_GOAL_CONTINUATIONS = 100_000;
 const MAX_GOAL_BYTES = 4096;
 const MAX_STATE_BYTES = 16384;
 
@@ -51,7 +53,7 @@ function validate(value: unknown): AutoGoalState {
       !Number.isSafeInteger(v.continuations) || v.continuations < 0 ||
       !Number.isSafeInteger(v.totalContinuations) || v.totalContinuations < v.continuations ||
       !Number.isSafeInteger(v.maxContinuations) || v.maxContinuations < 1 ||
-      v.maxContinuations > AUTO_GOAL_BATCH_LIMIT ||
+      v.maxContinuations > MAX_AUTO_GOAL_CONTINUATIONS ||
       typeof v.updatedAt !== "string" ||
       (v.reason !== null && typeof v.reason !== "string"))
     throw new Error("Invalid autonomous-goal state (fail closed)");
@@ -84,12 +86,14 @@ function persist(cwd: string, state: AutoGoalState): AutoGoalState {
   return state;
 }
 
-export function enableAutoGoal(goal: string, cwd = process.cwd()): AutoGoalState {
+export function enableAutoGoal(goal: string, cwd = process.cwd(), maxContinuations = AUTO_GOAL_BATCH_LIMIT): AutoGoalState {
   const text = goal.trim();
   if (!text || Buffer.byteLength(text) > MAX_GOAL_BYTES)
     throw new Error("Autonomous goal must be 1-4096 bytes");
+  if (!Number.isSafeInteger(maxContinuations) || maxContinuations < 1 || maxContinuations > MAX_AUTO_GOAL_CONTINUATIONS)
+    throw new Error("Autonomous continuation limit must be 1-100000 (explicit operator budget)");
   return persist(cwd, { schema: 1, goal: text, state: "ACTIVE", continuations: 0,
-    totalContinuations: 0, maxContinuations: AUTO_GOAL_BATCH_LIMIT,
+    totalContinuations: 0, maxContinuations,
     updatedAt: new Date().toISOString(), reason: null });
 }
 
@@ -119,36 +123,64 @@ function goalMarkedComplete(dir: string, goal: string): boolean {
 }
 
 /**
- * Host-owned end-turn continuation. Call only after stop hooks/permission
- * checks have succeeded, and only for an interactive main-thread turn.
- * The model may mark its goal.md completed, but that merely requests REVIEW:
- * it is not a substitute for independent task/integration acceptance.
+ * A GOAL is a durable host contract. A model turn ending is not completion.
+ * This decision has a distinct BLOCKED outcome so callers cannot mistake an
+ * exhausted budget, rejected completion, or unreadable state for normal EOF.
  */
-export function takeAutoGoalContinuation(options: {
-  cwd?: string; mainThread: boolean; withinTurnBudget: boolean;
-}): string | null {
-  if (!options.mainThread || !options.withinTurnBudget) return null;
-  const cwd = options.cwd ?? process.cwd();
+export type AutoGoalDecision =
+  | { kind: "SKIP" }
+  | { kind: "CONTINUE"; prompt: string }
+  | { kind: "BLOCKED"; reason: string };
+
+function errorDetail(error: unknown): string {
+  return error instanceof Error ? error.message.slice(0, 240) : "unknown error";
+}
+
+/** Persist interruption by the host (API errors, stop hooks, caller limits).
+ * Never reset a continuation budget or turn a failure into completion. */
+export function parkActiveAutoGoal(reason: string, cwd = process.cwd()): string | null {
   try {
     const state = readAutoGoal(cwd);
     if (!state || state.state !== "ACTIVE") return null;
+    const why = reason.slice(0, 1024);
+    persist(cwd, { ...state, state: "PAUSED", reason: why,
+      updatedAt: new Date().toISOString() });
+    return why;
+  } catch (error) {
+    return "Autonomous-goal state could not be safely persisted: " + errorDetail(error);
+  }
+}
+
+/**
+ * Host-owned end-turn continuation. Evaluate only for an interactive main
+ * thread, after permission/stop checks. An explicitly authorized continuation
+ * budget is immutable until /goal --resume or a new goal is issued.
+ */
+export function decideAutoGoalContinuation(options: {
+  cwd?: string; mainThread: boolean; withinTurnBudget: boolean;
+}): AutoGoalDecision {
+  if (!options.mainThread) return { kind: "SKIP" };
+  const cwd = options.cwd ?? process.cwd();
+  try {
+    const state = readAutoGoal(cwd);
+    if (!state || state.state !== "ACTIVE") return { kind: "SKIP" };
+    const blocked = (nextState: "PAUSED" | "REVIEW", reason: string): AutoGoalDecision => {
+      persist(cwd, { ...state, state: nextState, reason,
+        updatedAt: new Date().toISOString() });
+      return { kind: "BLOCKED", reason };
+    };
     const { dir } = location(cwd);
-    if (goalMarkedComplete(dir, state.goal)) {
-      persist(cwd, { ...state, state: "REVIEW",
-        reason: "Goal file says completed; independent verification is required",
-        updatedAt: new Date().toISOString() });
-      return null;
-    }
-    if (state.continuations >= state.maxContinuations) {
-      persist(cwd, { ...state, state: "PAUSED",
-        reason: "Autonomous continuation batch budget reached. Use /goal --resume to authorize another batch",
-        updatedAt: new Date().toISOString() });
-      return null;
-    }
+    if (goalMarkedComplete(dir, state.goal))
+      return blocked("REVIEW", "Goal file declares completion, but independent acceptance is still required. Inspect verified artifacts before /goal --resume.");
+    if (!options.withinTurnBudget)
+      return blocked("PAUSED", "Caller max-turns boundary reached before objective acceptance. Increase the caller limit explicitly, then /goal --resume.");
+    if (state.continuations >= state.maxContinuations)
+      return blocked("PAUSED", "Authorized autonomous continuation budget exhausted (" +
+        state.maxContinuations + " turns). Use /goal --resume or re-arm with /goal --auto --limit N <goal>.");
     const next = state.continuations + 1;
     persist(cwd, { ...state, continuations: next, totalContinuations: state.totalContinuations + 1,
       updatedAt: new Date().toISOString() });
-    return "[Host-driven autonomous goal continuation " + next + "/" + state.maxContinuations + "]\n" +
+    return { kind: "CONTINUE", prompt: "[Host-driven autonomous goal continuation " + next + "/" + state.maxContinuations + "]\n" +
       "Goal: " + state.goal + "\n" +
       "The previous assistant turn ended but the durable goal is not yet complete. " +
       "Inspect actual artifacts and test results, identify the highest-impact next step, " +
@@ -156,9 +188,19 @@ export function takeAutoGoalContinuation(options: {
       "Preserve checkpoints and avoid duplicate external jobs. Respect all permission prompts, " +
       "cost limits, and immutable acceptance checks. Once independently verified, mark " +
       ".future-code/goal.md with Status: completed for operator REVIEW. " +
-      "Otherwise continue making concrete, verified progress.";
-  } catch {
-    // Corrupt/unsafe/unwritable state must NEVER trigger unlimited inference.
-    return null;
+      "If you cannot proceed, report the specific blocker and safe next action." };
+  } catch (error) {
+    // Fail closed, but NEVER silently treat a corrupt or unwritable state as
+    // a completed goal; the parent query must display this diagnostic.
+    return { kind: "BLOCKED", reason: "Autonomous-goal state unavailable: " +
+      errorDetail(error) + ". Repair state or permissions before resuming." };
   }
+}
+
+/** Compatibility adapter for callers that only need the continuation text. */
+export function takeAutoGoalContinuation(options: {
+  cwd?: string; mainThread: boolean; withinTurnBudget: boolean;
+}): string | null {
+  const decision = decideAutoGoalContinuation(options);
+  return decision.kind === "CONTINUE" ? decision.prompt : null;
 }
