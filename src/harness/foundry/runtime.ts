@@ -162,7 +162,7 @@ export async function runTasks(store: Store, tasks: Task[], driver: Driver,
       else {
         // Same-process completions are event-driven. Cross-process claims use
         // bounded backoff (at most 250 ms), rather than constant busy polling.
-        await idleWait(idleMs, options.signal); idleMs = Math.min(250, idleMs * 2);
+        await idleWait(scheduler.suggestIdleWaitMs(runId, idleMs), options.signal); idleMs = Math.min(250, idleMs * 2);
       }
     }
     await Promise.all(active);
