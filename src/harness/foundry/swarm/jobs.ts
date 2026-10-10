@@ -212,9 +212,16 @@ export class ResearchJobs {
     let raw: unknown;
     try {
       const started = performance.now();
-      const bounded = createCombinedAbortSignal(signal, { timeoutMs: this.cfg.spec.budget.toolTimeoutMs });
+      // Keep this deadline referenced: a custom adapter may return a pending
+      // promise without any I/O handles to keep the process alive until timeout.
+      const deadline = new AbortController();
+      const timer = setTimeout(() => deadline.abort(), this.cfg.spec.budget.toolTimeoutMs);
+      const bounded = createCombinedAbortSignal(signal, { signalB: deadline.signal });
       try { raw = await abortable(this.rpc(command, this.cfg, request, bounded.signal), bounded.signal); }
-      finally { bounded.cleanup(); onRpc?.(Math.max(0, performance.now() - started)); }
+      finally {
+        clearTimeout(timer); bounded.cleanup();
+        onRpc?.(Math.max(0, performance.now() - started));
+      }
     }
     catch (e) {
       signal.throwIfAborted(); this.journal.assertLease(c);

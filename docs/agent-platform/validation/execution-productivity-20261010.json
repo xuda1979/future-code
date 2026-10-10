@@ -13,7 +13,7 @@
     "src/harness/foundry/swarm/context.ts": "ce5aad49515f33abcd150c585a5606ceede0972ab593b6ab4c6055bb239f317b",
     "src/harness/foundry/swarm/driver.ts": "c37795f1f5e254cd9ea28481eea8f97136bb76f5d7b38391caee5f6a6da883b0",
     "src/harness/foundry/swarm/host.ts": "1be671c0e2a72daf61f406af05f5be7a67dda74e494879898dbd8dd99166b0f3",
-    "src/harness/foundry/swarm/jobs.ts": "c91c452bde4ab19a01fa232a12184c1845e34ff5224f81d2851529a144b36e8e",
+    "src/harness/foundry/swarm/jobs.ts": "1cc222e74b9954a1413323bd79237bcf60c08c2bbf56ee8171c31e0e5c241689",
     "src/harness/foundry/swarm/model.ts": "8e2fee2b9e5d606dc799050287b7ed6b650c1c8acb7b5a15d3b9cc2d8a645846",
     "src/harness/foundry/swarm/requestAccounting.ts": "f0b6d65f0bae602cbefb5f6c0cd3dee8f2e071c52bac6c89016de6d802819085",
     "src/harness/foundry/swarm/session.ts": "9e1c868f164d40231ab3c076fb4bfa4857ea70d921024915955ee0c6eb4a6e35",
@@ -525,7 +525,8 @@
         15,
         7
       ],
-      "logSha256": "869c7054c4f5ce7d20e1208680c60f00a1856ab421b1282948058d82c922e69d"
+      "logSha256": "90799b6f906bc297c970428407810a348238eaf12b269cf406dfe239df5a0407",
+      "nodeCancelled": 0
     },
     {
       "script": "scripts/test-resilience.mjs",
@@ -535,7 +536,8 @@
       "pythonSuites": [
         7
       ],
-      "logSha256": "89cf8bddfef4838d752b3ffcc188605d4d4ac46037736b6aaf7ff2feb5374fd4"
+      "logSha256": "bca1159c469b23357e80e0ec2bf53b5391733e295907d6f6a30c723ca9d10437",
+      "nodeCancelled": 0
     },
     {
       "script": "scripts/test-foundry.mjs",
@@ -543,7 +545,8 @@
       "nodeTests": 403,
       "nodeFailures": 0,
       "pythonSuites": [],
-      "logSha256": "7c1eedf663f7fd9e6e411ede2c5372406cef7099796ecceec401493bc8fc6e78"
+      "logSha256": "f0de366ef6c50505d21cb2b49b7b0b33919e269d6294fa1f8a10567b9e2b0cb4",
+      "nodeCancelled": 0
     },
     {
       "script": "scripts/test-swarm.mjs",
@@ -551,7 +554,8 @@
       "nodeTests": 128,
       "nodeFailures": 0,
       "pythonSuites": [],
-      "logSha256": "5b479a0ac3e3b9991954f54af2b64e986f41374a751214e6f7d9c99e55b4f61d"
+      "logSha256": "8efa743441c3ba4bd8c92a22733e7da4beeae0078adeb037ac510c1e53e4b82c",
+      "nodeCancelled": 0
     },
     {
       "script": "scripts/test-commands.mjs",
@@ -559,8 +563,18 @@
       "nodeTests": 99,
       "nodeFailures": 0,
       "pythonSuites": [],
-      "logSha256": "6cee2bb405a5ef25cc1b71525ec5f7bdea5eea07c6df893fe4953d2cf166cb78"
+      "logSha256": "6ca1b70aaa5a0ffe5866a5143ab20e2718d0f88f78591607f2cf011e584c70dc",
+      "nodeCancelled": 0
     }
   ],
-  "liveProductivityComparison": null
+  "liveProductivityComparison": null,
+  "validationRuntime": {
+    "node": "v24.19.0",
+    "ciNode": "22.16.0"
+  },
+  "followup": {
+    "reason": "Node 22 CI cancelled the hanging adapter regression because its unreferenced deadline let the event loop finish before timeout. The job RPC deadline now remains referenced until it fires or the RPC settles, with cleanup on success and cancellation.",
+    "previousJobsSha256": "c91c452bde4ab19a01fa232a12184c1845e34ff5224f81d2851529a144b36e8e",
+    "benchmarksUnchanged": "The follow-up changes only the job RPC deadline; the recorded request-accounting and scheduler benchmark source hashes are unchanged."
+  }
 }
