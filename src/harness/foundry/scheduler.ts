@@ -274,7 +274,10 @@ export class Scheduler {
         if (shouldRerankAfter(count)) {
           const total = this.store.db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE run=?")
             .get(lease.runId)!.n as number;
-          if (total >= 8) rebuildSchedulerIndex(this.store, lease.runId, this.store.recipe(lease.recipeHash), now);
+          if (total >= 8) {
+            rebuildSchedulerIndex(this.store, lease.runId, this.store.recipe(lease.recipeHash), now);
+            refreshRunAllocations(this.store, lease.runId, now);
+          }
         }
       }
       this.store.event("task.accepted", { fence: lease.fence, artifactHash, evidenceHash }, lease.runId, lease.taskId); return true;
