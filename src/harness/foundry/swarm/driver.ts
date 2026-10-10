@@ -1,5 +1,6 @@
 import { DeferredAttemptError, PersistedDeferredAttemptError } from "../continuation.ts";
 import { ResearchJobs, type JobRPC } from "./jobs.ts";
+import { checkpointInputKey, shouldRunExploratoryCheckpoint } from "./checkpointPolicy.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { schedulerNode } from "../schedulerIndex.ts";
 import { FatalAttemptError } from "../errors.ts";
@@ -312,7 +313,9 @@ export class SwarmDriver implements Driver {
           this.journal.checkpoint(t, "episode.recovery", { fence: c.fence });
         }
         const checkEvery = this.cfg.spec.supervision?.checkpointEveryMs;
-        if (checkEvery && !(t.state.history.at(-1)?.role === "assistant" && !t.state.history.at(-1)?.calls?.length) && Date.now() - t.state.lastCheckAt! >= checkEvery) {
+        const checkpointKey = checkpointInputKey(t.state.patchHash, t.state.feedbackHash ? 1 : 0);
+        if (checkEvery && shouldRunExploratoryCheckpoint(t.state.lastExploratoryCheckpointKey, checkpointKey, this.cfg.spec.supervision?.checkpointCadence) &&
+            !(t.state.history.at(-1)?.role === "assistant" && !t.state.history.at(-1)?.calls?.length) && Date.now() - t.state.lastCheckAt! >= checkEvery) {
           // Safe tool boundary: do not interrupt a healthy remote experiment.
           if (t.state.toolCalls >= budget.maxToolCalls) throw new FatalAttemptError("THREAD_TOOL_BUDGET_EXHAUSTED");
           t.state.toolCalls++;
@@ -323,7 +326,8 @@ export class SwarmDriver implements Driver {
           let check: Json;
           try { check = await hands.tool(call); } catch (e) { signal.throwIfAborted(); check = { error: e instanceof Error ? e.message.slice(0, 512) : "checkpoint check failed" }; }
           t.state.patchHash = await hands.snapshot();
-          const receipt = this.journal.receipt(c, check); t.state.lastCheckAt = Date.now(); control?.checked?.();
+          const receipt = this.journal.receipt(c, check); t.state.lastCheckAt = Date.now();
+          t.state.lastExploratoryCheckpointKey = checkpointKey; control?.checked?.();
           t.state.history.push({ role: "user", content: canonical({ checkpointCheck: inlineReceipt(receipt, check), instruction: "Use this diagnostic to choose a smaller next step. This is not final acceptance." }) });
           this.journal.checkpoint(t, "checkpoint.checked", { receipt, patchHash: t.state.patchHash });
         }

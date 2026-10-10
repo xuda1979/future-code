@@ -7,7 +7,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const tests = [
   'tests/foundry/productivity.test.ts', 'tests/foundry/swarm.test.ts',
   'tests/foundry/swarm-http.test.ts', 'tests/foundry/swarm-evidence.test.ts',
-  'tests/foundry/resilience.test.ts', 'tests/foundry/resilience-e2e.test.ts',
+  'tests/foundry/resilience.test.ts', 'tests/foundry/rnd-cadence.test.ts', 'tests/foundry/resilience-e2e.test.ts',
 ];
 const flags = process.argv.slice(2);
 if (flags.some(f => f !== '--source-subset')) throw new Error('Only --source-subset is supported');

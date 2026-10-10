@@ -12,6 +12,7 @@ export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
 export interface ThreadState {
   lastFence?: number;
   lastCheckAt?: number;
+  lastExploratoryCheckpointKey?: string;
   recoveryNote?: string;
   history: Message[];
   progress?: ProgressCheckpoint;

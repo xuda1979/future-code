@@ -57,6 +57,8 @@ export interface JobTemplate {
   /** Adapter ensure(key) must reconcile/deduplicate remotely, not blindly resubmit. */
   idempotentEnsure: true;
   pollMs: number; staleMs: number; maxJobs: number; maxConcurrent: number;
+  /** Optional upper bound for exponential idle polling; omit for legacy fixed cadence. */
+  maxPollMs?: number;
   /** Cumulative submissions allowed for this template across every run/replan of
    *  one supervised objective. Defaults to maxJobs so recovery cannot silently
    *  reset an expensive GPU/NPU/HPC experiment budget. */
@@ -68,6 +70,8 @@ export interface JobTemplate {
 export interface SupervisionPolicy {
   reportEveryMs: number;
   checkpointEveryMs: number;
+  /** Optional dedupe of periodic exploratory checks when source is unchanged. */
+  checkpointCadence?: "periodic" | "on-change";
   snapshotReads?: boolean;
   /** Optional hard lifetime cap. Omit for persistent recovery under objective budgets; set 0 to disable autonomous replanning. */
   maxReplans?: number;
@@ -197,10 +201,11 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     invariant(a.checks.every(n => s.checks[n].replaySafe), "independent verification checks must be replay-safe");
   }
   if (s.supervision) {
-    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["snapshotReads", "maxReplans", "maxObjectiveRequests", "maxObjectiveRequestBytes", "recoveryBackoffMs", "recoveryAgent", "dynamicDAG"]);
+    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["checkpointCadence", "snapshotReads", "maxReplans", "maxObjectiveRequests", "maxObjectiveRequestBytes", "recoveryBackoffMs", "recoveryAgent", "dynamicDAG"]);
     positive(s.supervision.reportEveryMs, 3600000, "reportEveryMs");
     invariant(s.supervision.reportEveryMs >= 10, "report interval too small");
     positive(s.supervision.checkpointEveryMs, 3600000, "checkpointEveryMs");
+    invariant(s.supervision.checkpointCadence === undefined || ["periodic", "on-change"].includes(s.supervision.checkpointCadence), "invalid checkpoint cadence");
     invariant(s.supervision.snapshotReads === undefined || typeof s.supervision.snapshotReads === "boolean", "invalid snapshotReads");
     invariant(s.supervision.maxReplans === undefined || (Number.isSafeInteger(s.supervision.maxReplans) && s.supervision.maxReplans >= 0 && s.supervision.maxReplans <= 256), "invalid maxReplans");
     invariant(s.supervision.maxObjectiveRequests === undefined ||
@@ -237,10 +242,14 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   if (s.jobs) {
     keys(s.jobs, [], Object.keys(s.jobs)); positive(Object.keys(s.jobs).length, 32, "job templates");
     for (const [id, job] of Object.entries(s.jobs)) {
-      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs"]);
+      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs"]);
       keys(job.adapter, ["argv"], ["envAllow", "files"]);
       invariant(job.idempotentEnsure === true, "remote ensure must be idempotent");
       positive(job.pollMs, 3600000, "job poll interval"); invariant(job.pollMs >= 10, "job poll interval too short");
+      if (job.maxPollMs !== undefined) {
+        positive(job.maxPollMs, 3600000, "maximum job poll interval");
+        invariant(job.maxPollMs >= job.pollMs, "maximum job poll interval below base poll interval");
+      }
       positive(job.staleMs, 604800000, "job stale interval"); invariant(job.staleMs >= job.pollMs, "job stale interval too short");
       if (job.reconcileAfterMs !== undefined) {
         positive(job.reconcileAfterMs, 604800000, "job reconciliation interval");
