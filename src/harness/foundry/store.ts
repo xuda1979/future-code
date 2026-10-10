@@ -7,6 +7,8 @@ import { installProposalTables } from "./proposals.ts";
 import { installClaimTables } from "./claims.ts";
 import { canonical, digest, invariant, validateContract, validateRecipe } from "./kernel.ts";
 import type { Contract, Json, Recipe, PinnedCommand } from "./types.ts";
+import { attachWakeup, type Wakeup } from "./wakeup.ts";
+import { installExecutionProfile } from "./executionProfile.ts";
 
 // Runtime-selected built-ins: Bun has bun:sqlite; Node >=22.13 has node:sqlite.
 // Keep this module free of a new npm dependency and of engine-specific TS types.
@@ -16,7 +18,27 @@ type DB = { exec(sql: string): void; prepare(sql: string): Statement; close(): v
 export class Store {
   readonly root: string;
   readonly db: DB;
-  private constructor(root: string, db: DB) { this.root = root; this.db = db; }
+  private readonly wakeup: Wakeup;
+  private readonly releaseWakeup: () => void;
+  private inTransaction = false;
+  private changedInTransaction = false;
+  private constructor(root: string, db: DB) {
+    this.root = root; this.db = db;
+    const attached = attachWakeup(root); this.wakeup = attached.wakeup; this.releaseWakeup = attached.release;
+  }
+  observeChanges(): { revision: number; dataVersion: number } {
+    return { revision: this.wakeup.revision, dataVersion: Number(this.db.prepare("PRAGMA data_version").get()!.data_version) };
+  }
+  localRevision(): number { return this.wakeup.revision; }
+  waitForChange(observed: { revision: number; dataVersion: number }, ms: number, signal?: AbortSignal): Promise<void> {
+    return this.wakeup.wait(observed.revision, ms, signal,
+      () => Number(this.db.prepare("PRAGMA data_version").get()!.data_version) !== observed.dataVersion);
+  }
+  /** Notify only after COMMIT; a rollback cannot wake work against phantom state. */
+  changed(): void {
+    if (this.inTransaction) this.changedInTransaction = true;
+    else this.wakeup.notify();
+  }
   static async open(root: string): Promise<Store> {
     root = resolve(root); mkdirSync(root, { recursive: true, mode: 0o700 });
     mkdirSync(join(root, "artifacts"), { recursive: true, mode: 0o700 });
@@ -66,15 +88,20 @@ export class Store {
     if (!metaCols.has("source_hash")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_hash TEXT");
     if (!metaCols.has("source_version")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_version INTEGER");
     const store = new Store(root, db); installContinuationTables(store); installEvidenceFabricTables(store);
-    installProposalTables(store); installClaimTables(store); return store;
+    installProposalTables(store); installClaimTables(store); installExecutionProfile(store); return store;
   }
   transaction<T>(fn: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");
+    this.inTransaction = true; this.changedInTransaction = false;
     try {
       const result = fn();
       invariant(!(result && typeof (result as any).then === "function"), "async work inside transaction is forbidden");
-      this.db.exec("COMMIT"); return result;
+      this.db.exec("COMMIT");
+      this.inTransaction = false;
+      if (this.changedInTransaction) this.wakeup.notify();
+      return result;
     } catch (e) { this.db.exec("ROLLBACK"); throw e; }
+    finally { this.inTransaction = false; this.changedInTransaction = false; }
   }
   getMeta<T>(key: string): T | undefined {
     const r = this.db.prepare("SELECT value FROM meta WHERE key=?").get(key); return r ? JSON.parse(r.value) : undefined;
@@ -84,6 +111,7 @@ export class Store {
   }
   event(kind: string, payload: unknown, run: string | null = null, task: string | null = null): void {
     this.db.prepare("INSERT INTO events(at,kind,run,task,payload) VALUES(?,?,?,?,?)").run(Date.now(), kind, run, task, canonical(payload));
+    this.changed();
   }
   initialize(contract: Contract, recipe: Recipe, commands?: { worker: PinnedCommand; checker: PinnedCommand }, extensions: Record<string, Json> = {}): string {
     validateContract(contract); validateRecipe(contract, recipe);
@@ -146,5 +174,5 @@ export class Store {
     invariant(Number.isSafeInteger(after) && after >= 0 && Number.isSafeInteger(limit) && limit > 0 && limit <= 1000, "invalid event page");
     return this.db.prepare("SELECT * FROM events WHERE seq>? ORDER BY seq LIMIT ?").all(after, limit).map(r => ({ ...r, payload: JSON.parse(r.payload) }));
   }
-  close(): void { this.db.close(); }
+  close(): void { this.db.close(); this.releaseWakeup(); }
 }

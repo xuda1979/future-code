@@ -92,5 +92,7 @@ test("exploratory checkpoints can skip unchanged inputs without affecting strict
   assert.equal(shouldRunExploratoryCheckpoint(key, checkpointInputKey("new-patch", 0), "on-change"), true);
   assert.equal(shouldRunExploratoryCheckpoint(key, checkpointInputKey("patch-sha", 1), "on-change"), true);
   assert.equal(shouldRunExploratoryCheckpoint(key, key, "periodic"), true);
-  assert.equal(shouldRunExploratoryCheckpoint(key, key, undefined), true);
+  assert.equal(shouldRunExploratoryCheckpoint(key, key, undefined), false);
+  assert.equal(shouldRunExploratoryCheckpoint(undefined, key, undefined), true);
+  assert.equal(shouldRunExploratoryCheckpoint(key, checkpointInputKey("patch-sha", 0, "new-remote-evidence")), true);
 });

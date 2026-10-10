@@ -1,0 +1,580 @@
+{
+  "schema": 1,
+  "status": "OFFLINE_RUNTIME_EVIDENCE_NOT_LIVE_RND_SPEEDUP",
+  "baselineCommit": "197457d16ac657ffe73f43b9a83310f4d6b46e88",
+  "sourceHashes": {
+    "src/harness/foundry/continuation.ts": "0175ff4510d2d797f9652bc8dc96e353c5db6db129f3438d33804aed237cb568",
+    "src/harness/foundry/executionProfile.ts": "598fe6ee1615d4b1851cfbe4ec23973a5983a634369ac565144efaf5b434ab0d",
+    "src/harness/foundry/health.ts": "ed222c981eacf4b2e73edc52ba55824b3432e7af2566febbb7b1d6b4159af924",
+    "src/harness/foundry/rndReflection.ts": "e24df8182e206593b0df51bf31c3ab2752113ad1d513bf83dd07470b60741be2",
+    "src/harness/foundry/runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+    "src/harness/foundry/store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+    "src/harness/foundry/swarm/checkpointPolicy.ts": "bee0654348f7b5979d0730cacadc0a076f5542a1702d1b650ce90aa208f7906b",
+    "src/harness/foundry/swarm/context.ts": "ce5aad49515f33abcd150c585a5606ceede0972ab593b6ab4c6055bb239f317b",
+    "src/harness/foundry/swarm/driver.ts": "c37795f1f5e254cd9ea28481eea8f97136bb76f5d7b38391caee5f6a6da883b0",
+    "src/harness/foundry/swarm/host.ts": "1be671c0e2a72daf61f406af05f5be7a67dda74e494879898dbd8dd99166b0f3",
+    "src/harness/foundry/swarm/jobs.ts": "1cc222e74b9954a1413323bd79237bcf60c08c2bbf56ee8171c31e0e5c241689",
+    "src/harness/foundry/swarm/model.ts": "8e2fee2b9e5d606dc799050287b7ed6b650c1c8acb7b5a15d3b9cc2d8a645846",
+    "src/harness/foundry/swarm/requestAccounting.ts": "f0b6d65f0bae602cbefb5f6c0cd3dee8f2e071c52bac6c89016de6d802819085",
+    "src/harness/foundry/swarm/session.ts": "9e1c868f164d40231ab3c076fb4bfa4857ea70d921024915955ee0c6eb4a6e35",
+    "src/harness/foundry/swarm/supervisor.ts": "8dc4b59320df0d9054590b0886281ac418c30eb164b00b3d932b01889437d74f",
+    "src/harness/foundry/types.ts": "ac5505c69df010b93824630d0b99646777b1df9721623f4dd3bbdd4af6706f7e",
+    "src/harness/foundry/wakeup.ts": "2f0ce8f71bddb4cf3c216475ad9afd43ad9ae872e4817412b41eb6728f523c1a"
+  },
+  "requestAccounting": {
+    "schema": 1,
+    "status": "HOST_SQL_MICROBENCHMARK_NOT_RND_SPEEDUP",
+    "runtime": "v24.19.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "sourceHashes": {
+      "src/harness/foundry/store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+      "src/harness/foundry/swarm/session.ts": "9e1c868f164d40231ab3c076fb4bfa4857ea70d921024915955ee0c6eb4a6e35",
+      "src/harness/foundry/swarm/requestAccounting.ts": "f0b6d65f0bae602cbefb5f6c0cd3dee8f2e071c52bac6c89016de6d802819085"
+    },
+    "results": [
+      {
+        "historyRows": 100,
+        "legacyAggregate": {
+          "medianUs": 11.181419999999207,
+          "maxUs": 78.77828000000022,
+          "samples": 7,
+          "iterations": 50
+        },
+        "indexedCounter": {
+          "medianUs": 7.21458999999993,
+          "maxUs": 17.240560000000073,
+          "samples": 7,
+          "iterations": 500
+        },
+        "lookupSpeedup": 1.549834432725812
+      },
+      {
+        "historyRows": 10000,
+        "legacyAggregate": {
+          "medianUs": 1257.8572400000007,
+          "maxUs": 2441.4474799999994,
+          "samples": 7,
+          "iterations": 50
+        },
+        "indexedCounter": {
+          "medianUs": 5.456124000000273,
+          "maxUs": 6.990519999999833,
+          "samples": 7,
+          "iterations": 500
+        },
+        "lookupSpeedup": 230.54044226266447
+      },
+      {
+        "historyRows": 100000,
+        "legacyAggregate": {
+          "medianUs": 11374.035960000001,
+          "maxUs": 13897.313860000004,
+          "samples": 7,
+          "iterations": 50
+        },
+        "indexedCounter": {
+          "medianUs": 2.655214000000342,
+          "maxUs": 3.8763639999997395,
+          "samples": 7,
+          "iterations": 500
+        },
+        "lookupSpeedup": 4283.660736949465
+      }
+    ],
+    "queryPlan": [
+      {
+        "id": 3,
+        "parent": 0,
+        "notused": 39,
+        "detail": "SEARCH agent_request_totals USING INDEX sqlite_autoindex_agent_request_totals_1 (run=? AND task=? AND fence=?)"
+      }
+    ],
+    "liveLLMCalls": 0,
+    "comparisonWithClaudeOrCodex": null
+  },
+  "shortTask": {
+    "order": [
+      "baseline",
+      "candidate",
+      "candidate",
+      "baseline"
+    ],
+    "modelCalls": 0,
+    "summary": {
+      "baseline": {
+        "samples": 20,
+        "medianMs": 6.573389000000006,
+        "p90Ms": 8.983901000000003
+      },
+      "candidate": {
+        "samples": 20,
+        "medianMs": 7.080005000000014,
+        "p90Ms": 8.493621999999988
+      },
+      "candidateMedianRatio": 1.0770707469160896,
+      "candidateP90Ratio": 0.9454269364722502
+    },
+    "rawReports": [
+      {
+        "schema": 1,
+        "generatedAt": "2026-10-10T09:53:54.801Z",
+        "modelCalls": 0,
+        "runtime": {
+          "node": "v24.19.0",
+          "platform": "linux",
+          "arch": "x64"
+        },
+        "sourceHashes": {
+          "types.ts": "8f930d62fdc39307315bb5b8e1676d645a8139fbd5c132c3973940e794d47c87",
+          "kernel.ts": "195315826473b71ac044ae2aa6b5d8c86be872c286e8edb193150f4175806111",
+          "store.ts": "0b7599dbe80b780dcb4e1035ee260e77f30b46019624e41dde7afa4198265767",
+          "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+          "runtime.ts": "dc3b1af411e322b5b66fd391350d3147ae5acd38a73f96ac6c190100fa094373",
+          "commands.ts": "ca222073f87ea10d174458538d9996fee3d888374404b1b73fccbce5523ac57c",
+          "productivity.ts": "3c5049b8be5880069972fc977f7843f4cce6b05f7f1d19c318b4dba5be515a2e"
+        },
+        "overhead": {
+          "kind": "real-clock synthetic arithmetic workers; includes SQLite and artifact I/O",
+          "count": 1,
+          "taskHash": "a620072fdb2c168edef44ee8b36a814f84a10c30a01aba0006e909cf242edea5",
+          "repetitions": 10,
+          "samples": [
+            {
+              "repetition": 0,
+              "elapsedMs": 14.835288999999989,
+              "verifiedTasksPerSecond": 67.40684323709506,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 1,
+              "elapsedMs": 6.397525999999999,
+              "verifiedTasksPerSecond": 156.31042374818017,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 2,
+              "elapsedMs": 6.306800999999979,
+              "verifiedTasksPerSecond": 158.55899052467382,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 3,
+              "elapsedMs": 6.0796350000000245,
+              "verifiedTasksPerSecond": 164.4835586346871,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 4,
+              "elapsedMs": 8.195112999999992,
+              "verifiedTasksPerSecond": 122.02394280591383,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 5,
+              "elapsedMs": 6.490611999999999,
+              "verifiedTasksPerSecond": 154.06867642065188,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 6,
+              "elapsedMs": 6.822677000000027,
+              "verifiedTasksPerSecond": 146.57003402037,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 7,
+              "elapsedMs": 6.462133999999992,
+              "verifiedTasksPerSecond": 154.74764218755,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 8,
+              "elapsedMs": 6.277891999999952,
+              "verifiedTasksPerSecond": 159.28913718171765,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 9,
+              "elapsedMs": 4.979971000000035,
+              "verifiedTasksPerSecond": 200.8043821941921,
+              "peak": 1,
+              "accepted": 1
+            }
+          ],
+          "medianMs": 6.4298299999999955,
+          "medianVerifiedTasksPerSecond": 155.52510719568025
+        }
+      },
+      {
+        "schema": 1,
+        "generatedAt": "2026-10-10T09:53:55.092Z",
+        "modelCalls": 0,
+        "runtime": {
+          "node": "v24.19.0",
+          "platform": "linux",
+          "arch": "x64"
+        },
+        "sourceHashes": {
+          "types.ts": "ac5505c69df010b93824630d0b99646777b1df9721623f4dd3bbdd4af6706f7e",
+          "kernel.ts": "195315826473b71ac044ae2aa6b5d8c86be872c286e8edb193150f4175806111",
+          "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+          "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+          "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+          "commands.ts": "ca222073f87ea10d174458538d9996fee3d888374404b1b73fccbce5523ac57c",
+          "productivity.ts": "3c5049b8be5880069972fc977f7843f4cce6b05f7f1d19c318b4dba5be515a2e"
+        },
+        "overhead": {
+          "kind": "real-clock synthetic arithmetic workers; includes SQLite and artifact I/O",
+          "count": 1,
+          "taskHash": "a620072fdb2c168edef44ee8b36a814f84a10c30a01aba0006e909cf242edea5",
+          "repetitions": 10,
+          "samples": [
+            {
+              "repetition": 0,
+              "elapsedMs": 16.010728999999998,
+              "verifiedTasksPerSecond": 62.458117928296716,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 1,
+              "elapsedMs": 6.811419000000001,
+              "verifiedTasksPerSecond": 146.81228683773526,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 2,
+              "elapsedMs": 7.865715999999992,
+              "verifiedTasksPerSecond": 127.13400788942812,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 3,
+              "elapsedMs": 8.310152999999985,
+              "verifiedTasksPerSecond": 120.3347278924951,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 4,
+              "elapsedMs": 8.076603000000006,
+              "verifiedTasksPerSecond": 123.81443039852266,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 5,
+              "elapsedMs": 6.8495069999999885,
+              "verifiedTasksPerSecond": 145.99590890264096,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 6,
+              "elapsedMs": 7.752221999999989,
+              "verifiedTasksPerSecond": 128.9952738711561,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 7,
+              "elapsedMs": 7.118171000000018,
+              "verifiedTasksPerSecond": 140.48552640839867,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 8,
+              "elapsedMs": 6.694097999999997,
+              "verifiedTasksPerSecond": 149.38532420648764,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 9,
+              "elapsedMs": 6.3773330000000215,
+              "verifiedTasksPerSecond": 156.80536048533088,
+              "peak": 1,
+              "accepted": 1
+            }
+          ],
+          "medianMs": 7.4351965000000035,
+          "medianVerifiedTasksPerSecond": 134.4954366707053
+        }
+      },
+      {
+        "schema": 1,
+        "generatedAt": "2026-10-10T09:53:55.390Z",
+        "modelCalls": 0,
+        "runtime": {
+          "node": "v24.19.0",
+          "platform": "linux",
+          "arch": "x64"
+        },
+        "sourceHashes": {
+          "types.ts": "ac5505c69df010b93824630d0b99646777b1df9721623f4dd3bbdd4af6706f7e",
+          "kernel.ts": "195315826473b71ac044ae2aa6b5d8c86be872c286e8edb193150f4175806111",
+          "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+          "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+          "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+          "commands.ts": "ca222073f87ea10d174458538d9996fee3d888374404b1b73fccbce5523ac57c",
+          "productivity.ts": "3c5049b8be5880069972fc977f7843f4cce6b05f7f1d19c318b4dba5be515a2e"
+        },
+        "overhead": {
+          "kind": "real-clock synthetic arithmetic workers; includes SQLite and artifact I/O",
+          "count": 1,
+          "taskHash": "a620072fdb2c168edef44ee8b36a814f84a10c30a01aba0006e909cf242edea5",
+          "repetitions": 10,
+          "samples": [
+            {
+              "repetition": 0,
+              "elapsedMs": 15.508792999999997,
+              "verifiedTasksPerSecond": 64.47955040730766,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 1,
+              "elapsedMs": 6.571382999999997,
+              "verifiedTasksPerSecond": 152.17496834380228,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 2,
+              "elapsedMs": 7.415590000000009,
+              "verifiedTasksPerSecond": 134.8510368021963,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 3,
+              "elapsedMs": 8.493621999999988,
+              "verifiedTasksPerSecond": 117.73540192864733,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 4,
+              "elapsedMs": 7.04183900000001,
+              "verifiedTasksPerSecond": 142.00835889602112,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 5,
+              "elapsedMs": 7.390743000000015,
+              "verifiedTasksPerSecond": 135.30439361779972,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 6,
+              "elapsedMs": 6.810242999999986,
+              "verifiedTasksPerSecond": 146.8376385394768,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 7,
+              "elapsedMs": 6.975572,
+              "verifiedTasksPerSecond": 143.35741929120653,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 8,
+              "elapsedMs": 6.2318160000000375,
+              "verifiedTasksPerSecond": 160.4668687265468,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 9,
+              "elapsedMs": 6.841046000000006,
+              "verifiedTasksPerSecond": 146.1764765212804,
+              "peak": 1,
+              "accepted": 1
+            }
+          ],
+          "medianMs": 7.008705500000005,
+          "medianVerifiedTasksPerSecond": 142.67970026704637
+        }
+      },
+      {
+        "schema": 1,
+        "generatedAt": "2026-10-10T09:53:55.669Z",
+        "modelCalls": 0,
+        "runtime": {
+          "node": "v24.19.0",
+          "platform": "linux",
+          "arch": "x64"
+        },
+        "sourceHashes": {
+          "types.ts": "8f930d62fdc39307315bb5b8e1676d645a8139fbd5c132c3973940e794d47c87",
+          "kernel.ts": "195315826473b71ac044ae2aa6b5d8c86be872c286e8edb193150f4175806111",
+          "store.ts": "0b7599dbe80b780dcb4e1035ee260e77f30b46019624e41dde7afa4198265767",
+          "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+          "runtime.ts": "dc3b1af411e322b5b66fd391350d3147ae5acd38a73f96ac6c190100fa094373",
+          "commands.ts": "ca222073f87ea10d174458538d9996fee3d888374404b1b73fccbce5523ac57c",
+          "productivity.ts": "3c5049b8be5880069972fc977f7843f4cce6b05f7f1d19c318b4dba5be515a2e"
+        },
+        "overhead": {
+          "kind": "real-clock synthetic arithmetic workers; includes SQLite and artifact I/O",
+          "count": 1,
+          "taskHash": "a620072fdb2c168edef44ee8b36a814f84a10c30a01aba0006e909cf242edea5",
+          "repetitions": 10,
+          "samples": [
+            {
+              "repetition": 0,
+              "elapsedMs": 15.444997,
+              "verifiedTasksPerSecond": 64.74588502671772,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 1,
+              "elapsedMs": 6.655913999999996,
+              "verifiedTasksPerSecond": 150.2423258473593,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 2,
+              "elapsedMs": 6.807920000000024,
+              "verifiedTasksPerSecond": 146.88774251166237,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 3,
+              "elapsedMs": 6.206973000000005,
+              "verifiedTasksPerSecond": 161.10912678369942,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 4,
+              "elapsedMs": 7.683583999999996,
+              "verifiedTasksPerSecond": 130.14759778769914,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 5,
+              "elapsedMs": 6.004184000000009,
+              "verifiedTasksPerSecond": 166.5505254335974,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 6,
+              "elapsedMs": 8.983901000000003,
+              "verifiedTasksPerSecond": 111.31022035973011,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 7,
+              "elapsedMs": 7.139689000000004,
+              "verifiedTasksPerSecond": 140.0621231541037,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 8,
+              "elapsedMs": 6.490864000000016,
+              "verifiedTasksPerSecond": 154.06269488930866,
+              "peak": 1,
+              "accepted": 1
+            },
+            {
+              "repetition": 9,
+              "elapsedMs": 6.965352999999993,
+              "verifiedTasksPerSecond": 143.56774164927478,
+              "peak": 1,
+              "accepted": 1
+            }
+          ],
+          "medianMs": 6.886636500000009,
+          "medianVerifiedTasksPerSecond": 145.20876773443737
+        }
+      }
+    ]
+  },
+  "gates": [
+    {
+      "script": "scripts/test-correctness.mjs",
+      "exitCode": 0,
+      "nodeTests": 62,
+      "nodeFailures": 0,
+      "pythonSuites": [
+        15,
+        7
+      ],
+      "logSha256": "90799b6f906bc297c970428407810a348238eaf12b269cf406dfe239df5a0407",
+      "nodeCancelled": 0
+    },
+    {
+      "script": "scripts/test-resilience.mjs",
+      "exitCode": 0,
+      "nodeTests": 158,
+      "nodeFailures": 0,
+      "pythonSuites": [
+        7
+      ],
+      "logSha256": "bca1159c469b23357e80e0ec2bf53b5391733e295907d6f6a30c723ca9d10437",
+      "nodeCancelled": 0
+    },
+    {
+      "script": "scripts/test-foundry.mjs",
+      "exitCode": 0,
+      "nodeTests": 403,
+      "nodeFailures": 0,
+      "pythonSuites": [],
+      "logSha256": "f0de366ef6c50505d21cb2b49b7b0b33919e269d6294fa1f8a10567b9e2b0cb4",
+      "nodeCancelled": 0
+    },
+    {
+      "script": "scripts/test-swarm.mjs",
+      "exitCode": 0,
+      "nodeTests": 128,
+      "nodeFailures": 0,
+      "pythonSuites": [],
+      "logSha256": "8efa743441c3ba4bd8c92a22733e7da4beeae0078adeb037ac510c1e53e4b82c",
+      "nodeCancelled": 0
+    },
+    {
+      "script": "scripts/test-commands.mjs",
+      "exitCode": 0,
+      "nodeTests": 99,
+      "nodeFailures": 0,
+      "pythonSuites": [],
+      "logSha256": "6ca1b70aaa5a0ffe5866a5143ab20e2718d0f88f78591607f2cf011e584c70dc",
+      "nodeCancelled": 0
+    }
+  ],
+  "liveProductivityComparison": null,
+  "validationRuntime": {
+    "node": "v24.19.0",
+    "ciNode": "22.16.0"
+  },
+  "followup": {
+    "reason": "Node 22 CI cancelled the hanging adapter regression because its unreferenced deadline let the event loop finish before timeout. The job RPC deadline now remains referenced until it fires or the RPC settles, with cleanup on success and cancellation.",
+    "previousJobsSha256": "c91c452bde4ab19a01fa232a12184c1845e34ff5224f81d2851529a144b36e8e",
+    "benchmarksUnchanged": "The follow-up changes only the job RPC deadline; the recorded request-accounting and scheduler benchmark source hashes are unchanged."
+  }
+}

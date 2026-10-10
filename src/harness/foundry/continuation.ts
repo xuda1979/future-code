@@ -8,10 +8,15 @@ import { providerWaitRecovered } from "./swarm/providerRecovery.ts";
 export class DeferredAttemptError extends Error {
   readonly wakeAt: number;
   readonly kind: string;
-  constructor(kind: "provider" | "remote-job" | "remote-stalled" | "checkpoint" | "spawn" | "cancelled" | "cohort-capacity", wakeAt: number, reason: string) {
+  readonly capacity?: { template: string; maxConcurrent: number };
+  constructor(kind: "provider" | "remote-job" | "remote-stalled" | "checkpoint" | "spawn" | "cancelled" | "cohort-capacity",
+    wakeAt: number, reason: string, capacity?: { template: string; maxConcurrent: number }) {
     super(reason); this.name = "DeferredAttemptError";
     invariant(Number.isSafeInteger(wakeAt) && wakeAt >= 0, "invalid continuation time");
     this.wakeAt = wakeAt; this.kind = kind;
+    if (capacity) invariant(kind === "remote-job" && typeof capacity.template === "string" &&
+      Number.isSafeInteger(capacity.maxConcurrent) && capacity.maxConcurrent > 0, "invalid remote capacity advice");
+    this.capacity = capacity;
   }
 }
 
@@ -34,7 +39,18 @@ export function installContinuationTables(store: Store): void {
 
 /** Caller owns the transaction and has already checked the current lease. */
 export function persistContinuation(store: Store, lease: Lease, error: DeferredAttemptError, measurement: Measurement, now: number): void {
-  const recovered = error.kind === "provider" && providerWaitRecovered(store, lease.runId, lease.taskId, lease.fence, error.wakeAt, now);
+  let recovered = error.kind === "provider" && providerWaitRecovered(store, lease.runId, lease.taskId, lease.fence, error.wakeAt, now);
+  if (["remote-job", "remote-stalled"].includes(error.kind) &&
+      store.db.prepare("SELECT 1 FROM sqlite_master WHERE name='research_jobs' AND type='table'").get()) {
+    // Completion can commit after the adapter decided to wait, but BEFORE this
+    // continuation is persisted. Recheck under this transaction to avoid losing
+    // a release notification. Eligibility changes; job admission is revalidated.
+    recovered = error.capacity ? Number(store.db.prepare(
+      "SELECT COUNT(*) AS n FROM research_jobs WHERE template=? AND result_hash IS NULL"
+    ).get(error.capacity.template)!.n) < error.capacity.maxConcurrent :
+      !!store.db.prepare("SELECT 1 FROM research_jobs WHERE run=? AND task=? AND result_hash IS NOT NULL LIMIT 1").get(lease.runId, lease.taskId) &&
+      !store.db.prepare("SELECT 1 FROM research_jobs WHERE run=? AND task=? AND result_hash IS NULL LIMIT 1").get(lease.runId, lease.taskId);
+  }
   const wake = recovered ? now : Math.max(now, error.wakeAt);
   const a = store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(lease.runId, lease.taskId, lease.fence)!;
   store.db.prepare("UPDATE attempts SET status='DEFERRED',ended=?,duration=?,tokens=?,cost=? WHERE run=? AND task=? AND fence=?")
