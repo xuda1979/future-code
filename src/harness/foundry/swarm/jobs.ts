@@ -10,6 +10,13 @@ import type { Call } from "./context.ts";
 import { SessionJournal } from "./session.ts";
 import { runProcess } from "./process.ts";
 
+/** Host-only polling advice. No effect on remote identity or acceptance. */
+export function nextRemotePollMs(template: Pick<JobTemplate, "pollMs" | "maxPollMs">, idlePolls: number): number {
+  const ceiling = template.maxPollMs ?? template.pollMs;
+  if (!Number.isSafeInteger(idlePolls) || idlePolls < 0) return template.pollMs;
+  return Math.min(ceiling, template.pollMs * 2 ** Math.min(30, Math.max(0, idlePolls - 1)));
+}
+
 export interface JobReply {
   schema: 1; key: string; jobId: string;
   status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "UNKNOWN";
@@ -132,7 +139,8 @@ export class ResearchJobs {
       input_hash TEXT NOT NULL, created REAL NOT NULL, progress_at REAL NOT NULL,
       progress_token TEXT, poll_at REAL NOT NULL, failures INTEGER NOT NULL DEFAULT 0,
       job_id TEXT, status TEXT NOT NULL, result_hash TEXT, updated REAL NOT NULL,
-      reconciliation_hash TEXT, progress_rank INTEGER NOT NULL DEFAULT 0, stale_at REAL);
+      reconciliation_hash TEXT, progress_rank INTEGER NOT NULL DEFAULT 0, stale_at REAL,
+      idle_polls INTEGER NOT NULL DEFAULT 0);
       CREATE INDEX IF NOT EXISTS research_jobs_run ON research_jobs(run,task);
       CREATE TABLE IF NOT EXISTS research_job_progress(
         key TEXT NOT NULL, token TEXT NOT NULL, observed REAL NOT NULL,
@@ -144,6 +152,8 @@ export class ResearchJobs {
       journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN progress_rank INTEGER NOT NULL DEFAULT 0");
     if (!columns.has("stale_at"))
       journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN stale_at REAL");
+    if (!columns.has("idle_polls"))
+      journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN idle_polls INTEGER NOT NULL DEFAULT 0");
   }
   async execute(c: Capsule, profile: AgentProfile, call: Call, signal: AbortSignal): Promise<Json> {
     this.journal.assertLease(c); signal.throwIfAborted();
@@ -175,8 +185,8 @@ export class ResearchJobs {
       if (live >= template.maxConcurrent) throw new DeferredAttemptError("remote-job", Date.now() + template.pollMs, `Remote capacity busy for ${name}; no new job submitted`);
       const now = Date.now();
       store.db.prepare(`INSERT INTO research_jobs
-        (key,run,task,template,input_hash,created,progress_at,progress_token,poll_at,failures,job_id,status,result_hash,updated,reconciliation_hash,progress_rank,stale_at)
-        VALUES(?,?,?,?,?,?,?,NULL,0,0,NULL,'UNKNOWN',NULL,?,NULL,0,?)`)
+        (key,run,task,template,input_hash,created,progress_at,progress_token,poll_at,failures,job_id,status,result_hash,updated,reconciliation_hash,progress_rank,stale_at,idle_polls)
+        VALUES(?,?,?,?,?,?,?,NULL,0,0,NULL,'UNKNOWN',NULL,?,NULL,0,?,0)`)
         .run(key, c.runId, c.task.id, name, binding, now, now, now, now + template.staleMs);
       store.event("job.intent", { key, template: name, inputHash: binding, objective }, c.runId, c.task.id);
       return store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
@@ -237,11 +247,13 @@ export class ResearchJobs {
         ).run(key, v.progressToken, now);
         changed = changed || (v.progressToken !== row.progress_token && inserted.changes > 0);
       }
+      const idlePolls = changed || terminal ? 0 : Math.min(1_000_000, Number(row.idle_polls ?? 0) + 1);
+      const pollMs = nextRemotePollMs(template, idlePolls);
       store.db.prepare(`UPDATE research_jobs SET job_id=?,status=?,progress_at=?,progress_token=?,poll_at=?,failures=0,
-        result_hash=?,updated=?,reconciliation_hash=?,progress_rank=?,stale_at=? WHERE key=?`)
+        result_hash=?,updated=?,reconciliation_hash=?,progress_rank=?,stale_at=?,idle_polls=? WHERE key=?`)
         .run(v.jobId, v.status, changed ? now : row.progress_at, v.progressToken ?? row.progress_token,
-          now + template.pollMs, terminal ? receipt : null, now, reconciliationHash,
-          Math.max(Number(row.progress_rank ?? 0), rank), changed ? now + template.staleMs : row.stale_at, key);
+          now + pollMs, terminal ? receipt : null, now, reconciliationHash,
+          Math.max(Number(row.progress_rank ?? 0), rank), changed ? now + template.staleMs : row.stale_at, idlePolls, key);
       // Store only meaningful changes; polling/replayed milestones do not
       // manufacture progress.
       if (changed || row.status !== v.status || row.job_id !== v.jobId) store.event("job.observed",
@@ -292,7 +304,7 @@ export class ResearchJobs {
     return reply as unknown as Json;
   }
   list(run: string): Json {
-    const rows = this.journal.store.db.prepare(`SELECT key,task,template,job_id,status,progress_at,stale_at,progress_rank,poll_at,failures,result_hash,reconciliation_hash,updated
+    const rows = this.journal.store.db.prepare(`SELECT key,task,template,job_id,status,progress_at,stale_at,progress_rank,poll_at,idle_polls,failures,result_hash,reconciliation_hash,updated
       FROM research_jobs WHERE run=? ORDER BY created LIMIT 201`).all(run);
     return { items: rows.slice(0, 200) as Json[], truncated: rows.length > 200 };
   }
