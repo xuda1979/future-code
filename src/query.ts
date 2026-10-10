@@ -111,7 +111,7 @@ import {
 import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
 import { shouldRecoverSilentResponse } from './utils/responseLiveness.js'
-import { takeAutoGoalContinuation } from './commands/goal/auto.js'
+import { decideAutoGoalContinuation, parkActiveAutoGoal } from './commands/goal/auto.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
@@ -648,6 +648,8 @@ async function* queryLoop(
           content: PROMPT_TOO_LONG_ERROR_MESSAGE,
           error: 'invalid_request',
         })
+        const blocked = parkActiveAutoGoal('Context blocking limit reached; compact or repair context before /goal --resume.')
+        if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: 'blocking_limit' }
       }
     }
@@ -998,6 +1000,8 @@ async function* queryLoop(
 
       // To help track down bugs, log loudly for ants
       logAntError('Query error', error)
+      const blocked = parkActiveAutoGoal('Model/runtime error: ' + errorMessage.slice(0, 300))
+      if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
       return { reason: 'model_error', error }
     }
 
@@ -1053,6 +1057,8 @@ async function* queryLoop(
           toolUse: false,
         })
       }
+      const blocked = parkActiveAutoGoal('User or caller interrupted the active goal.')
+      if (blocked) yield createSystemMessage('Autonomous goal paused: ' + blocked, 'warning')
       return { reason: 'aborted_streaming' }
     }
 
@@ -1305,6 +1311,8 @@ async function* queryLoop(
             'The model completed twice without producing a user-visible answer. ' +
             'The turn was stopped instead of silently reporting success.',
         })
+        const blocked = parkActiveAutoGoal('Model returned two empty responses; inspect provider and retry deliberately.')
+        if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: 'completed' }
       }
 
@@ -1314,6 +1322,8 @@ async function* queryLoop(
       // error → hook blocking → retry → error → …
       if (lastMessage?.isApiErrorMessage) {
         void executeStopFailureHooks(lastMessage, toolUseContext)
+        const blocked = parkActiveAutoGoal('Model API returned an error; inspect credentials, quotas and provider availability.')
+        if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: 'completed' }
       }
 
@@ -1329,6 +1339,8 @@ async function* queryLoop(
       )
 
       if (stopHookResult.preventContinuation) {
+        const blocked = parkActiveAutoGoal('Stop hook prevented continuation; inspect the hook decision.')
+        if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: 'stop_hook_prevented' }
       }
 
@@ -1413,16 +1425,19 @@ async function* queryLoop(
       // Never override stop hooks, tool permission gates, API errors, or a
       // caller's explicit maxTurns boundary. Durable batch counters prevent
       // runaway paid inference across CLI restarts.
-      const goalContinuation = takeAutoGoalContinuation({
+      const goalDecision = decideAutoGoalContinuation({
         mainThread: querySource === 'repl_main_thread' && !toolUseContext.agentId,
         withinTurnBudget: maxTurns === undefined || turnCount < maxTurns,
       })
-      if (goalContinuation) {
+      if (goalDecision.kind === 'BLOCKED') {
+        yield createSystemMessage('Autonomous goal blocked: ' + goalDecision.reason, 'warning')
+      }
+      if (goalDecision.kind === 'CONTINUE') {
         state = {
           messages: [
             ...messagesForQuery,
             ...assistantMessages,
-            createUserMessage({ content: goalContinuation, isMeta: true }),
+            createUserMessage({ content: goalDecision.prompt, isMeta: true }),
           ],
           toolUseContext,
           autoCompactTracking: tracking,
