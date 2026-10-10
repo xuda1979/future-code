@@ -243,9 +243,14 @@ export class HttpBrain {
     launch(0);
     let fallbacksLaunched = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let hedgeReady: Promise<{ index: -1; kind: "hedge" }> | null = new Promise(resolve => {
-      timer = setTimeout(() => resolve({ index: -1, kind: "hedge" }), profile.hedgeAfterMs ?? 250);
-    });
+    // If the operator did not request speculative hedging, fail over only
+    // after an actual primary failure. Avoid duplicate token spend by default.
+    let hedgeReady: Promise<{ index: -1; kind: "hedge" }> | null = null;
+    if (profile.hedgeAfterMs !== undefined) {
+      hedgeReady = new Promise(resolve => {
+        timer = setTimeout(() => resolve({ index: -1, kind: "hedge" }), profile.hedgeAfterMs);
+      });
+    }
     const failures: Extract<Outcome, { kind: "failure" }>[] = [];
     try {
       for (;;) {

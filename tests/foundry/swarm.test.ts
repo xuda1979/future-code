@@ -163,6 +163,27 @@ test("hedged external routes cut tail latency and commit exactly one replayable 
   assert.equal((await replay.next(c, profile, [{ role: "user", content: "task" }], cfg.spec.budget, 32768, signal(), 0)).turn.message.content, "fast");
 }));
 
+test("fallback is not speculatively invoked without explicit hedgeAfterMs", async () => fixture(async (s, cfg) => {
+  const { c } = lease(s);
+  const j = new SessionJournal(s);
+  let primary = 0; let fallback = 0;
+  const profile = { ...cfg.spec.agents.coder, fallbacks: [{
+    url: "https://fallback.example/v1/chat/completions",
+    model: cfg.spec.agents.coder.model,
+  }] };
+  const fetcher = (async (url: any) => {
+    if (String(url).includes("fallback")) { fallback++; return reply("fallback"); }
+    primary++; await new Promise(resolve => setTimeout(resolve, 30)); return reply("primary");
+  }) as typeof fetch;
+  const brain = new HttpBrain(j, fetcher);
+  const result = await brain.next(c, profile, [{ role: "user", content: "task" }],
+    cfg.spec.budget, 32768, signal(), 0);
+  assert.equal(result.turn.message.content, "primary");
+  assert.equal(primary, 1);
+  assert.equal(fallback, 0);
+  assert.equal(j.usage(c.runId).requests, 1);
+}));
+
 test("fallback routes must preserve the same logical model", () => {
   const s = spec("x");
   (s.agents.coder as any).fallbacks = [{ url: "https://fallback.example/v1", model: "different-model" }];
