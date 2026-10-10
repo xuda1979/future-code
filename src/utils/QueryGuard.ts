@@ -24,7 +24,7 @@
  *     queryGuard.getSnapshot,
  *   )
  */
-import { createSignal } from './signal.js'
+import { createSignal } from './signal.ts'
 
 export class QueryGuard {
   private _status: 'idle' | 'dispatching' | 'running' = 'idle'
@@ -119,3 +119,4 @@ export class QueryGuard {
     this._changed.emit()
   }
 }
+

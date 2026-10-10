@@ -73,6 +73,7 @@ const jobClassifier = feature('TEMPLATES')
 import {
   remove as removeFromQueue,
   getCommandsByMaxPriority,
+  getCommandQueueSnapshot,
   isSlashCommand,
 } from './utils/messageQueueManager.js'
 import { notifyCommandLifecycle } from './utils/commandLifecycle.js'
@@ -110,8 +111,11 @@ import {
 } from './bootstrap/state.js'
 import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
-import { shouldRecoverSilentResponse } from './utils/responseLiveness.js'
-import { decideAutoGoalContinuation, parkActiveAutoGoal } from './commands/goal/auto.js'
+import { shouldRecoverSilentResponse, hasVisibleAssistantText } from './utils/responseLiveness.js'
+import { decideAutoGoalContinuation, parkActiveAutoGoal, isAutoGoalMainThread, readAutoGoal, shouldPauseGoalAfterTerminal } from './commands/goal/auto.js'
+import { notifyQueryActivity, type QueryActivityEvent } from './utils/queryActivity.js'
+import { hasMainThreadQueuedCommand } from './utils/queueWakeup.js'
+import { watchModelStream, isModelProgress, modelStreamIdleTimeout, ModelStreamStalledError, modelStallAction } from './utils/modelStreamLiveness.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
@@ -198,6 +202,8 @@ export type QueryParams = {
   // from cumulative API usage. See configureTaskBudgetParams in future.ts.
   taskBudget?: { total: number }
   deps?: QueryDeps
+  // UI-only progress; never appended to messages or sent to a provider.
+  onActivity?: (event: QueryActivityEvent) => void
 }
 
 // -- query loop state
@@ -230,7 +236,24 @@ export async function* query(
   Terminal
 > {
   const consumedCommandUuids: string[] = []
-  const terminal = yield* queryLoop(params, consumedCommandUuids)
+  const mainGoalThread = isAutoGoalMainThread(params.querySource, params.toolUseContext.agentId,
+    params.toolUseContext.options.isNonInteractiveSession)
+  let terminal: Terminal
+  try {
+    terminal = yield* queryLoop(params, consumedCommandUuids)
+  } catch (error) {
+    const blocked = mainGoalThread ? parkActiveAutoGoal('Runtime failed before objective acceptance: ' +
+      (error instanceof Error ? error.message : String(error)).slice(0, 300)) : null
+    if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
+    throw error
+  }
+  // Cover every terminal path, including tool cancellation, context overflow,
+  // hook prevention and caller limits. Child/SDK turns cannot pause this goal.
+  if (mainGoalThread && shouldPauseGoalAfterTerminal(terminal.reason, params.toolUseContext.abortController.signal.reason)) {
+    const blocked = parkActiveAutoGoal('Turn ended before objective acceptance (' + terminal.reason + '). ' +
+      'Inspect this blocker, then use /goal --resume when it is resolved.')
+    if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
+  }
   // Only reached if queryLoop returned normally. Skipped on throw (error
   // propagates through yield*) and on .return() (Return completion closes
   // both generators). This gives the same asymmetric started-without-completed
@@ -264,6 +287,10 @@ async function* queryLoop(
     skipCacheWrite,
   } = params
   const deps = params.deps ?? productionDeps()
+  const mainGoalThread = isAutoGoalMainThread(querySource, params.toolUseContext.agentId,
+    params.toolUseContext.options.isNonInteractiveSession)
+  const parkGoal = (reason: string) => mainGoalThread ? parkActiveAutoGoal(reason) : null
+  const activity = (event: QueryActivityEvent) => notifyQueryActivity(params.onActivity, event)
 
   // Mutable cross-iteration state. The loop body destructures this at the top
   // of each iteration so reads stay bare-name (`messages`, `toolUseContext`).
@@ -368,6 +395,7 @@ async function* queryLoop(
     }
 
     let messagesForQuery = [...getMessagesAfterCompactBoundary(messages)]
+    activity({ kind: 'phase', phase: 'preparing' })
 
     let tracking = autoCompactTracking
 
@@ -456,6 +484,8 @@ async function* queryLoop(
     )
 
     queryCheckpoint('query_autocompact_start')
+    if (params.onActivity) activity({ kind: 'context', tokens: tokenCountWithEstimation(messagesForQuery) - snipTokensFreed })
+    activity({ kind: 'phase', phase: 'compacting' })
     const { compactionResult, consecutiveFailures } = await deps.autocompact(
       messagesForQuery,
       toolUseContext,
@@ -648,13 +678,14 @@ async function* queryLoop(
           content: PROMPT_TOO_LONG_ERROR_MESSAGE,
           error: 'invalid_request',
         })
-        const blocked = parkActiveAutoGoal('Context blocking limit reached; compact or repair context before /goal --resume.')
+        const blocked = parkGoal('Context blocking limit reached; compact or repair context before /goal --resume.')
         if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: 'blocking_limit' }
       }
     }
 
     let attemptWithFallback = true
+    let modelStallRecoveries = 0
 
     queryCheckpoint('query_api_loop_start')
     try {
@@ -663,12 +694,14 @@ async function* queryLoop(
         try {
           let streamingFallbackOccured = false
           queryCheckpoint('query_api_streaming_start')
-          for await (const message of deps.callModel({
+          activity({ kind: 'phase', phase: 'model' })
+          if (params.onActivity) activity({ kind: 'context', tokens: tokenCountWithEstimation(messagesForQuery) })
+          for await (const message of watchModelStream(signal => deps.callModel({
             messages: prependUserContext(messagesForQuery, userContext),
             systemPrompt: fullSystemPrompt,
             thinkingConfig: toolUseContext.options.thinkingConfig,
             tools: toolUseContext.options.tools,
-            signal: toolUseContext.abortController.signal,
+            signal,
             options: {
               async getToolPermissionContext() {
                 const appState = toolUseContext.getAppState()
@@ -712,7 +745,8 @@ async function* queryLoop(
                 },
               }),
             },
-          })) {
+          }), { signal: toolUseContext.abortController.signal, timeoutMs: modelStreamIdleTimeout(), isProgress: isModelProgress })) {
+            if (isModelProgress(message)) activity({ kind: 'progress' })
             // We won't use the tool_calls from the first attempt
             // We could.. but then we'd have to merge assistant messages
             // with different ids and double up on full the tool_results
@@ -848,6 +882,7 @@ async function* queryLoop(
                 for (const toolBlock of msgToolUseBlocks) {
                   streamingToolExecutor.addTool(toolBlock, message)
                 }
+                if (msgToolUseBlocks.length > 0) activity({ kind: 'phase', phase: 'model-tools' })
               }
             }
 
@@ -898,6 +933,29 @@ async function* queryLoop(
             }
           }
         } catch (innerError) {
+          const stallAction = modelStallAction(toolUseBlocks.length, modelStallRecoveries, toolUseContext.abortController.signal.aborted)
+          if (innerError instanceof ModelStreamStalledError && stallAction === 'collect') {
+            // Complete already-admitted tools and use their actual results in
+            // the next model request. Replaying this request could duplicate
+            // side effects; abandoning the executor would lose its receipts.
+            yield createSystemMessage(innerError.message + '; collecting admitted tool results before continuing.', 'warning')
+            break
+          }
+          // Reconnect a silent model read once, only before any tool has been
+          // admitted. A reconnect cannot replay an external job or file edit.
+          if (innerError instanceof ModelStreamStalledError && stallAction === 'retry') {
+            modelStallRecoveries++
+            for (const message of assistantMessages) yield { type: 'tombstone' as const, message }
+            assistantMessages.length = 0
+            toolResults.length = 0
+            needsFollowUp = false
+            streamingToolExecutor?.discard()
+            streamingToolExecutor = useStreamingToolExecution
+              ? new StreamingToolExecutor(toolUseContext.options.tools, canUseTool, toolUseContext) : null
+            yield createSystemMessage(innerError.message + '; reconnecting once before tool execution.', 'warning')
+            attemptWithFallback = true
+            continue
+          }
           if (innerError instanceof FallbackTriggeredError && fallbackModel) {
             // Fallback was triggered - switch model and retry
             currentModel = fallbackModel
@@ -1000,7 +1058,7 @@ async function* queryLoop(
 
       // To help track down bugs, log loudly for ants
       logAntError('Query error', error)
-      const blocked = parkActiveAutoGoal('Model/runtime error: ' + errorMessage.slice(0, 300))
+      const blocked = parkGoal('Model/runtime error: ' + errorMessage.slice(0, 300))
       if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
       return { reason: 'model_error', error }
     }
@@ -1057,7 +1115,8 @@ async function* queryLoop(
           toolUse: false,
         })
       }
-      const blocked = parkActiveAutoGoal('User or caller interrupted the active goal.')
+      const blocked = toolUseContext.abortController.signal.reason === 'interrupt' ? null :
+        parkGoal('User or caller interrupted the active goal.')
       if (blocked) yield createSystemMessage('Autonomous goal paused: ' + blocked, 'warning')
       return { reason: 'aborted_streaming' }
     }
@@ -1270,12 +1329,16 @@ async function* queryLoop(
         yield lastMessage
       }
 
+      let activeGoal = false
+      if (mainGoalThread) {
+        try { activeGoal = readAutoGoal()?.state === 'ACTIVE' } catch { /* Continuation emits the state diagnostic. */ }
+      }
       if (shouldRecoverSilentResponse(
         messagesForQuery,
         assistantMessages,
         toolUseBlocks.length > 0,
         Boolean(lastMessage?.isApiErrorMessage),
-      )) {
+      ) || (activeGoal && !hasVisibleAssistantText(assistantMessages) && !lastMessage?.isApiErrorMessage)) {
         if (silentResponseRecoveryCount < 1) {
           logEvent('tengu_silent_response_recovery', {
             queryChainId: queryChainIdForAnalytics,
@@ -1311,7 +1374,7 @@ async function* queryLoop(
             'The model completed twice without producing a user-visible answer. ' +
             'The turn was stopped instead of silently reporting success.',
         })
-        const blocked = parkActiveAutoGoal('Model returned two empty responses; inspect provider and retry deliberately.')
+        const blocked = parkGoal('Model returned two empty responses; inspect provider and retry deliberately.')
         if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: 'completed' }
       }
@@ -1322,11 +1385,12 @@ async function* queryLoop(
       // error → hook blocking → retry → error → …
       if (lastMessage?.isApiErrorMessage) {
         void executeStopFailureHooks(lastMessage, toolUseContext)
-        const blocked = parkActiveAutoGoal('Model API returned an error; inspect credentials, quotas and provider availability.')
+        const blocked = parkGoal('Model API returned an error; inspect credentials, quotas and provider availability.')
         if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: 'completed' }
       }
 
+      activity({ kind: 'phase', phase: 'stop-hooks' })
       const stopHookResult = yield* handleStopHooks(
         messagesForQuery,
         assistantMessages,
@@ -1339,7 +1403,7 @@ async function* queryLoop(
       )
 
       if (stopHookResult.preventContinuation) {
-        const blocked = parkActiveAutoGoal('Stop hook prevented continuation; inspect the hook decision.')
+        const blocked = parkGoal('Stop hook prevented continuation; inspect the hook decision.')
         if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: 'stop_hook_prevented' }
       }
@@ -1369,6 +1433,13 @@ async function* queryLoop(
         }
         state = next
         continue
+      }
+
+      // Give queued user input, /goal --pause and job notifications back to
+      // the host dispatcher before another autonomous model call. A handoff
+      // leaves the durable goal ACTIVE and consumes no continuation budget.
+      if (mainGoalThread && hasMainThreadQueuedCommand(getCommandQueueSnapshot())) {
+        return { reason: 'completed' }
       }
 
       if (feature('TOKEN_BUDGET')) {
@@ -1423,16 +1494,17 @@ async function* queryLoop(
 
       // A completed model turn is not a completed explicitly opted-in R&D goal.
       // Never override stop hooks, tool permission gates, API errors, or a
-      // caller's explicit maxTurns boundary. Durable batch counters prevent
-      // runaway paid inference across CLI restarts.
+      // caller's explicit maxTurns boundary. Explicit continuation limits and
+      // durable accounting remain in force across CLI restarts.
       const goalDecision = decideAutoGoalContinuation({
-        mainThread: querySource === 'repl_main_thread' && !toolUseContext.agentId,
+        mainThread: mainGoalThread,
         withinTurnBudget: maxTurns === undefined || turnCount < maxTurns,
       })
       if (goalDecision.kind === 'BLOCKED') {
         yield createSystemMessage('Autonomous goal blocked: ' + goalDecision.reason, 'warning')
       }
       if (goalDecision.kind === 'CONTINUE') {
+        activity({ kind: 'phase', phase: 'continuing' })
         state = {
           messages: [
             ...messagesForQuery,
@@ -1442,7 +1514,7 @@ async function* queryLoop(
           toolUseContext,
           autoCompactTracking: tracking,
           maxOutputTokensRecoveryCount: 0,
-          silentResponseRecoveryCount,
+          silentResponseRecoveryCount: 0,
           hasAttemptedReactiveCompact: false,
           maxOutputTokensOverride: undefined,
           pendingToolUseSummary: undefined,
@@ -1459,6 +1531,7 @@ async function* queryLoop(
     let updatedToolUseContext = toolUseContext
 
     queryCheckpoint('query_tool_execution_start')
+    activity({ kind: 'phase', phase: 'tools' })
 
 
     if (streamingToolExecutor) {
@@ -1481,6 +1554,7 @@ async function* queryLoop(
 
     for await (const update of toolUpdates) {
       if (update.message) {
+        activity({ kind: 'progress' })
         yield update.message
 
         if (
@@ -1826,3 +1900,4 @@ async function* queryLoop(
     state = next
   } // while (true)
 }
+

@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-// Explicit opt-in only. A normal /goal is a tracking prompt, not permission to
-// issue unbounded paid API requests. The counter is durable across restarts.
+// A /goal authorizes continued work until REVIEW, an explicit pause, or a
+// concrete blocker. Optional operator limits remain durable across restarts.
 export const AUTO_GOAL_BATCH_LIMIT = 32;
 // Larger budgets require explicit per-goal operator authorization.
 export const MAX_AUTO_GOAL_CONTINUATIONS = 100_000;
@@ -16,7 +16,7 @@ export interface AutoGoalState {
   state: "ACTIVE" | "PAUSED" | "REVIEW";
   continuations: number;
   totalContinuations: number;
-  maxContinuations: number;
+  maxContinuations: number | null;
   updatedAt: string;
   reason: string | null;
 }
@@ -52,8 +52,8 @@ function validate(value: unknown): AutoGoalState {
       !["ACTIVE", "PAUSED", "REVIEW"].includes(v.state) ||
       !Number.isSafeInteger(v.continuations) || v.continuations < 0 ||
       !Number.isSafeInteger(v.totalContinuations) || v.totalContinuations < v.continuations ||
-      !Number.isSafeInteger(v.maxContinuations) || v.maxContinuations < 1 ||
-      v.maxContinuations > MAX_AUTO_GOAL_CONTINUATIONS ||
+      (v.maxContinuations !== null && (!Number.isSafeInteger(v.maxContinuations) ||
+        v.maxContinuations < 1 || v.maxContinuations > MAX_AUTO_GOAL_CONTINUATIONS)) ||
       typeof v.updatedAt !== "string" ||
       (v.reason !== null && typeof v.reason !== "string"))
     throw new Error("Invalid autonomous-goal state (fail closed)");
@@ -86,11 +86,11 @@ function persist(cwd: string, state: AutoGoalState): AutoGoalState {
   return state;
 }
 
-export function enableAutoGoal(goal: string, cwd = process.cwd(), maxContinuations = AUTO_GOAL_BATCH_LIMIT): AutoGoalState {
+export function enableAutoGoal(goal: string, cwd = process.cwd(), maxContinuations: number | null = null): AutoGoalState {
   const text = goal.trim();
   if (!text || Buffer.byteLength(text) > MAX_GOAL_BYTES)
     throw new Error("Autonomous goal must be 1-4096 bytes");
-  if (!Number.isSafeInteger(maxContinuations) || maxContinuations < 1 || maxContinuations > MAX_AUTO_GOAL_CONTINUATIONS)
+  if (maxContinuations !== null && (!Number.isSafeInteger(maxContinuations) || maxContinuations < 1 || maxContinuations > MAX_AUTO_GOAL_CONTINUATIONS))
     throw new Error("Autonomous continuation limit must be 1-100000 (explicit operator budget)");
   return persist(cwd, { schema: 1, goal: text, state: "ACTIVE", continuations: 0,
     totalContinuations: 0, maxContinuations,
@@ -111,15 +111,19 @@ export function resumeAutoGoal(cwd = process.cwd()): AutoGoalState | null {
     reason: null, updatedAt: new Date().toISOString() });
 }
 
-function goalMarkedComplete(dir: string, goal: string): boolean {
+function goalFileOutcome(dir: string, goal: string): { state: 'REVIEW' | 'PAUSED'; reason: string } | null {
   const path = join(dir, "goal.md");
-  if (!existsSync(path)) return false;
+  if (!existsSync(path)) return null;
   const stat = lstatSync(path);
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) return false;
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) return null;
   const text = readFileSync(path, "utf8");
   // A stale goal from another session must not terminate the current one.
-  return text.includes(goal) &&
-    /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?completed(?:\*\*)?\s*$/im.test(text);
+  if (!text.includes(goal)) return null;
+  const status = /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?(completed|blocked)(?:\*\*)?\s*$/im.exec(text)?.[1]?.toLowerCase();
+  if (status === 'completed') return { state: 'REVIEW',
+    reason: 'Goal file declares completion; independent acceptance is still required. Review the verified artifacts.' };
+  const blocker = /^\s*(?:[-*]\s*)?(?:\*\*)?blocker(?:\*\*)?\s*:\s*(\S[^\r\n]*)/im.exec(text)?.[1]?.trim();
+  return status === 'blocked' && blocker ? { state: 'PAUSED', reason: 'Reported unresolved blocker: ' + blocker.slice(0, 768) } : null;
 }
 
 /**
@@ -170,17 +174,18 @@ export function decideAutoGoalContinuation(options: {
       return { kind: "BLOCKED", reason };
     };
     const { dir } = location(cwd);
-    if (goalMarkedComplete(dir, state.goal))
-      return blocked("REVIEW", "Goal file declares completion, but independent acceptance is still required. Inspect verified artifacts before /goal --resume.");
+    const outcome = goalFileOutcome(dir, state.goal);
+    if (outcome) return blocked(outcome.state, outcome.reason);
     if (!options.withinTurnBudget)
       return blocked("PAUSED", "Caller max-turns boundary reached before objective acceptance. Increase the caller limit explicitly, then /goal --resume.");
-    if (state.continuations >= state.maxContinuations)
+    if (state.maxContinuations !== null && state.continuations >= state.maxContinuations)
       return blocked("PAUSED", "Authorized autonomous continuation budget exhausted (" +
         state.maxContinuations + " turns). Use /goal --resume or re-arm with /goal --auto --limit N <goal>.");
     const next = state.continuations + 1;
     persist(cwd, { ...state, continuations: next, totalContinuations: state.totalContinuations + 1,
       updatedAt: new Date().toISOString() });
-    return { kind: "CONTINUE", prompt: "[Host-driven autonomous goal continuation " + next + "/" + state.maxContinuations + "]\n" +
+    return { kind: "CONTINUE", prompt: "[Host-driven autonomous goal continuation " + next +
+      (state.maxContinuations === null ? "" : "/" + state.maxContinuations) + "]\n" +
       "Goal: " + state.goal + "\n" +
       "The previous assistant turn ended but the durable goal is not yet complete. " +
       "Inspect actual artifacts and test results, identify the highest-impact next step, " +
@@ -188,13 +193,28 @@ export function decideAutoGoalContinuation(options: {
       "Preserve checkpoints and avoid duplicate external jobs. Respect all permission prompts, " +
       "cost limits, and immutable acceptance checks. Once independently verified, mark " +
       ".future-code/goal.md with Status: completed for operator REVIEW. " +
-      "If you cannot proceed, report the specific blocker and safe next action." };
+      "For a recoverable obstacle, diagnose and try another supported approach. If no safe approach remains, " +
+      "write Status: blocked and Blocker: <specific cause and attempted recovery> to .future-code/goal.md, " +
+      "then report the blocker and next action to the user." };
   } catch (error) {
     // Fail closed, but NEVER silently treat a corrupt or unwritable state as
     // a completed goal; the parent query must display this diagnostic.
     return { kind: "BLOCKED", reason: "Autonomous-goal state unavailable: " +
       errorDetail(error) + ". Repair state or permissions before resuming." };
   }
+}
+
+/** Output styles change presentation, never the main thread's goal contract. */
+export function isAutoGoalMainThread(querySource: string, agentId?: string, nonInteractive = false): boolean {
+  return !agentId && !nonInteractive &&
+    (querySource === "repl_main_thread" || querySource.startsWith("repl_main_thread:outputStyle:"));
+}
+
+/** An urgent user message hands off the turn; it does not cancel the goal. */
+export function shouldPauseGoalAfterTerminal(reason: string, abortReason?: unknown): boolean {
+  return reason !== 'completed' && !(
+    abortReason === 'interrupt' && (reason === 'aborted_streaming' || reason === 'aborted_tools')
+  );
 }
 
 /** Compatibility adapter for callers that only need the continuation text. */
@@ -204,3 +224,4 @@ export function takeAutoGoalContinuation(options: {
   const decision = decideAutoGoalContinuation(options);
   return decision.kind === "CONTINUE" ? decision.prompt : null;
 }
+

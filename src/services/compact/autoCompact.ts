@@ -24,6 +24,8 @@ import {
 } from './compact.js'
 import { runPostCompactCleanup } from './postCompactCleanup.js'
 import { trySessionMemoryCompaction } from './sessionMemoryCompact.js'
+import { isAutoGoalMainThread, readAutoGoal } from '../../commands/goal/auto.js'
+import { workingContextThreshold } from './workingContextPolicy.js'
 
 // Reserve this many tokens for output during compaction
 // Based on p99.99 of compact summary output being 17,387 tokens.
@@ -69,11 +71,16 @@ export const MANUAL_COMPACT_BUFFER_TOKENS = 3_000
 // in a single session, wasting ~250K API calls/day globally.
 const MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3
 
-export function getAutoCompactThreshold(model: string): number {
+export function getAutoCompactThreshold(model: string, querySource?: QuerySource): number {
   const effectiveContextWindow = getEffectiveContextWindowSize(model)
 
-  const autocompactThreshold =
+  let autocompactThreshold =
     effectiveContextWindow - AUTOCOMPACT_BUFFER_TOKENS
+  let activeGoal = false
+  if (querySource && isAutoGoalMainThread(querySource)) {
+    try { activeGoal = readAutoGoal()?.state === 'ACTIVE' } catch { /* The goal decision surfaces state corruption. */ }
+  }
+  autocompactThreshold = workingContextThreshold(autocompactThreshold, activeGoal)
 
   // Override for easier testing of autocompact
   const envPercent = process.env.FUTURE_AUTOCOMPACT_PCT_OVERRIDE
@@ -223,19 +230,14 @@ export async function shouldAutoCompact(
   }
 
   const tokenCount = tokenCountWithEstimation(messages) - snipTokensFreed
-  const threshold = getAutoCompactThreshold(model)
+  const threshold = getAutoCompactThreshold(model, querySource)
   const effectiveWindow = getEffectiveContextWindowSize(model)
 
   logForDebugging(
     `autocompact: tokens=${tokenCount} threshold=${threshold} effectiveWindow=${effectiveWindow}${snipTokensFreed > 0 ? ` snipFreed=${snipTokensFreed}` : ''}`,
   )
 
-  const { isAboveAutoCompactThreshold } = calculateTokenWarningState(
-    tokenCount,
-    model,
-  )
-
-  return isAboveAutoCompactThreshold
+  return tokenCount >= threshold
 }
 
 export async function autoCompactIfNeeded(
@@ -280,7 +282,7 @@ export async function autoCompactIfNeeded(
     isRecompactionInChain: tracking?.compacted === true,
     turnsSincePreviousCompact: tracking?.turnCounter ?? -1,
     previousCompactTurnId: tracking?.turnId,
-    autoCompactThreshold: getAutoCompactThreshold(model),
+    autoCompactThreshold: getAutoCompactThreshold(model, querySource),
     querySource,
   }
 
@@ -349,3 +351,4 @@ export async function autoCompactIfNeeded(
     return { wasCompacted: false, consecutiveFailures: nextFailures }
   }
 }
+
