@@ -100,6 +100,8 @@ export interface Verification {
   measurement?: Measurement;
 }
 export interface AttemptControl {
+  /** Host monotonic measurements only; nested phases are not wall-clock sums. */
+  timing?(kind: "tool" | "remote-rpc", durationMs: number): void;
   /** Host/adapter observation, NOT correctness evidence. Repeats do not renew
    *  the idle deadline. The hard lease deadline is never extended. */
   progress(fingerprint: string): void;

@@ -9,6 +9,9 @@ import { keys } from "./config.ts";
 import type { Call } from "./context.ts";
 import { SessionJournal } from "./session.ts";
 import { runProcess } from "./process.ts";
+import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
+import { abortable } from "./transport.ts";
+import { performance } from "node:perf_hooks";
 
 /** Host-only polling advice. No effect on remote identity or acceptance. */
 export function nextRemotePollMs(template: Pick<JobTemplate, "pollMs" | "maxPollMs">, idlePolls: number): number {
@@ -154,8 +157,11 @@ export class ResearchJobs {
       journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN stale_at REAL");
     if (!columns.has("idle_polls"))
       journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN idle_polls INTEGER NOT NULL DEFAULT 0");
+    journal.store.db.exec(`CREATE INDEX IF NOT EXISTS research_jobs_run_template ON research_jobs(run,template);
+      CREATE INDEX IF NOT EXISTS research_jobs_live_template ON research_jobs(template) WHERE result_hash IS NULL;`);
   }
-  async execute(c: Capsule, profile: AgentProfile, call: Call, signal: AbortSignal): Promise<Json> {
+  async execute(c: Capsule, profile: AgentProfile, call: Call, signal: AbortSignal,
+    onRpc?: (durationMs: number) => void): Promise<Json> {
     this.journal.assertLease(c); signal.throwIfAborted();
     keys(call.arguments, ["name", "input"]);
     const name = call.arguments.name;
@@ -182,7 +188,8 @@ export class ResearchJobs {
           throw new FatalAttemptError("OBJECTIVE_JOB_BUDGET_EXHAUSTED");
       }
       const live = store.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE template=? AND result_hash IS NULL").get(name)!.n;
-      if (live >= template.maxConcurrent) throw new DeferredAttemptError("remote-job", Date.now() + template.pollMs, `Remote capacity busy for ${name}; no new job submitted`);
+      if (live >= template.maxConcurrent) throw new DeferredAttemptError("remote-job", Date.now() + template.pollMs,
+        `Remote capacity busy for ${name}; no new job submitted`, { template: name, maxConcurrent: template.maxConcurrent });
       const now = Date.now();
       store.db.prepare(`INSERT INTO research_jobs
         (key,run,task,template,input_hash,created,progress_at,progress_token,poll_at,failures,job_id,status,result_hash,updated,reconciliation_hash,progress_rank,stale_at,idle_polls)
@@ -203,7 +210,12 @@ export class ResearchJobs {
     const request = { schema: 1, operation: row.job_id ? "inspect" : "ensure", key, jobId: row.job_id ?? null,
       input, inputHash: binding, baseCommit: this.cfg.baseCommit } as Json;
     let raw: unknown;
-    try { raw = await this.rpc(command, this.cfg, request, signal); }
+    try {
+      const started = performance.now();
+      const bounded = createCombinedAbortSignal(signal, { timeoutMs: this.cfg.spec.budget.toolTimeoutMs });
+      try { raw = await abortable(this.rpc(command, this.cfg, request, bounded.signal), bounded.signal); }
+      finally { bounded.cleanup(); onRpc?.(Math.max(0, performance.now() - started)); }
+    }
     catch (e) {
       signal.throwIfAborted(); this.journal.assertLease(c);
       if (e instanceof FatalAttemptError) throw e;
@@ -258,6 +270,7 @@ export class ResearchJobs {
       // manufacture progress.
       if (changed || row.status !== v.status || row.job_id !== v.jobId) store.event("job.observed",
         { key, jobId: v.jobId, status: v.status, progress: changed, receipt }, c.runId, c.task.id);
+      if (terminal) this.releaseCapacity(name, now);
     });
     if (terminal) return v as unknown as Json;
     row = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
@@ -298,10 +311,21 @@ export class ResearchJobs {
       invariant(!current.job_id || current.job_id === reply.jobId, "remote job identity changed");
       store.db.prepare("UPDATE research_jobs SET job_id=?,status=?,result_hash=?,poll_at=?,updated=?,reconciliation_hash=? WHERE run=? AND key=?")
         .run(reply.jobId, reply.status, receipt, now, now, reconciliationHash, run, key);
+      store.db.prepare("UPDATE task_waits SET wake=MIN(wake,?) WHERE run=? AND task=? AND kind IN ('remote-job','remote-stalled')")
+        .run(now, run, row.task);
       store.event("job.reconciled", { key, jobId: reply.jobId, status: reply.status,
         receipt, reconciliationHash }, run, row.task);
+      this.releaseCapacity(String(row.template), now);
     });
     return reply as unknown as Json;
+  }
+  private releaseCapacity(template: string, now: number): void {
+    // Only capacity waiters become eligible. A running job retains its own
+    // identity, inspect deadline and semantic-progress policy.
+    const store = this.journal.store;
+    const released = store.db.prepare("UPDATE task_waits SET wake=MIN(wake,?) WHERE kind='remote-job' AND reason=?")
+      .run(now, `Remote capacity busy for ${template}; no new job submitted`);
+    if (released.changes) store.event("job.capacity.released", { template, waiters: Number(released.changes) });
   }
   list(run: string): Json {
     const rows = this.journal.store.db.prepare(`SELECT key,task,template,job_id,status,progress_at,stale_at,progress_rank,poll_at,idle_polls,failures,result_hash,reconciliation_hash,updated

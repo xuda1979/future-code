@@ -7,6 +7,7 @@ import { canonical, combineMeasurements, digest, invariant, validMeasurement, ve
 import { ProgressWindow } from "./productivity.ts";
 import { Scheduler } from "./scheduler.ts";
 import { Store } from "./store.ts";
+import { recordAttemptTiming, type AttemptTiming } from "./executionProfile.ts";
 import type { AttemptControl, Driver, Json, Lease, Measurement, RunSummary, Task } from "./types.ts";
 
 async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver, outer?: AbortSignal): Promise<void> {
@@ -19,6 +20,13 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
   const recipe = store.recipe(lease.recipeHash);
   const progress = new ProgressWindow(t0);
   let stage: "prepare" | "execute" | "verify" = "prepare";
+  const timing: AttemptTiming = { prepareMs: 0, executeMs: 0, verifyMs: 0,
+    toolMs: 0, remoteRpcMs: 0, toolCalls: 0, remoteRpcs: 0 };
+  let stageStarted = t0;
+  const enterStage = (next: typeof stage) => {
+    const now = performance.now(); timing[`${stage}Ms`] += Math.max(0, now - stageStarted);
+    stage = next; stageStarted = now;
+  };
   let artifactHash: string | null = null; let verificationHash: string | null = null;
   let closed = false;
   const armIdle = () => {
@@ -27,7 +35,12 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
       controller.abort(new Error(`NO_PROGRESS: ${stage}; split the task or repair the adapter`));
     }, recipe.noProgressMs);
   };
-  const control: AttemptControl = { progress(fingerprint) {
+  const control: AttemptControl = { timing(kind, durationMs) {
+    if (closed) return;
+    invariant(Number.isFinite(durationMs) && durationMs >= 0, "invalid operation timing");
+    if (kind === "tool") { timing.toolMs += durationMs; timing.toolCalls++; }
+    else { timing.remoteRpcMs += durationMs; timing.remoteRpcs++; }
+  }, progress(fingerprint) {
     if (closed || controller.signal.aborted) return;
     invariant(typeof fingerprint === "string" && fingerprint.length > 0 &&
       Buffer.byteLength(fingerprint, "utf8") <= 256, "invalid progress fingerprint");
@@ -45,14 +58,14 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
     const capsule = scheduler.capsule(lease);
     const contract = store.contract();
     invariant(driver.verifierId === contract.verifierId && driver.workerId === contract.workerId, "driver identity mismatch");
-    stage = "execute"; scheduler.activity(lease, stage); armIdle();
+    enterStage("execute"); scheduler.activity(lease, stage); armIdle();
     const result = await driver.execute(capsule, controller.signal, control);
     if (controller.signal.aborted) throw controller.signal.reason;
     invariant(Buffer.byteLength(canonical(result.artifact), "utf8") <= contract.limits.outputBytes, "worker artifact exceeds output budget");
     artifactHash = digest(result.artifact);
     // A producer's success string is not an acceptance result. Verification is
     // also bounded: a hung test process cannot occupy a slot indefinitely.
-    stage = "verify"; scheduler.activity(lease, stage); armIdle();
+    enterStage("verify"); scheduler.activity(lease, stage); armIdle();
     const check = await driver.verify(capsule, result, controller.signal, control);
     if (controller.signal.aborted) throw controller.signal.reason;
     invariant(Buffer.byteLength(canonical(check), "utf8") <= contract.limits.outputBytes, "verifier output exceeds output budget");
@@ -98,9 +111,10 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
     if (idleTimer) clearTimeout(idleTimer);
     if (timer) clearTimeout(timer); if (abortHandler) controller.signal.removeEventListener("abort", abortHandler);
     outer?.removeEventListener("abort", cancel);
+    timing[`${stage}Ms`] += Math.max(0, performance.now() - stageStarted);
+    recordAttemptTiming(store, lease.runId, lease.taskId, lease.fence, timing);
   }
 }
-
 /** Bounded DAG execution; a different process may claim the same run safely. */
 export async function runTasks(store: Store, tasks: Task[], driver: Driver,
   options: { recipeHash?: string; resumeRun?: string; signal?: AbortSignal; onProgress?: HealthObserver; reportEveryMs?: number } = {}): Promise<RunSummary> {
@@ -137,8 +151,14 @@ export async function runTasks(store: Store, tasks: Task[], driver: Driver,
   let idleMs = 25;
   try {
     while (!options.signal?.aborted) {
+      // Observe before inspecting/claiming state so a commit between inspection
+      // and registration cannot be lost. Cross-process hints use data_version.
+      const observed = store.observeChanges();
       if (active.size < recipe.parallelism) {
         const leases = scheduler.claimMany(runId, owner, recipe.parallelism - active.size);
+        // Ignore our synchronous claim notifications; retain data_version from
+        // before the claim so another process's commit still cannot be missed.
+        observed.revision = store.localRevision();
         for (const lease of leases) {
           const controller = new AbortController(); controllers.add(controller);
           if (options.signal?.aborted) controller.abort(options.signal.reason);
@@ -156,14 +176,15 @@ export async function runTasks(store: Store, tasks: Task[], driver: Driver,
           // A remote worker can unlock a child while a local worker is still
           // running. Refill spare slots without waiting for that local straggler.
           const wake = new AbortController();
-          try { await Promise.race([...active, idleWait(250, wake.signal)]); }
+          try { await Promise.race([...active, store.waitForChange(observed, 250, wake.signal)]); }
           finally { wake.abort(); }
         } else await Promise.race(active);
       }
       else {
         // Same-process completions are event-driven. Cross-process claims use
         // bounded backoff (at most 250 ms), rather than constant busy polling.
-        await idleWait(scheduler.suggestIdleWaitMs(runId, idleMs), options.signal); idleMs = Math.min(250, idleMs * 2);
+        await store.waitForChange(observed, scheduler.suggestIdleWaitMs(runId, idleMs), options.signal);
+        idleMs = Math.min(250, idleMs * 2);
       }
     }
     await Promise.all(active);
@@ -174,14 +195,4 @@ export async function runTasks(store: Store, tasks: Task[], driver: Driver,
     options.signal?.removeEventListener("abort", cancelAll);
     cancelAll(); await Promise.allSettled(active);
   }
-}
-
-function idleWait(ms: number, signal?: AbortSignal): Promise<void> {
-  if (signal?.aborted) return Promise.resolve();
-  return new Promise(resolve => {
-    const done = () => { clearTimeout(timer); signal?.removeEventListener("abort", done); resolve(); };
-    const timer = setTimeout(done, ms);
-    signal?.addEventListener("abort", done, { once: true });
-    if (signal?.aborted) done();
-  });
 }

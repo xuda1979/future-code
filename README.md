@@ -104,6 +104,7 @@ Missing token or dollar measurements remain unknown.
 | Provider cooldowns, recovery probes and bounded transport | [External API recovery](docs/agent-platform/PROVIDER_RECOVERY.md) |
 | Evidence and allocation | [Evidence Fabric](docs/agent-platform/EVIDENCE_FABRIC.md) |
 | Measured self-reflection | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
+| Execution timings, context retirement and resource wakeups | [Execution productivity](docs/agent-platform/EXECUTION_PRODUCTIVITY.md) |
 | Empirical strategy learning | [Intervention memory](docs/agent-platform/INTERVENTION_MEMORY.md) |
 | Current regression and real-source evidence | [Validation](docs/agent-platform/SOVEREIGN_VALIDATION.md) |
 | Full terminal CLI setup | [Linux deployment](DEPLOY-LINUX.md), [onboarding](ONBOARDING.md) |

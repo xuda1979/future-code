@@ -3,7 +3,7 @@ import { DeferredAttemptError } from "../continuation.ts";
 import { FatalAttemptError } from "../errors.ts";
 import type { Capsule, Json } from "../types.ts";
 import type { AgentProfile, Protocol, ProviderRoute, SwarmBudget, ToolName } from "./config.ts";
-import { bytes, compactHistory, type Call, type Message, type ProgressCheckpoint } from "./context.ts";
+import { bytes, compactHistory, retireToolPreviews, type Call, type Message, type ProgressCheckpoint } from "./context.ts";
 import { SessionJournal } from "./session.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
 import { transientStatus } from "./providerRecovery.ts";
@@ -150,7 +150,15 @@ export class HttpBrain {
     // Enforce the actual provider input, including system and tool definitions.
     if (bytes(body) > contextBytes) {
       const overhead = bytes(requestBody(profile, [], budget));
-      projection = compactHistory(history, Math.max(0, contextBytes - overhead - 512), progress);
+      const remaining = Math.max(0, contextBytes - overhead - 512);
+      try { projection = compactHistory(history, remaining, progress); }
+      catch (e) {
+        if (!(e instanceof Error) || !e.message.startsWith("CONTEXT_OVERFLOW")) throw e;
+        if (!profile.tools.includes("recall")) throw new FatalAttemptError(
+          "CONTEXT_OVERFLOW: retiring tool previews requires the admitted recall capability; split the task or configure recall");
+        try { projection = compactHistory(retireToolPreviews(history), remaining, progress); }
+        catch (e) { throw new FatalAttemptError(e instanceof Error ? e.message : "CONTEXT_OVERFLOW"); }
+      }
       body = requestBody(profile, projection, budget);
     }
     if (bytes(body) > contextBytes) throw new FatalAttemptError("CONTEXT_OVERFLOW: encoded provider request exceeds admitted context");

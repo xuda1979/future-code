@@ -1,6 +1,7 @@
 import { canonical, digest, invariant } from "./kernel.ts";
 import type { Store } from "./store.ts";
 import type { Json } from "./types.ts";
+import { executionProfile } from "./executionProfile.ts";
 
 export type ReflectionSeverity = "HIGH" | "MEDIUM" | "LOW";
 export interface ReflectionFinding {
@@ -56,7 +57,7 @@ function attemptRows(store: Store, run: string): Record<string, any>[] {
 
 function requestRows(store: Store, run: string): Record<string, any>[] {
   if (!tableExists(store, "agent_requests")) return [];
-  return store.db.prepare("SELECT provider,status,bytes,tokens FROM agent_requests WHERE run=? ORDER BY started,id").all(run);
+  return store.db.prepare("SELECT task,provider,status,bytes,tokens FROM agent_requests WHERE run=? ORDER BY started,id").all(run);
 }
 
 function externalJobRows(store: Store, run: string): Record<string, any>[] {
@@ -99,6 +100,14 @@ function summaryForRun(store: Store, run: string): Record<string, any> {
   const recipe = store.recipe(String(runRow.recipe));
   const maxContextBytes = attempts.reduce((max, row) => Math.max(max, Number(row.context_bytes ?? 0)), 0);
   const contextPressure = recipe.contextBytes > 0 ? maxContextBytes / recipe.contextBytes : 0;
+  const contextLimits = new Map<string, number>();
+  if (tableExists(store, "agent_threads")) for (const row of store.db.prepare("SELECT task,state FROM agent_threads WHERE run=?").all(run)) {
+    const state = store.readArtifact(String(row.state)) as any;
+    if (Number.isSafeInteger(state.contextLimit) && state.contextLimit > 0) contextLimits.set(String(row.task), state.contextLimit);
+  }
+  const providerContextPressure = requests.reduce((max, row) => Math.max(max,
+    Number(row.bytes) / (contextLimits.get(String(row.task)) ?? recipe.contextBytes)), 0);
+  const measuredExecution = executionProfile(store, run, end);
   const grouped = new Map<string, number>();
   for (const row of attempts) {
     if (!row.failure_fingerprint) continue;
@@ -117,7 +126,8 @@ function summaryForRun(store: Store, run: string): Record<string, any> {
     requestBytes: requests.reduce((sum, row) => sum + Number(row.bytes ?? 0), 0),
     attemptTokens, providerTokens, costUsd, wallClockMs,
     externalJobs: jobs.length, unresolvedExternalJobs, openConflicts: conflictCount(store, run),
-    maxContextBytes, contextBudgetBytes: recipe.contextBytes, contextPressure,
+    maxContextBytes, contextBudgetBytes: recipe.contextBytes, contextPressure, providerContextPressure,
+    execution: measuredExecution,
     maxRepeatedFailure, repeatedFailureTasks,
     verifiedFraction: tasks.length ? verifiedTasks / tasks.length : 0,
     verifiedPerAttempt: safeRatio(verifiedTasks, attempts.length),
@@ -150,10 +160,29 @@ function findingsFor(summary: Record<string, any>, previous: Record<string, any>
     "evidence_conflict", "HIGH", json({ openConflicts: summary.openConflicts }),
     "Run a discriminating verification or experiment that resolves the contradictory evidence before claiming progress.",
   ));
-  if (summary.contextPressure >= 0.9 && summary.maxContextBytes > 0) out.push(finding(
-    "context_pressure", summary.contextPressure >= 1 ? "HIGH" : "MEDIUM",
-    json({ maxContextBytes: summary.maxContextBytes, contextBudgetBytes: summary.contextBudgetBytes, ratio: summary.contextPressure }),
+  if (Math.max(summary.contextPressure, summary.providerContextPressure) >= 0.9) out.push(finding(
+    "context_pressure", Math.max(summary.contextPressure, summary.providerContextPressure) >= 1 ? "HIGH" : "MEDIUM",
+    json({ maxContextBytes: summary.maxContextBytes, contextBudgetBytes: summary.contextBudgetBytes,
+      capsuleRatio: summary.contextPressure, providerInputRatio: summary.providerContextPressure }),
     "Split the task or narrow dependency views so the next worker receives a smaller causal context instead of another near-limit prompt.",
+  ));
+  const measured = summary.execution;
+  const provider = measured?.provider;
+  if (provider?.measuredWaits >= 4 && provider.admissionWaitMs >= 500 &&
+      provider.admissionWaitMs >= (provider.responseMs ?? 0) * 0.25) out.push(finding(
+    "provider_admission_pressure", "MEDIUM", json(provider),
+    "The host measured permit waiting. Share quota pools consistently, reduce simultaneous provider-bound work, and keep independent tools or remote experiments productive while permits are occupied. Do not raise quotas without operator authority.",
+  ));
+  const phases = measured?.phaseWorkerMs;
+  if (measured?.measuredAttempts >= 3 && phases?.verify >= 1000 &&
+      phases.verify >= phases.execute) out.push(finding(
+    "verification_dominated", "MEDIUM", json(measured),
+    "Use change-aware exploratory checkpoints and reuse exact diagnostic receipts. Preserve every frozen acceptance and final integration check.",
+  ));
+  if (measured?.toolCalls >= 4 && phases?.toolsWithinExecute >= 1000 &&
+      phases.toolsWithinExecute >= phases.execute * 0.5) out.push(finding(
+    "tool_latency_dominated", "MEDIUM", json(measured),
+    "Batch genuinely independent remote jobs in one turn and use durable ensure/inspect adapters. Narrow expensive diagnostics using receipts before another tool cycle; preserve idempotency and scope checks.",
   ));
   if (summary.attempts >= 3 && (summary.verifiedPerAttempt ?? 0) < 0.34) out.push(finding(
     "low_verified_yield", summary.verifiedTasks === 0 ? "HIGH" : "MEDIUM",

@@ -5,6 +5,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { checkPins, pinCommand } from "../commands.ts";
 import { canonical, digest, invariant, validateTasks } from "../kernel.ts";
 import { runTasks } from "../runtime.ts";
+import { executionProfile } from "../executionProfile.ts";
 import { Scheduler } from "../scheduler.ts";
 import { Store } from "../store.ts";
 import type { Capsule, Contract, Json, Task } from "../types.ts";
@@ -89,7 +90,7 @@ export async function runSwarm(store: Store, tasks: Task[], signal: AbortSignal,
   const backend = cfg.handsId === remoteWorkerFleetBackend.id ? remoteWorkerFleetBackend : undefined;
   const driver = new SwarmDriver(store, cfg, fetcher, backend);
   const summary = await runTasks(store, tasks, driver, { signal, resumeRun, onProgress, reportEveryMs: cfg.spec.supervision?.reportEveryMs });
-  return json({ ...summary, providerUsage: driver.journal.usage(summary.id), baseCommit: cfg.baseCommit,
+  return json({ ...summary, providerUsage: driver.journal.usage(summary.id), productivity: executionProfile(store, summary.id), baseCommit: cfg.baseCommit,
     note: "Acceptance is per-task. Run integrate for cross-task checks. Monetary cost is unknown without a trusted price meter." });
 }
 export function swarmStatus(store: Store, run?: string, after = ""): Json {

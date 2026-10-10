@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { DeferredAttemptError } from "../continuation.ts";
 import { ensureRunFabric } from "../evidenceFabric.ts";
-import { setTimeout as delay } from "node:timers/promises";
 import { canonical, digest, identifier, invariant, validateTasks } from "../kernel.ts";
 import { runHealth, type HealthObserver } from "../health.ts";
 import { Scheduler } from "../scheduler.ts";
@@ -17,6 +16,8 @@ import { evaluateInterventionOutcomes, installInterventionMemoryTables, interven
 import { requireAdmission, submitProposal } from "../proposals.ts";
 import { claimGate } from "../claims.ts";
 import { contextualInterventionPolicy, recoveryFeatures } from "../contextualPolicy.ts";
+import { objectiveRequestTotals } from "./requestAccounting.ts";
+import { SessionJournal } from "./session.ts";
 
 export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
 export interface RecoveryContext {
@@ -125,6 +126,7 @@ export function installObjectives(store: Store): void {
     CREATE TABLE IF NOT EXISTS swarm_objective_completions(
       objective TEXT PRIMARY KEY, run TEXT NOT NULL, attestation TEXT NOT NULL,
       created REAL NOT NULL);`);
+  store.db.exec(`CREATE INDEX IF NOT EXISTS swarm_objective_revision_run ON swarm_objective_revisions(run,objective);`);
   installRndEpisodeTables(store);
   installRndReflectionTables(store);
   installInterventionMemoryTables(store);
@@ -137,7 +139,7 @@ export function installObjectives(store: Store): void {
     store.db.exec("ALTER TABLE swarm_recovery_attempts ADD COLUMN addressed_findings TEXT");
 }
 export function objectiveStatus(store: Store, id: string): Json {
-  installObjectives(store); identifier(id);
+  installObjectives(store); identifier(id); new SessionJournal(store);
   const r = store.db.prepare("SELECT id,goal,run,state,reason,updated,lease FROM swarm_objectives WHERE id=?").get(id);
   invariant(r, "unknown objective");
   const revision = store.db.prepare("SELECT MAX(revision) AS n FROM swarm_objective_revisions WHERE objective=?").get(id)?.n ?? 0;
@@ -152,18 +154,14 @@ export function objectiveStatus(store: Store, id: string): Json {
   const completion = store.db.prepare(
     "SELECT run,attestation,created FROM swarm_objective_completions WHERE objective=?"
   ).get(id);
-  const usage = store.db.prepare(`SELECT COUNT(*) AS requests,COALESCE(SUM(bytes),0) AS request_bytes
-    FROM agent_requests WHERE run IN (
-      SELECT run FROM swarm_objective_revisions WHERE objective=?
-      UNION SELECT run FROM swarm_objectives WHERE id=? AND run IS NOT NULL
-    )`).get(id, id) ?? { requests: 0, request_bytes: 0 };
+  const usage = objectiveRequestTotals(store, id);
   const evidenceGate = r.run && store.db.prepare("SELECT 1 FROM runs WHERE id=?").get(r.run)
     ? objectiveEvidenceGate(store, String(r.run), id) : null;
   const cfg = loadSwarm(store);
   const jobBudget = objectiveJobUsage(store, cfg, id);
   return { ...(r as Record<string, Json>), revision, recovery: (recovery ?? null) as Json,
     budget: budget ? { maxRequests: budget.max_requests, maxRequestBytes: budget.max_request_bytes,
-      usedRequests: usage.requests, usedRequestBytes: usage.request_bytes } : null,
+      usedRequests: usage.requests, usedRequestBytes: usage.bytes } : null,
     evidenceGate: evidenceGate as unknown as Json,
     jobBudget: jobBudget as unknown as Json,
     episode: objectiveEpisodeStatus(store, id),
@@ -462,6 +460,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     }
     transition("RUNNING"); report();
     for (;;) {
+      const observed = store.observeChanges();
       controller.signal.throwIfAborted(); row = assertOwner();
       const runStatus = new Scheduler(store).status(row.run);
       if (runStatus === "RUNNING") {
@@ -540,7 +539,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         "SELECT retry_at FROM swarm_recovery_attempts WHERE objective=? AND run=? AND state='STARTED'"
       ).get(input.id, row.run)?.retry_at : null;
       const retryDelay = retry == null ? reportDelay : Math.max(1, Number(retry) - Date.now());
-      await delay(Math.min(reportDelay, retryDelay), undefined, { signal: controller.signal });
+      await store.waitForChange(observed, Math.min(reportDelay, retryDelay), controller.signal);
     }
   } catch (e) {
     if (signal.aborted) { transition("PAUSED", "Operator paused supervision; remote jobs are not cancelled."); report(); return { status: "PAUSED", objective: objectiveStatus(store, input.id) }; }

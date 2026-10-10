@@ -17,6 +17,7 @@ import { requireAdmission, submitProposal } from "../proposals.ts";
 import { claimsForGoals, proposeClaim, proposeClaimConflict, type ClaimInput } from "../claims.ts";
 import { validateToolProposal } from "./toolAdmission.ts";
 import { CohortBoard, type FindingInput } from "./cohorts.ts";
+import { performance } from "node:perf_hooks";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -99,6 +100,12 @@ export class SwarmDriver implements Driver {
     }
     const hands = this.backend.open(this.store, this.cfg, c, profile, signal, t.state.patchHash);
     const budget = this.cfg.spec.budget;
+    const timedTool = async <T>(work: () => Promise<T>): Promise<T> => {
+      const started = performance.now();
+      try { return await work(); } finally { control?.timing?.("tool", Math.max(0, performance.now() - started)); }
+    };
+    const runJob = (call: Call) => timedTool(() => jobs!.execute(c, profile, call, signal,
+      ms => control?.timing?.("remote-rpc", ms)));
     const admitCall = (call: Call) => {
       const kind = call.name === "spawn_tasks" ? "SPAWN" : call.name === "propose_claim" ? "CLAIM" :
         call.name === "propose_conflict" ? "CONFLICT" : "TOOL_CALL";
@@ -149,7 +156,7 @@ export class SwarmDriver implements Driver {
             });
             control?.activity?.(`remote-batch:launch:${remoteBatch.length}`);
             const outcomes = await Promise.allSettled(
-              remoteBatch.map(call => jobs.execute(c, profile, call, signal))
+              remoteBatch.map(runJob)
             );
             const deferred: DeferredAttemptError[] = [];
             let terminalError: Error | null = null;
@@ -167,13 +174,14 @@ export class SwarmDriver implements Driver {
                 }
                 const result: Json = { error: error instanceof Error ? error.message.slice(0, 2048) : "tool error" };
                 const receipt = this.journal.receipt(c, result);
-                t.state.history.push({ role: "tool", callId: call.id, content: inlineReceipt(receipt, result) });
+                t.state.history.push({ role: "tool", callId: call.id, receipt, content: inlineReceipt(receipt, result) });
                 this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
                 continue;
               }
               const result = outcome.value;
               const receipt = this.journal.receipt(c, result);
-              t.state.history.push({ role: "tool", callId: call.id, content: inlineReceipt(receipt, result) });
+              t.state.lastJobReceipt = receipt;
+              t.state.history.push({ role: "tool", callId: call.id, receipt, content: inlineReceipt(receipt, result) });
               this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
             }
             if (stillPending.length) t.state.pendingBatch = stillPending;
@@ -185,8 +193,9 @@ export class SwarmDriver implements Driver {
             if (terminalError) throw terminalError;
             if (deferred.length) {
               const wakeAt = Math.min(...deferred.map(error => error.wakeAt));
+              const capacity = deferred.find(error => error.capacity);
               throw new DeferredAttemptError("remote-job", wakeAt,
-                `${stillPending.length} remote experiment(s) still running; batch resume scheduled`);
+                capacity?.message ?? `${stillPending.length} remote experiment(s) still running; batch resume scheduled`, capacity?.capacity);
             }
             control?.activity?.(`remote-batch:completed:${remoteBatch.length}`);
             continue;
@@ -254,7 +263,7 @@ export class SwarmDriver implements Driver {
                 result = { childIds: spawned.childIds, verified: spawned.dependencies };
               } else if (call.name === "run_job") {
                 invariant(jobs, "no remote job templates configured");
-                result = await jobs.execute(c, profile, call, signal);
+                result = await runJob(call);
               } else if (call.name === "propose_claim") {
                 result = toJson(proposeClaim(this.store, c.runId, c.task.id, call.arguments as unknown as ClaimInput, proposalId));
               } else if (call.name === "propose_conflict") {
@@ -291,7 +300,7 @@ export class SwarmDriver implements Driver {
                   invariant(a.offset === undefined && a.length === undefined && (a.limit === undefined || (Number.isInteger(a.limit) && (a.limit as number) <= 10)), "invalid history recall");
                   result = this.journal.historyPage(c, a.historyAfter as number | undefined, a.limit as number | undefined);
                 }
-              } else result = await hands.tool(call);
+              } else result = await timedTool(() => hands.tool(call));
             } catch (e) {
               signal.throwIfAborted();
               // Atomic spawn deferral intentionally invalidates the current lease
@@ -309,7 +318,8 @@ export class SwarmDriver implements Driver {
             }
             if (admitted && call.name === "run_check") { t.state.lastCheckAt = Date.now(); control?.checked?.(); }
             const receipt = this.journal.receipt(c, result);
-            t.state.history.push({ role: "tool", callId: call.id, content: inlineReceipt(receipt, result) });
+            if (admitted && call.name === "run_job") t.state.lastJobReceipt = receipt;
+            t.state.history.push({ role: "tool", callId: call.id, receipt, content: inlineReceipt(receipt, result) });
             t.state.pending = null; this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
             control?.activity?.(`completed:${call.name}`);
           }
@@ -336,7 +346,8 @@ export class SwarmDriver implements Driver {
           this.journal.checkpoint(t, "episode.recovery", { fence: c.fence });
         }
         const checkEvery = this.cfg.spec.supervision?.checkpointEveryMs;
-        const checkpointKey = checkpointInputKey(t.state.patchHash, t.state.feedbackHash ? 1 : 0);
+        const checkpointKey = checkpointInputKey(t.state.patchHash, t.state.feedbackHash ? 1 : 0,
+          digest({ feedback: t.state.feedbackHash, jobReceipt: t.state.lastJobReceipt ?? null }));
         if (checkEvery && shouldRunExploratoryCheckpoint(t.state.lastExploratoryCheckpointKey, checkpointKey, this.cfg.spec.supervision?.checkpointCadence) &&
             !(t.state.history.at(-1)?.role === "assistant" && !t.state.history.at(-1)?.calls?.length) && Date.now() - t.state.lastCheckAt! >= checkEvery) {
           // Safe tool boundary: do not interrupt a healthy remote experiment.
@@ -347,10 +358,12 @@ export class SwarmDriver implements Driver {
           const effect = toolEffectContract(this.cfg, "run_check", call.arguments);
           this.journal.checkpoint(t, "tool.effect", { callId: call.id, ...effect });
           let check: Json;
-          try { check = await hands.tool(call); } catch (e) { signal.throwIfAborted(); check = { error: e instanceof Error ? e.message.slice(0, 512) : "checkpoint check failed" }; }
+          try { check = await timedTool(() => hands.tool(call)); } catch (e) { signal.throwIfAborted(); check = { error: e instanceof Error ? e.message.slice(0, 512) : "checkpoint check failed" }; }
           t.state.patchHash = await hands.snapshot();
           const receipt = this.journal.receipt(c, check); t.state.lastCheckAt = Date.now();
-          t.state.lastExploratoryCheckpointKey = checkpointKey; control?.checked?.();
+          t.state.lastExploratoryCheckpointKey = checkpointInputKey(t.state.patchHash, t.state.feedbackHash ? 1 : 0,
+            digest({ feedback: t.state.feedbackHash, jobReceipt: t.state.lastJobReceipt ?? null }));
+          control?.checked?.();
           t.state.history.push({ role: "user", content: canonical({ checkpointCheck: inlineReceipt(receipt, check), instruction: "Use this diagnostic to choose a smaller next step. This is not final acceptance." }) });
           this.journal.checkpoint(t, "checkpoint.checked", { receipt, patchHash: t.state.patchHash });
         }

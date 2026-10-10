@@ -7,12 +7,15 @@ import type { Capsule, Json, Verification } from "../types.ts";
 import type { Call, Message, ProgressCheckpoint } from "./context.ts";
 import type { SwarmBudget } from "./config.ts";
 import { ProviderRecovery } from "./providerRecovery.ts";
+import { installRequestAccounting, objectiveRequestTotals, runRequestTotals } from "./requestAccounting.ts";
+import { performance } from "node:perf_hooks";
 
 export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
 export interface ThreadState {
   lastFence?: number;
   lastCheckAt?: number;
   lastExploratoryCheckpointKey?: string;
+  lastJobReceipt?: string;
   recoveryNote?: string;
   history: Message[];
   progress?: ProgressCheckpoint;
@@ -68,12 +71,8 @@ function objectiveRequestBudget(store: Store, run: string, incomingBytes: number
     "SELECT max_requests,max_request_bytes FROM swarm_objective_budgets WHERE objective=?"
   ).get(objective);
   if (!limits) return;
-  const used = store.db.prepare(`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM agent_requests
-    WHERE run IN (
-      SELECT run FROM swarm_objective_revisions WHERE objective=?
-      UNION SELECT run FROM swarm_objectives WHERE id=? AND run IS NOT NULL
-    )`).get(objective, objective)!;
-  if (used.n >= limits.max_requests || used.bytes + incomingBytes > limits.max_request_bytes)
+  const used = objectiveRequestTotals(store, String(objective));
+  if (used.requests >= limits.max_requests || used.bytes + incomingBytes > limits.max_request_bytes)
     throw new FatalAttemptError("OBJECTIVE_REQUEST_BUDGET_EXHAUSTED");
 }
 
@@ -100,6 +99,10 @@ export class SessionJournal {
       CREATE TABLE IF NOT EXISTS agent_replies(run TEXT NOT NULL, task TEXT NOT NULL, step INTEGER NOT NULL, body TEXT NOT NULL, response TEXT NOT NULL, PRIMARY KEY(run,task,step));
       CREATE TABLE IF NOT EXISTS agent_cooldowns(provider TEXT PRIMARY KEY, until_ms REAL NOT NULL);
     `);
+    const columns = new Set(store.db.prepare("PRAGMA table_info(agent_requests)").all().map(r => String(r.name)));
+    if (!columns.has("finished")) store.db.exec("ALTER TABLE agent_requests ADD COLUMN finished REAL");
+    if (!columns.has("wait_ms")) store.db.exec("ALTER TABLE agent_requests ADD COLUMN wait_ms REAL");
+    installRequestAccounting(store);
     this.providerRecovery = new ProviderRecovery(store);
   }
   assertLease(c: Capsule, now = Date.now()): void {
@@ -203,6 +206,7 @@ export class SessionJournal {
     return this.store.db.prepare("SELECT hash FROM agent_feedback WHERE run=? AND task=?").get(c.runId, c.task.id)?.hash ?? null;
   }
   async reserve(c: Capsule, provider: string, body: Json, budget: SwarmBudget, signal: AbortSignal): Promise<string> {
+    const waitingSince = performance.now();
     const count = Buffer.byteLength(canonical(body)); const request = this.store.artifact(body);
     for (;;) {
       signal.throwIfAborted();
@@ -210,16 +214,19 @@ export class SessionJournal {
         this.assertLease(c); const now = Date.now();
         // A lost RPC is unknown spend, never a refund or a known-zero request.
         this.store.db.prepare("UPDATE agent_requests SET status='UNKNOWN' WHERE status='ACTIVE' AND deadline<=?").run(now);
-        const used = this.store.db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM agent_requests WHERE run=?").get(c.runId)!;
-        if (used.n >= budget.maxRequests || used.bytes + count > budget.maxRequestBytes) throw new FatalAttemptError("RUN_REQUEST_BUDGET_EXHAUSTED");
+        const used = runRequestTotals(this.store, c.runId);
+        if (used.requests >= budget.maxRequests || used.bytes + count > budget.maxRequestBytes) throw new FatalAttemptError("RUN_REQUEST_BUDGET_EXHAUSTED");
         objectiveRequestBudget(this.store, c.runId, count);
         const wake = this.providerRecovery.ready(provider, c.runId, c.task.id, c.fence, now);
         if (wake !== null) return { wake };
         const live = this.store.db.prepare("SELECT COUNT(*) AS n FROM agent_requests WHERE provider=? AND status='ACTIVE'").get(provider)!.n;
         if (live >= budget.modelConcurrency) return null;
         const id = randomUUID();
-        this.store.db.prepare("INSERT INTO agent_requests VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',NULL,NULL)")
-          .run(id, c.runId, c.task.id, c.fence, provider, count, request, now, now + budget.requestTimeoutMs);
+        this.store.db.prepare(`INSERT INTO agent_requests
+          (id,run,task,fence,provider,bytes,request,started,deadline,status,wait_ms)
+          VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',?)`)
+          .run(id, c.runId, c.task.id, c.fence, provider, count, request, now, now + budget.requestTimeoutMs,
+            Math.max(0, performance.now() - waitingSince));
         this.providerRecovery.admit(id, provider);
         return id;
       });
@@ -235,6 +242,7 @@ export class SessionJournal {
    * concurrency pool but does not require a live worker lease. */
   async reserveRun(run: string, task: string, provider: string, body: Json,
     budget: SwarmBudget, signal: AbortSignal): Promise<string> {
+    const waitingSince = performance.now();
     invariant(typeof task === "string" && task.length > 0 && task.length <= 128, "invalid control-plane task");
     const count = Buffer.byteLength(canonical(body)); const request = this.store.artifact(body);
     for (;;) {
@@ -243,8 +251,8 @@ export class SessionJournal {
         invariant(this.store.db.prepare("SELECT 1 FROM runs WHERE id=?").get(run), "unknown run");
         const now = Date.now();
         this.store.db.prepare("UPDATE agent_requests SET status='UNKNOWN' WHERE status='ACTIVE' AND deadline<=?").run(now);
-        const used = this.store.db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes FROM agent_requests WHERE run=?").get(run)!;
-        if (used.n >= budget.maxRequests || used.bytes + count > budget.maxRequestBytes)
+        const used = runRequestTotals(this.store, run);
+        if (used.requests >= budget.maxRequests || used.bytes + count > budget.maxRequestBytes)
           throw new FatalAttemptError("RUN_REQUEST_BUDGET_EXHAUSTED");
         objectiveRequestBudget(this.store, run, count);
         const wake = this.providerRecovery.ready(provider, run, task, 0, now);
@@ -252,8 +260,11 @@ export class SessionJournal {
         const live = this.store.db.prepare("SELECT COUNT(*) AS n FROM agent_requests WHERE provider=? AND status='ACTIVE'").get(provider)!.n;
         if (live >= budget.modelConcurrency) return null;
         const id = randomUUID();
-        this.store.db.prepare("INSERT INTO agent_requests VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',NULL,NULL)")
-          .run(id, run, task, 0, provider, count, request, now, now + budget.requestTimeoutMs);
+        this.store.db.prepare(`INSERT INTO agent_requests
+          (id,run,task,fence,provider,bytes,request,started,deadline,status,wait_ms)
+          VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',?)`)
+          .run(id, run, task, 0, provider, count, request, now, now + budget.requestTimeoutMs,
+            Math.max(0, performance.now() - waitingSince));
         this.providerRecovery.admit(id, provider);
         return id;
       });
@@ -296,8 +307,9 @@ export class SessionJournal {
     return this.store.transaction(() => {
       const row = this.store.db.prepare("SELECT * FROM agent_requests WHERE id=?").get(id);
       invariant(row && row.status !== "DONE", "unknown/already completed request");
-      this.store.db.prepare("UPDATE agent_requests SET status=?,tokens=?,response=? WHERE id=?")
-        .run(response === null ? "UNKNOWN" : "DONE", tokens, hash, id);
+      this.store.db.prepare("UPDATE agent_requests SET status=?,tokens=?,response=?,finished=? WHERE id=?")
+        .run(response === null ? "UNKNOWN" : "DONE", tokens, hash, Date.now(), id);
+      this.store.changed();
       notifyPermit(String(row.provider));
       const task = this.store.db.prepare("SELECT status,fence,deadline FROM tasks WHERE run=? AND id=?").get(row.run, row.task);
       // Record late spend, but a superseded RPC must never publish a replayable reply.
@@ -334,10 +346,10 @@ export class SessionJournal {
     notifyPermit(provider);
   }
   usage(run: string, task?: string, fence?: number): { requests: number; requestBytes: number; knownTokens: number; unknownRequests: number; tokens: number | null } {
-    const where = task === undefined ? "run=?" : fence === undefined ? "run=? AND task=?" : "run=? AND task=? AND fence=?";
+    const where = task === undefined ? "run=? AND task='' AND fence=0" : fence === undefined ? "run=? AND task=?" : "run=? AND task=? AND fence=?";
     const args = task === undefined ? [run] : fence === undefined ? [run, task] : [run, task, fence];
-    const row = this.store.db.prepare(`SELECT COUNT(*) AS n,COALESCE(SUM(bytes),0) AS bytes,COALESCE(SUM(tokens),0) AS tokens,
-      COALESCE(SUM(CASE WHEN tokens IS NULL THEN 1 ELSE 0 END),0) AS unknown_count FROM agent_requests WHERE ${where}`).get(...args)!;
+    const row = this.store.db.prepare(`SELECT COALESCE(SUM(requests),0) AS n,COALESCE(SUM(bytes),0) AS bytes,COALESCE(SUM(tokens),0) AS tokens,
+      COALESCE(SUM(missing),0) AS unknown_count FROM agent_request_totals WHERE ${where}`).get(...args)!;
     return { requests: row.n, requestBytes: row.bytes, knownTokens: row.tokens, unknownRequests: row.unknown_count,
       tokens: row.unknown_count ? null : row.tokens };
   }

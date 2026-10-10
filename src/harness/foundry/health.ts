@@ -3,6 +3,8 @@ import type { Store } from "./store.ts";
 import { schedulerIndexCurrent, schedulerIndexStats, type SchedulerIndexStats } from "./schedulerIndex.ts";
 import { fabricStatus } from "./evidenceFabric.ts";
 import { providerRecoveryStatus, type ProviderCircuit } from "./swarm/providerRecovery.ts";
+import { executionProfile } from "./executionProfile.ts";
+import { runRequestTotals } from "./swarm/requestAccounting.ts";
 
 export interface HealthReport {
   runId: string; at: number; status: string; elapsedMs: number;
@@ -23,6 +25,7 @@ export interface HealthReport {
     progressAgeMs: number | null; checkAgeMs: number | null; deadline: number | null;
     wakeAt: number | null; reason: string | null }[];
   truncated: boolean;
+  productivity: ReturnType<typeof executionProfile>;
 }
 export type HealthObserver = (report: HealthReport) => void;
 
@@ -41,15 +44,13 @@ export function runHealth(store: Store, runId: string, now = Date.now()): Health
     "SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_requests'"
   ).get();
   const provider = hasRequests ? (() => {
-    const row = store.db.prepare(`SELECT COUNT(*) AS requests,COALESCE(SUM(bytes),0) AS request_bytes,
-      SUM(CASE WHEN status='ACTIVE' THEN 1 ELSE 0 END) AS active,
-      SUM(CASE WHEN status='DONE' THEN 1 ELSE 0 END) AS done,
-      SUM(CASE WHEN status='UNKNOWN' THEN 1 ELSE 0 END) AS unknown,
-      COALESCE(SUM(tokens),0) AS tokens,
-      SUM(CASE WHEN tokens IS NULL THEN 1 ELSE 0 END) AS missing
+    const hasTotals = !!store.db.prepare("SELECT 1 FROM sqlite_master WHERE name='agent_request_totals' AND type='table'").get();
+    const row = hasTotals ? runRequestTotals(store, runId) : store.db.prepare(`SELECT COUNT(*) AS requests,
+      COALESCE(SUM(bytes),0) AS bytes,SUM(status='ACTIVE') AS active,SUM(status='DONE') AS done,
+      SUM(status='UNKNOWN') AS unknown,COALESCE(SUM(tokens),0) AS tokens,SUM(tokens IS NULL) AS missing
       FROM agent_requests WHERE run=?`).get(runId)!;
     return { active: Number(row.active ?? 0), done: Number(row.done ?? 0), unknown: Number(row.unknown ?? 0),
-      requests: Number(row.requests ?? 0), requestBytes: Number(row.request_bytes ?? 0),
+      requests: Number(row.requests ?? 0), requestBytes: Number(row.bytes ?? 0),
       tokens: Number(row.missing ?? 0) ? null : Number(row.tokens ?? 0),
       ...providerRecoveryStatus(store, runId, now) };
   })() : null;
@@ -93,7 +94,7 @@ export function runHealth(store: Store, runId: string, now = Date.now()): Health
     tasks: rows.slice(0, 100).map(r => ({ id: r.id, status: r.status, stage: r.kind ?? r.stage ?? "queued",
       activityAgeMs: age(r.activity_at), progressAgeMs: age(r.progress_at), checkAgeMs: age(r.check_at),
       deadline: r.deadline ?? null, wakeAt: r.wake ?? null, reason: r.reason ?? r.error ?? null })),
-    truncated: rows.length > 100 };
+    truncated: rows.length > 100, productivity: executionProfile(store, runId, now) };
 }
 
 export function formatHealth(r: HealthReport): string {
@@ -104,7 +105,13 @@ export function formatHealth(r: HealthReport): string {
   const jobs = r.remoteJobs ? `jobs active=${r.remoteJobs.active} stalled=${r.remoteJobs.stalled} terminal=${r.remoteJobs.terminal} unattested=${r.remoteJobs.unattestedTerminal}` : "jobs none";
   const fabric = `fabric goals=${r.fabric.goals} evidence=${r.fabric.evidence} conflicts=${r.fabric.openConflicts} experience=${r.fabric.experiences}`;
   const integrity = `integrity index=${r.integrity.schedulerIndexCurrent ? "current" : "DRIFT"} graph=${r.integrity.graphVersion} indexed=${r.integrity.indexedVersion ?? "none"}`;
+  const p = r.productivity;
+  const timing = p.phaseWorkerMs;
+  const measured = `productivity verified=${p.verifiedObjectives}/${p.admittedObjectives} root tasks | timed=${p.measuredAttempts}/${p.attempts} attempts` +
+    (timing ? ` | worker ms: execute=${Math.round(timing.execute)} verify=${Math.round(timing.verify)} tools=${Math.round(timing.toolsWithinExecute)}` : "") +
+    (p.provider?.admissionWaitMs == null ? "" : ` | provider queue ms=${Math.round(p.provider.admissionWaitMs)}`);
   return [head, `${queue} | ${provider} | ${jobs}`, `${fabric} | ${integrity}`,
+    measured,
     ...r.tasks.slice(0, 8).map(t => `${t.id}: ${t.stage}; activity=${age(t.activityAgeMs)} progress=${age(t.progressAgeMs)} check=${age(t.checkAgeMs)}${t.reason ? `; ${t.reason}` : ""}`),
     ...(r.tasks.length > 8 || r.truncated ? ["More tasks are available through /swarm status."] : [])].join("\n");
 }

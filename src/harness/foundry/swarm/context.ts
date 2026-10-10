@@ -1,7 +1,9 @@
 import { canonical, invariant } from "../kernel.ts";
 import type { Json } from "../types.ts";
 export interface Call { id: string; name: string; arguments: Record<string, Json> }
-export interface Message { role: "user" | "assistant" | "tool"; content: string; calls?: Call[]; callId?: string }
+export interface Message { role: "user" | "assistant" | "tool"; content: string; calls?: Call[]; callId?: string;
+  /** Host-owned receipt; never accepted from an external model response. */
+  receipt?: string }
 export const bytes = (value: unknown): number => Buffer.byteLength(canonical(value), "utf8");
 
 /** Explicit, agent-authored notes are hints, never verified claims. Receipts are
@@ -78,6 +80,23 @@ export function inlineReceipt(receipt: string, value: Json, limit = 2048): strin
   invariant(Number.isSafeInteger(limit) && limit > 0, "invalid inline receipt limit");
   const text = canonical(value);
   if (Buffer.byteLength(text, "utf8") <= limit) return text;
-  return canonical({ receipt, truncated: true, preview: Buffer.from(text).subarray(0, Math.max(0, limit - 256)).toString("utf8"),
+  const encoded = Buffer.from(text);
+  const wrap = (n: number) => canonical({ receipt, truncated: true, preview: encoded.subarray(0, n).toString("utf8"),
     note: "Full output retained. Use recall(receipt, offset, length); preview is not the full evidence." });
+  invariant(Buffer.byteLength(wrap(0), "utf8") <= limit, "inline receipt budget cannot fit a reference");
+  let low = 0, high = Math.min(encoded.length, limit);
+  // Account for JSON escapes and UTF-8 replacement bytes in the actual envelope.
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (Buffer.byteLength(wrap(mid), "utf8") <= limit) low = mid; else high = mid - 1;
+  }
+  return wrap(low);
+}
+
+/** If the newest tool batch alone exceeds the envelope, retain its complete
+ * call/result protocol and retire previews to authenticated recall references.
+ * Full evidence remains in the journal; a model never supplies these hashes. */
+export function retireToolPreviews(history: Message[]): Message[] {
+  return history.map(m => m.role === "tool" && m.receipt ?
+    { ...m, content: canonical({ receipt: m.receipt, retired: true, instruction: "Use recall for full evidence." }) } : m);
 }
