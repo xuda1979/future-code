@@ -13,6 +13,7 @@ import { HttpBrain } from "./model.ts";
 import { SessionJournal, type Thread } from "./session.ts";
 import { localGitBackend, type HandsBackend } from "./workspace.ts";
 import { toolEffectContract } from "./toolEffects.ts";
+import { executeToolBatch, nextToolBatch } from "./toolBatches.ts";
 import { requireAdmission, submitProposal } from "../proposals.ts";
 import { claimsForGoals, proposeClaim, proposeClaimConflict, type ClaimInput } from "../claims.ts";
 import { validateToolProposal } from "./toolAdmission.ts";
@@ -71,6 +72,7 @@ export class SwarmDriver implements Driver {
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
         (profile.tools.includes("save_progress") ? "Before long context retirement, call save_progress with concise current findings, blockers, exact next step, and owned evidence receipts; notes remain unverified. " : "") +
         (profile.tools.includes("run_job") ? "For independent experiments, issue every ready run_job call in one assistant turn so the host can launch them concurrently; do not wait for one experiment before proposing another independent one. " : "") +
+        "Issue independent file reads in one turn, and ordered related edits together. Use run_check as a boundary when you need an intermediate diagnostic. " +
         "Do not edit harness infrastructure outside the declared task scope." }) }],
       turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null,
       contextLimit: admittedContext });
@@ -134,73 +136,18 @@ export class SwarmDriver implements Driver {
         if (t.state.output) return { artifact: toJson(t.state.output), measurement: { tokens: this.journal.usage(c.runId, c.task.id, c.fence).tokens, costUsd: null } };
         const calls = outstanding(t);
         if (calls.length) {
-          const remoteBatch = calls.filter(call => call.name === "run_job");
-          if (remoteBatch.length > 1) {
-            invariant(jobs, "no remote job templates configured");
-            const alreadyPending = new Set(t.state.pendingBatch ?? []);
-            const fresh = remoteBatch.filter(call => !alreadyPending.has(call.id));
-            invariant(t.state.toolCalls + fresh.length <= budget.maxToolCalls,
-              "THREAD_TOOL_BUDGET_EXHAUSTED");
-            t.state.toolCalls += fresh.length;
-            t.state.pending = null;
-            t.state.pendingBatch = remoteBatch.map(call => call.id);
-            for (const call of remoteBatch) admitCall(call);
-            for (const call of fresh) {
-              invariant(profile.tools.includes(call.name as any), "tool not allowed");
-              const effect = toolEffectContract(this.cfg, call.name as any, call.arguments);
-              this.journal.checkpoint(t, "tool.effect", { callId: call.id, ...effect });
-              this.journal.checkpoint(t, "tool.intent", call);
-            }
-            this.journal.checkpoint(t, "tool.batch.intent", {
-              kind: "run_job", callIds: t.state.pendingBatch,
+          const batch = nextToolBatch(calls, hands);
+          if (batch) {
+            await executeToolBatch({ batch, thread: t, journal: this.journal, cfg: this.cfg, signal, control,
+              admit: admitCall, snapshot: () => hands.snapshot(),
+              execute: call => batch.kind === "run_job" ? runJob(call) : timedTool(() => hands.tool(call)),
             });
-            control?.activity?.(`remote-batch:launch:${remoteBatch.length}`);
-            const outcomes = await Promise.allSettled(
-              remoteBatch.map(runJob)
-            );
-            const deferred: DeferredAttemptError[] = [];
-            let terminalError: Error | null = null;
-            const stillPending: string[] = [];
-            for (let i = 0; i < outcomes.length; i++) {
-              const call = remoteBatch[i]!;
-              const outcome = outcomes[i]!;
-              if (outcome.status === "rejected") {
-                const error = outcome.reason;
-                if (error instanceof DeferredAttemptError) {
-                  deferred.push(error); stillPending.push(call.id); continue;
-                }
-                if (error instanceof FatalAttemptError) {
-                  terminalError ??= error; continue;
-                }
-                const result: Json = { error: error instanceof Error ? error.message.slice(0, 2048) : "tool error" };
-                const receipt = this.journal.receipt(c, result);
-                t.state.history.push({ role: "tool", callId: call.id, receipt, content: inlineReceipt(receipt, result) });
-                this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
-                continue;
-              }
-              const result = outcome.value;
-              const receipt = this.journal.receipt(c, result);
-              t.state.lastJobReceipt = receipt;
-              t.state.history.push({ role: "tool", callId: call.id, receipt, content: inlineReceipt(receipt, result) });
-              this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
-            }
-            if (stillPending.length) t.state.pendingBatch = stillPending;
-            else delete t.state.pendingBatch;
-            this.journal.checkpoint(t, "tool.batch.result", {
-              completed: remoteBatch.length - stillPending.length,
-              pending: stillPending,
-            });
-            if (terminalError) throw terminalError;
-            if (deferred.length) {
-              const wakeAt = Math.min(...deferred.map(error => error.wakeAt));
-              const capacity = deferred.find(error => error.capacity);
-              throw new DeferredAttemptError("remote-job", wakeAt,
-                capacity?.message ?? `${stillPending.length} remote experiment(s) still running; batch resume scheduled`, capacity?.capacity);
-            }
-            control?.activity?.(`remote-batch:completed:${remoteBatch.length}`);
             continue;
           }
-          for (const call of calls) {
+          // Recompute the next group after each barrier; never move jobs or
+          // reads ahead of writes, checks or control-plane effects.
+          {
+            const call = calls[0]!;
             const resuming = t.state.pending?.id === call.id || t.state.pendingBatch?.includes(call.id) === true;
             if (!resuming) {
               if (t.state.toolCalls >= budget.maxToolCalls) throw new FatalAttemptError("THREAD_TOOL_BUDGET_EXHAUSTED");
@@ -320,7 +267,12 @@ export class SwarmDriver implements Driver {
             const receipt = this.journal.receipt(c, result);
             if (admitted && call.name === "run_job") t.state.lastJobReceipt = receipt;
             t.state.history.push({ role: "tool", callId: call.id, receipt, content: inlineReceipt(receipt, result) });
-            t.state.pending = null; this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
+            t.state.pending = null;
+            if (t.state.pendingBatch) {
+              t.state.pendingBatch = t.state.pendingBatch.filter(id => id !== call.id);
+              if (!t.state.pendingBatch.length) delete t.state.pendingBatch;
+            }
+            this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
             control?.activity?.(`completed:${call.name}`);
           }
           continue;

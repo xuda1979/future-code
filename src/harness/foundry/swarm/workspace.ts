@@ -13,6 +13,9 @@ import { runProcess, type ProcessResult } from "./process.ts";
 /** Scope checks are a correctness boundary, not containment for hostile code.
  * Use a VM/container backend before granting tools to untrusted projects. */
 export interface Hands {
+  /** Host capability, never model advice. Reads have no effects; write batches
+   * must be replayable from the preceding durable snapshot after a crash. */
+  readonly batchPolicy?: { reads: number; writes: boolean };
   tool(call: Call): Promise<Json>;
   snapshot(): Promise<string>;
   dispose(): Promise<void>;
@@ -88,6 +91,8 @@ export function readPatchArtifact(store: Store, run: string, id: string): PatchA
   return artifact;
 }
 export class LocalGitHands implements Hands {
+  readonly batchPolicy = { reads: 4, writes: true };
+  private opening: Promise<string> | null = null;
   private temp: string | null = null;
   private path: string | null = null;
   private baseTree: string | null = null;
@@ -99,7 +104,12 @@ export class LocalGitHands implements Hands {
     this.store = store; this.cfg = cfg; this.c = c; this.profile = profile; this.signal = signal; this.restore = restore; this.roots = roots;
   }
   async ready(): Promise<string> {
-    this.signal.throwIfAborted(); if (this.path) return this.path;
+    this.signal.throwIfAborted();
+    // Concurrent first reads must share initialization, including dependency
+    // patches and restore. A partially prepared path is never readable.
+    return this.opening ??= this.prepare();
+  }
+  private async prepare(): Promise<string> {
     const temp = mkdtempSync(join(tmpdir(), "future-swarm-worktree-")); this.temp = temp;
     const path = join(temp, "tree");
     await git(this.cfg, this.cfg.spec.project, ["worktree", "add", "--detach", path, this.cfg.baseCommit], this.signal);
@@ -199,6 +209,7 @@ export class LocalGitHands implements Hands {
     invariant(Buffer.byteLength(patch) <= this.cfg.spec.budget.maxPatchBytes, "patch exceeds budget"); return this.store.artifact(patch);
   }
   async dispose(): Promise<void> {
+    if (this.opening) try { await this.opening; } catch { /* Clean a failed preparation too. */ }
     if (!this.temp) return;
     const temp = this.temp; const path = this.path; this.temp = null; this.path = null;
     if (path) try { await git(this.cfg, this.cfg.spec.project, ["worktree", "remove", "--force", path], AbortSignal.timeout(10000)); }

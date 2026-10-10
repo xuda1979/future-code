@@ -97,6 +97,7 @@ node scripts/test-commands.mjs
 | 证据与资源分配 | [Evidence Fabric](docs/agent-platform/EVIDENCE_FABRIC.md) |
 | 基于证据的反思 | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
 | 执行耗时、上下文退役与资源唤醒 | [Execution productivity](docs/agent-platform/EXECUTION_PRODUCTIVITY.md) |
+| 并行读取与可恢复的编辑批次 | [工具批处理](docs/agent-platform/TOOL_BATCHING.md) |
 | 干预效果与策略学习 | [Intervention memory](docs/agent-platform/INTERVENTION_MEMORY.md) |
 | 回归检查与真实源码实验 | [验证记录](docs/agent-platform/SOVEREIGN_VALIDATION.md) |
 | 完整终端 CLI 安装 | [Linux 部署](DEPLOY-LINUX.md)、[上手指南](ONBOARDING.md) |

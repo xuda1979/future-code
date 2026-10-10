@@ -23,7 +23,8 @@ export interface ThreadState {
   toolCalls: number;
   patchHash: string | null;
   pending: Call | null;
-  /** Durable IDs for a concurrently launched tool batch that may span resumes. */
+  /** Durable IDs charged before a tool batch starts; unfinished batches replay
+   * from patchHash without charging the calls again. */
   pendingBatch?: string[];
   output: PatchArtifact | null;
   feedbackHash: string | null;
