@@ -21,9 +21,13 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/acceptance.test.ts", "tests/correctness/replay.test.ts",
   "tests/correctness/response-liveness.test.ts",
   "tests/correctness/remote-response-liveness.test.ts",
+  "tests/correctness/query-activity.test.ts", "tests/correctness/model-stream-liveness.test.ts",
+  "tests/correctness/queue-wakeup.test.ts", "tests/correctness/working-context.test.ts",
+  "tests/correctness/tool-result-budget.test.ts",
   "tests/correctness/permission-delivery.test.ts",
   "tests/correctness/token-estimation-anchor.test.ts"], 900000);
 const python = process.env.PYTHON ?? "python3";
 gate(python, ["-m", "unittest", "discover", "-s", "tests/correctness", "-p", "test_*.py", "-v"], 60000);
 gate(python, ["-m", "unittest", "discover", "-s", "tests/research-jobs", "-p", "test_*.py", "-v"], 120000);
 console.error("\nCorrectness gates passed. This is not a full Bun/CLI or live-provider certification.");
+

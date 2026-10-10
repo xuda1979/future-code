@@ -10,7 +10,6 @@ import {
   BYTES_PER_TOKEN,
   DEFAULT_MAX_RESULT_SIZE_CHARS,
   MAX_TOOL_RESULT_BYTES,
-  MAX_TOOL_RESULTS_PER_MESSAGE_CHARS,
 } from '../constants/toolLimits.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
 import { logEvent } from '../services/analytics/index.js'
@@ -22,6 +21,11 @@ import { formatFileSize } from './format.js'
 import { logError } from './log.js'
 import { getProjectDir } from './sessionStorage.js'
 import { jsonStringify } from './slowOperations.js'
+import {
+  selectToolResultsForBudget,
+  toolResultBudgetEnabled,
+  toolResultBudgetLimit,
+} from './toolResultBudgetPolicy.js'
 
 // Subdirectory name for tool results within a session
 export const TOOL_RESULTS_SUBDIR = 'tool-results'
@@ -412,32 +416,23 @@ export function cloneContentReplacementState(
 }
 
 /**
- * Resolve the per-message aggregate budget limit. GrowthBook override
- * (tengu_hawthorn_window) wins when present and a finite positive number;
- * otherwise falls back to the hardcoded constant. Defensive typeof/finite
- * check: GrowthBook's cache returns `cached !== undefined ? cached : default`,
- * so a flag served as null/string/NaN leaks through.
+ * Resolve the host budget. A valid local setting takes precedence over the
+ * remote override; invalid values use the existing defensive fallback.
  */
 export function getPerMessageBudgetLimit(): number {
   const override = getFeatureValue_CACHED_MAY_BE_STALE<number | null>(
     'tengu_hawthorn_window',
     null,
   )
-  if (
-    typeof override === 'number' &&
-    Number.isFinite(override) &&
-    override > 0
-  ) {
-    return override
-  }
-  return MAX_TOOL_RESULTS_PER_MESSAGE_CHARS
+  return toolResultBudgetLimit(override)
 }
 
 /**
  * Provision replacement state for a new conversation thread.
  *
  * Encapsulates the feature-flag gate + reconstruct-vs-fresh choice:
- *   - Flag off → undefined (query.ts skips enforcement entirely)
+ *   - Explicit disable → undefined (query.ts skips enforcement entirely)
+ *   - Otherwise enabled, including external builds without a flag service
  *   - No initialMessages (cold start) → fresh
  *   - initialMessages present → reconstruct (freeze all candidate IDs so the
  *     budget never replaces content the model already saw unreplaced). Empty
@@ -450,9 +445,9 @@ export function provisionContentReplacementState(
 ): ContentReplacementState | undefined {
   const enabled = getFeatureValue_CACHED_MAY_BE_STALE(
     'tengu_hawthorn_steeple',
-    false,
+    true,
   )
-  if (!enabled) return undefined
+  if (!toolResultBudgetEnabled(enabled)) return undefined
   if (initialMessages) {
     return reconstructContentReplacementState(
       initialMessages,
@@ -667,31 +662,6 @@ function partitionByPriorDecision(
 }
 
 /**
- * Pick the largest fresh results to replace until the model-visible total
- * (frozen + remaining fresh) is at or under budget, or fresh is exhausted.
- * If frozen results alone exceed budget we accept the overage — microcompact
- * will eventually clear them.
- */
-function selectFreshToReplace(
-  fresh: ToolResultCandidate[],
-  frozenSize: number,
-  limit: number,
-): ToolResultCandidate[] {
-  const sorted = [...fresh].sort((a, b) => b.size - a.size)
-  const selected: ToolResultCandidate[] = []
-  let remaining = frozenSize + fresh.reduce((sum, c) => sum + c.size, 0)
-  for (const c of sorted) {
-    if (remaining <= limit) break
-    selected.push(c)
-    // We don't know the replacement size until after persist, but previews
-    // are ~2K and results hitting this path are much larger, so subtracting
-    // the full size is a close approximation for selection purposes.
-    remaining -= c.size
-  }
-  return selected
-}
-
-/**
  * Return a new Message[] where each tool_result block whose id appears in
  * replacementMap has its content replaced. Messages and blocks with no
  * replacements are passed through by reference.
@@ -743,8 +713,7 @@ async function buildReplacement(
  * per-message limit (see getPerMessageBudgetLimit), the largest FRESH
  * (never-before-seen) results in THAT message are persisted to disk and
  * replaced with previews.
- * Messages are evaluated independently — a 150K result in one message and
- * a 150K result in another are both under budget and untouched.
+ * Messages are evaluated independently, with prior decisions frozen.
  *
  * State is tracked by tool_use_id in `state`. Once a result is seen its
  * fate is frozen: previously-replaced results get the same replacement
@@ -827,7 +796,9 @@ export async function enforceToolResultBudget(
 
     const selected =
       frozenSize + freshSize > limit
-        ? selectFreshToReplace(eligible, frozenSize, limit)
+        ? selectToolResultsForBudget(
+            eligible, frozenSize, limit, PREVIEW_SIZE_BYTES + 512,
+          )
         : []
 
     // Mark non-persisting candidates as seen NOW (synchronously). IDs
@@ -1038,3 +1009,4 @@ function getFileSystemErrorMessage(error: Error): string {
   }
   return error.message
 }
+

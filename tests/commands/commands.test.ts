@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 
 // Import the command definitions
 import goal from "../../src/commands/goal/index.ts";
+import { readAutoGoal } from "../../src/commands/goal/auto.ts";
 import loop from "../../src/commands/loop/index.ts";
 import retry from "../../src/commands/retry/index.ts";
 import save from "../../src/commands/save/index.ts";
@@ -21,7 +22,7 @@ import learn from "../../src/commands/learn/index.ts";
 // contract; consumers join text blocks (see forkedAgent.ts / processSlashCommand.tsx).
 // This helper awaits and flattens to the concatenated prompt text.
 async function promptText(cmd: { getPromptForCommand: (args: string, ...rest: never[]) => Promise<unknown> }, args: string): Promise<string> {
-  const result = await cmd.getPromptForCommand(args);
+  const result = await invokeCommand(cmd, args);
   // REGRESSION (2026-09-25): a plain-string return violates the
   // PromptCommand contract (Promise<ContentBlockParam[]>) and crashes the
   // framework with `TypeError: result.filter is not a function`, yielding
@@ -37,10 +38,35 @@ async function promptText(cmd: { getPromptForCommand: (args: string, ...rest: ne
 
 // Raw result accessor for direct contract assertions.
 async function promptBlocks(cmd: { getPromptForCommand: (args: string, ...rest: never[]) => Promise<unknown> }, args: string): Promise<unknown[]> {
-  const result = await cmd.getPromptForCommand(args);
+  const result = await invokeCommand(cmd, args);
   assert.ok(Array.isArray(result), `getPromptForCommand must return an array, got ${typeof result}`);
   return result as unknown[];
 }
+
+// /goal now writes a host-owned contract. Never leave test goals in the
+// checkout or overwrite an operator's real goal while exercising prompts.
+async function goalDirectory<T>(fn: () => Promise<T>): Promise<T> {
+  const previous = process.cwd();
+  const dir = mkdtempSync(join(tmpdir(), 'goal-command-'));
+  try { process.chdir(dir); return await fn(); }
+  finally { process.chdir(previous); rmSync(dir, { recursive: true, force: true }); }
+}
+async function invokeCommand(cmd: { getPromptForCommand: (args: string, ...rest: never[]) => Promise<unknown> }, args: string): Promise<unknown> {
+  return cmd === goal ? goalDirectory(() => cmd.getPromptForCommand(args)) : cmd.getPromptForCommand(args);
+}
+
+test('plain /goal is continuous; explicit limits and pause/resume are durable', async () => goalDirectory(async () => {
+  await goal.getPromptForCommand('Build verified research tools');
+  assert.equal(readAutoGoal()?.state, 'ACTIVE');
+  assert.equal(readAutoGoal()?.maxContinuations, null);
+  await goal.getPromptForCommand('--limit 4 Bounded research');
+  assert.equal(readAutoGoal()?.maxContinuations, 4);
+  await goal.getPromptForCommand('--pause');
+  assert.equal(readAutoGoal()?.state, 'PAUSED');
+  await goal.getPromptForCommand('--resume');
+  assert.equal(readAutoGoal()?.maxContinuations, 4);
+  assert.equal(readAutoGoal()?.state, 'ACTIVE');
+}));
 
 // ─── /goal command ──────────────────────────────────────────────────────────
 
@@ -603,3 +629,4 @@ test("REGRESSION: framework normalizer in processSlashCommand accepts string fal
     "runAgent skill preloading must normalize legacy string returns from getPromptForCommand",
   );
 });
+

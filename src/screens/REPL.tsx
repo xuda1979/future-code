@@ -146,6 +146,7 @@ import type { Message as MessageType, UserMessage, ProgressMessage, HookResultMe
 import { query } from '../query.js';
 import { mergeClients, useMergedClients } from '../hooks/useMergedClients.js';
 import { getQuerySourceForREPL } from '../utils/promptCategory.js';
+import { QueryActivityMonitor, formatQueryActivity } from '../utils/queryActivity.js';
 import { useMergedTools } from '../hooks/useMergedTools.js';
 import { mergeAndFilterTools } from '../utils/toolPool.js';
 import { useMergedCommands } from '../hooks/useMergedCommands.js';
@@ -1474,6 +1475,8 @@ export function REPL({
   const visibleStreamingText = streamingText && showStreamingText ? streamingText.substring(0, streamingText.lastIndexOf('\n') + 1) || null : null;
   const [lastQueryCompletionTime, setLastQueryCompletionTime] = useState(0);
   const [spinnerMessage, setSpinnerMessage] = useState<string | null>(null);
+  const [queryActivityStatus, setQueryActivityStatus] = useState<string | null>(null);
+  const queryActivityRef = useRef<QueryActivityMonitor | null>(null);
   const [spinnerColor, setSpinnerColor] = useState<keyof Theme | null>(null);
   const [spinnerShimmerColor, setSpinnerShimmerColor] = useState<keyof Theme | null>(null);
   const [isMessageSelectorVisible, setIsMessageSelectorVisible] = useState(false);
@@ -1491,8 +1494,8 @@ export function REPL({
   lastQueryCompletionTimeRef.current = lastQueryCompletionTime;
 
   // Aggregate tool result budget: per-conversation decision tracking.
-  // When the GrowthBook flag is on, query.ts enforces the budget; when
-  // off (undefined), enforcement is skipped entirely. Stale entries after
+  // Enabled by default without a remote feature service; an explicit disable
+  // leaves state undefined and skips enforcement. Stale entries after
   // /clear, rewind, or compact are harmless (tool_use_ids are UUIDs, stale
   // keys are never looked up). Memory is bounded by total replacement count
   // × ~2KB preview over the REPL lifetime — negligible.
@@ -1577,6 +1580,7 @@ export function REPL({
     setStreamingText(null);
     setStreamingToolUses([]);
     setSpinnerMessage(null);
+    setQueryActivityStatus(null);
     setSpinnerColor(null);
     setSpinnerShimmerColor(null);
     pickNewSpinnerTip();
@@ -2798,7 +2802,8 @@ export function REPL({
       systemContext,
       canUseTool,
       toolUseContext,
-      querySource: getQuerySourceForREPL()
+      querySource: getQuerySourceForREPL(),
+      onActivity: event => queryActivityRef.current?.observe(event)
     })) {
       onQueryEvent(event);
     }
@@ -2885,6 +2890,10 @@ export function REPL({
       });
       return;
     }
+    const thisActivity = new QueryActivityMonitor(snapshot => {
+      if (queryGuard.generation === thisGeneration) setQueryActivityStatus(formatQueryActivity(snapshot));
+    });
+    queryActivityRef.current = thisActivity;
     try {
       // isLoading is derived from queryGuard — tryStart() above already
       // transitioned dispatching→running, so no setter call needed here.
@@ -2918,6 +2927,8 @@ export function REPL({
       }
       await onQueryImpl(latestMessages, newMessages, abortController, shouldQuery, additionalAllowedTools, mainLoopModelParam, effort);
     } finally {
+      thisActivity.stop();
+      if (queryActivityRef.current === thisActivity) queryActivityRef.current = null;
       // queryGuard.end() atomically checks generation and transitions
       // running→idle. Returns false if a newer query owns the guard
       // (cancel+resubmit race where the stale finally fires as a microtask).
@@ -4110,6 +4121,7 @@ export function REPL({
 
     // Cleanup on unmount
     return () => {
+      queryActivityRef.current?.stop();
       void diagnosticTracker.shutdown();
     };
     // TODO: fix this
@@ -4585,7 +4597,7 @@ export function REPL({
               {"external" === 'ant' && <TungstenLiveMonitor />}
               {feature('WEB_BROWSER_TOOL') ? WebBrowserPanelModule && <WebBrowserPanelModule.WebBrowserPanel /> : null}
               <Box flexGrow={1} />
-              {showSpinner && <SpinnerWithVerb mode={streamMode} spinnerTip={spinnerTip} responseLengthRef={responseLengthRef} apiMetricsRef={apiMetricsRef} overrideMessage={spinnerMessage} spinnerSuffix={stopHookSpinnerSuffix} verbose={verbose} loadingStartTimeRef={loadingStartTimeRef} totalPausedMsRef={totalPausedMsRef} pauseStartTimeRef={pauseStartTimeRef} overrideColor={spinnerColor} overrideShimmerColor={spinnerShimmerColor} hasActiveTools={inProgressToolUseIDs.size > 0} leaderIsIdle={!isLoading} />}
+              {showSpinner && <SpinnerWithVerb mode={streamMode} spinnerTip={spinnerTip} responseLengthRef={responseLengthRef} apiMetricsRef={apiMetricsRef} overrideMessage={spinnerMessage ?? queryActivityStatus} spinnerSuffix={stopHookSpinnerSuffix} verbose={verbose} loadingStartTimeRef={loadingStartTimeRef} totalPausedMsRef={totalPausedMsRef} pauseStartTimeRef={pauseStartTimeRef} overrideColor={spinnerColor} overrideShimmerColor={spinnerShimmerColor} hasActiveTools={inProgressToolUseIDs.size > 0} leaderIsIdle={!isLoading} />}
               {!showSpinner && !isLoading && !userInputOnProcessing && !hasRunningTeammates && isBriefOnly && !viewedAgentTask && <BriefIdleStatus />}
               {isFullscreenEnvEnabled() && <PromptInputQueuedCommands />}
             </>} bottom={<Box flexDirection={feature('BUDDY') && companionNarrow ? 'column' : 'row'} width="100%" alignItems={feature('BUDDY') && companionNarrow ? undefined : 'flex-end'}>
