@@ -1,5 +1,5 @@
 import type { Command } from '../../commands.js'
-import { enableAutoGoal, pauseAutoGoal, resumeAutoGoal, readAutoGoal } from './auto.ts'
+import { enableAutoGoal, pauseAutoGoal, resumeAutoGoal, readAutoGoal, MAX_AUTO_GOAL_CONTINUATIONS } from './auto.ts'
 
 const goal: Command = {
   type: 'prompt',
@@ -24,9 +24,18 @@ const goal: Command = {
       return [{ type: 'text' as const, text: state ? 'Autonomous goal resumed with a new bounded continuation batch.' : 'No autonomous goal is configured.' }]
     }
     if (value.startsWith('--auto ')) {
-      const goal = value.slice('--auto '.length).trim()
-      const state = enableAutoGoal(goal)
-      return [{ type: 'text' as const, text: `Autonomous goal armed (up to ${state.maxContinuations} automatic continuation turns before pause). The host continues after completed model turns; operator review is required before declaring acceptance.\n\nGOAL: ${goal}\n\nWrite the goal and an explicit Status: in_progress to .future-code/goal.md now. Work on the highest-impact next step. After independent checks succeed, set Status: completed. Do not request permission for dangerous actions implicitly; honor approval boundaries.` }]
+      let goal = value.slice('--auto '.length).trim()
+      let limit: number | undefined
+      if (goal.startsWith('--limit ')) {
+        const match = /^--limit\s+(\d+)\s+([\s\S]+)$/.exec(goal)
+        if (!match) throw new Error('Usage: /goal --auto --limit N <goal>')
+        limit = Number(match[1])
+        if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_AUTO_GOAL_CONTINUATIONS)
+          throw new Error('Autonomous limit must be between 1 and 100000')
+        goal = match[2]!.trim()
+      }
+      const state = enableAutoGoal(goal, process.cwd(), limit)
+      return [{ type: 'text' as const, text: `Autonomous goal armed (up to ${state.maxContinuations} explicitly authorized automatic continuation turns; budget exhaustion is reported as a blocker). The host continues after completed model turns; operator review is required before declaring acceptance.\n\nGOAL: ${goal}\n\nWrite the goal and an explicit Status: in_progress to .future-code/goal.md now. Work on the highest-impact next step. After independent checks succeed, set Status: completed. Do not request permission for dangerous actions implicitly; honor approval boundaries.` }]
     }
     if (!args || !args.trim()) {
       return [{ type: 'text' as const, text: `Read the current goal from .future-code/goal.md if it exists. If it exists, summarize the current goal and the progress made so far. If it does not exist, tell the user that no goal has been set yet and suggest they use /goal <description> to set one.` }]
