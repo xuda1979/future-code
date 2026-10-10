@@ -283,7 +283,28 @@ test("novelty detector rejects alternating repeats and caps retained fingerprint
   assert.equal(window.idleMs(50), 30);
   assert.throws(() => window.observe("", 51)); assert.throws(() => window.observe("x".repeat(257), 51));
   for (let i = 0; i < 1022; i++) assert.equal(window.observe(`new-${i}`, 60), true);
-  assert.equal(window.observe("overflow", 80), false); assert.equal(window.idleMs(100), 40);
+  assert.equal(window.observe("overflow", 80), true); assert.equal(window.idleMs(100), 20);
+  assert.equal(window.observe("overflow", 110), false);
+  // The oldest checkpoint ages out; alternating recent repeats cannot refresh
+  // liveness, but a legitimate long-running stream can continue beyond 1024.
+  assert.equal(window.observe("a", 120), true);
+  assert.equal(window.observe("a", 130), false);
+});
+test("rolling novelty keeps long legitimate attempts alive beyond 1024 checkpoints", async () => {
+  await fixture(async s => {
+    const d = driver();
+    d.execute = async (_c, signal, control) => {
+      for (let i = 0; i < 1050; i++) {
+        signal.throwIfAborted();
+        control!.progress(`iteration-${i}`);
+        if (i % 20 === 0) await delay(1, undefined, { signal });
+      }
+      return { artifact: { answer: 4 } };
+    };
+    const result = await runTasks(s, [task("a")], d);
+    assert.equal(result.status, "PASS");
+    assert.equal(s.db.prepare("SELECT progress_count FROM attempt_telemetry WHERE run=?").get(result.id)!.progress_count, 1050);
+  }, { ...recipe, attempts: 1, noProgressMs: 100, timeoutMs: 2000 });
 });
 test("no-progress deadline cancels an unresponsive worker before the hard deadline", async () => {
   await fixture(async s => {
