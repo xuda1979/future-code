@@ -7,6 +7,9 @@ project-specific training, hardware or acceptance logic.
 The subsequent [tool batching](TOOL_BATCHING.md) change bounds parallel reads,
 coalesces ordered private edits into one replayable snapshot, and preserves
 effect boundaries before remote job batches.
+The [remote batch recovery](REMOTE_TOOL_BATCHING.md) follow-up extends that
+contract to worker fleets, reduces file-operation RPCs, and restores actual
+durable patch contents when replacing a worker.
 
 | Direction | Runtime change | Observable result |
 |---|---|---|

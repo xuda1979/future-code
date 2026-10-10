@@ -1,0 +1,1846 @@
+{
+  "schema": 1,
+  "status": "OFFLINE_CHECKED_REMOTE_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+  "generatedAt": "2026-10-10T11:46:40.617792+00:00",
+  "baselineCommit": "476e19876aaf518b60f894c083b95815683f5cb7",
+  "benchmarkScript": "scripts/bench-tool-batching.mjs",
+  "benchmarkScriptHash": "3a734e4a7152cb962c8868e457208d70f2f4d39098abb837ea9eaab9b269c725",
+  "scope": "Foundry/Swarm remote file operations using real local Python worker adapters and Git worktrees; synthetic RPC transport delay, scripted provider replies.",
+  "liveLLMCalls": 0,
+  "causalOrGeneralLiveProductivityClaim": false,
+  "preliminaryEvidence": "remote-tool-batching-preliminary-20261010.json",
+  "experiments": [
+    {
+      "simulatedRpcDelayMs": 40,
+      "roundOrder": [
+        "baseline",
+        "candidate",
+        "candidate",
+        "baseline"
+      ],
+      "cases": {
+        "short": {
+          "baseline": {
+            "samples": 10,
+            "p50Ms": 601.6784754999999,
+            "medianRpcCalls": 4.0,
+            "medianSnapshots": 1.0,
+            "medianReadExecutions": 0.0
+          },
+          "candidate": {
+            "samples": 10,
+            "p50Ms": 478.34423200000015,
+            "medianRpcCalls": 3.0,
+            "medianSnapshots": 1.0,
+            "medianReadExecutions": 0.0
+          },
+          "observedElapsedReductionPercent": 20.498363913967165
+        },
+        "edits": {
+          "baseline": {
+            "samples": 10,
+            "p50Ms": 3156.2192404999996,
+            "medianRpcCalls": 26.0,
+            "medianSnapshots": 12.0,
+            "medianReadExecutions": 0.0
+          },
+          "candidate": {
+            "samples": 10,
+            "p50Ms": 504.54505849999987,
+            "medianRpcCalls": 3.0,
+            "medianSnapshots": 1.0,
+            "medianReadExecutions": 0.0
+          },
+          "observedElapsedReductionPercent": 84.01425819772675
+        },
+        "reads": {
+          "baseline": {
+            "samples": 10,
+            "p50Ms": 1674.1451379999999,
+            "medianRpcCalls": 14.0,
+            "medianSnapshots": 1.0,
+            "medianReadExecutions": 10.0
+          },
+          "candidate": {
+            "samples": 10,
+            "p50Ms": 622.6952235,
+            "medianRpcCalls": 4.0,
+            "medianSnapshots": 1.0,
+            "medianReadExecutions": 8.0
+          },
+          "observedElapsedReductionPercent": 62.80518281444245
+        }
+      },
+      "rounds": [
+        {
+          "arm": "baseline",
+          "report": {
+            "schema": 1,
+            "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+            "generatedAt": "2026-10-10T11:44:04.338Z",
+            "runtime": {
+              "node": "v24.19.0",
+              "platform": "linux",
+              "arch": "x64",
+              "cpu": "AMD EPYC 9V74 80-Core Processor"
+            },
+            "backend": "remote",
+            "simulatedReadDelayMs": 0,
+            "simulatedRpcDelayMs": 40,
+            "liveLLMCalls": 0,
+            "sourceHashes": {
+              "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+              "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+              "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+              "swarm/driver.ts": "ef747e1061dac258cbfeb6eb6c7f27c38b623df18195fcbb09acfed36a961be1",
+              "swarm/workspace.ts": "f65eba45fab67a5f40e35e082d7f404d31e19119f1a1888df065d54c50138840",
+              "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+              "swarm/toolBatches.ts": "1f1a63d85b5b76b2a4fd337f044ac2ffdb2da5e4763ac6bc8f5d1f7354523af0",
+              "swarm/workerFleet.ts": "967e123ecb398ff4b4e9892d5d30de0d86314975305924cf2aad3540aa7859a2",
+              "scripts/swarm-worker-agent.py": "ceccfc54a4b16d5dbe5e5bca997266b5d022ffb9b1bc617c463157be0544bb46"
+            },
+            "summary": {
+              "short": {
+                "samples": 5,
+                "medianMs": 599.7562589999998,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 4,
+                "medianReadServiceWindowMs": null
+              },
+              "edits": {
+                "samples": 5,
+                "medianMs": 3174.6032629999995,
+                "medianSnapshotCalls": 12,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 26,
+                "medianReadServiceWindowMs": null
+              },
+              "reads": {
+                "samples": 5,
+                "medianMs": 1671.0207890000001,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 10,
+                "medianRpcCalls": 14,
+                "medianReadServiceWindowMs": null
+              }
+            },
+            "samples": [
+              {
+                "case": "short",
+                "repetition": 0,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 731.7875960000001,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 0,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 3174.6032629999995,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 0,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1671.0207890000001,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 1,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 544.1019889999998,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 1,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 3011.0413630000003,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 1,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1662.439147000001,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 2,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 599.7562589999998,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 2,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 3211.8063699999984,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 2,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1708.7606000000014,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 3,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 603.600692,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 3,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 3225.9440060000015,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 3,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1691.777661,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 4,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 587.9937559999998,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 4,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 3056.602493999999,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 4,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1616.293443999999,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              }
+            ]
+          }
+        },
+        {
+          "arm": "candidate",
+          "report": {
+            "schema": 1,
+            "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+            "generatedAt": "2026-10-10T11:44:12.722Z",
+            "runtime": {
+              "node": "v24.19.0",
+              "platform": "linux",
+              "arch": "x64",
+              "cpu": "AMD EPYC 9V74 80-Core Processor"
+            },
+            "backend": "remote",
+            "simulatedReadDelayMs": 0,
+            "simulatedRpcDelayMs": 40,
+            "liveLLMCalls": 0,
+            "sourceHashes": {
+              "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+              "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+              "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+              "swarm/driver.ts": "329e4a482b16298a247841351ebec302a2d7a822b8e095315789ab96687545da",
+              "swarm/workspace.ts": "1cc2effa29e21082e61f450121a30cb07948101ac22ef0f4e1737c2384a7aff5",
+              "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+              "swarm/toolBatches.ts": "f8a65b58634548c0def2c5aa4ebb1dcfb66c2226554d26b49bf2e36113a8de5c",
+              "swarm/workerFleet.ts": "908559b271a9afdc0027a2ace05eded2b61fa9b8148b26cbdd703a4a8e891a20",
+              "scripts/swarm-worker-agent.py": "0f4558ffea7830fbc6c41c82a15506479876157833d667968cc87a20a0533f5c"
+            },
+            "summary": {
+              "short": {
+                "samples": 5,
+                "medianMs": 456.1584300000004,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 3,
+                "medianReadServiceWindowMs": null
+              },
+              "edits": {
+                "samples": 5,
+                "medianMs": 500.64894000000004,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 3,
+                "medianReadServiceWindowMs": null
+              },
+              "reads": {
+                "samples": 5,
+                "medianMs": 604.974228,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 8,
+                "medianRpcCalls": 4,
+                "medianReadServiceWindowMs": null
+              }
+            },
+            "samples": [
+              {
+                "case": "short",
+                "repetition": 0,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 616.461855,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 0,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 500.64894000000004,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 0,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 597.472673,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 1,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 445.82720199999994,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 1,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 496.01869199999965,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 1,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 577.0017910000001,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 2,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 457.34454400000004,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 2,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 506.24283899999955,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 2,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 604.974228,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 3,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 454.022954,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 3,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 502.8472780000002,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 3,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 618.5901720000002,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 4,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 456.1584300000004,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 4,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 490.5372819999993,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 4,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 615.8411460000007,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              }
+            ]
+          }
+        },
+        {
+          "arm": "candidate",
+          "report": {
+            "schema": 1,
+            "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+            "generatedAt": "2026-10-10T11:44:21.854Z",
+            "runtime": {
+              "node": "v24.19.0",
+              "platform": "linux",
+              "arch": "x64",
+              "cpu": "AMD EPYC 9V74 80-Core Processor"
+            },
+            "backend": "remote",
+            "simulatedReadDelayMs": 0,
+            "simulatedRpcDelayMs": 40,
+            "liveLLMCalls": 0,
+            "sourceHashes": {
+              "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+              "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+              "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+              "swarm/driver.ts": "329e4a482b16298a247841351ebec302a2d7a822b8e095315789ab96687545da",
+              "swarm/workspace.ts": "1cc2effa29e21082e61f450121a30cb07948101ac22ef0f4e1737c2384a7aff5",
+              "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+              "swarm/toolBatches.ts": "f8a65b58634548c0def2c5aa4ebb1dcfb66c2226554d26b49bf2e36113a8de5c",
+              "swarm/workerFleet.ts": "908559b271a9afdc0027a2ace05eded2b61fa9b8148b26cbdd703a4a8e891a20",
+              "scripts/swarm-worker-agent.py": "0f4558ffea7830fbc6c41c82a15506479876157833d667968cc87a20a0533f5c"
+            },
+            "summary": {
+              "short": {
+                "samples": 5,
+                "medianMs": 497.89557200000036,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 3,
+                "medianReadServiceWindowMs": null
+              },
+              "edits": {
+                "samples": 5,
+                "medianMs": 541.00927,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 3,
+                "medianReadServiceWindowMs": null
+              },
+              "reads": {
+                "samples": 5,
+                "medianMs": 638.7079240000003,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 8,
+                "medianRpcCalls": 4,
+                "medianReadServiceWindowMs": null
+              }
+            },
+            "samples": [
+              {
+                "case": "short",
+                "repetition": 0,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 670.6369970000001,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 0,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 541.00927,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 0,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 626.8002749999998,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 1,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 465.1274390000003,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 1,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 495.17990199999986,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 1,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 673.9826939999998,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 2,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 570.4298899999999,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 2,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 601.9072130000004,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 2,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 638.7079240000003,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 3,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 491.561025,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 3,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 614.6918340000002,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 3,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 635.8652389999997,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 4,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 497.89557200000036,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 4,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 510.62416699999903,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 4,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 650.8389200000001,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              }
+            ]
+          }
+        },
+        {
+          "arm": "baseline",
+          "report": {
+            "schema": 1,
+            "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+            "generatedAt": "2026-10-10T11:44:49.986Z",
+            "runtime": {
+              "node": "v24.19.0",
+              "platform": "linux",
+              "arch": "x64",
+              "cpu": "AMD EPYC 9V74 80-Core Processor"
+            },
+            "backend": "remote",
+            "simulatedReadDelayMs": 0,
+            "simulatedRpcDelayMs": 40,
+            "liveLLMCalls": 0,
+            "sourceHashes": {
+              "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+              "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+              "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+              "swarm/driver.ts": "ef747e1061dac258cbfeb6eb6c7f27c38b623df18195fcbb09acfed36a961be1",
+              "swarm/workspace.ts": "f65eba45fab67a5f40e35e082d7f404d31e19119f1a1888df065d54c50138840",
+              "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+              "swarm/toolBatches.ts": "1f1a63d85b5b76b2a4fd337f044ac2ffdb2da5e4763ac6bc8f5d1f7354523af0",
+              "swarm/workerFleet.ts": "967e123ecb398ff4b4e9892d5d30de0d86314975305924cf2aad3540aa7859a2",
+              "scripts/swarm-worker-agent.py": "ceccfc54a4b16d5dbe5e5bca997266b5d022ffb9b1bc617c463157be0544bb46"
+            },
+            "summary": {
+              "short": {
+                "samples": 5,
+                "medianMs": 630.8898199999994,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 4,
+                "medianReadServiceWindowMs": null
+              },
+              "edits": {
+                "samples": 5,
+                "medianMs": 3137.835218,
+                "medianSnapshotCalls": 12,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 26,
+                "medianReadServiceWindowMs": null
+              },
+              "reads": {
+                "samples": 5,
+                "medianMs": 1677.2694869999996,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 10,
+                "medianRpcCalls": 14,
+                "medianReadServiceWindowMs": null
+              }
+            },
+            "samples": [
+              {
+                "case": "short",
+                "repetition": 0,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 762.168198,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 0,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 3358.4846320000006,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 0,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1856.3166550000005,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 1,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 630.8898199999994,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 1,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 3219.2283420000003,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 1,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1851.6763460000002,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 2,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 652.6349969999992,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 2,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 3137.835218,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 2,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1677.2694869999996,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 3,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 562.949568,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 3,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 3059.1559180000004,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 3,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1666.9067140000006,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 4,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 550.4479449999999,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 4,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 3037.798472000002,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 4,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1603.993765000003,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "simulatedRpcDelayMs": 0,
+      "roundOrder": [
+        "baseline",
+        "candidate",
+        "candidate",
+        "baseline"
+      ],
+      "cases": {
+        "short": {
+          "baseline": {
+            "samples": 6,
+            "p50Ms": 428.24779400000034,
+            "medianRpcCalls": 4.0,
+            "medianSnapshots": 1.0,
+            "medianReadExecutions": 0.0
+          },
+          "candidate": {
+            "samples": 6,
+            "p50Ms": 329.6649225000001,
+            "medianRpcCalls": 3.0,
+            "medianSnapshots": 1.0,
+            "medianReadExecutions": 0.0
+          },
+          "observedElapsedReductionPercent": 23.02005354871721
+        },
+        "edits": {
+          "baseline": {
+            "samples": 6,
+            "p50Ms": 2042.0829090000002,
+            "medianRpcCalls": 26.0,
+            "medianSnapshots": 12.0,
+            "medianReadExecutions": 0.0
+          },
+          "candidate": {
+            "samples": 6,
+            "p50Ms": 358.16115650000006,
+            "medianRpcCalls": 3.0,
+            "medianSnapshots": 1.0,
+            "medianReadExecutions": 0.0
+          },
+          "observedElapsedReductionPercent": 82.46098848771081
+        },
+        "reads": {
+          "baseline": {
+            "samples": 6,
+            "p50Ms": 1160.539812,
+            "medianRpcCalls": 14.0,
+            "medianSnapshots": 1.0,
+            "medianReadExecutions": 10.0
+          },
+          "candidate": {
+            "samples": 6,
+            "p50Ms": 404.86748999999975,
+            "medianRpcCalls": 4.0,
+            "medianSnapshots": 1.0,
+            "medianReadExecutions": 8.0
+          },
+          "observedElapsedReductionPercent": 65.11386461596031
+        }
+      },
+      "rounds": [
+        {
+          "arm": "baseline",
+          "report": {
+            "schema": 1,
+            "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+            "generatedAt": "2026-10-10T11:45:01.267Z",
+            "runtime": {
+              "node": "v24.19.0",
+              "platform": "linux",
+              "arch": "x64",
+              "cpu": "AMD EPYC 9V74 80-Core Processor"
+            },
+            "backend": "remote",
+            "simulatedReadDelayMs": 0,
+            "simulatedRpcDelayMs": 0,
+            "liveLLMCalls": 0,
+            "sourceHashes": {
+              "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+              "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+              "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+              "swarm/driver.ts": "ef747e1061dac258cbfeb6eb6c7f27c38b623df18195fcbb09acfed36a961be1",
+              "swarm/workspace.ts": "f65eba45fab67a5f40e35e082d7f404d31e19119f1a1888df065d54c50138840",
+              "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+              "swarm/toolBatches.ts": "1f1a63d85b5b76b2a4fd337f044ac2ffdb2da5e4763ac6bc8f5d1f7354523af0",
+              "swarm/workerFleet.ts": "967e123ecb398ff4b4e9892d5d30de0d86314975305924cf2aad3540aa7859a2",
+              "scripts/swarm-worker-agent.py": "ceccfc54a4b16d5dbe5e5bca997266b5d022ffb9b1bc617c463157be0544bb46"
+            },
+            "summary": {
+              "short": {
+                "samples": 3,
+                "medianMs": 399.745758,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 4,
+                "medianReadServiceWindowMs": null
+              },
+              "edits": {
+                "samples": 3,
+                "medianMs": 2022.932132,
+                "medianSnapshotCalls": 12,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 26,
+                "medianReadServiceWindowMs": null
+              },
+              "reads": {
+                "samples": 3,
+                "medianMs": 1149.7005909999998,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 10,
+                "medianRpcCalls": 14,
+                "medianReadServiceWindowMs": null
+              }
+            },
+            "samples": [
+              {
+                "case": "short",
+                "repetition": 0,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 602.3879730000001,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 0,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 2022.932132,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 0,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1149.7005909999998,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 1,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 399.5666820000006,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 1,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 2026.4804860000004,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 1,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1171.3790330000002,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 2,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 399.745758,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 2,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 2002.3285299999989,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 2,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1066.7877960000005,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              }
+            ]
+          }
+        },
+        {
+          "arm": "candidate",
+          "report": {
+            "schema": 1,
+            "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+            "generatedAt": "2026-10-10T11:45:05.064Z",
+            "runtime": {
+              "node": "v24.19.0",
+              "platform": "linux",
+              "arch": "x64",
+              "cpu": "AMD EPYC 9V74 80-Core Processor"
+            },
+            "backend": "remote",
+            "simulatedReadDelayMs": 0,
+            "simulatedRpcDelayMs": 0,
+            "liveLLMCalls": 0,
+            "sourceHashes": {
+              "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+              "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+              "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+              "swarm/driver.ts": "329e4a482b16298a247841351ebec302a2d7a822b8e095315789ab96687545da",
+              "swarm/workspace.ts": "1cc2effa29e21082e61f450121a30cb07948101ac22ef0f4e1737c2384a7aff5",
+              "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+              "swarm/toolBatches.ts": "f8a65b58634548c0def2c5aa4ebb1dcfb66c2226554d26b49bf2e36113a8de5c",
+              "swarm/workerFleet.ts": "908559b271a9afdc0027a2ace05eded2b61fa9b8148b26cbdd703a4a8e891a20",
+              "scripts/swarm-worker-agent.py": "0f4558ffea7830fbc6c41c82a15506479876157833d667968cc87a20a0533f5c"
+            },
+            "summary": {
+              "short": {
+                "samples": 3,
+                "medianMs": 316.0547859999997,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 3,
+                "medianReadServiceWindowMs": null
+              },
+              "edits": {
+                "samples": 3,
+                "medianMs": 348.7533789999999,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 3,
+                "medianReadServiceWindowMs": null
+              },
+              "reads": {
+                "samples": 3,
+                "medianMs": 398.31459299999983,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 8,
+                "medianRpcCalls": 4,
+                "medianReadServiceWindowMs": null
+              }
+            },
+            "samples": [
+              {
+                "case": "short",
+                "repetition": 0,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 482.50543700000003,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 0,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 348.7533789999999,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 0,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 398.31459299999983,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 1,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 303.287241,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 1,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 388.9758590000001,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 1,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 411.42038699999966,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 2,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 316.0547859999997,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 2,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 339.0953539999996,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 2,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 395.54825600000004,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              }
+            ]
+          }
+        },
+        {
+          "arm": "candidate",
+          "report": {
+            "schema": 1,
+            "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+            "generatedAt": "2026-10-10T11:45:09.002Z",
+            "runtime": {
+              "node": "v24.19.0",
+              "platform": "linux",
+              "arch": "x64",
+              "cpu": "AMD EPYC 9V74 80-Core Processor"
+            },
+            "backend": "remote",
+            "simulatedReadDelayMs": 0,
+            "simulatedRpcDelayMs": 0,
+            "liveLLMCalls": 0,
+            "sourceHashes": {
+              "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+              "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+              "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+              "swarm/driver.ts": "329e4a482b16298a247841351ebec302a2d7a822b8e095315789ab96687545da",
+              "swarm/workspace.ts": "1cc2effa29e21082e61f450121a30cb07948101ac22ef0f4e1737c2384a7aff5",
+              "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+              "swarm/toolBatches.ts": "f8a65b58634548c0def2c5aa4ebb1dcfb66c2226554d26b49bf2e36113a8de5c",
+              "swarm/workerFleet.ts": "908559b271a9afdc0027a2ace05eded2b61fa9b8148b26cbdd703a4a8e891a20",
+              "scripts/swarm-worker-agent.py": "0f4558ffea7830fbc6c41c82a15506479876157833d667968cc87a20a0533f5c"
+            },
+            "summary": {
+              "short": {
+                "samples": 3,
+                "medianMs": 333.97890700000016,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 3,
+                "medianReadServiceWindowMs": null
+              },
+              "edits": {
+                "samples": 3,
+                "medianMs": 367.1372409999999,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 3,
+                "medianReadServiceWindowMs": null
+              },
+              "reads": {
+                "samples": 3,
+                "medianMs": 435.64754300000004,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 8,
+                "medianRpcCalls": 4,
+                "medianReadServiceWindowMs": null
+              }
+            },
+            "samples": [
+              {
+                "case": "short",
+                "repetition": 0,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 522.0535629999999,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 0,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 378.013426,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 0,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 435.8898300000001,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 1,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 333.97890700000016,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 1,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 367.1372409999999,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 1,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 435.64754300000004,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 2,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 325.35093800000004,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 2,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 349.1850720000002,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 3,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 2,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 398.24670000000015,
+                "snapshotCalls": 1,
+                "readExecutions": 8,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              }
+            ]
+          }
+        },
+        {
+          "arm": "baseline",
+          "report": {
+            "schema": 1,
+            "status": "OFFLINE_CHECKED_TOOL_WORKLOAD_NOT_LIVE_RND_SPEEDUP",
+            "generatedAt": "2026-10-10T11:45:20.843Z",
+            "runtime": {
+              "node": "v24.19.0",
+              "platform": "linux",
+              "arch": "x64",
+              "cpu": "AMD EPYC 9V74 80-Core Processor"
+            },
+            "backend": "remote",
+            "simulatedReadDelayMs": 0,
+            "simulatedRpcDelayMs": 0,
+            "liveLLMCalls": 0,
+            "sourceHashes": {
+              "store.ts": "2acfb17ad65872ca7cf124ce1b3dc31550dd535bcd870da9a323fa6d08709d0d",
+              "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+              "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+              "swarm/driver.ts": "ef747e1061dac258cbfeb6eb6c7f27c38b623df18195fcbb09acfed36a961be1",
+              "swarm/workspace.ts": "f65eba45fab67a5f40e35e082d7f404d31e19119f1a1888df065d54c50138840",
+              "swarm/session.ts": "a2b6a72dbe2cf2b6aea93fdcd861a95017d07690aa69c994b378b1b41f963ffb",
+              "swarm/toolBatches.ts": "1f1a63d85b5b76b2a4fd337f044ac2ffdb2da5e4763ac6bc8f5d1f7354523af0",
+              "swarm/workerFleet.ts": "967e123ecb398ff4b4e9892d5d30de0d86314975305924cf2aad3540aa7859a2",
+              "scripts/swarm-worker-agent.py": "ceccfc54a4b16d5dbe5e5bca997266b5d022ffb9b1bc617c463157be0544bb46"
+            },
+            "summary": {
+              "short": {
+                "samples": 3,
+                "medianMs": 439.5121560000007,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 4,
+                "medianReadServiceWindowMs": null
+              },
+              "edits": {
+                "samples": 3,
+                "medianMs": 2149.979155,
+                "medianSnapshotCalls": 12,
+                "medianReadExecutions": 0,
+                "medianRpcCalls": 26,
+                "medianReadServiceWindowMs": null
+              },
+              "reads": {
+                "samples": 3,
+                "medianMs": 1205.828074000001,
+                "medianSnapshotCalls": 1,
+                "medianReadExecutions": 10,
+                "medianRpcCalls": 14,
+                "medianReadServiceWindowMs": null
+              }
+            },
+            "samples": [
+              {
+                "case": "short",
+                "repetition": 0,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 581.910818,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 0,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 2149.979155,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 0,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1133.434073,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 1,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 416.983432,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 1,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 2057.685332,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 1,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1257.584296,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "short",
+                "repetition": 2,
+                "taskAndCallsHash": "5a3d703f1b15ca04f687fd5d2255da992d5a9b05f202b06e15c01fa21efe0f78",
+                "elapsedMs": 439.5121560000007,
+                "snapshotCalls": 1,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 4,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "edits",
+                "repetition": 2,
+                "taskAndCallsHash": "9610bb4f5c17022e9a309262f44f54857840979270a7bd8ec7f056c612775979",
+                "elapsedMs": 2166.7658150000007,
+                "snapshotCalls": 12,
+                "readExecutions": 0,
+                "peakReads": null,
+                "rpcCalls": 26,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              },
+              {
+                "case": "reads",
+                "repetition": 2,
+                "taskAndCallsHash": "4dbe628aa7ef36f6dce9e508c0400a09cfd6e9c66807e98ef8923719209e4b49",
+                "elapsedMs": 1205.828074000001,
+                "snapshotCalls": 1,
+                "readExecutions": 10,
+                "peakReads": null,
+                "rpcCalls": 14,
+                "simulatedReadServiceWindowMs": null,
+                "mockProviderRequests": 2,
+                "independentlyAccepted": 1
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
