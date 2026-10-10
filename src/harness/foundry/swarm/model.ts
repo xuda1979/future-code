@@ -15,6 +15,17 @@ const string = { type: "string" }; const integer = { type: "integer", minimum: 0
 const def = (name: ToolName, description: string, properties: Record<string, Json>, required: string[]): ToolDefinition =>
   ({ name, description, schema: { type: "object", properties, required, additionalProperties: false } });
 export const definitions: ToolDefinition[] = [
+  def("publish_finding", "Publish one concise UNVERIFIED finding. Cohort notes are visible within your assigned group. Shared notes become visible across groups only after the source task passes independent checks and its accepted patch matches this checkpoint. Receipt references must belong to this thread. Reuse the same id only for identical content.", {
+    id: { type: "string", minLength: 1, maxLength: 128 },
+    audience: { type: "string", enum: ["cohort", "shared"] },
+    kind: { type: "string", enum: ["hypothesis", "result", "counterexample"] },
+    summary: { type: "string", minLength: 1, maxLength: 2048 },
+    receipts: { type: "array", maxItems: 8, uniqueItems: true, items: string },
+  }, ["id", "audience", "kind", "summary", "receipts"]),
+  def("read_findings", "Page a bounded digest from your cohort or the accepted cross-cohort stream. Cursors are separate per audience. Summary text is always UNVERIFIED, even when its source task passed checks. Use owned findingReceipt with recall to expand a shortened note. Artifact references do not grant file access or change acceptance.", {
+    audience: { type: "string", enum: ["cohort", "shared"] }, after: integer,
+    limit: { type: "integer", minimum: 1, maximum: 20 },
+  }, ["audience"]),
   def("propose_claim", "Record or revise a hypothesis, never a verified fact. Evidence IDs are host receipt references. Revision requires expectedVersion; dependencies are version-bound claims. Only independent adjudication may support/refute a claim.", {
     id: string, statement: string, evidenceIds: { type: "array", maxItems: 32, uniqueItems: true, items: string },
     dependencies: { type: "array", maxItems: 32, uniqueItems: true, items: string }, expectedVersion: integer,

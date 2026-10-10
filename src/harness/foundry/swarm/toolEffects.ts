@@ -15,6 +15,10 @@ export interface ToolEffectContract {
 }
 
 const fixed: Partial<Record<ToolName, ToolEffectContract>> = {
+  read_findings: { tool: "read_findings", effect: "read", replay: "safe", idempotency: "none",
+    compensation: "none", risk: "low", rationale: "bounded cohort notes or accepted cross-cohort references; no private history access" },
+  publish_finding: { tool: "publish_finding", effect: "control-plane", replay: "state-bound", idempotency: "call-id",
+    compensation: "none", risk: "medium", rationale: "immutable task-owned finding identity; summaries remain unverified" },
   read_claims: { tool: "read_claims", effect: "read", replay: "safe", idempotency: "none",
     compensation: "none", risk: "low", rationale: "bounded scoped claim projection" },
   propose_claim: { tool: "propose_claim", effect: "control-plane", replay: "state-bound", idempotency: "call-id",
@@ -64,5 +68,7 @@ export function toolEffectContract(cfg: PinnedSwarm, tool: ToolName, args: Json)
   }
   if (tool === "spawn_tasks")
     invariant(cfg.spec.supervision?.dynamicDAG, "spawn_tasks requires host dynamic-DAG policy");
+  if (tool === "publish_finding" || tool === "read_findings")
+    invariant(cfg.spec.coordination, "finding tools require host coordination policy");
   return contract;
 }

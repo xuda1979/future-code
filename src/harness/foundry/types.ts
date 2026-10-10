@@ -119,6 +119,9 @@ export interface Driver {
   verify(capsule: Capsule, result: WorkerResult, signal: AbortSignal, control?: AttemptControl): Promise<Verification>;
   /** Trusted cumulative usage for this lease, including interrupted RPCs. */
   measurement?(lease: Lease): Measurement;
+  /** Optional synchronous host projection, committed atomically with acceptance.
+   * Must not perform external effects or alter the acceptance decision. */
+  accepted?(capsule: Capsule, artifact: Json, artifactHash: string, evidenceHash: string): void;
 }
 export interface Lease {
   runId: string;

@@ -12,6 +12,7 @@ import { executable, validateSwarmSpec, validateSwarmTasks, type PinnedSwarm, ty
 import { SwarmDriver, verifierIdentity, workerIdentity } from "./driver.ts";
 import { remoteWorkerFleetBackend } from "./workerFleet.ts";
 import { SessionJournal } from "./session.ts";
+import { CohortBoard } from "./cohorts.ts";
 import { fabricStatus } from "../evidenceFabric.ts";
 import { claimGate } from "../claims.ts";
 import { git, LocalGitHands, orderedTasks, readPatchArtifact } from "./workspace.ts";
@@ -100,6 +101,7 @@ export function swarmStatus(store: Store, run?: string, after = ""): Json {
   return json({ ...new Scheduler(store).summary(run), providerUsage: new SessionJournal(store).usage(run),
     tasks: page, nextTaskAfter: tasks.length > 200 ? page.at(-1)!.id : null,
     health: runHealth(store, run), fabric: fabricStatus(store, run),
+    ...(cfg.spec.coordination ? { coordination: new CohortBoard(store, cfg).status(run) } : {}),
     researchJobs: new ResearchJobs(new SessionJournal(store), cfg).list(run),
     taskPageLimit: 200, integrationReceipt: store.getMeta(`extension.swarm.integration.${run}`) ?? null });
 }

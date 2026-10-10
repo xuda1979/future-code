@@ -8,6 +8,7 @@ import { toolEffectContract } from "./toolEffects.ts";
 /** Validate the advertised finite schema before any tool can produce effects. */
 function shape(value: any, schema: any): void {
   if (!schema || !Object.keys(schema).length) { canonical(value); return; }
+  if (schema.enum) invariant(schema.enum.includes(value), "invalid tool enum value");
   if (schema.type === "string") {
     invariant(typeof value === "string", "tool field must be text");
     invariant((schema.minLength === undefined || value.length >= schema.minLength) &&

@@ -267,7 +267,8 @@ export class Scheduler {
     });
   }
   /** Only the trusted runtime calls finish after independent verification. */
-  finish(lease: Lease, artifact: Json, evidence: Json, measurement: Measurement, now = Date.now()): boolean {
+  finish(lease: Lease, artifact: Json, evidence: Json, measurement: Measurement, now = Date.now(),
+    onAccepted?: (artifactHash: string, evidenceHash: string) => void): boolean {
     validMeasurement(measurement);
     // Materialize first. A crash can leave an orphan artifact, never a dangling PASS.
     const artifactHash = this.store.artifact(artifact); const evidenceHash = this.store.artifact(evidence);
@@ -298,6 +299,7 @@ export class Scheduler {
           }
         }
       }
+      onAccepted?.(artifactHash, evidenceHash);
       this.store.event("task.accepted", { fence: lease.fence, artifactHash, evidenceHash }, lease.runId, lease.taskId); return true;
     });
   }
