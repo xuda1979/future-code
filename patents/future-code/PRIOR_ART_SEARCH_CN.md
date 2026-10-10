@@ -6,12 +6,13 @@ Prior Art Search Report
 # 检索参数 / Search Parameters
 | 参数 / Parameter | 内容 / Value |
 |---|---|
-| 检索日期 / Search Date | 2026年10月9日 |
-| 公开时间范围 / Period | 2008—2026年10月9日；重点2018—2026年 |
-| 已实际使用渠道 / Sources | Google Patents 中 US/EP/CN/WO 公开页；Temporal、LangGraph、Bazel 官方文档；Future-Code GitHub 原始代码及技术报告 |
-| 检索方式 / Method | 英中关键词组合检索、关联专利族交叉核验、正文及权利要求特征对比；人工筛选高相关文献 |
-| 未完成核验 / Limitations | 未执行 USPTO、EPO、CNIPA 或 WIPO 官方数据库的穷尽检索；未核实所有同族案、审查档案和法律状态，不是 FTO 结论 |
-| 待审查主题 / Claimed subject | 冻结验收契约+绑定提议的宿主授权+代际租约+远端作业协调优先+独立验证/最终集成的组合 |
+| 检索日期 / Search Date | 2026-10-09（更新复核） |
+| 公开时间范围 / Period | 2008—2026-10-09；重点2018—2026年 |
+| 已核查来源 / Verified Sources | Google Patents 的 US/EP/CN/WO 文献页与部分权利要求；Temporal、LangGraph、Bazel 官方公开资料；Future-Code GitHub 源代码和既有测试说明 |
+| 检索方法 / Method | 公开号及标题复核、英文/中文关键词组合、同族识别、与拟议独立权利要求的逐要件人工对照 |
+| 未完成事项 / Limitations | 未执行各国官方数据库的穷尽检索；部分公开仅完成摘要及独立权利要求层级核查；同族全量、审查档案、法律状态、FTO 均待代理人正式复核 |
+| 拟保护主题 / Subject | 冻结验收契约下的模型提议双重准入、稳定远端作业幂等确保、未决副作用及证据的目标级完成阻断 |
+| 对应交底书版本 | 本次复核版，发明人列示：许达、王飞；交底书重点 A、C、E，B/D/F 为从属或备选 |
 
 ## 使用的关键词 / Keywords Used
 英文：AI agent orchestration; large language model agent; task DAG; workflow checkpoint; durable execution; model-driven multi-agent; lease fencing; stale worker; idempotent job; reconciliation; external side effect; verification evidence; autonomous software development; certificate tree; incremental verification; agent recovery。
@@ -51,104 +52,121 @@ Prior Art Search Report
 公开要点：任务管理 Agent、执行 Agent、子任务创建、AI 输出评价与上下文更新。与本发明重合度：高（任务分解、执行、结果评价）；潜在区别需具体落到外部作业提交前意图、UNKNOWN 协调和目标完成的机器验收条件。不得将“模型与任务管理分层”单独作为新颖性结论。
 
 # C类：执行可靠性与协议现有技术 / Category C: Reliable Execution and Protocol Prior Art
-## C1. 任务所有权、租约及恢复
-资料：Temporal 的 Workflow/Activity 恢复、任务超时与事件历史（见 A2），以及通用分布式系统中的租约、代际/任期和 fencing 技术。后者属于成熟工程构件；本次检索尚未找到足以断言具体“租约代际”权利要求全新或已被全面覆盖的单一决定性专利。
+## C1. 通用租约、事务与任务重放
+Temporal 的事件历史和 Activity 重试、通用分布式锁 fencing token、事务性唯一键及退避机制均属于已知工程手段。原交底书把租约代际、事件存储与重试本身称为创新容易被质疑。需具体比较的是模型提议载荷与当前 fence、冻结契约的反复绑定及其与外部作业的同一目标门控。
 
-与本发明的区别重点：宿主既校验 task fence/owner/deadline，又复核 proposal 与 contract/recipe/payload 的不可变绑定；动态 spawn 和结果写入受同一代际约束。仅声明“使用 fencing 防止迟到写入”很可能缺乏创造性。
+参考：https://docs.temporal.io/encyclopedia/event-history ；https://docs.temporal.io/evaluate/understanding-temporal 。
 
-## C2. 内容寻址计算及重试副作用
-资料：Bazel Remote Execution API，https://github.com/bazelbuild/remote-apis/blob/main/build/bazel/remote/execution/v2/remote_execution.proto ；Bazel 远程缓存介绍，https://bazel.googlesource.com/bazel/+/refs/heads/staging/src/main/java/com/google/devtools/build/lib/remote/README.md 。
+## C2. 内容寻址、幂等键与远端副作用
+Bazel Remote Execution API 及远程缓存中以输入摘要识别动作属于既有机制；Temporal 亦指出 Activity 重试需依赖外部接口的幂等性。稳定 key 和“重试安全”本身不足以支持宽泛权利要求。Future-Code 代码实际要求远程 job adapter 具备 idempotentEnsure：未知 job_id 时发送 ensure(key)，已知 job_id 时发送 inspect(jobId)，由远端保证重复 ensure 仅接续同一个作业；若远端不履约，仅凭本地日志不能提供 exactly-once。
 
-公开要点：由动作输入/命令的摘要标识可重复动作并缓存执行结果。与本发明的关系：稳定身份、可重复任务缓存均已知；训练/仿真等非幂等远程副作用只有在远端可查询稳定 key、且查询语义可靠时，协调优先策略才能阻止盲目再次提交。本申请不能把“所有操作 exactly-once”作为既成效果。
+参考：https://github.com/bazelbuild/remote-apis/blob/main/build/bazel/remote/execution/v2/remote_execution.proto ；https://temporal.io/blog/saga-pattern-made-easy 。
+
+**接近本申请的智能体未知结果恢复公开（重点风险）：** Temporal 于 **2026-10-08** 发布《The immortal life of Pi (Running the Pi coding agent on Temporal)》，介绍执行工具前留下 pending 声明、执行中断后对结果标记 UNKNOWN、不自动重放工具调用，并让恢复后的 Agent 先确认外部状态。该公开与交底书创新点 C 的“先登记意图、不确定不盲目重试”高度接近。未来差异化只能具体落在远端作业适配器的 **idempotent ensure/inspect 契约、稳定绑定键、冻结目标级验收和持续冲突阻断** 的联动；即使如此，也不能排除该公开与 C1/C2 结合后导致创造性不足。
+
+核查：https://temporal.io/blog/the-immortal-life-of-pi-running-the-pi-coding-agent-on-temporal （发布日期 2026-10-08）。
 
 # D类：证据验证与研发自动化现有技术 / Category D: Evidence and R&D Automation Prior Art
-## D1. AI 辅助软件生成与测试验证
-专利：US20260211802A1，《Artificial Intelligence (AI) Assisted End-to-End Workflow Integration for Software Development in Digital Model Platforms》，2026年公开，https://patents.justia.com/patent/20260211802 。
+## D1. 自主软件测试与独立验证专利
+US12411758B1，《Autonomous software testing agent》，2025-09-09 授权公开。其权利要求明确涵盖自主测试 Agent 及与测试操作分离的验证规则，故“执行与验证分离”不能作为本申请独立创新。Future-Code 候选区别在于工件/检查器版本绑定、未解决外部作业、强证据冲突和合并树最终检查共同阻断目标完成。
 
-公开要点：AI 生成脚本、测试脚本并执行测试生成验证报告。与本申请的重合度：中（独立测试/验证思想）；本申请的特定区别需进一步限定到跨任务版本、外部作业未决、强证据冲突和最终组合检查共同阻断目标完成的机制。
+核查：https://patents.google.com/patent/US12411758B1/en 。
 
-## D2. 可复用验证结果与自适应证据表示
-资料：Bazel 的 action digest 与缓存规范（见 C2）；Future-Code 的 HACT 研究实现和代码（`src/hact/`）。增量验证、分层聚合、版本散列及证据树属于已知技术方向，不能仅凭“采用树结构”主张新颖。未来如对 completion hyperedge 学习、semantic/layout 分离及 generation fence 独立申请，须针对 Merkle 结构、增量构建、层次证据压缩及工作负载自适应布局开展更细粒度检索。现有公开材料仅支持条件性技术效果，不能证明所有场景比扁平台账更快。
+## D2. AI 生成软件及其测试流程
+US20260211802A1，《Artificial Intelligence (AI) Assisted End-to-End Workflow Integration for Software Development in Digital Model Platforms》，2026 年公开，包含生成程序、生成测试并产出报告。该专利直接挑战把“模型产出代码 + 测试验证 + 报告”组合为独立发明的论证。本申请必须进一步限定一致性控制、提交意图及外部作业验收条件。
+
+核查：https://patents.justia.com/patent/20260211802 。
+
+**HACT 的证据层次布局：** Merkle 树、层次证据摘要、增量计算、缓存与内容寻址已广泛公开。Future-Code 的 stable check_id、generation-fenced publication ticket 和 completion hyperedge 布局选择需另行对照证据索引/层次更新/自适应布局文献。当前未完成该主题的专项专利检索，也无充分 live-WAN/在线大模型实证证明普适性能优势；宜作为从属备选或后续单独主题。
 
 # E类：专利检索结果 / Category E: Patent Search Results
 ## USPTO 检索结果
-| 公开/授权号 | 名称简述 | 相关度 | 初步区分 |
-|---|---|---|---|
-| US20250356313A1 | AI 驱动多 Agent 任务管理 | 高 | 子任务与输出评价重合；未核实契约-租约-作业-证据联合门控 |
-| US20260127463A1 | 模型驱动工作流编排 | 高 | 动态调整流程重合；本申请拟限定冻结规格及宿主复核 |
-| US12481517B1 | AI agents orchestration | 中 | 代理路由、资源配置与负载优化；与外部作业验收闭环不同 |
-| US12307349B2 | LLM 驱动任务专用 Agent 编排 | 中 | 多 Agent 协调公开；任务结果可信验收非其主要摘要要点 |
+下表指**美国公开专利文献**；核查工具为 Google Patents 镜像，未声称完成 USPTO 官方站点的检索。
 
-核查链接：https://patents.google.com/patent/US20250356313A1/en ；https://patents.google.com/patent/US20260127463A1/en ；https://patents.google.com/patent/US12481517B1/en ；https://patents.google.com/patent/US12307349B2/en 。以上法律状态应以官方记录为准。
+| 公开或授权号 | 主题 / 已公开核心特征 | 风险 | 与本申请可核查的剩余区别 |
+|---|---|---|---|
+| US20250356313A1 | 多 Agent 任务管理、子任务创建及结果评价；2025-11-20 公开 | 高 | 验收契约—远端任务 UNKNOWN—最终集成的联合门控需逐权项比对 |
+| US20260127463A1 | 模型动态调整多 Agent 工作流；2026-05-07 公开 | 高 | 冻结父任务与副作用前租约复核，不能泛称动态 DAG 新颖 |
+| US12481517B1 | AI Agent 调度、资源扩缩容；2025-11-25 授权 | 中 | 本申请不以资源编排本身为创新 |
+| US12307349B2 | LLM 驱动多任务代理编排与检验；2025-05-20 授权 | 中高 | 原独立权利要求包含代理结果复核概念，须核实范围 |
+| US12411758B1 | 自主软件测试与分离的验证规则；2025-09-09 授权 | 中高 | 独立验证本身已知，拟限定跨远程任务与集成完成门控 |
+
+核查：https://patents.google.com/patent/US20250356313A1/en ；https://patents.google.com/patent/US20260127463A1/en ；https://patents.google.com/patent/US12481517B1/en ；https://patents.google.com/patent/US12307349B2/en ；https://patents.google.com/patent/US12411758B1/en 。
 
 ## EPO 检索结果
-| 公开号 | 名称简述 | 相关度 | 初步区分 |
-|---|---|---|---|
-| EP4742096A1 | Flow orchestration for model-based agents | 高 | 与 US20260127463A1 同族；不得按两件独立创新计数 |
+| 公开号 | 公开日期 | 风险及同族关系 |
+|---|---|---|
+| EP4742096A1 | 2026-05-13 | 与 US20260127463A1 同一相关专利族；已公开模型驱动工作流重编排 |
 
-核查链接：https://patents.google.com/patent/EP4742096A1/en 。本次仅核实该高相关欧洲公开，不能解释为欧洲检索无其他专利。
+核查：https://patents.google.com/patent/EP4742096A1/en 。本节不表示没有其他相关欧洲公开。
 
 ## CNIPA 检索结果
-| 公开号 | 名称简述 | 相关度 | 初步区分 |
-|---|---|---|---|
-| CN120560815A | LLM 任务拆解及 DAG 编排 | 高 | 任务图与并行已公开 |
-| CN121212278A | LLM 智能体自动编排 | 高 | 事件驱动监测、异常触发重规划已公开 |
-| CN118819778A | 大模型智能体编排任务处理 | 高 | 任务拆解和工具执行已公开 |
-| CN121523815A | 软件多智能体协同 | 中高 | 动态协同和依赖图公开，权利要求需避开概念覆盖 |
+以下为中国公开专利文献，借助 Google Patents 核查，不代表官方 CNIPA 全量检索。
 
-核查链接：https://patents.google.com/patent/CN120560815A/zh ；https://patents.google.com/patent/CN121212278A/zh ；https://patents.google.com/patent/CN118819778A/zh ；https://patents.google.com/patent/CN121523815A/zh 。WO2025076107A1 是另一个相关专利族，参见 https://patents.google.com/patent/WO2025076107A1/en 。
+| 公开号 | 核查主题 | 风险 |
+|---|---|---|
+| CN120560815A | LLM 任务拆解、DAG 调度与缓存优化 | 高 |
+| CN121212278A | 任务自动编排、事件驱动异常重规划 | 高 |
+| CN118819778A | 大模型 Agent 编排与任务处理 | 高 |
+| CN121523815A | 软件多智能体动态协同及依赖图 | 中高 |
+
+核查：https://patents.google.com/patent/CN120560815A/zh ；https://patents.google.com/patent/CN121212278A/zh ；https://patents.google.com/patent/CN118819778A/zh ；https://patents.google.com/patent/CN121523815A/zh 。
+
+**同族更正：** WO2025076107A1 与 US12307349B2 对应同一相关申请家族，不应被误写为完全独立的另一技术来源。核查：https://patents.google.com/patent/US12307349B2/en 。
 
 # 新颖性分析 / Novelty Analysis
-## 创新点 A：提议绑定与执行前二次准入
-已知部分：Agent 规划、工具权限和任务路由；建议主张的附加技术特征：run/task/fence/contract/recipe/payload 的散列绑定、追加式记录和副作用前复核。初评：组合具可检索的技术边界，但尚不能判定全球新颖性；需进一步检索“agent action capability / proposal authorization / binding”。
+## 创新点 A：提议散列绑定与副作用前再核验
+已知：模型工具调用、权限管理和持久记录。候选限定：宿主同时绑定 run/task/fence/contract/recipe/payload，先记录准入，再在副作用边界以当前租约重检。新颖性判断：**未确认**，需补查授权提议及能力票据有关专利；创造性风险为中高。
 
-## 创新点 B：冻结父任务与原子化代际裂变
-已知部分：动态 DAG 和租约。建议收窄至“不改写父任务规格 + request_key 去重 + 校验父租约及依赖范围 + 单事务追加 spawn edge”；初评：创造性风险中高，可能被视为已知事务/幂等性技术在 Agent 上的组合应用。
+## 创新点 B：原子裂变与父规格冻结
+已知：DAG、动态重规划、分布式租约、幂等事务。候选限定：父规格不改写、request_key+hash 重放检查与父租约/作用域在同一事务内验证。创造性风险：**高**，适合作为系统组合中的从属细化。
 
-## 创新点 C：外部副作用协调优先恢复
-已知部分：幂等键、作业查询、事件日志。建议保护的特定联系：提交意图先写入、UNKNOWN 状态、reconcile-first、未证实不存在则不可重发，以及目标完成门控对未决副作用的阻断。初评：可作为与 A/E 组合的较强特征；独立主张“幂等提交”风险高。
+## 创新点 C：幂等 ensure/inspect 与未知作业阻断
+已知：副作用意图/结果日志、幂等键、未知结果先查（特别是 Temporal 2026-10-08 公开）。候选限定：本地 research_jobs 双重身份绑定；适配器 idempotentEnsure；未知 job_id 用 ensure、已知用 inspect；未终结作业阻断目标 PASS。初评：**高度接近现有技术，单独授权风险高**，应放进 A+E 跨层链路。
 
-## 创新点 D：共享模型服务故障代际
-已知部分：熔断器、指数退避、半开探测。具体特征：quota_pool 跨执行者共享 epoch，迟到成功不能清除新故障，冷却时释放工作槽。初评：更适合从属权利要求；单独创造性风险高。
+## 创新点 D：服务池 epoch 熔断与槽位释放
+已知：熔断、退避、半开探测及代际。候选限定：quota_pool 共享 epoch、防迟到成功清除新故障、等待释放工作槽。初评：独立创造性风险**高**；从属备选。
 
-## 创新点 E：独立证据和目标级验收门控
-已知部分：CI 检查、独立验证、结果缓存。特定联动：冻结 checker 身份、工件证据、OPEN conflict、UNKNOWN external jobs、最终集成检查共同判定 COMPLETE。初评：与 C 联合较值得保护；仍需查证“agent verification gate”专利及文献。
+## 创新点 E：外部作业、冲突与集成的联合验收
+已知：独立验证、测试门控、CI、结果聚合及自治测试专利。候选限定：同一冻结目标下同时阻断 UNKNOWN 外部任务、OPEN conflict、失效 claim，并强制合并工件后再运行固定检查器。初评：仍有较具体的组合论证空间，但尚未检索充分到可以作出新颖/非显而易见结论。
 
-## 创新点 F：语义/布局分离与 HACT
-已知部分：证据树、内容寻址、增量计算。特定联动：稳定 check_id、layout_generation、completion hyperedge 验证样本优化且失败回退。初评：可能适合独立、较窄主题的后续申请，当前宜作为从属备选，避免与总体运行时发明单一性冲突。
+## 创新点 F：证据语义与层次布局隔离
+已知：内容寻址、哈希树、增量验证。候选限定：稳定检查身份、布局代际隔离及 completion hyperedge 验证样本上的布局选择。当前检索不足以给出可靠的新颖性结论；若另案申请应补充数学规范与独立对照实验。
 
 # 可专利性评估 / Patentability Assessment
-| 评估项 | 初步判断 | 主要风险 / 下一步 |
+| 评估项目 | 复核意见 | 建议动作 |
 |---|---|---|
-| 新颖性 | 尚不能认定；狭窄组合存在论证空间 | US/EP/CN 多件高相关专利，须逐项权利要求对照 |
-| 创造性 | 中高风险 | DAG、熔断、fencing、检查点、幂等键均属常见技术，需证明不可直接推得的联动与技术效果 |
-| 工业实用性 | 较明确 | 可在软件研发、仿真、训练平台部署，需给具体状态机/数据结构实现 |
-| 充分公开 | 初步具备，待完善 | 提交意图时序、远端适配接口、冲突裁决、失败边界需研发方确认 |
-| 专利客体 | 需技术化陈述 | 不能仅主张抽象“模型思考/规划”；强调计算资源、状态一致性及具体计算机处理步骤 |
-| 申请权/公开风险 | 高优先级核验 | 现有 GitHub 公共材料已涉及专利内容，需锁定首次公开时间和权属 |
-| 实证支撑 | 有代码及离线测试，广泛生产率效果未证实 | 避免“始终运行”“速度翻倍”“绝对不重复执行”等无证实措辞 |
+| 新颖性 | 仍未知；多项要件已公开，不能宣称任何一项全球首次 | 优先以修订后的权利要求1逐段核对更早公开 |
+| 创造性 | **高风险**；Temporal Pi 与现有 AI Agent 专利显著缩小 C/E 的独立差异 | 围绕完整跨层状态门控、实际故障负测及不可替代的技术效果论证 |
+| 充分公开 | 旧稿远端恢复语义与代码不符；本次已按 idempotentEnsure 修正 | 代理人进一步确认 ensure 的远端原子性及宿主/适配器失效处理 |
+| 工业实用性 | 有代码和执行流程基础 | 保留部署假设、数据结构及异常状态迁移实例 |
+| 单一性 | A/B/C/D/E/F 技术主题较多 | 以 A+C+E 为中心，B/D 为从属，F 单独考虑 |
+| 权利归属 | 仍待核实；已确认发明人列示为许达、王飞 | 由两位核对排序、创造性贡献、申请主体及开源来源 |
+| 公开时点 | **紧迫**；仓库公开且 2026-10-09 既有专利交底书 PR 已合并 | 梳理最早 GitHub commit、公开内容及适用法域宽限期，不承诺仍具新颖性 |
+| 效果证据 | 有离线/回归测试说明，无跨平台 live-agent 性能优越结论 | 不使用固定倍数或绝对 exactly-once 作为申请依据 |
 
 # 权利要求差异化矩阵 / Claim Differentiation Matrix
-| 权利要求要件 | 已知技术覆盖 | 建议强调的区别技术特征 | 风险 |
+| 修订权利要求1要件 | 已知最接近技术 | 待论证的组合限定 | 代码参照 |
 |---|---|---|---|
-| LLM 多 Agent / DAG | CN120560815A、US20250356313A1 | 不作为独立创新点 | 高 |
-| 动态编排 / 重规划 | EP4742096A1、CN121212278A | 冻结父契约、可验证宿主准入 | 高 |
-| 持久事件与恢复 | Temporal、LangGraph | 提议-租约-外部作业-验收的跨层绑定 | 中高 |
-| 远程作业 stable key | 通用幂等/缓存技术 | 意图先写 + UNKNOWN 协调 + 完成阻断 | 中 |
-| 独立验证和证据 | CI、Bazel、US20260211802A1 | 冲突/外部作业/集成的联合 gate | 中高 |
-| HACT 自适应布局 | 增量与层次证据相关技术 | 语义/布局隔离及旧 generation 拒绝 | 待专项检索 |
+| 冻结验收契约 | Temporal/LangGraph、CI | 提议和副作用整个周期绑定契约/配置 | `src/harness/foundry/store.ts` |
+| 结构化提议双校验 | 多 Agent 编排、权限控制 | proposal hash+当前 fence 双边界校验 | `src/harness/foundry/proposals.ts` |
+| 远端 UNKNOWN/稳定 key | Temporal Pi、Bazel、幂等 Activity | `idempotentEnsure` 与 `inspect` 的两种状态路径，身份不可漂移 | `src/harness/foundry/swarm/jobs.ts` |
+| 未解决结果阻断完成 | 测试门控与独立验证 | 远端任务/强证据冲突/失效 claim 联合条件 | `src/harness/foundry/swarm/supervisor.ts` |
+| 合并树最终检查 | 现有 CI/多 Agent 测试 | 冻结目标下局部 PASS 不提升为目标 PASS | `src/harness/foundry/swarm/host.ts` |
+| 原子裂变（从属） | CN120560815A、US20260127463A1 | 父规格冻结+唯一请求+同事务父 lease 校验 | `src/harness/foundry/dynamicDag.ts` |
+| 模型服务恢复（从属） | 既有熔断器 | 资源池 epoch 和旧成功回复拒绝 | `src/harness/foundry/swarm/providerRecovery.ts` |
 
 # 关键区别特征 / Key Distinguishing Features
-建议独立方法权利要求优先保留这一完整因果链：①冻结目标、检查器和权限边界；②模型提出操作，宿主补全绑定并在副作用前二次核验；③父任务不可变、代际执行及可重放去重裂变；④外部作业提交意图先于网络副作用，UNKNOWN 时协调优先；⑤将未解决远程作业和矛盾证据列为目标级否决条件；⑥在集成环境复核所有工件后方可发布 COMPLETE。上述特征可形成可检查的状态不变量，但其整体是否具创造性尚不能以本次初检断言。
+建议专利代理人优先论证**同一目标契约下的跨故障域状态一致性**：模型侧结构化提议不能直接越权执行；执行侧在副作用边界重验 lease；远端作业在 intent 写入后以原 stable key 经 idempotent ensure/inspect 查询或接续；结果不确定时保持目标 BLOCKED；任务侧接收可信 evidence 并在合并树重新验证后发布 COMPLETE。每一步都有明确数据字段、存储时序和失败分支。**单独使用**这些组件多数属于既有技术；目前无法断言这一组合可获授权。
 
 # 建议申请策略 / Recommended Filing Strategy
-1. 尽快确认申请主体、发明人贡献和 GitHub 代码权属，整理最早版本、公开日志及内部发明完成日期；在后续公开扩散前咨询中国专利代理人。公开代码可能影响中外申请的新颖性，宽限期的适用范围与证据要求因司法辖区而异，不能默认可补救。
-2. 先由代理人以独立权利要求1为核心进行中美欧及 PCT 正式检索；逐特征绘制 claim chart 并比对上述专利族全文、审查意见与法律状态。
-3. 如整体权利要求面临单一性问题，可优先保留 A+B+C+E 的一致性及验收闭环；D 作为从属可选，F 如有充分算法创新与专项检索再考虑独立申请。
-4. 研发方补充状态迁移伪代码、数据库约束、断线恢复实验、租约迟到写入负测、未知作业不重发测试、强证据冲突阻断测试和最终集成验证轨迹；所有效果使用可复现条件和实际测量。
-5. 本报告为公开网页层面的初步检索，不能替代官方数据库复核、侵权自由实施（FTO）检索或正式法律意见。拟申请 PCT 等境外路径时须与代理人根据有效优先权日和披露时点确定期限。
+1. 立即由许达、王飞核对发明人实际创造性贡献、排名、所属单位和申请权；不要从示例模板复制他人的申请人及联系方式。
+2. 核查 public GitHub 中最早向公众披露 A/C/E 核心组合的日期。原 `docs/release/FUTURE_CODE_PATENT_CN.md` 与专利目录原稿可能已披露部分内容；任何新公开版本继续增加失权风险。由专业代理人判断中国及境外法域适用规定。
+3. 由代理人开展 USPTO/EPO/CNIPA/WIPO 正式检索，至少对照 CN120560815A、US20250356313A1、US20260127463A1、US12411758B1 及 2026-10-08 Temporal Pi 公开。逐项标注 X（单件高度抵触）、Y（结合抵触）、A（背景技术）风险，但本报告不擅自下最终检索类别结论。
+4. 要求研发方提交四项最小可复现回归：提议载荷漂移/旧 fence 被拒；远端 UNKNOWN 经相同 key 的重复 ensure 仅有一份作业；adapter 丢失幂等保证时拒绝自动重发；局部 PASS 但强冲突/未决作业/合并检查失败时不能 COMPLETE。记录 commit、配置、环境和结果哈希。
+5. 如果代理人认为总体组合缺乏单一性或创造性，优先探索窄 A+C+E 案；B/D 作为附加特征；HACT 需专项检索后再决定是否分案。不得把“无法停止”“绝对恰好一次”“比 Claude/Codex 快若干倍”等未经实测的效果写入权利要求。
 
 # 结论 / Conclusion
-本次初检明确发现了覆盖 LLM 任务分解、DAG、多智能体协调、动态工作流、持久化恢复和测试验证的相近公开，因此不能支持“首次提出多 Agent 协同”“首次实现自恢复”或“六项创新均未公开”等宽泛结论。Future-Code 更值得评估的申请主题，是冻结验收约束下的结构化提议准入、租约代际、远程不确定副作用协调和目标级独立验收的协同状态机。建议按窄而可实施的组合保护路径继续尽职检索与实证补强，现阶段可作为技术交底与代理人讨论材料，不应直接视作可授权性保证。
+补充检索与代码复核改变了旧稿对创新点 C 的风险判断：意图先行、UNKNOWN 状态及恢复前查询与 2026-10-08 Temporal Pi 公开高度接近；自主测试的独立规则验证亦见于 US12411758B1。Future-Code 的潜在可保护对象应限缩为以固定验收契约为中心，结合模型提议二次宿主准入、受远端幂等保证约束的稳定作业协调、未决作业/矛盾证据否决条件及合并树独立验收的具体技术过程。当前**既不能肯定新颖性，也不能确认创造性或自由实施**；公开源代码已增加优先日风险，应由专业代理人尽快作正式检索与申请策略判断。
 
-报告准备日期：2026-10-09。以上检索记录与法律分析仅供研发及专利代理讨论，正式结论应以审查官方公开文本、法律状态和专业意见为准。
+报告准备日期：2026-10-09（复核版）。仅供研发与专利代理讨论，不构成法律意见或官方检索报告。
