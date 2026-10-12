@@ -332,7 +332,8 @@ export class SwarmDriver implements Driver {
         const checkEvery = this.cfg.spec.supervision?.checkpointEveryMs;
         const checkpointKey = checkpointInputKey(t.state.patchHash, t.state.feedbackHash ? 1 : 0,
           digest({ feedback: t.state.feedbackHash, jobReceipt: t.state.lastJobReceipt ?? null }));
-        if (checkEvery && shouldRunExploratoryCheckpoint(t.state.lastExploratoryCheckpointKey, checkpointKey, this.cfg.spec.supervision?.checkpointCadence) &&
+        if (t.state.turns > 0 && checkEvery &&
+            shouldRunExploratoryCheckpoint(t.state.lastExploratoryCheckpointKey, checkpointKey, this.cfg.spec.supervision?.checkpointCadence) &&
             !(t.state.history.at(-1)?.role === "assistant" && !t.state.history.at(-1)?.calls?.length) && Date.now() - t.state.lastCheckAt! >= checkEvery) {
           const diagnosticPaths = this.cfg.spec.checks[profile.checks[0]]?.diagnosticPaths;
           let changedPaths: string[] | undefined;
