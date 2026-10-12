@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { performance } from "node:perf_hooks";
+import { AdaptiveBatchSizing } from "./adaptiveBatchSizing.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { invoke } from "../commands.ts";
 import { DeferredAttemptError } from "../continuation.ts";
@@ -109,6 +111,8 @@ function claimLease(store: Store, cfg: PinnedSwarm, c: Capsule, exclude = new Se
   });
 }
 
+const batchSizing = new AdaptiveBatchSizing();
+
 class RemoteHands implements Hands {
   readonly batchPolicy = { reads: 4, writes: true, maxCalls: 32 };
   readonly store: Store; readonly cfg: PinnedSwarm; readonly c: Capsule; readonly profile: AgentProfile; readonly signal: AbortSignal;
@@ -218,16 +222,28 @@ class RemoteHands implements Hands {
         const budget = this.cfg.spec.budget;
         const reserve = kind === "workspace-write" ? 6 * budget.maxPatchBytes + 4096 : 4096;
         const perCall = kind === "read" ? 6 * budget.maxToolOutputBytes + 1024 : 1024;
-        const width = Math.max(1, Math.min(32, Math.floor((bytes - reserve) / perCall)));
-        for (let offset = 0; offset < calls.length; offset += width) {
-          const chunk = calls.slice(offset, offset + width);
-          const reply = await this.rpc(lease, { schema: 1, op: "batch", workspace: lease.workspace, kind, calls: chunk });
-          invariant(reply.ok, reply.error ?? "remote batch failed");
-          const rows = (reply.result as any)?.results;
-          invariant(Array.isArray(rows) && rows.length === chunk.length &&
-            rows.every((row, i) => row?.callId === chunk[i]!.id && Object.hasOwn(row, "result")), "invalid remote batch results");
-          results.push(...rows.map(row => row.result));
-          if (kind === "workspace-write") patchHash = this.savePatch(reply);
+        const byteSafeMax = Math.max(1, Math.min(32, Math.floor((bytes - reserve) / perCall)));
+        for (let offset = 0; offset < calls.length;) {
+          const chunk = calls.slice(offset, offset + batchSizing.width(lease.worker, kind, byteSafeMax));
+          const started = performance.now();
+          let reply: WorkerReply;
+          try {
+            reply = await this.rpc(lease, { schema: 1, op: "batch", workspace: lease.workspace, kind, calls: chunk });
+            invariant(reply.ok, reply.error ?? "remote batch failed");
+            const rows = (reply.result as any)?.results;
+            invariant(Array.isArray(rows) && rows.length === chunk.length &&
+              rows.every((row, i) => row?.callId === chunk[i]!.id && Object.hasOwn(row, "result")), "invalid remote batch results");
+            if (kind === "workspace-write") patchHash = this.savePatch(reply);
+            results.push(...rows.map(row => row.result));
+            batchSizing.observe(lease.worker, kind, { calls: chunk.length, durationMs: performance.now() - started,
+              byteSafeMax, timeoutMs: budget.toolTimeoutMs, ok: true });
+            offset += chunk.length;
+          } catch (error) {
+            batchSizing.observe(lease.worker, kind, { calls: chunk.length, durationMs: performance.now() - started,
+              byteSafeMax, timeoutMs: budget.toolTimeoutMs, ok: false });
+            throw error;
+          }
+          continue;
         }
       } else {
         // Old workers retain serial wire I/O. Failover still replays every
