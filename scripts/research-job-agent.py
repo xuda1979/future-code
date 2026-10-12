@@ -4,10 +4,14 @@
 stdin: one schema-1 ensure/inspect request; stdout: one JobReply.
 The operator pins an argv template in --config. Model input is DATA, never a
 command. Not a sandbox. Lost worker ownership becomes UNKNOWN, not a rerun.
+Optional resultMaxBytes requires a strict JSON object via FUTURE_JOB_RESULT_PATH;
+maxLogBytes retains bounded log prefixes. Terminal artifacts have hash-checked,
+bounded read_artifact pages; neither metrics nor log text authorize acceptance.
 """
 from __future__ import annotations
 
 import argparse
+import base64
 import fcntl
 import hashlib
 import json
@@ -16,6 +20,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -62,7 +67,7 @@ def read(path: Path) -> Any:
 
 def template(path: Path) -> dict[str, Any]:
     cfg = read(path)
-    if not isinstance(cfg, dict) or set(cfg) - {"argv", "cwd", "timeoutMs", "envAllow"}:
+    if not isinstance(cfg, dict) or set(cfg) - {"argv", "cwd", "timeoutMs", "envAllow", "resultMaxBytes", "maxLogBytes"}:
         raise ValueError("invalid trusted job template")
     argv = cfg.get("argv")
     if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a and "\0" not in a for a in argv):
@@ -77,9 +82,97 @@ def template(path: Path) -> dict[str, Any]:
     env = cfg.get("envAllow", [])
     if not isinstance(env, list) or not all(isinstance(n, str) and re.fullmatch(r"[A-Z_][A-Z0-9_]*", n) for n in env):
         raise ValueError("invalid environment allowlist")
-    if any(n.startswith(("LD_", "DYLD_", "NODE_OPTIONS", "PYTHONPATH")) for n in env):
-        raise ValueError("loader environment must not be forwarded")
+    if any(n.startswith(("LD_", "DYLD_", "NODE_OPTIONS", "PYTHONPATH", "FUTURE_JOB_")) for n in env):
+        raise ValueError("loader and reserved job environment must not be forwarded")
+    for name, ceiling in (("resultMaxBytes", 65536), ("maxLogBytes", 268435456)):
+        if name in cfg and (type(cfg[name]) is not int or not 1 <= cfg[name] <= ceiling):
+            raise ValueError(f"invalid {name}")
     return cfg
+
+
+def regular_file(path: Path):
+    """No symlink traversal or blocking on a FIFO when reading result evidence."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise ValueError("evidence must be a regular file")
+        return os.fdopen(fd, "rb")
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def unique_object(pairs):
+    out = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError("duplicate structured result key")
+        out[key] = value
+    return out
+
+
+def invalid_constant(_value):
+    raise ValueError("nonfinite structured result")
+
+
+def structured_result(directory: Path, limit: int) -> tuple[dict[str, Any], dict[str, Any]]:
+    with regular_file(directory / "result.json") as source:
+        if os.fstat(source.fileno()).st_size > limit:
+            raise ValueError("structured result exceeds byte budget")
+        raw = source.read(limit + 1)
+    if len(raw) > limit:
+        raise ValueError("structured result exceeds byte budget")
+    data = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_object, parse_constant=invalid_constant)
+    if not isinstance(data, dict):
+        raise ValueError("structured result must be an object")
+    encoded(data)  # Also rejects numeric overflow such as 1e999 -> infinity.
+    # Publish an exact cold copy only after parsing, never a stdout extraction.
+    fd = os.open(directory / "result.bin", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as out:
+        out.write(raw)
+        out.flush()
+        os.fsync(out.fileno())
+    return data, {"sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}
+
+
+def artifact_page(directory: Path, key: str, request: dict[str, Any], cfg: dict[str, Any]) -> dict[str, Any]:
+    if set(request) - {"schema", "operation", "key", "jobId", "artifact", "offset", "length"}:
+        raise ValueError("invalid artifact request")
+    if read(directory / "request.json")["config"] != cfg:
+        raise ValueError("job template drift")
+    record = read(directory / "state.json")
+    if record["status"] not in ("SUCCEEDED", "FAILED", "CANCELLED"):
+        raise ValueError("artifact is not terminal evidence")
+    name = request.get("artifact")
+    if name not in ("stdout", "stderr", "result"):
+        raise ValueError("unknown artifact")
+    offset, length = request.get("offset", 0), request.get("length", 4096)
+    if type(offset) is not int or offset < 0 or type(length) is not int or not 1 <= length <= 8192:
+        raise ValueError("invalid artifact range")
+    meta = record.get("result", {}).get("artifacts", {}).get(name)
+    limit = cfg.get("resultMaxBytes" if name == "result" else "maxLogBytes", 0)
+    if not isinstance(meta, dict) or type(meta.get("bytes")) is not int or not 0 <= meta["bytes"] <= limit:
+        raise ValueError("invalid artifact metadata")
+    size, checksum = 0, hashlib.sha256()
+    content = bytearray()
+    with regular_file(directory / f"{name}.bin") as source:
+        if os.fstat(source.fileno()).st_size != meta["bytes"]:
+            raise ValueError("artifact size changed")
+        while chunk := source.read(65536):
+            if size + len(chunk) > meta["bytes"]:
+                raise ValueError("artifact grew while reading")
+            # Return the bytes from the SAME stream that is hashed, including
+            # arbitrary UTF-8 cut boundaries; base64 is lossless and JSON safe.
+            start, end = max(0, offset - size), min(len(chunk), offset + length - size)
+            if start < end:
+                content.extend(chunk[start:end])
+            size += len(chunk)
+            checksum.update(chunk)
+    if size != meta["bytes"] or checksum.hexdigest() != meta.get("sha256"):
+        raise ValueError("artifact integrity failure")
+    return {"schema": 1, "key": key, "jobId": key, "artifact": name, "sha256": meta["sha256"],
+            "offset": offset, "bytes": size, "contentBase64": base64.b64encode(content).decode("ascii"),
+            "nextOffset": offset + len(content) if offset + len(content) < size else None}
 
 
 def lock_free(path: Path) -> bool:
@@ -158,13 +251,15 @@ def endpoint(root: Path, config: Path, request: Any) -> dict[str, Any]:
     key = request.get("key")
     if not isinstance(key, str) or not re.fullmatch(r"[a-f0-9]{64}", key):
         raise ValueError("invalid stable job key")
-    if request.get("operation") not in ("ensure", "inspect"):
+    if request.get("operation") not in ("ensure", "inspect", "read_artifact"):
         raise ValueError("unsupported operation")
     if request.get("jobId") not in (None, key):
         raise ValueError("job identity mismatch")
-    if request.get("operation") == "inspect" and request.get("jobId") != key:
-        raise ValueError("inspect needs a known job ID")
+    if request.get("operation") in ("inspect", "read_artifact") and request.get("jobId") != key:
+        raise ValueError("read needs a known job ID")
     cfg = template(config)
+    if request["operation"] == "read_artifact":
+        return artifact_page(root / key, key, request, cfg)
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     directory = root / key
     # Administrative lock also serializes concurrent ensure calls before mkdir.
@@ -215,15 +310,63 @@ def worker(directory: Path) -> None:
                "FUTURE_JOB_KEY": directory.name, "FUTURE_JOB_INPUT_PATH": str(directory / "input.json"),
                "FUTURE_JOB_PROGRESS_PATH": str(directory / "progress.json")}
         env.update({k: os.environ[k] for k in cfg.get("envAllow", []) if k in os.environ})
+        if "resultMaxBytes" in cfg:
+            env["FUTURE_JOB_RESULT_PATH"] = str(directory / "result.json")
         tails: dict[str, bytes] = {"stdout": b"", "stderr": b""}
+        artifacts: dict[str, Any] = {}
+        capture_errors: dict[str, str] = {}
 
         def drain(stream: Any, name: str) -> None:
-            while True:
-                chunk = stream.read(4096)
-                if not chunk:
-                    break
-                tails[name] = (tails[name] + chunk)[-65536:]
-            stream.close()
+            limit = cfg.get("maxLogBytes", 0)
+            out = None
+            retained, observed = 0, 0
+            checksum, observed_checksum = hashlib.sha256(), hashlib.sha256()
+            if limit:
+                try:
+                    fd = os.open(directory / f"{name}.bin", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    out = os.fdopen(fd, "wb")
+                except OSError:
+                    capture_errors[name] = "log artifact could not open"
+            try:
+                while chunk := stream.read(4096):
+                    tails[name] = (tails[name] + chunk)[-65536:]
+                    if limit:
+                        observed += len(chunk)
+                        observed_checksum.update(chunk)
+                    if out is not None and retained < limit:
+                        prefix = chunk[:max(0, limit - retained)]
+                        try:
+                            out.write(prefix)
+                            checksum.update(prefix)
+                            retained += len(prefix)
+                        except OSError:
+                            capture_errors[name] = "log artifact write failed"
+                            # Keep draining after disk errors so a verbose child
+                            # cannot deadlock against a full pipe.
+                            try:
+                                out.close()
+                            except OSError:
+                                pass
+                            out = None
+            except OSError:
+                capture_errors[name] = "log stream could not drain"
+            finally:
+                stream.close()
+                if out is not None:
+                    try:
+                        out.flush()
+                        os.fsync(out.fileno())
+                    except OSError:
+                        capture_errors[name] = "log artifact could not persist"
+                    finally:
+                        try:
+                            out.close()
+                        except OSError:
+                            capture_errors[name] = "log artifact could not close"
+                if limit and name not in capture_errors:
+                    artifacts[name] = {"sha256": checksum.hexdigest(), "bytes": retained,
+                                       "observedBytes": observed, "observedSha256": observed_checksum.hexdigest(),
+                                       "truncated": observed > retained}
 
         started = time.monotonic()
         code = -1
@@ -254,10 +397,23 @@ def worker(directory: Path) -> None:
                 code = child.wait()
             for t in threads:
                 t.join(timeout=1)
+            if any(t.is_alive() for t in threads):
+                reason = reason or "log streams did not finish"
+            elif capture_errors:
+                reason = reason or "log evidence capture failed"
         result = {"exitCode": code, "durationMs": round((time.monotonic() - started) * 1000),
                   "configurationHash": hashlib.sha256(encoded(cfg)).hexdigest(),
                   "stdoutTail": tails["stdout"][-4096:].decode("utf-8", errors="replace"),
                   "stderrTail": tails["stderr"][-4096:].decode("utf-8", errors="replace")}
+        if "resultMaxBytes" in cfg:
+            try:
+                data, meta = structured_result(directory, cfg["resultMaxBytes"])
+                result["data"] = data
+                artifacts["result"] = meta
+            except (OSError, ValueError, RecursionError):
+                reason = reason or "structured result missing, invalid, or exceeds byte budget"
+        if artifacts:
+            result["artifacts"] = artifacts
         if reason:
             result["error"] = reason
         atomic(directory / "state.json", {**record, "status": "SUCCEEDED" if code == 0 and reason is None else "FAILED", "result": result})
@@ -285,6 +441,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (ValueError, OSError, KeyError, TypeError):
+    except (ValueError, OSError, KeyError, TypeError, AttributeError):
         print("Invalid request, configuration, or durable record; operator reconciliation required", file=sys.stderr)
         raise SystemExit(64)

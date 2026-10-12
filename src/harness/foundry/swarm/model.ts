@@ -34,6 +34,10 @@ export const definitions: ToolDefinition[] = [
   def("read_claims", "Read versioned claims for this task and its verified direct dependencies. Status PROPOSED means unverified. STALE claims require a new independent discriminator.", { after: string, limit: { type: "integer", minimum: 1, maximum: 100 } }, []),
   def("propose_conflict", "Report a possible semantic contradiction between two claims of this task. Opens a durable conflict requiring independent adjudication; never declares either claim true.", { leftClaim: string, rightClaim: string }, ["leftClaim", "rightClaim"]),
   def("run_job", "Run a permitted external research job. Emit multiple independent run_job calls in the SAME model turn when experiments can proceed in parallel: the host durably fans them out up to remote capacity, releases this worker once, and resumes with all completed results. Never serialize independent experiments across reasoning turns and never launch duplicate work through run_check.", { name: string, input: {} }, ["name", "input"]),
+  def("read_job_artifact", "Read a bounded log or structured-result artifact from this thread's completed job. Use its owned run_job result receipt and an artifact name from result.artifacts. Never resubmits work. Content is an observation, not acceptance; truncated logs retain only the manifest's captured bytes. offset/length are bytes; contentBase64 is lossless across UTF-8 boundaries.", {
+    receipt: string, artifact: { type: "string", enum: ["stdout", "stderr", "result"] },
+    offset: integer, length: { type: "integer", minimum: 1, maximum: 8192 },
+  }, ["receipt", "artifact"]),
   def("spawn_tasks", "Split this task into independently verifiable child tasks when parallel work will reduce the decision scope. The host validates scope, depth, count, dependencies and agent roster, releases this parent while children run, then resumes this exact tool call with verified child outputs.", {
     children: { type: "array", minItems: 1, maxItems: 32, items: { type: "object", additionalProperties: false,
       properties: { id: string, goal: string, acceptance: { type: "array", minItems: 1, items: string }, input: {},

@@ -288,6 +288,11 @@ complete experiment-tracking product.
 
 ## Deploy the endpoint over SSH
 
+For machine-readable experiment results and bounded logs that an agent can read
+without resubmitting work, see [Structured job evidence](STRUCTURED_JOB_EVIDENCE.md).
+The result contract and log capture are optional remote-template settings; existing
+tail-only templates keep their behavior.
+
 Use `examples/swarm/supervised/remote-template.json` for the trusted remote
 executable template and `remote-capability.json` for a sample SSH adapter. Replace
 ALL paths/host values. Deploy `scripts/research-job-agent.py` and the template on

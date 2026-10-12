@@ -27,6 +27,12 @@ of the desired behavior, or additional acceptance authority. A worker can expand
 its owned fixture with the existing `recall` tool; the referenced invocation,
 patches and result are also owned receipts. No cross-task recall is granted.
 
+Terminal external-job `FAILED`/`CANCELLED` replies also populate this same bounded
+memory as `JOB_FAILED`, with job name/status and the exact invocation/result.
+They remain observations and cannot trigger deterministic-check pruning.
+[Structured job evidence](STRUCTURED_JOB_EVIDENCE.md) adds optional machine-readable
+results, bounded remote log artifacts and capability-scoped artifact paging.
+
 Retirement keeps immutable task/dependency contracts and complete tool pairs.
 Under a tight encoded UTF-8 budget it first removes the agent note, then reduces
 host diagnostics to the latest descriptor, then falls back to the journal

@@ -235,6 +235,10 @@ export class SwarmDriver implements Driver {
               } else if (call.name === "run_job") {
                 invariant(jobs, "no remote job templates configured");
                 result = await runJob(call);
+              } else if (call.name === "read_job_artifact") {
+                invariant(jobs, "no remote job templates configured");
+                result = await timedTool(() => jobs.readArtifact(c, profile, call, signal,
+                  ms => control?.timing?.("remote-rpc", ms)));
               } else if (call.name === "propose_claim") {
                 result = toJson(proposeClaim(this.store, c.runId, c.task.id, call.arguments as unknown as ClaimInput, proposalId));
               } else if (call.name === "propose_conflict") {

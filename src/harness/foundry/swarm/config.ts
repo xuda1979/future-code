@@ -3,7 +3,7 @@ import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { identifier, invariant, positive, validateContract, validateRecipe } from "../kernel.ts";
 import type { CommandSpec, Contract, PinnedCommand, Recipe, SpawnPolicy, Task } from "../types.ts";
 
-export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "run_job", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict", "publish_finding", "read_findings"] as const;
+export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "run_job", "read_job_artifact", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict", "publish_finding", "read_findings"] as const;
 export type ToolName = typeof TOOLS[number];
 export type Protocol = "anthropic" | "chat-completions";
 export interface ProviderRoute {
@@ -239,7 +239,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       invariant(a.fallbacks?.length, "hedgeAfterMs requires fallback routes");
     }
     if (a.jobs !== undefined) names(a.jobs, Object.keys(s.jobs ?? {}), "agent jobs");
-    if (a.tools.includes("run_job")) invariant(a.jobs && a.jobs.length > 0, "run_job requires named job capabilities");
+    if (a.tools.some(tool => tool === "run_job" || tool === "read_job_artifact"))
+      invariant(a.jobs && a.jobs.length > 0, "job tools require named job capabilities");
     if (s.supervision) invariant(a.tools.includes("run_check"), "supervision requires a permitted checkpoint check");
     names(a.tools, [...TOOLS], "tools"); names(a.checks, checks, "agent checks");
     if (a.tools.includes("spawn_tasks"))
