@@ -231,8 +231,34 @@ export async function verifyPatch(store: Store, cfg: PinnedSwarm, c: Capsule, ar
     // Reconstruct independently, then compare the exact delta and its scope.
     invariant(await hands.snapshot() === result.patchHash, "candidate patch is not a canonical scoped delta");
     checks.push({ id: "scope", verdict: "PASS" }); const before = await hands.tree(); let good = true;
-    for (const name of profile.checks) {
-      const log = await hands.check(name); details.push({ name, ...log }); if (log.code !== 0) good = false;
+    // Parallel checks get separate reconstructed worktrees so a check cannot
+    // mutate another check's inputs. Sequential checks preserve legacy behavior.
+    const parallel = profile.checks.length > 1 &&
+      profile.checks.every(name => cfg.spec.checks[name]?.parallelSafe === true);
+    if (parallel) {
+      const isolated = await Promise.allSettled(profile.checks.map(async name => {
+        const verifier = new LocalGitHands(store, cfg, c, profile, signal, result.patchHash);
+        try {
+          invariant(await verifier.snapshot() === result.patchHash, "isolated check input mismatch");
+          const tree = await verifier.tree();
+          const log = await verifier.check(name);
+          invariant(await verifier.tree() === tree, "isolated verifier mutated tracked source");
+          return log;
+        } finally { await verifier.dispose(); }
+      }));
+      for (const [i, row] of isolated.entries()) {
+        const name = profile.checks[i]!;
+        if (row.status === "rejected") {
+          good = false; details.push({ name, error: row.reason instanceof Error ? row.reason.message.slice(0, 2000) : "isolated check failed" });
+        } else {
+          details.push({ name, ...row.value });
+          if (row.value.code !== 0) good = false;
+        }
+      }
+    } else {
+      for (const name of profile.checks) {
+        const log = await hands.check(name); details.push({ name, ...log }); if (log.code !== 0) good = false;
+      }
     }
     if (await hands.tree() !== before) { good = false; details.push({ error: "verifier mutated tracked source" }); }
     const receipt = store.artifact(JSON.parse(canonical(details)));
