@@ -43,6 +43,8 @@ const fixed: Partial<Record<ToolName, ToolEffectContract>> = {
     compensation: "none", risk: "medium", rationale: "host persists request identity and validates DAG authority atomically" },
   run_job: { tool: "run_job", effect: "external-job", replay: "reconcile", idempotency: "job-key",
     compensation: "operator-reconcile", risk: "high", rationale: "external side effect requires stable job identity and ensure/inspect reconciliation" },
+  read_job_artifact: { tool: "read_job_artifact", effect: "read", replay: "safe", idempotency: "none",
+    compensation: "none", risk: "low", rationale: "bounded read of a terminal, task-owned job artifact; never submits or replaces work" },
 };
 
 export function toolEffectContract(cfg: PinnedSwarm, tool: ToolName, args: Json): ToolEffectContract {
@@ -66,6 +68,7 @@ export function toolEffectContract(cfg: PinnedSwarm, tool: ToolName, args: Json)
     const job = typeof name === "string" ? cfg.spec.jobs?.[name] : undefined;
     invariant(job?.idempotentEnsure === true, "external job requires idempotent ensure contract");
   }
+  if (tool === "read_job_artifact") invariant(cfg.spec.jobs, "job artifact read requires configured job templates");
   if (tool === "spawn_tasks")
     invariant(cfg.spec.supervision?.dynamicDAG, "spawn_tasks requires host dynamic-DAG policy");
   if (tool === "publish_finding" || tool === "read_findings")

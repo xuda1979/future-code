@@ -12,6 +12,7 @@ import { runProcess } from "./process.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
 import { abortable } from "./transport.ts";
 import { performance } from "node:perf_hooks";
+import { createHash } from "node:crypto";
 
 /** Host-only polling advice. No effect on remote identity or acceptance. */
 export function nextRemotePollMs(template: Pick<JobTemplate, "pollMs" | "maxPollMs">, idlePolls: number): number {
@@ -158,7 +159,60 @@ export class ResearchJobs {
     if (!columns.has("idle_polls"))
       journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN idle_polls INTEGER NOT NULL DEFAULT 0");
     journal.store.db.exec(`CREATE INDEX IF NOT EXISTS research_jobs_run_template ON research_jobs(run,template);
-      CREATE INDEX IF NOT EXISTS research_jobs_live_template ON research_jobs(template) WHERE result_hash IS NULL;`);
+      CREATE INDEX IF NOT EXISTS research_jobs_live_template ON research_jobs(template) WHERE result_hash IS NULL;
+      CREATE INDEX IF NOT EXISTS research_jobs_receipt ON research_jobs(run,task,result_hash);`);
+  }
+  /** Read-only RPC on an existing terminal job. An artifact reference never
+   * grants another thread's data, changes acceptance, or calls ensure again. */
+  async readArtifact(c: Capsule, profile: AgentProfile, call: Call, signal: AbortSignal,
+    onRpc?: (durationMs: number) => void): Promise<Json> {
+    this.journal.assertLease(c); signal.throwIfAborted();
+    keys(call.arguments, ["receipt", "artifact"], ["offset", "length"]);
+    const a = call.arguments, offset = a.offset ?? 0, length = a.length ?? 4096;
+    invariant(Number.isSafeInteger(offset) && (offset as number) >= 0 &&
+      Number.isSafeInteger(length) && (length as number) > 0 && (length as number) <= 8192, "invalid artifact range");
+    invariant(typeof a.receipt === "string" && this.journal.ownsReceipt(c, a.receipt), "job result not owned by this thread");
+    invariant(typeof a.artifact === "string" && ["stdout", "stderr", "result"].includes(a.artifact), "unknown job artifact");
+    const store = this.journal.store;
+    const row = store.db.prepare("SELECT * FROM research_jobs WHERE run=? AND task=? AND result_hash=?")
+      .get(c.runId, c.task.id, a.receipt);
+    invariant(row && ["SUCCEEDED", "FAILED", "CANCELLED"].includes(row.status), "receipt is not a terminal job result");
+    invariant(profile.jobs?.includes(row.template), "job artifact capability denied");
+    const command = this.cfg.jobAdapters?.[row.template];
+    invariant(command && this.cfg.spec.jobs?.[row.template]?.idempotentEnsure, "job adapter not pinned");
+    checkPins(command);
+    const original = store.readArtifact(a.receipt) as any;
+    const meta = original?.result?.artifacts?.[a.artifact];
+    invariant(original?.key === row.key && original?.jobId === row.job_id && original?.status === row.status &&
+      meta && typeof meta.sha256 === "string" && /^[a-f0-9]{64}$/.test(meta.sha256) &&
+      Number.isSafeInteger(meta.bytes) && meta.bytes >= 0, "missing or invalid terminal artifact manifest");
+    const request = { schema: 1, operation: "read_artifact", key: row.key, jobId: row.job_id,
+      artifact: a.artifact, offset, length } as Json;
+    const started = performance.now(), deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(), this.cfg.spec.budget.toolTimeoutMs);
+    const bounded = createCombinedAbortSignal(signal, { signalB: deadline.signal });
+    let raw: unknown;
+    try { raw = await abortable(this.rpc(command, this.cfg, request, bounded.signal), bounded.signal); }
+    finally { clearTimeout(timer); bounded.cleanup(); onRpc?.(Math.max(0, performance.now() - started)); }
+    signal.throwIfAborted(); this.journal.assertLease(c);
+    const v = raw as Record<string, any>;
+    let content: Buffer;
+    try {
+      invariant(Buffer.byteLength(canonical(v)) <= this.cfg.spec.budget.maxToolOutputBytes, "artifact response too large");
+      keys(v, ["schema", "key", "jobId", "artifact", "sha256", "offset", "bytes", "contentBase64", "nextOffset"]);
+      invariant(v.schema === 1 && v.key === row.key && v.jobId === row.job_id && v.artifact === a.artifact &&
+        v.sha256 === meta.sha256 && v.offset === offset && v.bytes === meta.bytes, "artifact reply binding changed");
+      invariant(typeof v.contentBase64 === "string", "artifact page must be base64");
+      content = Buffer.from(v.contentBase64, "base64");
+      invariant(content.toString("base64") === v.contentBase64 &&
+        content.length === Math.max(0, Math.min(length as number, meta.bytes - (offset as number))), "invalid artifact page bytes");
+      if (offset === 0 && content.length === meta.bytes)
+        invariant(createHash("sha256").update(content).digest("hex") === meta.sha256, "complete artifact checksum changed");
+      invariant(v.nextOffset === ((offset as number) + content.length < meta.bytes
+        ? (offset as number) + content.length : null), "invalid artifact continuation");
+    } catch { throw new FatalAttemptError("INVALID_JOB_ARTIFACT_REPLY: exact terminal artifact binding required"); }
+    return { ...v, sourceReceipt: a.receipt, content: content!.toString("utf8"),
+      trust: "OBSERVATION_NOT_ACCEPTANCE" } as Json;
   }
   async execute(c: Capsule, profile: AgentProfile, call: Call, signal: AbortSignal,
     onRpc?: (durationMs: number) => void): Promise<Json> {

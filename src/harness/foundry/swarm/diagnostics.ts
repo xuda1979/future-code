@@ -8,9 +8,11 @@ export interface DiagnosticFailure {
   identity: string;
   key: string;
   inputKey: string;
-  kind: "CHECK_FAILED" | "TOOL_ERROR" | "VERIFICATION_FAILED";
+  kind: "CHECK_FAILED" | "TOOL_ERROR" | "VERIFICATION_FAILED" | "JOB_FAILED";
   tool: string;
   check?: string;
+  job?: string;
+  status?: "FAILED" | "CANCELLED";
   receipt: string;
   fixture: string;
   patchHash: string;
@@ -27,6 +29,7 @@ export interface DiagnosticMemory {
 export interface DiagnosticContext {
   trust: "OBSERVATION_NOT_ACCEPTANCE";
   failures: { kind: DiagnosticFailure["kind"]; tool: string; check?: string;
+    job?: string; status?: "FAILED" | "CANCELLED";
     receipt: string; fixture: string; patchHash: string; current: boolean;
     repeats: number; excerpt: string }[];
 }
@@ -49,9 +52,15 @@ function synchronize(state: ThreadState): string {
   return current;
 }
 function excerpt(result: Record<string, any>): string {
-  const text = typeof result.error === "string" ? result.error :
-    result.report !== undefined ? canonical(result.report) :
-      [result.stderr, result.stdout].filter(v => typeof v === "string" && v.length).join("\n");
+  const failedJob = ["FAILED", "CANCELLED"].includes(result.status);
+  const detail = failedJob && result.result && typeof result.result === "object" && !Array.isArray(result.result)
+    ? result.result : result;
+  // Prefer the explicit error / stderr over unrelated stdout or metric claims.
+  const text = typeof detail.error === "string" && detail.error.length ? detail.error :
+    detail.report !== undefined ? canonical(detail.report) :
+      [detail.stderrTail, detail.stderr, detail.stdoutTail, detail.stdout]
+        .find(v => typeof v === "string" && v.length) ??
+        (failedJob ? `Remote job ${result.status}` : `Check exited with code ${result.code}`);
   // Bounded UTF-8, including any replacement character at a cut boundary.
   let tail = Buffer.from(text || `Check exited with code ${result.code}`).subarray(-512).toString("utf8");
   while (Buffer.byteLength(tail) > 512) tail = tail.slice(1);
@@ -70,13 +79,16 @@ export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: Pinned
   const kind = admitted && call.name === "verification" && typeof value.verdict === "string" && value.verdict !== "PASS" ? "VERIFICATION_FAILED" :
     typeof value.error === "string" ? "TOOL_ERROR" :
     admitted && call.name === "run_check" && Number.isSafeInteger(value.code) && value.code > 0
-      ? "CHECK_FAILED" : null;
+      ? "CHECK_FAILED" :
+      admitted && call.name === "run_job" && ["FAILED", "CANCELLED"].includes(value.status) ? "JOB_FAILED" : null;
   if (!kind && !state.diagnostics) return null; // successful short-task fast path
   const current = synchronize(state);
   const identity = digest({ tool: call.name, arguments: call.arguments });
   if (!kind) {
     if (state.diagnostics) {
-      if (call.name !== "run_check" || (admitted && value.code === 0))
+      const cleared = call.name === "run_check" ? admitted && value.code === 0 :
+        call.name === "run_job" ? admitted && value.status === "SUCCEEDED" : true;
+      if (cleared)
         state.diagnostics.failures = state.diagnostics.failures.filter(f => f.identity !== identity);
       else for (const failure of state.diagnostics.failures)
         if (failure.identity === identity) failure.repeats = 0; // unknown check outcome
@@ -107,8 +119,11 @@ export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: Pinned
   }
   const check = ["run_check", "verification"].includes(call.name) && typeof call.arguments.name === "string"
     ? call.arguments.name.slice(0, 128) : null;
+  const job = call.name === "run_job" && typeof call.arguments.name === "string"
+    ? call.arguments.name.slice(0, 128) : null;
   const failure: DiagnosticFailure = { identity, key, inputKey: current, kind,
     tool: call.name.slice(0, 128), ...(check ? { check } : {}),
+    ...(job ? { job } : {}), ...(kind === "JOB_FAILED" ? { status: value.status } : {}),
     receipt, fixture, patchHash: patch(state.patchHash), excerpt: excerpt(value),
     repeats: previous?.key === key ? previous.repeats + 1 : 1,
     eligible: kind === "CHECK_FAILED" && patch(beforePatch) === patch(state.patchHash) };
@@ -123,6 +138,7 @@ export function diagnosticContext(state: ThreadState): DiagnosticContext | null 
   const current = inputKey(state);
   return { trust: "OBSERVATION_NOT_ACCEPTANCE", failures: state.diagnostics.failures.slice(0, 4).map(f => ({
     kind: f.kind, tool: f.tool, ...(f.check ? { check: f.check } : {}), receipt: f.receipt,
+    ...(f.job ? { job: f.job } : {}), ...(f.status ? { status: f.status } : {}),
     fixture: f.fixture, patchHash: f.patchHash, current: f.inputKey === current,
     repeats: f.repeats, excerpt: f.excerpt,
   })) };
