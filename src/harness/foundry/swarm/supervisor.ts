@@ -18,11 +18,12 @@ import { claimGate } from "../claims.ts";
 import { contextualInterventionPolicy, recoveryFeatures } from "../contextualPolicy.ts";
 import { objectiveRequestTotals } from "./requestAccounting.ts";
 import { SessionJournal } from "./session.ts";
+import { diagnosticContext, type DiagnosticContext } from "./diagnostics.ts";
 
 export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
 export interface RecoveryContext {
   objectiveId: string; goal: string; runId: string; reason: string; revision: number;
-  tasks: Task[]; failures: { id: string; status: string; error: string | null }[];
+  tasks: Task[]; failures: { id: string; status: string; error: string | null; diagnostics?: DiagnosticContext }[];
   reflectionHash?: string;
   reflection?: Json;
   interventionMemory?: Json;
@@ -351,8 +352,27 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     const interventionMemory = interventionMemoryForFindings(store, findingCodes);
     const interventionPolicy = contextualInterventionPolicy(store, findingCodes,
       recoveryFeatures(store, String(row.run), tasks, reflected.reflection));
+    let diagnosticBytes = 0;
     const failures = store.db.prepare("SELECT id,status,error FROM tasks WHERE run=? AND status<>'PASS' ORDER BY id LIMIT 200").all(row.run)
-      .map(r => ({ id: String(r.id), status: String(r.status), error: r.error == null ? null : String(r.error).slice(0, 1024) }));
+      .map(r => {
+        const failure: RecoveryContext["failures"][number] = { id: String(r.id), status: String(r.status),
+          error: r.error == null ? null : String(r.error).slice(0, 1024) };
+        // Bounded same-objective host context. Never copy private transcripts or
+        // grant a replacement worker recall access to another task's receipts.
+        if (diagnosticBytes < 8192) {
+          const thread = store.db.prepare("SELECT state FROM agent_threads WHERE run=? AND task=?").get(row.run, r.id);
+          if (thread) {
+            const state = store.readArtifact(String(thread.state)) as any;
+            const context = diagnosticContext(state);
+            if (context) {
+              const bounded = { ...context, failures: context.failures.slice(0, 1) };
+              const size = Buffer.byteLength(canonical(bounded));
+              if (diagnosticBytes + size <= 8192) { failure.diagnostics = bounded; diagnosticBytes += size; }
+            }
+          }
+        }
+        return failure;
+      });
     if (!existing) store.transaction(() => {
       assertOwner(); const now = Date.now();
       store.db.prepare(`INSERT INTO swarm_recovery_attempts

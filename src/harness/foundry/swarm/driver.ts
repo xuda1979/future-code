@@ -19,6 +19,7 @@ import { claimsForGoals, proposeClaim, proposeClaimConflict, type ClaimInput } f
 import { validateToolProposal } from "./toolAdmission.ts";
 import { CohortBoard, type FindingInput } from "./cohorts.ts";
 import { performance } from "node:perf_hooks";
+import { diagnosticContext, pruningCandidate, recordDiagnostic } from "./diagnostics.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -91,10 +92,18 @@ export class SwarmDriver implements Driver {
       const feedback = this.store.readArtifact(feedbackHash);
       const receipt = this.journal.receipt(c, feedback);
       const details: Json[] = [];
+      t.state.feedbackHash = feedbackHash;
       for (const check of (feedback as any).checks ?? []) {
+        let report: Json = check.detail ?? `Independent ${check.id} check reported ${check.verdict}`;
         if (typeof check.detail === "string" && /^[a-f0-9]{64}$/.test(check.detail)) {
           const data = this.store.readArtifact(check.detail); const id = this.journal.receipt(c, data);
           details.push({ check: check.id, receipt: id, excerpt: inlineReceipt(id, data, 2048) });
+          report = data;
+        }
+        if (check.verdict !== "PASS") {
+          const result = toJson({ verdict: check.verdict, report });
+          recordDiagnostic(t, this.journal, this.cfg, { id: `verification-${check.id}`, name: "verification",
+            arguments: { name: check.id } }, result, this.journal.receipt(c, result), t.state.patchHash, true);
         }
       }
       t.state.history.push({ role: "user", content: canonical({ repairRequired: true, feedback: inlineReceipt(receipt, feedback), details }) });
@@ -123,6 +132,17 @@ export class SwarmDriver implements Driver {
       });
     };
     const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg, this.jobRpc) : null;
+    const enforcePruning = () => {
+      const failure = t.state.diagnostics?.pruned ?? pruningCandidate(t.state, this.cfg);
+      if (!failure) return;
+      if (!t.state.diagnostics!.pruned) {
+        t.state.diagnostics!.pruned = failure;
+        this.journal.checkpoint(t, "trajectory.pruned", { check: failure.check!, repeats: failure.repeats,
+          fixture: failure.fixture, receipt: failure.receipt, inputKey: failure.inputKey });
+        control?.activity?.("trajectory:pruned");
+      }
+      throw new FatalAttemptError(`STAGNANT_DIAGNOSTIC: check=${failure.check} repeats=${failure.repeats} fixture=${failure.fixture}; unchanged trajectory ended, objective recovery must change strategy`);
+    };
     t.state.lastCheckAt ??= Date.now();
     const limit = t.state.contextLimit!;
     invariant(Number.isSafeInteger(limit) && limit > 0 &&
@@ -151,6 +171,7 @@ export class SwarmDriver implements Driver {
           // reads ahead of writes, checks or control-plane effects.
           {
             const call = calls[0]!;
+            const beforePatch = t.state.patchHash;
             const resuming = t.state.pending?.id === call.id || t.state.pendingBatch?.includes(call.id) === true;
             if (!resuming) {
               if (t.state.toolCalls >= budget.maxToolCalls) throw new FatalAttemptError("THREAD_TOOL_BUDGET_EXHAUSTED");
@@ -269,21 +290,29 @@ export class SwarmDriver implements Driver {
             if (admitted && call.name === "run_check") { t.state.lastCheckAt = Date.now(); control?.checked?.(); }
             const receipt = this.journal.receipt(c, result);
             if (admitted && call.name === "run_job") t.state.lastJobReceipt = receipt;
+            if (admitted && call.name === "spawn_tasks" && Array.isArray((result as any)?.verified))
+              t.state.lastSpawnReceipt = receipt;
+            const diagnostic = recordDiagnostic(t, this.journal, this.cfg, call, result, receipt, beforePatch, admitted);
             t.state.history.push({ role: "tool", callId: call.id, receipt, content: inlineReceipt(receipt, result) });
             t.state.pending = null;
             if (t.state.pendingBatch) {
               t.state.pendingBatch = t.state.pendingBatch.filter(id => id !== call.id);
               if (!t.state.pendingBatch.length) delete t.state.pendingBatch;
             }
-            this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash });
+            this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash,
+              ...(diagnostic ? { fixture: diagnostic.fixture } : {}) });
             control?.activity?.(`completed:${call.name}`);
           }
           continue;
         }
+        // Finish every admitted call/result pair (including any queued repair)
+        // before ending a stagnant trajectory. Restart repeats no model spend.
+        enforcePruning();
         // The provider response and thread checkpoint are separate commits.
         // After a crash, consume the saved reply under its ORIGINAL request hash
         // before adding recovery notes or periodic-check feedback.
-        const replay = this.brain.replay(c, profile, t.state.history, budget, limit, t.state.turns, t.state.progress ?? null);
+        const replay = this.brain.replay(c, profile, t.state.history, budget, limit, t.state.turns, t.state.progress ?? null,
+          diagnosticContext(t.state));
         if (replay) {
           t.state.history = [...replay.history, admitReply(replay.turn.message)]; t.state.turns++;
           this.journal.checkpoint(t, "model.reply", replay.turn.message);
@@ -303,7 +332,8 @@ export class SwarmDriver implements Driver {
         const checkEvery = this.cfg.spec.supervision?.checkpointEveryMs;
         const checkpointKey = checkpointInputKey(t.state.patchHash, t.state.feedbackHash ? 1 : 0,
           digest({ feedback: t.state.feedbackHash, jobReceipt: t.state.lastJobReceipt ?? null }));
-        if (checkEvery && shouldRunExploratoryCheckpoint(t.state.lastExploratoryCheckpointKey, checkpointKey, this.cfg.spec.supervision?.checkpointCadence) &&
+        if (t.state.turns > 0 && checkEvery &&
+            shouldRunExploratoryCheckpoint(t.state.lastExploratoryCheckpointKey, checkpointKey, this.cfg.spec.supervision?.checkpointCadence) &&
             !(t.state.history.at(-1)?.role === "assistant" && !t.state.history.at(-1)?.calls?.length) && Date.now() - t.state.lastCheckAt! >= checkEvery) {
           const diagnosticPaths = this.cfg.spec.checks[profile.checks[0]]?.diagnosticPaths;
           let changedPaths: string[] | undefined;
@@ -329,17 +359,21 @@ export class SwarmDriver implements Driver {
           const call: Call = { id: `checkpoint-${t.seq}`, name: "run_check", arguments: { name: profile.checks[0] } };
           const effect = toolEffectContract(this.cfg, "run_check", call.arguments);
           this.journal.checkpoint(t, "tool.effect", { callId: call.id, ...effect });
+          const beforePatch = t.state.patchHash;
           let check: Json;
           try { check = await timedTool(() => hands.tool(call)); } catch (e) { signal.throwIfAborted(); check = { error: e instanceof Error ? e.message.slice(0, 512) : "checkpoint check failed" }; }
           t.state.patchHash = await hands.snapshot();
           const receipt = this.journal.receipt(c, check); t.state.lastCheckAt = Date.now();
+          const diagnostic = recordDiagnostic(t, this.journal, this.cfg, call, check, receipt, beforePatch, true);
           t.state.lastExploratoryCheckpointKey = checkpointInputKey(t.state.patchHash, t.state.feedbackHash ? 1 : 0,
             digest({ feedback: t.state.feedbackHash, jobReceipt: t.state.lastJobReceipt ?? null }));
           control?.checked?.();
           t.state.history.push({ role: "user", content: canonical({ checkpointCheck: inlineReceipt(receipt, check), instruction: "Use this diagnostic to choose a smaller next step. This is not final acceptance." }) });
-          this.journal.checkpoint(t, "checkpoint.checked", { receipt, patchHash: t.state.patchHash });
+          this.journal.checkpoint(t, "checkpoint.checked", { receipt, patchHash: t.state.patchHash,
+            ...(diagnostic ? { fixture: diagnostic.fixture } : {}) });
           }
         }
+        enforcePruning();
         if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
         this.journal.checkpoint(t, "model.intent", { step: t.state.turns });
         control?.activity?.("model:request");
@@ -348,7 +382,8 @@ export class SwarmDriver implements Driver {
         // predicting tool arguments or moving side effects across barriers.
         // Drain *both* operations even on failure before disposing the worktree.
         const prewarm = hands.warmup?.() ?? Promise.resolve();
-        const model = this.brain.next(c, profile, t.state.history, budget, limit, signal, t.state.turns, t.state.progress ?? null);
+        const model = this.brain.next(c, profile, t.state.history, budget, limit, signal, t.state.turns, t.state.progress ?? null,
+          diagnosticContext(t.state));
         const [modelResult, prewarmResult] = await Promise.allSettled([model, prewarm]);
         if (modelResult.status === "rejected") throw modelResult.reason;
         if (prewarmResult.status === "rejected") throw prewarmResult.reason;
