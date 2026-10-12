@@ -183,6 +183,31 @@ test("automatic checkpoints share the failure memory and prune before another mo
   s.checks.behavior.maxUnchangedFailures = 2;
 }));
 
+test("an overdue cold checkpoint waits for the first model turn and still verifies the final patch", async () => fixture(async (s, cfg) => {
+  const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "fixture")!);
+  const mock = scripted([
+    body => {
+      assert.ok(!JSON.stringify(body.messages).includes("checkpointCheck"));
+      return reply("", [{ name: "read_file", arguments: { path: "src/a.txt" } }]);
+    },
+    body => {
+      assert.match(JSON.stringify(body.messages), /checkpointCheck/);
+      return reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]);
+    },
+    () => reply("complete"),
+  ]);
+  const driver = new SwarmDriver(s, cfg, mock.fetcher), open = driver.journal.open.bind(driver.journal);
+  driver.journal.open = (capsule, initial) => {
+    const thread = open(capsule, initial);
+    thread.state.lastCheckAt = 0; // due before startup without relying on a timer
+    return thread;
+  };
+  const result = await driver.execute(c, signal());
+  const verification = await driver.verify(c, result, signal());
+  assert.equal(verification.checks.find(c => c.id === "behavior")?.verdict, "PASS");
+  assert.equal(mock.bodies.length, 3);
+}, s => { s.supervision = { reportEveryMs: 1000, checkpointEveryMs: 1, checkpointCadence: "periodic" }; }));
+
 test("host failure memory reaches the encoded provider request and preserves durable reply replay", async () => fixture(async (s, cfg) => {
   const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "fixture")!);
   const mock = scripted([

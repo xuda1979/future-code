@@ -66,7 +66,9 @@ errors and timeouts are remembered but cannot trigger this check policy.
 
 The driver finishes all remaining calls in the complete tool turn, including
 queued repairs, before evaluating the limit. Both explicit checks and automatic
-early-feedback checkpoints contribute observations. Before another model
+early-feedback checkpoints contribute observations. Automatic checkpoints start
+after the first model turn, so cold thread preparation cannot trigger a baseline
+check before useful work begins. Before another model
 reservation, the host saves one `trajectory.pruned` event and ends the failed
 trajectory with `STAGNANT_DIAGNOSTIC`, preserving its fixture and work.
 Reopening that trajectory makes no further provider request.
