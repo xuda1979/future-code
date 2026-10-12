@@ -13,6 +13,8 @@ import { recommendExecutionLane } from "../productivityTheory.ts";
 import { readObjectiveEpisode } from "../rndEpisodes.ts";
 import { readLatestObjectiveReflection } from "../rndReflection.ts";
 import { adjudicateClaim, claimsForGoals, claimRevalidationTask, retractClaim } from "../claims.ts";
+import { readMemory, rebuildMemoryPage, type MemoryQuery } from "./memory.ts";
+import type { ThreadState } from "./session.ts";
 export const help = `Foundry Swarm: durable coding agents on the existing Foundry kernel
   init --spec FILE --allow-exec
   run --tasks FILE --allow-exec
@@ -29,6 +31,8 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   status [--run ID] [--task-after TASK_ID]
   receipt --hash HASH [--offset N] [--length N]
   events --run ID --task ID [--after N]
+  memory --run ID --task ID [--memory-kind all|progress|failure] [--before CURSOR] [--patch HASH] [--failure-signature HASH] [--limit N]
+  memory-rebuild --run ID --task ID [--after EVENT_SEQ] [--limit N]
   job-reconcile --run ID --job-key KEY --resolution FILE --allow-exec
   integrate --run ID --allow-exec
 All accept --root DIR (default .future-code/swarm).
@@ -49,14 +53,14 @@ export function tokenize(text: string): string[] {
 function file(path: string): any { invariant(statSync(path).size <= 32 * 1024 * 1024, "JSON input exceeds 32 MiB"); return JSON.parse(readFileSync(path, "utf8")); }
 export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal, onProgress: HealthObserver = r => console.error(formatHealth(r))): Promise<Json> {
   const cmd = argv[0] ?? "help"; if (cmd === "help") return { help };
-  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence"]);
+  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit"]);
   for (let i = 1; i < argv.length; i++) {
     const k = argv[i]; invariant(allowed.has(k) && !opts.has(k), `unknown/duplicate option ${k}`);
     if (k === "--allow-exec") opts.set(k, "true");
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "receipt", "events", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate"].includes(cmd), "unknown swarm command");
+  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate"].includes(cmd), "unknown swarm command");
   if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
@@ -91,6 +95,21 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
         return { hash: need("--hash"), totalBytes: text.length, offset, content: text.subarray(offset, offset + length).toString("utf8"), nextOffset: offset + length < text.length ? offset + length : null };
       }
       case "events": { const items = new SessionJournal(store).page(need("--run"), need("--task"), Number(opts.get("--after") ?? 0)); return { items }; }
+      case "memory": {
+        new SessionJournal(store);
+        const run = need("--run"), task = need("--task");
+        const row = store.db.prepare("SELECT state FROM agent_threads WHERE run=? AND task=?").get(run, task);
+        const state = row ? store.readArtifact(row.state) as unknown as ThreadState : undefined;
+        return JSON.parse(canonical(readMemory(store, { runId: run, task: { id: task } }, {
+          kind: (opts.get("--memory-kind") ?? "all") as MemoryQuery["kind"], before: opts.get("--before"),
+          patchHash: opts.get("--patch"), failureSignature: opts.get("--failure-signature"),
+          limit: opts.has("--limit") ? Number(opts.get("--limit")) : undefined,
+        }, state)));
+      }
+      case "memory-rebuild": {
+        new SessionJournal(store);
+        return rebuildMemoryPage(store, need("--run"), need("--task"), Number(opts.get("--after") ?? 0), Number(opts.get("--limit") ?? 100));
+      }
       case "job-reconcile": {
         const jobs = new ResearchJobs(new SessionJournal(store), loadSwarm(store));
         return jobs.reconcile(need("--run"), need("--job-key"), file(need("--resolution")) as JobReply);

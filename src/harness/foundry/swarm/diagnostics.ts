@@ -39,12 +39,12 @@ export interface DiagnosticBatch {
 }
 const emptyPatch = digest("");
 const patch = (hash: string | null) => hash ?? emptyPatch;
-function inputKey(state: ThreadState): string {
+export function diagnosticInputKey(state: ThreadState): string {
   return digest({ patchHash: patch(state.patchHash), feedbackHash: state.feedbackHash,
     jobReceipt: state.lastJobReceipt ?? null, spawnReceipt: state.lastSpawnReceipt ?? null });
 }
 function synchronize(state: ThreadState): string {
-  const current = inputKey(state);
+  const current = diagnosticInputKey(state);
   if (state.diagnostics && state.diagnostics.inputKey !== current) {
     state.diagnostics.inputKey = current;
     for (const failure of state.diagnostics.failures) failure.repeats = 0;
@@ -135,7 +135,7 @@ export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: Pinned
  * Keep the four latest descriptors; exact cold evidence is available via recall. */
 export function diagnosticContext(state: ThreadState): DiagnosticContext | null {
   if (!state.diagnostics?.failures.length) return null;
-  const current = inputKey(state);
+  const current = diagnosticInputKey(state);
   return { trust: "OBSERVATION_NOT_ACCEPTANCE", failures: state.diagnostics.failures.slice(0, 4).map(f => ({
     kind: f.kind, tool: f.tool, ...(f.check ? { check: f.check } : {}), receipt: f.receipt,
     ...(f.job ? { job: f.job } : {}), ...(f.status ? { status: f.status } : {}),

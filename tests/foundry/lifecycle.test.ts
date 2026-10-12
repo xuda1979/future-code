@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { digest } from "../../src/harness/foundry/kernel.ts";
 import { Store } from "../../src/harness/foundry/store.ts";
 import { Scheduler } from "../../src/harness/foundry/scheduler.ts";
@@ -39,6 +40,20 @@ test("artifact hash detects tampering and path traversal", async () => fixture(a
   writeFileSync(join(path, "artifacts", `${hash}.json`), '{"x":2}');
   assert.throws(() => s.readArtifact(hash), /integrity/);
   assert.throws(() => s.readArtifact("../../secret"));
+}));
+test("generated stores ignore evidence and SQLite files without hiding unrelated source", async () => fixture(async (s, path) => {
+  execFileSync("git", ["init", "-q", path]);
+  const hash = s.artifact({ evidence: "retained" });
+  writeFileSync(join(path, "source.ts"), "export const value = 42;\n");
+  const ignored = execFileSync("git", ["-C", path, "check-ignore", `artifacts/${hash}.json`, "state.sqlite", "state.sqlite-wal", "state.sqlite-shm"], { encoding: "utf8" });
+  assert.equal(ignored.trim().split("\n").length, 4);
+  const status = execFileSync("git", ["-C", path, "status", "--porcelain", "--untracked-files=all"], { encoding: "utf8" });
+  assert.match(status, /source.ts/); assert.ok(!status.includes("artifacts/"));
+  assert.deepEqual(s.readArtifact(hash), { evidence: "retained" });
+  writeFileSync(join(path, ".gitignore"), "operator-policy\n");
+  const reopened = await Store.open(path);
+  try { assert.equal(readFileSync(join(path, ".gitignore"), "utf8"), "operator-policy\n"); }
+  finally { reopened.close(); }
 }));
 test("transaction rollback also rolls back its events", async () => fixture(async s => {
   const before = s.events().length;

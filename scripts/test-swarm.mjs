@@ -8,6 +8,6 @@ const result = spawnSync(process.execPath, ["--experimental-strip-types", "--tes
   "tests/foundry/context-envelope.test.ts", "tests/foundry/tool-batching.test.ts",
   "tests/foundry/verification-batching.test.ts", "tests/foundry/early-feedback.test.ts",
   "tests/foundry/diagnostic-memory.test.ts", "tests/foundry/progress-memory.test.ts",
-  "tests/foundry/job-evidence.test.ts"], { cwd, stdio: "inherit" });
+  "tests/foundry/job-evidence.test.ts", "tests/foundry/episodic-memory.test.ts"], { cwd, stdio: "inherit" });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

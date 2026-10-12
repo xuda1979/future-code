@@ -29,14 +29,13 @@ function retirementNotice(progress: ProgressCheckpoint | null, diagnostics: Diag
   }) };
 }
 
-/** Refresh a previously projected host notice even when the request still fits.
- * Otherwise a new patch could keep an old failure labelled current until the
- * next overflow. Legacy notices are untouched unless host diagnostics exist,
- * preserving the input hash of durable replies from pre-diagnostic sessions. */
+/** Refresh projected notes and diagnostics even when the request still fits.
+ * Legacy notices without structured memory remain untouched. */
 export function refreshDiagnosticNotice(history: Message[], progress: ProgressCheckpoint | null,
   diagnostics: DiagnosticContext | null): Message[] {
   return history.map(m => m.role === "user" && (m.content.startsWith(NOTICE_MARKER) || m.content === LEGACY_NOTICE) &&
-    (diagnostics || m.content.includes('"hostDiagnostics":')) ? retirementNotice(progress, diagnostics) : m);
+    (diagnostics || progress || m.content.includes('"hostDiagnostics":') || m.content.includes('"workingMemory":'))
+      ? retirementNotice(progress, diagnostics) : m);
 }
 
 /** Exact JSON byte accounting lets us keep the longest recent suffix in O(n)

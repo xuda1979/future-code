@@ -227,6 +227,10 @@ Mandatory instructions, acceptance and dependency inputs never silently truncate
 The full encoded provider request (including system and tool schemas) must fit
 the admitted context allocation.
 
+`recall` also supports indexed progress/failure lookup without walking the
+transcript. See [episodic memory](EPISODIC_MEMORY.md) for exact filters, bounded
+pages, trust labels and rebuilding the derived index.
+
 Prefix structure is stable; Anthropic system-prefix cache hints are opt-in.
 Cache hits depend on the provider, model and minimum prefix length. This code
 neither owns nor shares physical KV cache and does not claim zero-prefill forks.

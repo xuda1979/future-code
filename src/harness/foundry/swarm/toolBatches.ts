@@ -10,6 +10,7 @@ import type { SessionJournal, Thread } from "./session.ts";
 import { toolEffectContract } from "./toolEffects.ts";
 import type { Hands, WorkspaceBatchResult } from "./workspace.ts";
 import { recordDiagnostic } from "./diagnostics.ts";
+import { failureMemory, type MemoryEntry } from "./memory.ts";
 
 export interface ToolBatch {
   kind: "read" | "workspace-write" | "run_job";
@@ -159,6 +160,7 @@ export async function executeToolBatch(o: BatchExecution): Promise<void> {
   const deferred: DeferredAttemptError[] = [], stillPending: string[] = [];
   let terminal: Error | null = null;
   const receipts: Json[] = [];
+  const memory: MemoryEntry[] = [];
   const diagnosticBatch = { kind: batch.kind, calls: batch.calls.map(call => ({
     tool: call.name, arguments: call.arguments, admitted: !rejected.has(call.id),
   })) };
@@ -175,12 +177,14 @@ export async function executeToolBatch(o: BatchExecution): Promise<void> {
     const receipt = journal.receipt(c, result);
     if (batch.kind === "run_job" && outcome.status === "fulfilled") t.state.lastJobReceipt = receipt;
     const diagnostic = recordDiagnostic(t, journal, cfg, call, result, receipt, beforePatch, !rejected.has(call.id), diagnosticBatch);
+    if (diagnostic) memory.push(failureMemory(diagnostic, t.state.turns));
     t.state.history.push({ role: "tool", callId: call.id, receipt, content: inlineReceipt(receipt, result) });
     receipts.push({ callId: call.id, receipt, ...(diagnostic ? { fixture: diagnostic.fixture } : {}) });
   }
   if (carried.length || stillPending.length) t.state.pendingBatch = [...carried, ...stillPending];
   else delete t.state.pendingBatch;
   journal.checkpoint(t, "tool.batch.result", { kind: batch.kind, results: receipts,
+    ...(memory.length ? { memory } : {}),
     pending: stillPending, patchHash: t.state.patchHash, executions, durationMs: Math.max(0, performance.now() - started) });
   if (terminal) throw terminal;
   if (deferred.length) {
