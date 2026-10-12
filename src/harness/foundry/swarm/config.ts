@@ -33,7 +33,12 @@ export interface AgentProfile {
   /** Launch configured fallbacks if the primary has not completed by this latency. */
   hedgeAfterMs?: number;
 }
-export interface CheckSpec extends CommandSpec { replaySafe: boolean }
+export interface CheckSpec extends CommandSpec {
+  replaySafe: boolean;
+  /** Operator assertion: no prerequisite check, shared external state or resource
+   * collision; can run against a private copy of the candidate Git tree. */
+  parallelSafe?: boolean;
+}
 export interface ExecutionWorker {
   /** Trusted coordinator-side adapter. It may wrap SSH/Kubernetes/etc. */
   adapter: CommandSpec;
@@ -89,6 +94,9 @@ export interface SupervisionPolicy {
   dynamicDAG?: SpawnPolicy;
 }
 export interface SwarmSpec {
+  /** Optional per-verifier cap, including worktree preparation and cleanup.
+   * Only adjacent, explicitly parallelSafe checks may use it. Defaults to 1. */
+  verification?: { parallelism: number };
   /** Explicit authority to share bounded notes, never private thread transcripts. */
   coordination?: {
     cohorts: Record<string, { maxConcurrent: number }>;
@@ -140,7 +148,7 @@ function names(names: string[], known: string[], label: string): void {
   invariant(Array.isArray(names) && names.length > 0 && new Set(names).size === names.length && names.every(n => known.includes(n)), `invalid ${label}`);
 }
 export function validateSwarmSpec(s: SwarmSpec): void {
-  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack", "coordination"]);
+  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack", "coordination", "verification"]);
   invariant(s.schema === 1 && typeof s.name === "string" && !!s.name.trim(), "invalid swarm identity");
   invariant(typeof s.project === "string" && s.project.length > 0, "missing project");
   invariant(s.domainPack === undefined ||
@@ -150,14 +158,20 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   const c: Contract = { schema: 1, name: s.name, workerId: "swarm", verifierId: "swarm-checker", environmentId: "pinned-project",
     requiredChecks: ["scope", "behavior"], slos: [], limits: s.limits };
   validateContract(c); validateRecipe(c, s.recipe);
+  if (s.verification !== undefined) {
+    keys(s.verification, ["parallelism"]);
+    positive(s.verification.parallelism, 8, "verification parallelism");
+  }
   invariant(s.agents && typeof s.agents === "object" && !Array.isArray(s.agents), "invalid agents");
   positive(Object.keys(s.agents).length, 32, "roster size");
   invariant(Object.hasOwn(s.agents, s.defaultAgent), "unknown defaultAgent");
   invariant(s.checks && typeof s.checks === "object" && !Array.isArray(s.checks), "invalid checks");
   const checks = Object.keys(s.checks); positive(checks.length, 128, "check count");
   for (const [id, check] of Object.entries(s.checks)) {
-    identifier(id); keys(check, ["argv", "replaySafe"], ["files", "envAllow"]);
+    identifier(id); keys(check, ["argv", "replaySafe"], ["files", "envAllow", "parallelSafe"]);
     invariant(typeof check.replaySafe === "boolean", "explicit replaySafe required");
+    invariant(check.parallelSafe === undefined || typeof check.parallelSafe === "boolean", "invalid parallelSafe");
+    invariant(!check.parallelSafe || check.replaySafe, "parallelSafe checks must be replay-safe");
     invariant(Array.isArray(check.argv) && check.argv.length > 0 && check.argv.every(x => typeof x === "string" && !x.includes("\0")), "invalid check argv");
     // Shell capabilities are a user-authored, pinned configuration, never task input.
   }

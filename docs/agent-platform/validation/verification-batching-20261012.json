@@ -1,0 +1,1162 @@
+{
+  "schema": 1,
+  "measurement": "OFFLINE_VERIFIED_HOST_WORKLOAD_NOT_LIVE_RND",
+  "baselineCommit": "079021814e89899da8fc69b58d9fc3b96a39f0ba",
+  "order": [
+    "A1",
+    "B1",
+    "B2",
+    "A2"
+  ],
+  "liveLLMCalls": 0,
+  "totalTrials": 60,
+  "simulatedCheckDelayMs": 250,
+  "focusedRegressions": 13,
+  "scriptSha256": "8725b84fcfa0b94d19f3ee8c957a437425703994d81cce438255381312e8535e",
+  "testSha256": "7890d2f2ab85dd4f63177e4faab3ff4491bbdf5da15a10aba02fb43d390bcf72",
+  "summary": {
+    "single": {
+      "samplesPerArm": 10,
+      "baselineMedianTotalMs": 258.45057249999945,
+      "candidateMedianTotalMs": 230.9407104999991,
+      "baselineOverCandidate": 1.1191208857911625,
+      "reductionFraction": 0.10644148215226101,
+      "baselineCheckExecutions": [
+        2
+      ],
+      "candidateCheckExecutions": [
+        2
+      ]
+    },
+    "fourFast": {
+      "samplesPerArm": 10,
+      "baselineMedianTotalMs": 444.0875145000007,
+      "candidateMedianTotalMs": 321.29913550000106,
+      "baselineOverCandidate": 1.3821621829418187,
+      "reductionFraction": 0.2764959045026235,
+      "baselineCheckExecutions": [
+        8
+      ],
+      "candidateCheckExecutions": [
+        8
+      ]
+    },
+    "eightDelayed": {
+      "samplesPerArm": 10,
+      "baselineMedianTotalMs": 4839.994810499999,
+      "candidateMedianTotalMs": 1612.551880000001,
+      "baselineOverCandidate": 3.0014506017009492,
+      "reductionFraction": 0.6668277667360939,
+      "baselineCheckExecutions": [
+        16
+      ],
+      "candidateCheckExecutions": [
+        16
+      ]
+    }
+  },
+  "gates": [
+    {
+      "gate": "correctness",
+      "exitCode": 0,
+      "elapsedSeconds": 6.98,
+      "counts": [
+        "\u2139 tests 62",
+        "\u2139 pass 62",
+        "\u2139 fail 0",
+        "\u2139 cancelled 0"
+      ],
+      "logSha256": "3061d7fcb94602eb0ba4ccb0ccf162fdeb6312b9d9fbfd72dc36215b3a946330",
+      "pythonTestCounts": [
+        15,
+        7
+      ]
+    },
+    {
+      "gate": "resilience",
+      "exitCode": 0,
+      "elapsedSeconds": 17.73,
+      "counts": [
+        "\u2139 tests 158",
+        "\u2139 pass 158",
+        "\u2139 fail 0",
+        "\u2139 cancelled 0"
+      ],
+      "logSha256": "134e3c2cad2a496d57741e9be070ef020f3cdfb3cae15cc198a01db8aad4c1c0",
+      "pythonTestCounts": [
+        7
+      ]
+    },
+    {
+      "gate": "foundry",
+      "exitCode": 0,
+      "elapsedSeconds": 24.81,
+      "counts": [
+        "\u2139 tests 439",
+        "\u2139 pass 439",
+        "\u2139 fail 0",
+        "\u2139 cancelled 0"
+      ],
+      "logSha256": "4873b864bbd4651b1635553024f54e28a74008315e680f4ad77912676a17fd7f",
+      "pythonTestCounts": []
+    },
+    {
+      "gate": "swarm",
+      "exitCode": 0,
+      "elapsedSeconds": 21.4,
+      "counts": [
+        "\u2139 tests 164",
+        "\u2139 pass 164",
+        "\u2139 fail 0",
+        "\u2139 cancelled 0"
+      ],
+      "logSha256": "92907529b273e81ae52810e1eacff2d60ec965d4d756b6a0dd49cdca9df1d272",
+      "pythonTestCounts": []
+    },
+    {
+      "gate": "commands",
+      "exitCode": 0,
+      "elapsedSeconds": 0.29,
+      "counts": [
+        "\u2139 tests 99",
+        "\u2139 pass 99",
+        "\u2139 fail 0",
+        "\u2139 cancelled 0"
+      ],
+      "logSha256": "6842e693fcbe9d0f3e661ed6025cdf44be0eaff06d6af553bc54a2f1d43b0a5b",
+      "pythonTestCounts": []
+    }
+  ],
+  "phases": [
+    {
+      "phase": "A1",
+      "schema": 1,
+      "measurement": "OFFLINE_VERIFIED_HOST_WORKLOAD_NOT_LIVE_RND",
+      "generatedAt": "2026-10-12T02:16:50.118Z",
+      "mode": "serial",
+      "liveLLMCalls": 0,
+      "simulatedCheckDelayMs": 250,
+      "runtime": {
+        "node": "v24.19.0",
+        "platform": "linux",
+        "arch": "x64",
+        "cpu": "AMD EPYC 9V74 80-Core Processor"
+      },
+      "head": "079021814e89899da8fc69b58d9fc3b96a39f0ba",
+      "sourceHashes": {
+        "src/harness/foundry/swarm/config.ts": "483048b07b3bb5560e607b790ba5713b8e91570b72224645dcf711486fed9634",
+        "src/harness/foundry/swarm/driver.ts": "329e4a482b16298a247841351ebec302a2d7a822b8e095315789ab96687545da",
+        "src/harness/foundry/swarm/workspace.ts": "1cc2effa29e21082e61f450121a30cb07948101ac22ef0f4e1737c2384a7aff5",
+        "src/harness/foundry/swarm/host.ts": "1be671c0e2a72daf61f406af05f5be7a67dda74e494879898dbd8dd99166b0f3"
+      },
+      "summary": {
+        "single": {
+          "samples": 5,
+          "medianTotalMs": 277.0947129999995,
+          "medianRunMs": 150.1519619999999,
+          "medianIntegrationMs": 84.94572300000073,
+          "peakCheckProcesses": 1
+        },
+        "fourFast": {
+          "samples": 5,
+          "medianTotalMs": 450.7239629999999,
+          "medianRunMs": 262.99336700000094,
+          "medianIntegrationMs": 195.50374100000045,
+          "peakCheckProcesses": 1
+        },
+        "eightDelayed": {
+          "samples": 5,
+          "medianTotalMs": 4852.193714999998,
+          "medianRunMs": 2465.053607,
+          "medianIntegrationMs": 2371.6843659999995,
+          "peakCheckProcesses": 1
+        }
+      },
+      "samples": [
+        {
+          "case": "single",
+          "repetition": 0,
+          "runMs": 286.204589,
+          "integrationMs": 83.85342600000001,
+          "totalMs": 370.058015,
+          "verifierWorkerMs": 86.43096300000002,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "ae9b3089453aef59168bac9a6fe3f4c5fbea6ed36abc48f6adc0bd0a20b27fd7"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 0,
+          "runMs": 241.56849999999986,
+          "integrationMs": 209.15546300000005,
+          "totalMs": 450.7239629999999,
+          "verifierWorkerMs": 177.97786799999994,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "fc343642cfeda0f66c086ddae62d35aa9bcbda2935a6262b9dd0da806c513780"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 0,
+          "runMs": 2484.613546,
+          "integrationMs": 2371.6843659999995,
+          "totalMs": 4856.297912,
+          "verifierWorkerMs": 2380.677851,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "48c42edc0d7038b760865877ae5c7d096ab04dbe1f54ddccb3808dd506c4e17b"
+        },
+        {
+          "case": "single",
+          "repetition": 1,
+          "runMs": 150.1519619999999,
+          "integrationMs": 126.94275099999959,
+          "totalMs": 277.0947129999995,
+          "verifierWorkerMs": 87.39458300000024,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "ae9b3089453aef59168bac9a6fe3f4c5fbea6ed36abc48f6adc0bd0a20b27fd7"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 1,
+          "runMs": 262.99336700000094,
+          "integrationMs": 195.50374100000045,
+          "totalMs": 458.4971080000014,
+          "verifierWorkerMs": 194.43644099999983,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "fc343642cfeda0f66c086ddae62d35aa9bcbda2935a6262b9dd0da806c513780"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 1,
+          "runMs": 2465.053607,
+          "integrationMs": 2362.7422990000014,
+          "totalMs": 4827.795906000001,
+          "verifierWorkerMs": 2367.9119169999994,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "48c42edc0d7038b760865877ae5c7d096ab04dbe1f54ddccb3808dd506c4e17b"
+        },
+        {
+          "case": "single",
+          "repetition": 2,
+          "runMs": 202.3921369999989,
+          "integrationMs": 115.65507500000058,
+          "totalMs": 318.0472119999995,
+          "verifierWorkerMs": 123.37778299999991,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "ae9b3089453aef59168bac9a6fe3f4c5fbea6ed36abc48f6adc0bd0a20b27fd7"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 2,
+          "runMs": 267.22603100000015,
+          "integrationMs": 169.04524499999934,
+          "totalMs": 436.2712759999995,
+          "verifierWorkerMs": 195.5085790000012,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "fc343642cfeda0f66c086ddae62d35aa9bcbda2935a6262b9dd0da806c513780"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 2,
+          "runMs": 2455.372073999999,
+          "integrationMs": 2396.8216409999986,
+          "totalMs": 4852.193714999998,
+          "verifierWorkerMs": 2373.8054470000025,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "48c42edc0d7038b760865877ae5c7d096ab04dbe1f54ddccb3808dd506c4e17b"
+        },
+        {
+          "case": "single",
+          "repetition": 3,
+          "runMs": 143.73516400000153,
+          "integrationMs": 82.11369700000068,
+          "totalMs": 225.84886100000222,
+          "verifierWorkerMs": 84.1108490000006,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "ae9b3089453aef59168bac9a6fe3f4c5fbea6ed36abc48f6adc0bd0a20b27fd7"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 3,
+          "runMs": 313.84490000000005,
+          "integrationMs": 247.72671199999968,
+          "totalMs": 561.5716119999997,
+          "verifierWorkerMs": 233.01994800000102,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "fc343642cfeda0f66c086ddae62d35aa9bcbda2935a6262b9dd0da806c513780"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 3,
+          "runMs": 2438.923304,
+          "integrationMs": 2333.528983,
+          "totalMs": 4772.452287,
+          "verifierWorkerMs": 2350.4475209999982,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "48c42edc0d7038b760865877ae5c7d096ab04dbe1f54ddccb3808dd506c4e17b"
+        },
+        {
+          "case": "single",
+          "repetition": 4,
+          "runMs": 139.11049499999717,
+          "integrationMs": 84.94572300000073,
+          "totalMs": 224.0562179999979,
+          "verifierWorkerMs": 80.86961599999995,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "ae9b3089453aef59168bac9a6fe3f4c5fbea6ed36abc48f6adc0bd0a20b27fd7"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 4,
+          "runMs": 231.4433390000013,
+          "integrationMs": 189.03975900000296,
+          "totalMs": 420.48309800000425,
+          "verifierWorkerMs": 172.63577000000078,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "fc343642cfeda0f66c086ddae62d35aa9bcbda2935a6262b9dd0da806c513780"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 4,
+          "runMs": 2469.324480000003,
+          "integrationMs": 2386.119326,
+          "totalMs": 4855.443806000003,
+          "verifierWorkerMs": 2384.647605000002,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "48c42edc0d7038b760865877ae5c7d096ab04dbe1f54ddccb3808dd506c4e17b"
+        }
+      ]
+    },
+    {
+      "phase": "B1",
+      "schema": 1,
+      "measurement": "OFFLINE_VERIFIED_HOST_WORKLOAD_NOT_LIVE_RND",
+      "generatedAt": "2026-10-12T02:17:10.247Z",
+      "mode": "parallel",
+      "liveLLMCalls": 0,
+      "simulatedCheckDelayMs": 250,
+      "runtime": {
+        "node": "v24.19.0",
+        "platform": "linux",
+        "arch": "x64",
+        "cpu": "AMD EPYC 9V74 80-Core Processor"
+      },
+      "head": "079021814e89899da8fc69b58d9fc3b96a39f0ba",
+      "sourceHashes": {
+        "src/harness/foundry/swarm/config.ts": "e51f29caf6a04bddc7c497a898fded53d445c66b909c982532a878ed303c240c",
+        "src/harness/foundry/swarm/driver.ts": "89668e262fa05bf3bab933f4d5e1c71e5fcdc5298981bb0d97fc2a697bcd1dd0",
+        "src/harness/foundry/swarm/workspace.ts": "bf2b3380bddce050a00fdf036edc326b25eac155eeabab724887a7be217b5bd6",
+        "src/harness/foundry/swarm/host.ts": "b7f3dab3ae30323cc357020e53e9af336dc5aa29a0d971cc48e84e5eece68ad2",
+        "src/harness/foundry/swarm/verification.ts": "a15b220f22df1552398a8f8ae308b7913f8f5c4f2f1e6d50804f0616a3c411c9"
+      },
+      "summary": {
+        "single": {
+          "samples": 5,
+          "medianTotalMs": 246.13499600000068,
+          "medianRunMs": 148.36431399999856,
+          "medianIntegrationMs": 86.31364699999904,
+          "peakCheckProcesses": 1
+        },
+        "fourFast": {
+          "samples": 5,
+          "medianTotalMs": 325.73908499999925,
+          "medianRunMs": 196.1301459999995,
+          "medianIntegrationMs": 129.60893899999974,
+          "peakCheckProcesses": 2
+        },
+        "eightDelayed": {
+          "samples": 5,
+          "medianTotalMs": 1620.5071159999989,
+          "medianRunMs": 853.2961630000027,
+          "medianIntegrationMs": 767.2259429999995,
+          "peakCheckProcesses": 4
+        }
+      },
+      "samples": [
+        {
+          "case": "single",
+          "repetition": 0,
+          "runMs": 266.28277099999997,
+          "integrationMs": 81.89997500000004,
+          "totalMs": 348.182746,
+          "verifierWorkerMs": 83.54432600000001,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "de71f30f058f596d74de583f7f65a5dc796ea05caad8104bd55d68962bdab170"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 0,
+          "runMs": 228.53474700000015,
+          "integrationMs": 122.76129500000002,
+          "totalMs": 351.29604200000017,
+          "verifierWorkerMs": 157.70462199999997,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 2,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86116880a0b7931dd271ec709064dabef6a973140e42a076df72d6c9aae8802d"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 0,
+          "runMs": 960.8357930000002,
+          "integrationMs": 862.687539,
+          "totalMs": 1823.5233320000002,
+          "verifierWorkerMs": 876.298984,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 4,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86bed124b71f5ce8d41551c0a4073eb21589b7121d0b5349a078a0097d2fc6d5"
+        },
+        {
+          "case": "single",
+          "repetition": 1,
+          "runMs": 174.36877800000002,
+          "integrationMs": 106.31349299999965,
+          "totalMs": 280.6822709999997,
+          "verifierWorkerMs": 104.96228100000008,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "de71f30f058f596d74de583f7f65a5dc796ea05caad8104bd55d68962bdab170"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 1,
+          "runMs": 213.84141900000031,
+          "integrationMs": 135.23056499999984,
+          "totalMs": 349.07198400000016,
+          "verifierWorkerMs": 149.31081300000005,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 2,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86116880a0b7931dd271ec709064dabef6a973140e42a076df72d6c9aae8802d"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 1,
+          "runMs": 875.0162620000001,
+          "integrationMs": 749.4493819999989,
+          "totalMs": 1624.465643999999,
+          "verifierWorkerMs": 799.6952849999998,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 4,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86bed124b71f5ce8d41551c0a4073eb21589b7121d0b5349a078a0097d2fc6d5"
+        },
+        {
+          "case": "single",
+          "repetition": 2,
+          "runMs": 148.36431399999856,
+          "integrationMs": 83.74911000000066,
+          "totalMs": 232.1134239999992,
+          "verifierWorkerMs": 87.40153900000041,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "de71f30f058f596d74de583f7f65a5dc796ea05caad8104bd55d68962bdab170"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 2,
+          "runMs": 182.46486799999911,
+          "integrationMs": 129.0334559999992,
+          "totalMs": 311.4983239999983,
+          "verifierWorkerMs": 125.15722899999855,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 2,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86116880a0b7931dd271ec709064dabef6a973140e42a076df72d6c9aae8802d"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 2,
+          "runMs": 835.469783999999,
+          "integrationMs": 779.5445589999999,
+          "totalMs": 1615.014342999999,
+          "verifierWorkerMs": 766.1847579999994,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 4,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86bed124b71f5ce8d41551c0a4073eb21589b7121d0b5349a078a0097d2fc6d5"
+        },
+        {
+          "case": "single",
+          "repetition": 3,
+          "runMs": 143.4659360000005,
+          "integrationMs": 102.66906000000017,
+          "totalMs": 246.13499600000068,
+          "verifierWorkerMs": 88.67097600000125,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "de71f30f058f596d74de583f7f65a5dc796ea05caad8104bd55d68962bdab170"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 3,
+          "runMs": 196.1301459999995,
+          "integrationMs": 129.60893899999974,
+          "totalMs": 325.73908499999925,
+          "verifierWorkerMs": 133.48649299999852,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 2,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86116880a0b7931dd271ec709064dabef6a973140e42a076df72d6c9aae8802d"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 3,
+          "runMs": 853.2811729999994,
+          "integrationMs": 767.2259429999995,
+          "totalMs": 1620.5071159999989,
+          "verifierWorkerMs": 781.3169990000006,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 4,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86bed124b71f5ce8d41551c0a4073eb21589b7121d0b5349a078a0097d2fc6d5"
+        },
+        {
+          "case": "single",
+          "repetition": 4,
+          "runMs": 143.45434999999998,
+          "integrationMs": 86.31364699999904,
+          "totalMs": 229.767996999999,
+          "verifierWorkerMs": 81.74917799999821,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "de71f30f058f596d74de583f7f65a5dc796ea05caad8104bd55d68962bdab170"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 4,
+          "runMs": 181.89750500000082,
+          "integrationMs": 132.38510999999926,
+          "totalMs": 314.2826150000001,
+          "verifierWorkerMs": 126.36220500000127,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 2,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86116880a0b7931dd271ec709064dabef6a973140e42a076df72d6c9aae8802d"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 4,
+          "runMs": 853.2961630000027,
+          "integrationMs": 756.7932540000002,
+          "totalMs": 1610.0894170000029,
+          "verifierWorkerMs": 782.3989470000015,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 4,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86bed124b71f5ce8d41551c0a4073eb21589b7121d0b5349a078a0097d2fc6d5"
+        }
+      ]
+    },
+    {
+      "phase": "B2",
+      "schema": 1,
+      "measurement": "OFFLINE_VERIFIED_HOST_WORKLOAD_NOT_LIVE_RND",
+      "generatedAt": "2026-10-12T02:17:29.812Z",
+      "mode": "parallel",
+      "liveLLMCalls": 0,
+      "simulatedCheckDelayMs": 250,
+      "runtime": {
+        "node": "v24.19.0",
+        "platform": "linux",
+        "arch": "x64",
+        "cpu": "AMD EPYC 9V74 80-Core Processor"
+      },
+      "head": "079021814e89899da8fc69b58d9fc3b96a39f0ba",
+      "sourceHashes": {
+        "src/harness/foundry/swarm/config.ts": "e51f29caf6a04bddc7c497a898fded53d445c66b909c982532a878ed303c240c",
+        "src/harness/foundry/swarm/driver.ts": "89668e262fa05bf3bab933f4d5e1c71e5fcdc5298981bb0d97fc2a697bcd1dd0",
+        "src/harness/foundry/swarm/workspace.ts": "bf2b3380bddce050a00fdf036edc326b25eac155eeabab724887a7be217b5bd6",
+        "src/harness/foundry/swarm/host.ts": "b7f3dab3ae30323cc357020e53e9af336dc5aa29a0d971cc48e84e5eece68ad2",
+        "src/harness/foundry/swarm/verification.ts": "a15b220f22df1552398a8f8ae308b7913f8f5c4f2f1e6d50804f0616a3c411c9"
+      },
+      "summary": {
+        "single": {
+          "samples": 5,
+          "medianTotalMs": 218.55376800000158,
+          "medianRunMs": 137.59136000000035,
+          "medianIntegrationMs": 81.48143000000164,
+          "peakCheckProcesses": 1
+        },
+        "fourFast": {
+          "samples": 5,
+          "medianTotalMs": 319.63259800000196,
+          "medianRunMs": 187.39709100000005,
+          "medianIntegrationMs": 130.3425530000004,
+          "peakCheckProcesses": 3
+        },
+        "eightDelayed": {
+          "samples": 5,
+          "medianTotalMs": 1593.9280260000014,
+          "medianRunMs": 835.8740980000002,
+          "medianIntegrationMs": 758.0539280000012,
+          "peakCheckProcesses": 4
+        }
+      },
+      "samples": [
+        {
+          "case": "single",
+          "repetition": 0,
+          "runMs": 299.256418,
+          "integrationMs": 81.88030800000001,
+          "totalMs": 381.136726,
+          "verifierWorkerMs": 91.45541500000002,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "de71f30f058f596d74de583f7f65a5dc796ea05caad8104bd55d68962bdab170"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 0,
+          "runMs": 187.39709100000005,
+          "integrationMs": 135.5685820000001,
+          "totalMs": 322.96567300000015,
+          "verifierWorkerMs": 131.69909000000007,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 3,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86116880a0b7931dd271ec709064dabef6a973140e42a076df72d6c9aae8802d"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 0,
+          "runMs": 827.3003979999999,
+          "integrationMs": 776.2570569999998,
+          "totalMs": 1603.5574549999997,
+          "verifierWorkerMs": 758.6591349999999,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 4,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86bed124b71f5ce8d41551c0a4073eb21589b7121d0b5349a078a0097d2fc6d5"
+        },
+        {
+          "case": "single",
+          "repetition": 1,
+          "runMs": 141.54330400000072,
+          "integrationMs": 78.05723599999965,
+          "totalMs": 219.60054000000036,
+          "verifierWorkerMs": 81.28030799999942,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "de71f30f058f596d74de583f7f65a5dc796ea05caad8104bd55d68962bdab170"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 1,
+          "runMs": 186.00086999999985,
+          "integrationMs": 137.67741800000022,
+          "totalMs": 323.67828800000007,
+          "verifierWorkerMs": 128.37962799999968,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86116880a0b7931dd271ec709064dabef6a973140e42a076df72d6c9aae8802d"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 1,
+          "runMs": 836.0424140000005,
+          "integrationMs": 755.6005370000003,
+          "totalMs": 1591.6429510000007,
+          "verifierWorkerMs": 762.2014090000002,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 4,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86bed124b71f5ce8d41551c0a4073eb21589b7121d0b5349a078a0097d2fc6d5"
+        },
+        {
+          "case": "single",
+          "repetition": 2,
+          "runMs": 134.20703100000082,
+          "integrationMs": 83.82962700000098,
+          "totalMs": 218.0366580000018,
+          "verifierWorkerMs": 79.77374899999995,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "de71f30f058f596d74de583f7f65a5dc796ea05caad8104bd55d68962bdab170"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 2,
+          "runMs": 189.29004500000156,
+          "integrationMs": 130.3425530000004,
+          "totalMs": 319.63259800000196,
+          "verifierWorkerMs": 130.99862699999903,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 2,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86116880a0b7931dd271ec709064dabef6a973140e42a076df72d6c9aae8802d"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 2,
+          "runMs": 877.7026530000003,
+          "integrationMs": 795.8019330000006,
+          "totalMs": 1673.504586000001,
+          "verifierWorkerMs": 793.582574,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 4,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86bed124b71f5ce8d41551c0a4073eb21589b7121d0b5349a078a0097d2fc6d5"
+        },
+        {
+          "case": "single",
+          "repetition": 3,
+          "runMs": 137.07233799999995,
+          "integrationMs": 81.48143000000164,
+          "totalMs": 218.55376800000158,
+          "verifierWorkerMs": 82.61381799999981,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "de71f30f058f596d74de583f7f65a5dc796ea05caad8104bd55d68962bdab170"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 3,
+          "runMs": 183.37835200000154,
+          "integrationMs": 122.44542600000023,
+          "totalMs": 305.82377800000177,
+          "verifierWorkerMs": 121.30355800000143,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 2,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86116880a0b7931dd271ec709064dabef6a973140e42a076df72d6c9aae8802d"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 3,
+          "runMs": 818.9313949999996,
+          "integrationMs": 755.9455780000008,
+          "totalMs": 1574.8769730000004,
+          "verifierWorkerMs": 747.575703999999,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 4,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86bed124b71f5ce8d41551c0a4073eb21589b7121d0b5349a078a0097d2fc6d5"
+        },
+        {
+          "case": "single",
+          "repetition": 4,
+          "runMs": 137.59136000000035,
+          "integrationMs": 75.91693499999928,
+          "totalMs": 213.50829499999963,
+          "verifierWorkerMs": 84.35788200000025,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "de71f30f058f596d74de583f7f65a5dc796ea05caad8104bd55d68962bdab170"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 4,
+          "runMs": 187.61956199999986,
+          "integrationMs": 124.02309400000013,
+          "totalMs": 311.642656,
+          "verifierWorkerMs": 131.69902199999706,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 2,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86116880a0b7931dd271ec709064dabef6a973140e42a076df72d6c9aae8802d"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 4,
+          "runMs": 835.8740980000002,
+          "integrationMs": 758.0539280000012,
+          "totalMs": 1593.9280260000014,
+          "verifierWorkerMs": 758.6102400000018,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 4,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "86bed124b71f5ce8d41551c0a4073eb21589b7121d0b5349a078a0097d2fc6d5"
+        }
+      ]
+    },
+    {
+      "phase": "A2",
+      "schema": 1,
+      "measurement": "OFFLINE_VERIFIED_HOST_WORKLOAD_NOT_LIVE_RND",
+      "generatedAt": "2026-10-12T02:18:06.525Z",
+      "mode": "serial",
+      "liveLLMCalls": 0,
+      "simulatedCheckDelayMs": 250,
+      "runtime": {
+        "node": "v24.19.0",
+        "platform": "linux",
+        "arch": "x64",
+        "cpu": "AMD EPYC 9V74 80-Core Processor"
+      },
+      "head": "079021814e89899da8fc69b58d9fc3b96a39f0ba",
+      "sourceHashes": {
+        "src/harness/foundry/swarm/config.ts": "483048b07b3bb5560e607b790ba5713b8e91570b72224645dcf711486fed9634",
+        "src/harness/foundry/swarm/driver.ts": "329e4a482b16298a247841351ebec302a2d7a822b8e095315789ab96687545da",
+        "src/harness/foundry/swarm/workspace.ts": "1cc2effa29e21082e61f450121a30cb07948101ac22ef0f4e1737c2384a7aff5",
+        "src/harness/foundry/swarm/host.ts": "1be671c0e2a72daf61f406af05f5be7a67dda74e494879898dbd8dd99166b0f3"
+      },
+      "summary": {
+        "single": {
+          "samples": 5,
+          "medianTotalMs": 239.8064319999994,
+          "medianRunMs": 141.8485639999999,
+          "medianIntegrationMs": 92.33129299999996,
+          "peakCheckProcesses": 1
+        },
+        "fourFast": {
+          "samples": 5,
+          "medianTotalMs": 437.45106600000145,
+          "medianRunMs": 245.1619380000011,
+          "medianIntegrationMs": 188.54273300000204,
+          "peakCheckProcesses": 1
+        },
+        "eightDelayed": {
+          "samples": 5,
+          "medianTotalMs": 4818.178488000001,
+          "medianRunMs": 2467.959790000001,
+          "medianIntegrationMs": 2357.674866000001,
+          "peakCheckProcesses": 1
+        }
+      },
+      "samples": [
+        {
+          "case": "single",
+          "repetition": 0,
+          "runMs": 332.956124,
+          "integrationMs": 92.33129299999996,
+          "totalMs": 425.28741699999995,
+          "verifierWorkerMs": 100.46706499999993,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "ae9b3089453aef59168bac9a6fe3f4c5fbea6ed36abc48f6adc0bd0a20b27fd7"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 0,
+          "runMs": 272.50074500000005,
+          "integrationMs": 189.05294800000001,
+          "totalMs": 461.55369300000007,
+          "verifierWorkerMs": 200.39095199999997,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "fc343642cfeda0f66c086ddae62d35aa9bcbda2935a6262b9dd0da806c513780"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 0,
+          "runMs": 2487.543736,
+          "integrationMs": 2320.056144,
+          "totalMs": 4807.59988,
+          "verifierWorkerMs": 2403.8064949999994,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "48c42edc0d7038b760865877ae5c7d096ab04dbe1f54ddccb3808dd506c4e17b"
+        },
+        {
+          "case": "single",
+          "repetition": 1,
+          "runMs": 172.30192399999942,
+          "integrationMs": 110.1423990000003,
+          "totalMs": 282.4443229999997,
+          "verifierWorkerMs": 112.58275800000047,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "ae9b3089453aef59168bac9a6fe3f4c5fbea6ed36abc48f6adc0bd0a20b27fd7"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 1,
+          "runMs": 245.1619380000011,
+          "integrationMs": 211.84807100000035,
+          "totalMs": 457.01000900000145,
+          "verifierWorkerMs": 183.43384400000105,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "fc343642cfeda0f66c086ddae62d35aa9bcbda2935a6262b9dd0da806c513780"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 1,
+          "runMs": 2467.959790000001,
+          "integrationMs": 2336.798655999999,
+          "totalMs": 4804.758446,
+          "verifierWorkerMs": 2363.693697999999,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "48c42edc0d7038b760865877ae5c7d096ab04dbe1f54ddccb3808dd506c4e17b"
+        },
+        {
+          "case": "single",
+          "repetition": 2,
+          "runMs": 141.8485639999999,
+          "integrationMs": 97.95786799999951,
+          "totalMs": 239.8064319999994,
+          "verifierWorkerMs": 88.01056900000003,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "ae9b3089453aef59168bac9a6fe3f4c5fbea6ed36abc48f6adc0bd0a20b27fd7"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 2,
+          "runMs": 241.2611969999998,
+          "integrationMs": 174.50738400000046,
+          "totalMs": 415.76858100000027,
+          "verifierWorkerMs": 181.04839600000014,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "fc343642cfeda0f66c086ddae62d35aa9bcbda2935a6262b9dd0da806c513780"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 2,
+          "runMs": 2549.4105180000006,
+          "integrationMs": 2469.365603000002,
+          "totalMs": 5018.776121000003,
+          "verifierWorkerMs": 2435.91821,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "48c42edc0d7038b760865877ae5c7d096ab04dbe1f54ddccb3808dd506c4e17b"
+        },
+        {
+          "case": "single",
+          "repetition": 3,
+          "runMs": 125.80128799999875,
+          "integrationMs": 81.50801099999808,
+          "totalMs": 207.30929899999683,
+          "verifierWorkerMs": 75.0581259999999,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "ae9b3089453aef59168bac9a6fe3f4c5fbea6ed36abc48f6adc0bd0a20b27fd7"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 3,
+          "runMs": 248.9083329999994,
+          "integrationMs": 188.54273300000204,
+          "totalMs": 437.45106600000145,
+          "verifierWorkerMs": 188.99219000000085,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "fc343642cfeda0f66c086ddae62d35aa9bcbda2935a6262b9dd0da806c513780"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 3,
+          "runMs": 2460.503622,
+          "integrationMs": 2357.674866000001,
+          "totalMs": 4818.178488000001,
+          "verifierWorkerMs": 2372.2711340000023,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "48c42edc0d7038b760865877ae5c7d096ab04dbe1f54ddccb3808dd506c4e17b"
+        },
+        {
+          "case": "single",
+          "repetition": 4,
+          "runMs": 136.7972770000015,
+          "integrationMs": 82.87538499999937,
+          "totalMs": 219.67266200000086,
+          "verifierWorkerMs": 79.21191899999758,
+          "checkExecutions": 2,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "ae9b3089453aef59168bac9a6fe3f4c5fbea6ed36abc48f6adc0bd0a20b27fd7"
+        },
+        {
+          "case": "fourFast",
+          "repetition": 4,
+          "runMs": 219.25622400000066,
+          "integrationMs": 173.481749999999,
+          "totalMs": 392.73797399999967,
+          "verifierWorkerMs": 166.76480900000024,
+          "checkExecutions": 8,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "fc343642cfeda0f66c086ddae62d35aa9bcbda2935a6262b9dd0da806c513780"
+        },
+        {
+          "case": "eightDelayed",
+          "repetition": 4,
+          "runMs": 2435.815713,
+          "integrationMs": 2419.958725999997,
+          "totalMs": 4855.774438999997,
+          "verifierWorkerMs": 2348.0901959999974,
+          "checkExecutions": 16,
+          "peakCheckProcesses": 1,
+          "mockProviderRequests": 2,
+          "acceptedTasks": 1,
+          "integrated": true,
+          "taskAndChecksHash": "48c42edc0d7038b760865877ae5c7d096ab04dbe1f54ddccb3808dd506c4e17b"
+        }
+      ]
+    }
+  ]
+}

@@ -17,6 +17,7 @@ import { CohortBoard } from "./cohorts.ts";
 import { fabricStatus } from "../evidenceFabric.ts";
 import { claimGate } from "../claims.ts";
 import { git, LocalGitHands, orderedTasks, readPatchArtifact } from "./workspace.ts";
+import { checkPassed } from "./verification.ts";
 const json = (value: unknown): Json => JSON.parse(canonical(value));
 const KEY = "extension.swarm";
 export async function initializeSwarm(store: Store, input: SwarmSpec, signal: AbortSignal): Promise<PinnedSwarm> {
@@ -145,12 +146,10 @@ export async function integrateSwarm(store: Store, run: string, signal: AbortSig
     dependencies: [], writeScope: [], input: null }, fence: 0, recipeHash: summary.recipeHash, contractHash: summary.contractHash, dependencies: [] };
   const hands = new LocalGitHands(store, cfg, c, cfg.spec.agents[cfg.spec.defaultAgent], signal, null, ordered.map(t => t.id));
   try {
-    const path = await hands.ready(); const tree = await hands.tree(); const reports: Json[] = [];
-    for (const name of cfg.spec.integrationChecks) {
-      invariant(cfg.spec.checks[name].replaySafe, "integration checks must be explicitly replay-safe");
-      const report = await hands.check(name); reports.push(json({ name, ...report }));
-      invariant(report.code === 0, `integration check failed: ${name}; receipt=${store.artifact(json(reports))}`);
-    }
+    const path = await hands.ready(); const tree = await hands.tree();
+    const reports = await hands.verificationChecks(cfg.spec.integrationChecks, true);
+    const failed = reports.find(report => !checkPassed(report));
+    invariant(!failed, `integration check failed: ${failed?.name}; receipt=${failed ? store.artifact(json(reports)) : ""}`);
     invariant(await hands.tree() === tree, "integration verifier mutated tracked source");
     const checksHash = store.artifact(json(reports));
     const commit = (await git(cfg, path, ["-c", "user.name=Future Code Swarm", "-c", "user.email=swarm@localhost",
