@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compactHistory, bytes, type Message } from "../../src/harness/foundry/swarm/context.ts";
+import { compactHistory, refreshDiagnosticNotice, bytes, type Message } from "../../src/harness/foundry/swarm/context.ts";
 import { fixture, task, signal, scripted, reply } from "./swarm-fixtures.ts";
 import { runSwarm } from "../../src/harness/foundry/swarm/host.ts";
 import { SessionJournal } from "../../src/harness/foundry/swarm/session.ts";
@@ -36,6 +36,19 @@ test("checkpoint falls back to journal pointer if the note does not fit", () => 
   assert.ok(bytes(p) <= 480);
   assert.ok(!p[1].content.includes("y".repeat(100)));
   assert.equal(p.at(-1)?.content, "most recent");
+});
+
+test("retired working memory refreshes after a new note even without diagnostics or overflow", () => {
+  const history: Message[] = [{ role: "user", content: "objective" },
+    { role: "assistant", content: "x".repeat(1000) }, { role: "assistant", content: "most recent" }];
+  const old = { summary: "old hypothesis", nextAction: "old action", receipts: [], patchHash: null, atTurn: 1 };
+  const retired = compactHistory(history, 900, old);
+  const fresh = { ...old, summary: "revised hypothesis", nextAction: "test counterexample", atTurn: 2 };
+  const updated = refreshDiagnosticNotice(retired, fresh, null);
+  assert.match(updated[1].content, /revised hypothesis/);
+  assert.ok(!updated[1].content.includes("old hypothesis"));
+  assert.deepEqual(refreshDiagnosticNotice(updated, fresh, null), updated);
+  assert.ok(!refreshDiagnosticNotice(updated, null, null)[1].content.includes("workingMemory"));
 });
 
 test("progress survives journal reopen and no unowned receipt is accepted", async () => fixture(async (s) => {

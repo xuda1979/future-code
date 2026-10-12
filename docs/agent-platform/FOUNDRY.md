@@ -44,6 +44,11 @@ under `.future-code/foundry/artifacts/`. Keep this directory private and out of
 source control. `init` refuses to overwrite an initialized harness. Use a
 separate `--root DIR` for another project or experiment.
 
+New stores include ignore rules for the SQLite files and `artifacts/`; existing
+ignore policies are preserved. These rules leave unrelated source visible and
+do not remove already tracked outputs. A `--root` outside the checkout also
+keeps generated evidence out of project indexing and version control.
+
 `status` and `events` read state; neither launches a test or calls a model.
 `events --after SEQUENCE` paginates the durable event history. On cancellation,
 the CLI prints the run ID; use `resume --run ID --allow-exec` to continue the

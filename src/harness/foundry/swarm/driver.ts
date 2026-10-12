@@ -20,6 +20,7 @@ import { validateToolProposal } from "./toolAdmission.ts";
 import { CohortBoard, type FindingInput } from "./cohorts.ts";
 import { performance } from "node:perf_hooks";
 import { diagnosticContext, pruningCandidate, recordDiagnostic } from "./diagnostics.ts";
+import { failureMemory, progressMemory, readMemory, type MemoryEntry } from "./memory.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -92,6 +93,7 @@ export class SwarmDriver implements Driver {
       const feedback = this.store.readArtifact(feedbackHash);
       const receipt = this.journal.receipt(c, feedback);
       const details: Json[] = [];
+      const memory: MemoryEntry[] = [];
       t.state.feedbackHash = feedbackHash;
       for (const check of (feedback as any).checks ?? []) {
         let report: Json = check.detail ?? `Independent ${check.id} check reported ${check.verdict}`;
@@ -102,13 +104,14 @@ export class SwarmDriver implements Driver {
         }
         if (check.verdict !== "PASS") {
           const result = toJson({ verdict: check.verdict, report });
-          recordDiagnostic(t, this.journal, this.cfg, { id: `verification-${check.id}`, name: "verification",
+          const diagnostic = recordDiagnostic(t, this.journal, this.cfg, { id: `verification-${check.id}`, name: "verification",
             arguments: { name: check.id } }, result, this.journal.receipt(c, result), t.state.patchHash, true);
+          if (diagnostic) memory.push(failureMemory(diagnostic, t.state.turns));
         }
       }
       t.state.history.push({ role: "user", content: canonical({ repairRequired: true, feedback: inlineReceipt(receipt, feedback), details }) });
       t.state.feedbackHash = feedbackHash; t.state.output = null;
-      this.journal.checkpoint(t, "verification.feedback", { receipt });
+      this.journal.checkpoint(t, "verification.feedback", { receipt, ...(memory.length ? { memory } : {}) });
     }
     const hands = this.backend.open(this.store, this.cfg, c, profile, signal, t.state.patchHash);
     const budget = this.cfg.spec.budget;
@@ -179,6 +182,7 @@ export class SwarmDriver implements Driver {
             }
             t.state.pending = call;
             let result: Json;
+            const memory: MemoryEntry[] = [];
             let admitted = false;
             control?.activity?.(`tool:${call.name}`);
             try {
@@ -265,13 +269,24 @@ export class SwarmDriver implements Driver {
                   nextAction: a.nextAction as string, receipts,
                   patchHash: t.state.patchHash, atTurn: t.state.turns };
                 t.state.progress = progress;
+                memory.push(progressMemory(progress, this.journal.receipt(c, toJson(progress))));
                 result = { saved: true, trust: "UNVERIFIED_AGENT_NOTE_NOT_ACCEPTANCE", turn: progress.atTurn };
               } else if (call.name === "recall") {
-                const a = call.arguments; keys(a, [], ["receipt", "offset", "length", "historyAfter", "limit"]);
-                if (a.receipt !== undefined) {
+                const a = call.arguments; keys(a, [], ["receipt", "offset", "length", "historyAfter", "limit",
+                  "memoryKind", "memoryBefore", "patchHash", "failureSignature"]);
+                if (a.memoryKind !== undefined) {
+                  invariant(a.receipt === undefined && a.offset === undefined && a.length === undefined &&
+                    a.historyAfter === undefined, "ambiguous recall");
+                  result = toJson(readMemory(this.store, c, { kind: a.memoryKind as "all" | "progress" | "failure",
+                    before: a.memoryBefore as string | undefined, patchHash: a.patchHash as string | undefined,
+                    failureSignature: a.failureSignature as string | undefined, limit: a.limit as number | undefined }, t.state));
+                } else if (a.receipt !== undefined) {
+                  invariant(a.memoryBefore === undefined && a.patchHash === undefined && a.failureSignature === undefined, "ambiguous recall");
                   invariant(typeof a.receipt === "string" && a.historyAfter === undefined && a.limit === undefined, "ambiguous recall");
                   result = this.journal.recall(c, a.receipt, a.offset as number | undefined, a.length as number | undefined);
                 } else {
+                  invariant(a.memoryBefore === undefined && a.patchHash === undefined && a.failureSignature === undefined,
+                    "memory selectors require memoryKind");
                   invariant(a.offset === undefined && a.length === undefined && (a.limit === undefined || (Number.isInteger(a.limit) && (a.limit as number) <= 10)), "invalid history recall");
                   result = this.journal.historyPage(c, a.historyAfter as number | undefined, a.limit as number | undefined);
                 }
@@ -297,6 +312,7 @@ export class SwarmDriver implements Driver {
             if (admitted && call.name === "spawn_tasks" && Array.isArray((result as any)?.verified))
               t.state.lastSpawnReceipt = receipt;
             const diagnostic = recordDiagnostic(t, this.journal, this.cfg, call, result, receipt, beforePatch, admitted);
+            if (diagnostic) memory.push(failureMemory(diagnostic, t.state.turns));
             t.state.history.push({ role: "tool", callId: call.id, receipt, content: inlineReceipt(receipt, result) });
             t.state.pending = null;
             if (t.state.pendingBatch) {
@@ -304,6 +320,7 @@ export class SwarmDriver implements Driver {
               if (!t.state.pendingBatch.length) delete t.state.pendingBatch;
             }
             this.journal.checkpoint(t, "tool.result", { callId: call.id, receipt, patchHash: t.state.patchHash,
+              ...(memory.length ? { memory } : {}),
               ...(diagnostic ? { fixture: diagnostic.fixture } : {}) });
             control?.activity?.(`completed:${call.name}`);
           }
@@ -374,6 +391,7 @@ export class SwarmDriver implements Driver {
           control?.checked?.();
           t.state.history.push({ role: "user", content: canonical({ checkpointCheck: inlineReceipt(receipt, check), instruction: "Use this diagnostic to choose a smaller next step. This is not final acceptance." }) });
           this.journal.checkpoint(t, "checkpoint.checked", { receipt, patchHash: t.state.patchHash,
+            ...(diagnostic ? { memory: [failureMemory(diagnostic, t.state.turns)] } : {}),
             ...(diagnostic ? { fixture: diagnostic.fixture } : {}) });
           }
         }

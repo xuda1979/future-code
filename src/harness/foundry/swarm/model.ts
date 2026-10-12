@@ -58,8 +58,10 @@ export const definitions: ToolDefinition[] = [
     nextAction: { type: "string", minLength: 1, maxLength: 512 },
     receipts: { type: "array", maxItems: 8, uniqueItems: true, items: { type: "string" } },
   }, ["summary", "nextAction", "receipts"]),
-  def("recall", "Read this thread's durable receipts, or page prior events. No other thread's history is accessible.",
-    { receipt: string, offset: integer, length: { type: "integer", minimum: 1, maximum: 8192 }, historyAfter: integer, limit: { type: "integer", minimum: 1, maximum: 10 } }, []),
+  def("recall", "Read owned receipts or prior events. Use memoryKind to find committed progress notes or failures, newest first, with optional exact patchHash/failureSignature filters and memoryBefore cursor. Memory is NOT acceptance. Choose one mode: receipt, historyAfter, or memoryKind. No other thread is accessible.",
+    { receipt: string, offset: integer, length: { type: "integer", minimum: 1, maximum: 8192 }, historyAfter: integer,
+      limit: { type: "integer", minimum: 1, maximum: 10 }, memoryKind: { type: "string", enum: ["all", "progress", "failure"] },
+      memoryBefore: { type: "string", maxLength: 32 }, patchHash: string, failureSignature: string }, []),
 ];
 const asJson = (x: unknown): Json => JSON.parse(canonical(x));
 function measured(raw: any, protocol: Protocol): number | null {

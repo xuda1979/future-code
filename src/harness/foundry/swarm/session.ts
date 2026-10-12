@@ -10,6 +10,7 @@ import { ProviderRecovery } from "./providerRecovery.ts";
 import { installRequestAccounting, objectiveRequestTotals, runRequestTotals } from "./requestAccounting.ts";
 import { performance } from "node:perf_hooks";
 import type { DiagnosticMemory } from "./diagnostics.ts";
+import { installMemoryTables, indexMemory } from "./memory.ts";
 
 export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
 export interface ThreadState {
@@ -108,6 +109,7 @@ export class SessionJournal {
     if (!columns.has("finished")) store.db.exec("ALTER TABLE agent_requests ADD COLUMN finished REAL");
     if (!columns.has("wait_ms")) store.db.exec("ALTER TABLE agent_requests ADD COLUMN wait_ms REAL");
     installRequestAccounting(store);
+    installMemoryTables(store);
     this.providerRecovery = new ProviderRecovery(store);
   }
   assertLease(c: Capsule, now = Date.now()): void {
@@ -159,6 +161,7 @@ export class SessionJournal {
       const row = this.store.db.prepare("SELECT seq,fence FROM agent_threads WHERE run=? AND task=?").get(c.runId, c.task.id);
       invariant(row?.seq === t.seq && row?.fence === c.fence, "stale thread checkpoint");
       this.store.db.prepare("INSERT INTO agent_events VALUES(?,?,?,?,?,?)").run(c.runId, c.task.id, t.seq + 1, Date.now(), kind, data);
+      indexMemory(this.store, c.runId, c.task.id, t.seq + 1, payload);
       this.store.db.prepare("UPDATE agent_threads SET seq=?,state=? WHERE run=? AND task=?").run(t.seq + 1, state, c.runId, c.task.id);
     });
     t.seq++;

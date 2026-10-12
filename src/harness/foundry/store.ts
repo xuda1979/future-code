@@ -42,6 +42,12 @@ export class Store {
   static async open(root: string): Promise<Store> {
     root = resolve(root); mkdirSync(root, { recursive: true, mode: 0o700 });
     mkdirSync(join(root, "artifacts"), { recursive: true, mode: 0o700 });
+    // Protect generated stores even inside a user's repository. Narrow rules
+    // preserve unrelated source files; an existing ignore policy is untouched.
+    try {
+      writeFileSync(join(root, ".gitignore"), "# Future-Code generated state; retain outside version control\n/state.sqlite\n/state.sqlite-wal\n/state.sqlite-shm\n/artifacts/\n",
+        { flag: "wx", mode: 0o600 });
+    } catch (e) { if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e; }
     const engine = (globalThis as any).Bun ? "bun:sqlite" : "node:sqlite";
     const sqlite = await import(engine);
     const db: DB = engine === "bun:sqlite" ? new sqlite.Database(join(root, "state.sqlite"), { create: true }) : new sqlite.DatabaseSync(join(root, "state.sqlite"));
