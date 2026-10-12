@@ -23,6 +23,10 @@ export interface Hands {
   batch?(kind: "read" | "workspace-write", calls: Call[]): Promise<WorkspaceBatchResult>;
   tool(call: Call): Promise<Json>;
   snapshot(): Promise<string>;
+  /** Optional replay-safe workspace preparation; called concurrently with a provider request. */
+  warmup?(): Promise<void>;
+  /** Optional authoritative changed-path inventory relative to accepted dependencies. */
+  changedPaths?(): Promise<string[]>;
   dispose(): Promise<void>;
 }
 export interface WorkspaceBatchResult { results: Json[]; patchHash?: string }
@@ -115,6 +119,7 @@ export class LocalGitHands implements Hands {
     // patches and restore. A partially prepared path is never readable.
     return this.opening ??= this.prepare();
   }
+  async warmup(): Promise<void> { await this.ready(); }
   private async prepare(): Promise<string> {
     const temp = mkdtempSync(join(tmpdir(), "future-swarm-worktree-")); this.temp = temp;
     const path = join(temp, "tree");
@@ -251,6 +256,14 @@ export class LocalGitHands implements Hands {
   async tree(): Promise<string> {
     const path = await this.ready(); await git(this.cfg, path, ["add", "-A", "--", "."], this.signal);
     return (await git(this.cfg, path, ["write-tree"], this.signal)).trim();
+  }
+  /** Never infer affected source paths from human-readable Git diff headers. */
+  async changedPaths(): Promise<string[]> {
+    const path = await this.ready(); await this.tree();
+    const names = (await git(this.cfg, path, ["diff", "--cached", "--no-renames", "--name-only", "-z", this.baseTree!], this.signal))
+      .split("\0").filter(Boolean);
+    for (const name of names) safePath(name);
+    return names;
   }
   async snapshot(): Promise<string> {
     const path = await this.ready(); await this.tree();

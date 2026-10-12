@@ -38,6 +38,9 @@ export interface CheckSpec extends CommandSpec {
   /** Operator assertion: no prerequisite check, shared external state or resource
    * collision; can run against a private copy of the candidate Git tree. */
   parallelSafe?: boolean;
+  /** Operator-asserted file/directory prefixes for *automatic exploratory*
+   * checkpoints only. Never filters explicit checks or independent verification. */
+  diagnosticPaths?: string[];
 }
 export interface ExecutionWorker {
   /** Trusted coordinator-side adapter. It may wrap SSH/Kubernetes/etc. */
@@ -168,10 +171,18 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   invariant(s.checks && typeof s.checks === "object" && !Array.isArray(s.checks), "invalid checks");
   const checks = Object.keys(s.checks); positive(checks.length, 128, "check count");
   for (const [id, check] of Object.entries(s.checks)) {
-    identifier(id); keys(check, ["argv", "replaySafe"], ["files", "envAllow", "parallelSafe"]);
+    identifier(id); keys(check, ["argv", "replaySafe"], ["files", "envAllow", "parallelSafe", "diagnosticPaths"]);
     invariant(typeof check.replaySafe === "boolean", "explicit replaySafe required");
     invariant(check.parallelSafe === undefined || typeof check.parallelSafe === "boolean", "invalid parallelSafe");
     invariant(!check.parallelSafe || check.replaySafe, "parallelSafe checks must be replay-safe");
+    if (check.diagnosticPaths !== undefined) {
+      invariant(Array.isArray(check.diagnosticPaths) && check.diagnosticPaths.length > 0 &&
+        check.diagnosticPaths.length <= 128 && new Set(check.diagnosticPaths).size === check.diagnosticPaths.length,
+        "invalid diagnosticPaths");
+      for (const path of check.diagnosticPaths) {
+        safePath(path); invariant(path.length <= 256, "diagnostic path too long");
+      }
+    }
     invariant(Array.isArray(check.argv) && check.argv.length > 0 && check.argv.every(x => typeof x === "string" && !x.includes("\0")), "invalid check argv");
     // Shell capabilities are a user-authored, pinned configuration, never task input.
   }
