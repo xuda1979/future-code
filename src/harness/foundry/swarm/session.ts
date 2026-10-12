@@ -10,6 +10,7 @@ import { ProviderRecovery } from "./providerRecovery.ts";
 import { installRequestAccounting, objectiveRequestTotals, runRequestTotals } from "./requestAccounting.ts";
 import { performance } from "node:perf_hooks";
 import type { DiagnosticMemory } from "./diagnostics.ts";
+import type { DebuggingState } from "./debugging.ts";
 import { installMemoryTables, indexMemory } from "./memory.ts";
 
 export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
@@ -24,6 +25,7 @@ export interface ThreadState {
   progress?: ProgressCheckpoint;
   /** Host-measured bounded failure descriptors; full fixtures stay in receipts. */
   diagnostics?: DiagnosticMemory;
+  debugging?: DebuggingState;
   turns: number;
   toolCalls: number;
   patchHash: string | null;
@@ -104,6 +106,8 @@ export class SessionJournal {
       CREATE INDEX IF NOT EXISTS agent_requests_live ON agent_requests(provider,status,deadline);
       CREATE TABLE IF NOT EXISTS agent_replies(run TEXT NOT NULL, task TEXT NOT NULL, step INTEGER NOT NULL, body TEXT NOT NULL, response TEXT NOT NULL, PRIMARY KEY(run,task,step));
       CREATE TABLE IF NOT EXISTS agent_cooldowns(provider TEXT PRIMARY KEY, until_ms REAL NOT NULL);
+      CREATE TABLE IF NOT EXISTS agent_triage(run TEXT NOT NULL, task TEXT NOT NULL, card TEXT NOT NULL,
+        PRIMARY KEY(run,task));
     `);
     const columns = new Set(store.db.prepare("PRAGMA table_info(agent_requests)").all().map(r => String(r.name)));
     if (!columns.has("finished")) store.db.exec("ALTER TABLE agent_requests ADD COLUMN finished REAL");
@@ -162,6 +166,12 @@ export class SessionJournal {
       invariant(row?.seq === t.seq && row?.fence === c.fence, "stale thread checkpoint");
       this.store.db.prepare("INSERT INTO agent_events VALUES(?,?,?,?,?,?)").run(c.runId, c.task.id, t.seq + 1, Date.now(), kind, data);
       indexMemory(this.store, c.runId, c.task.id, t.seq + 1, payload);
+      if (t.state.debugging) {
+        if (t.state.debugging.card)
+          this.store.db.prepare("INSERT INTO agent_triage VALUES(?,?,?) ON CONFLICT(run,task) DO UPDATE SET card=excluded.card")
+            .run(c.runId, c.task.id, canonical(t.state.debugging.card));
+        else this.store.db.prepare("DELETE FROM agent_triage WHERE run=? AND task=?").run(c.runId, c.task.id);
+      }
       this.store.db.prepare("UPDATE agent_threads SET seq=?,state=? WHERE run=? AND task=?").run(t.seq + 1, state, c.runId, c.task.id);
     });
     t.seq++;

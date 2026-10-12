@@ -94,6 +94,7 @@ function profileHashes(cfg: PinnedSwarm, task: Task): { agentRef: string; profil
     profileHash: digest({
       protocol: profile.protocol, model: profile.model,
       tools: [...profile.tools].sort(), checks: [...profile.checks].sort(),
+      ...(profile.probes ? { probes: [...profile.probes].sort() } : {}),
       jobs: [...(profile.jobs ?? [])].sort(), promptCache: profile.promptCache ?? false,
     }),
     modelClassHash: digest({ protocol: profile.protocol, model: profile.model }),

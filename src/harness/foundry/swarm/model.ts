@@ -53,6 +53,11 @@ export const definitions: ToolDefinition[] = [
   def("edit_file", "Replace exactly one literal occurrence. A missing or ambiguous match is an error.", { path: string, oldText: string, newText: string }, ["path", "oldText", "newText"]),
   def("delete_file", "Delete one non-symlink file within the task's write scopes.", { path: string }, ["path"]),
   def("run_check", "Run a configured named check; arbitrary shell commands are not accepted.", { name: string }, ["name"]),
+  def("run_probe", "Falsify one explicitly stated assumption using a permitted, operator-pinned micro-probe with a process deadline of at most two seconds. State the outcome that would refute it. Use a standalone reproduction and a negative control. A failed or inconclusive probe ends this diagnostic trajectory when debugging guardrails are enabled. A zero exit code is an observation, never acceptance.", {
+    name: string, hypothesis: { type: "string", minLength: 1, maxLength: 512 },
+    falsifyWhen: { type: "string", minLength: 1, maxLength: 512 },
+    negativeControl: { type: "string", minLength: 1, maxLength: 256 },
+  }, ["name", "hypothesis", "falsifyWhen", "negativeControl"]),
   def("save_progress", "Save an UNVERIFIED, bounded working-memory checkpoint before context retirement. Record only the current hypothesis, attempted methods, observed blockers, and exact next step; refer to owned receipt IDs for facts. It cannot change acceptance or frozen checks.", {
     summary: { type: "string", minLength: 1, maxLength: 1024 },
     nextAction: { type: "string", minLength: 1, maxLength: 512 },

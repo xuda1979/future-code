@@ -149,7 +149,7 @@ def prepare(root: Path, repo: Path, request: dict[str, Any]) -> dict[str, Any]:
     directory = state_dir(root, workspace)
     tree = directory / "tree"
     binding = hashlib.sha256(encoded({k: request.get(k) for k in (
-        "baseCommit", "dependencyPatches", "restorePatch", "task", "protectedPaths", "allowedChecks", "limits"
+        "baseCommit", "dependencyPatches", "restorePatch", "task", "protectedPaths", "allowedChecks", "allowedProbes", "limits"
     )})).hexdigest()
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     with open(root / "registry.lock", "a+b") as registry:
@@ -187,6 +187,7 @@ def prepare(root: Path, repo: Path, request: dict[str, Any]) -> dict[str, Any]:
                 "task": request["task"],
                 "protectedPaths": request.get("protectedPaths", []),
                 "allowedChecks": request.get("allowedChecks", []),
+                "allowedProbes": request.get("allowedProbes", {}),
                 "limits": request["limits"],
             }
             atomic(state_path, {"binding": binding, "request": prepared, "created": time.time()})
@@ -283,9 +284,16 @@ def tool(root: Path, template: dict[str, Any], request: dict[str, Any]) -> dict[
         git(tree, ["add", "-f", "--", path])
         return {"ok": True, "result": {"path": path, "bytes": len(content.encode()), "changed": True}}
 
-    if name == "run_check":
+    if name in ("run_check", "run_probe"):
         check_name = args.get("name")
-        if check_name not in prepared.get("allowedChecks", []):
+        probes = prepared.get("allowedProbes", {})
+        if name == "run_probe":
+            probe_timeout = probes.get(check_name)
+            if (not isinstance(probe_timeout, int) or isinstance(probe_timeout, bool)
+                    or not 0 < probe_timeout <= 2000):
+                raise ValueError("probe not permitted or deadline invalid")
+            timeout = min(timeout, probe_timeout)
+        elif check_name not in prepared.get("allowedChecks", []):
             raise ValueError("check not permitted")
         spec = template.get("checks", {}).get(check_name)
         if not spec:

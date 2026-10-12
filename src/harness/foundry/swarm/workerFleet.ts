@@ -161,6 +161,8 @@ class RemoteHands implements Hands {
         : patchText(this.store, this.restorePatch, this.cfg.spec.budget.maxPatchBytes),
       task: { writeScope: this.c.task.writeScope, readScope: this.c.task.readScope ?? [] },
       protectedPaths: this.cfg.spec.protectedPaths, allowedChecks: this.profile.checks,
+      allowedProbes: Object.fromEntries((this.profile.probes ?? []).map(name => [name,
+        this.cfg.spec.checks[name]!.probeTimeoutMs!])),
       limits: { toolTimeoutMs: this.cfg.spec.budget.toolTimeoutMs,
         maxToolOutputBytes: this.cfg.spec.budget.maxToolOutputBytes, maxPatchBytes: this.cfg.spec.budget.maxPatchBytes },
     });

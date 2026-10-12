@@ -3,6 +3,7 @@ import type { Json } from "../types.ts";
 import type { PinnedSwarm } from "./config.ts";
 import type { Call } from "./context.ts";
 import type { SessionJournal, Thread, ThreadState } from "./session.ts";
+import { recordDebugging, systemStateLedger } from "./debugging.ts";
 
 export interface DiagnosticFailure {
   identity: string;
@@ -28,6 +29,7 @@ export interface DiagnosticMemory {
 }
 export interface DiagnosticContext {
   trust: "OBSERVATION_NOT_ACCEPTANCE";
+  systemStateLedger?: Json;
   failures: { kind: DiagnosticFailure["kind"]; tool: string; check?: string;
     job?: string; status?: "FAILED" | "CANCELLED";
     receipt: string; fixture: string; patchHash: string; current: boolean;
@@ -70,7 +72,7 @@ function excerpt(result: Record<string, any>): string {
 /** Update hot memory in the SAME checkpoint as the result and its patch. Cold
  * fixtures are immutable owned receipts; a crash can leave an unused receipt,
  * never a phantom tool result or a success assertion. No extra model/check. */
-export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: PinnedSwarm,
+function recordFailure(t: Thread, journal: SessionJournal, cfg: PinnedSwarm,
   call: Call, result: Json, receipt: string, beforePatch: string | null,
   admitted: boolean, batch?: DiagnosticBatch): DiagnosticFailure | null {
   const state = t.state;
@@ -78,7 +80,7 @@ export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: Pinned
     ? result as Record<string, any> : {};
   const kind = admitted && call.name === "verification" && typeof value.verdict === "string" && value.verdict !== "PASS" ? "VERIFICATION_FAILED" :
     typeof value.error === "string" ? "TOOL_ERROR" :
-    admitted && call.name === "run_check" && Number.isSafeInteger(value.code) && value.code > 0
+    admitted && ["run_check", "run_probe"].includes(call.name) && Number.isSafeInteger(value.code) && value.code > 0
       ? "CHECK_FAILED" :
       admitted && call.name === "run_job" && ["FAILED", "CANCELLED"].includes(value.status) ? "JOB_FAILED" : null;
   if (!kind && !state.diagnostics) return null; // successful short-task fast path
@@ -86,7 +88,7 @@ export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: Pinned
   const identity = digest({ tool: call.name, arguments: call.arguments });
   if (!kind) {
     if (state.diagnostics) {
-      const cleared = call.name === "run_check" ? admitted && value.code === 0 :
+      const cleared = ["run_check", "run_probe"].includes(call.name) ? admitted && value.code === 0 :
         call.name === "run_job" ? admitted && value.status === "SUCCEEDED" : true;
       if (cleared)
         state.diagnostics.failures = state.diagnostics.failures.filter(f => f.identity !== identity);
@@ -117,7 +119,7 @@ export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: Pinned
       ...(batch ? { batchCallsReceipt: journal.receipt(t.capsule, JSON.parse(canonical(batch))) } : {}),
     });
   }
-  const check = ["run_check", "verification"].includes(call.name) && typeof call.arguments.name === "string"
+  const check = ["run_check", "run_probe", "verification"].includes(call.name) && typeof call.arguments.name === "string"
     ? call.arguments.name.slice(0, 128) : null;
   const job = call.name === "run_job" && typeof call.arguments.name === "string"
     ? call.arguments.name.slice(0, 128) : null;
@@ -126,17 +128,27 @@ export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: Pinned
     ...(job ? { job } : {}), ...(kind === "JOB_FAILED" ? { status: value.status } : {}),
     receipt, fixture, patchHash: patch(state.patchHash), excerpt: excerpt(value),
     repeats: previous?.key === key ? previous.repeats + 1 : 1,
-    eligible: kind === "CHECK_FAILED" && patch(beforePatch) === patch(state.patchHash) };
+    eligible: kind === "CHECK_FAILED" && call.name === "run_check" && patch(beforePatch) === patch(state.patchHash) };
   memory.failures = [failure, ...memory.failures.filter(f => f.identity !== identity)].slice(0, 8);
+  return failure;
+}
+
+export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: PinnedSwarm,
+  call: Call, result: Json, receipt: string, beforePatch: string | null,
+  admitted: boolean, batch?: DiagnosticBatch): DiagnosticFailure | null {
+  const failure = recordFailure(t, journal, cfg, call, result, receipt, beforePatch, admitted, batch);
+  recordDebugging(t.state, cfg, call, result, receipt, beforePatch, admitted, failure);
   return failure;
 }
 
 /** Host observations are hints about a particular input, never current proof.
  * Keep the four latest descriptors; exact cold evidence is available via recall. */
 export function diagnosticContext(state: ThreadState): DiagnosticContext | null {
-  if (!state.diagnostics?.failures.length) return null;
+  if (!state.diagnostics?.failures.length && !state.debugging) return null;
   const current = diagnosticInputKey(state);
-  return { trust: "OBSERVATION_NOT_ACCEPTANCE", failures: state.diagnostics.failures.slice(0, 4).map(f => ({
+  return { trust: "OBSERVATION_NOT_ACCEPTANCE",
+    ...(state.debugging ? { systemStateLedger: systemStateLedger(state) } : {}),
+    failures: (state.diagnostics?.failures ?? []).slice(0, 4).map(f => ({
     kind: f.kind, tool: f.tool, ...(f.check ? { check: f.check } : {}), receipt: f.receipt,
     ...(f.job ? { job: f.job } : {}), ...(f.status ? { status: f.status } : {}),
     fixture: f.fixture, patchHash: f.patchHash, current: f.inputKey === current,

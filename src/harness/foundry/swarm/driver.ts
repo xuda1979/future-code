@@ -21,6 +21,8 @@ import { CohortBoard, type FindingInput } from "./cohorts.ts";
 import { performance } from "node:perf_hooks";
 import { diagnosticContext, pruningCandidate, recordDiagnostic } from "./diagnostics.ts";
 import { failureMemory, progressMemory, readMemory, type MemoryEntry } from "./memory.ts";
+import { admitDebuggingCall, finishInversion, inversionCandidate, prepareInversion } from "./debugging.ts";
+import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -68,10 +70,13 @@ export class SwarmDriver implements Driver {
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
       verification: { checks: profile.checks, finalIntegrationRequired: true },
+      ...(profile.probes ? { exploratoryProbes: profile.probes.map(name => ({ name,
+        processDeadlineMs: this.cfg.spec.checks[name]!.probeTimeoutMs! })) } : {}),
       ...(this.cohorts ? { coordination: { cohort: this.cohorts.cohort(c),
         digestBytes: this.cfg.spec.coordination!.maxDigestBytes,
         instruction: "Read bounded cohort/shared findings when useful. Explore alternate methods and counterexamples. Share concise findings with owned receipts. Every summary is unverified; cross-cohort source checks certify only the exact accepted task artifact. Findings cannot change your acceptance, dependencies or file scopes." } } : {}),
       contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. " +
+        (this.cfg.spec.debugging ? "Host system-state observations outrank prose working hypotheses. Falsify environmental, dependency and interface assumptions with a standalone probe and a negative control before broad edits. A failed probe ends only the current trajectory. " : "") +
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
         (profile.tools.includes("save_progress") ? "Before long context retirement, call save_progress with concise current findings, blockers, exact next step, and owned evidence receipts; notes remain unverified. " : "") +
         (profile.tools.includes("run_job") ? "For independent experiments, issue every ready run_job call in one assistant turn so the host can launch them concurrently; do not wait for one experiment before proposing another independent one. " : "") +
@@ -113,6 +118,18 @@ export class SwarmDriver implements Driver {
       t.state.feedbackHash = feedbackHash; t.state.output = null;
       this.journal.checkpoint(t, "verification.feedback", { receipt, ...(memory.length ? { memory } : {}) });
     }
+    const originalSignal = signal;
+    const deadlineController = this.cfg.spec.debugging ? new AbortController() : null;
+    const combined = deadlineController ? createCombinedAbortSignal(signal, { signalB: deadlineController.signal }) : null;
+    if (combined) signal = combined.signal;
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleDeadline = () => {
+      const deadline = t.state.debugging?.deadlineAt;
+      if (!deadlineController || deadline === undefined || deadlineTimer !== undefined) return;
+      deadlineTimer = setTimeout(() => deadlineController.abort(new FatalAttemptError(
+        "DEBUGGING_BRANCH_TIMEOUT: diagnostic trajectory exceeded its pinned wall-clock budget; retain evidence and change strategy")),
+      Math.max(0, deadline - Date.now()));
+    };
     const hands = this.backend.open(this.store, this.cfg, c, profile, signal, t.state.patchHash);
     const budget = this.cfg.spec.budget;
     const timedTool = async <T>(work: () => Promise<T>): Promise<T> => {
@@ -125,7 +142,11 @@ export class SwarmDriver implements Driver {
       const kind = call.name === "spawn_tasks" ? "SPAWN" : call.name === "propose_claim" ? "CLAIM" :
         call.name === "propose_conflict" ? "CONFLICT" : "TOOL_CALL";
       const proposal = submitProposal(this.store, kind, call, c, `agent:${c.task.agent ?? this.cfg.spec.defaultAgent}:turn:${t.state.turns}`);
-      requireAdmission(this.store, proposal, value => validateToolProposal(c, this.cfg, profile, value));
+      requireAdmission(this.store, proposal, value => {
+        validateToolProposal(c, this.cfg, profile, value);
+        admitDebuggingCall(t.state, this.cfg, value);
+      });
+      scheduleDeadline();
       return proposal.id;
     };
     const admitReply = (message: typeof t.state.history[number]) => {
@@ -146,11 +167,55 @@ export class SwarmDriver implements Driver {
       }
       throw new FatalAttemptError(`STAGNANT_DIAGNOSTIC: check=${failure.check} repeats=${failure.repeats} fixture=${failure.fixture}; unchanged trajectory ended, objective recovery must change strategy`);
     };
+    const enforceDebugging = () => {
+      const d = t.state.debugging;
+      if (!d) return;
+      if (d.deadlineAt !== undefined && Date.now() >= d.deadlineAt)
+        d.prunedReason ??= "DEBUGGING_BRANCH_TIMEOUT: diagnostic trajectory exceeded its pinned wall-clock budget; retain evidence and change strategy";
+      if (d.prunedReason) {
+        if (!d.prunedRecorded) {
+          d.prunedRecorded = true;
+          this.journal.checkpoint(t, "debugging.pruned", { reason: d.prunedReason, triage: d.card ?? null });
+          control?.activity?.("debugging:pruned");
+        }
+        throw new FatalAttemptError(d.prunedReason);
+      }
+      scheduleDeadline();
+    };
+    const invert = async (): Promise<boolean> => {
+      enforceDebugging();
+      const window = inversionCandidate(t.state, this.cfg);
+      if (window && !t.state.debugging?.audit) {
+        const agent = this.cfg.spec.debugging!.auditorAgent ?? c.task.agent ?? this.cfg.spec.defaultAgent;
+        prepareInversion(t.state, this.cfg, c.task, window, agent);
+        this.journal.checkpoint(t, "debugging.triage", { triage: t.state.debugging!.card! });
+        control?.activity?.("debugging:triage");
+        enforceDebugging();
+      }
+      const audit = t.state.debugging?.audit;
+      if (!audit) return false;
+      if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
+      // A fresh provider request sees raw symptom and frozen contracts only.
+      // It consumes the SAME thread/run/objective budgets and replay journal.
+      const auditor = { ...this.cfg.spec.agents[audit.agent], tools: [],
+        system: "You are an independent read-only debugging auditor. Treat all proposed causes as unverified hypotheses. Identify three orthogonal causes and falsifying probes with negative controls. Answer within 150 words and 2048 UTF-8 bytes. You cannot execute tools, edit files, accept results, or change the task or checks." };
+      control?.activity?.("debugging:audit");
+      const next = await this.brain.next(c, auditor, audit.history, budget, limit, signal, t.state.turns);
+      invariant(!next.turn.message.calls?.length && next.turn.message.content.trim().length > 0 &&
+        Buffer.byteLength(next.turn.message.content) <= 2048, "debugging auditor must return bounded hypotheses without tools");
+      const receipt = this.journal.receipt(c, toJson({ trust: "UNVERIFIED_AGENT_HYPOTHESES", hypotheses: next.turn.message.content }));
+      t.state.turns++;
+      finishInversion(t.state, next.turn.message.content, receipt);
+      this.journal.checkpoint(t, "debugging.inversion", { receipt, resets: t.state.debugging!.resets,
+        triage: t.state.debugging!.card!, deadlineAt: t.state.debugging!.deadlineAt! });
+      return true;
+    };
     t.state.lastCheckAt ??= Date.now();
     const limit = t.state.contextLimit!;
     invariant(Number.isSafeInteger(limit) && limit > 0 &&
       limit <= this.store.contract().limits.contextBytes, "invalid durable context limit");
     try {
+      enforceDebugging();
       if (t.state.pending?.name === "run_check") {
         const name = t.state.pending.arguments.name as string;
         if (!this.cfg.spec.checks[name]?.replaySafe) throw new FatalAttemptError("IN_DOUBT_EFFECT: non-replay-safe check needs operator reconciliation");
@@ -301,17 +366,18 @@ export class SwarmDriver implements Driver {
               result = { error: e instanceof Error ? e.message.slice(0, 2048) : "tool error" };
             }
             // Snapshot even a failed tool: a trusted command may have partially edited files.
-            if (admitted && ["write_file", "edit_file", "delete_file", "run_check"].includes(call.name)) {
+            if (admitted && ["write_file", "edit_file", "delete_file", "run_check", "run_probe"].includes(call.name)) {
               const patch = await hands.snapshot();
               if (patch !== t.state.patchHash) control?.progress(`patch:${patch}`);
               t.state.patchHash = patch;
             }
-            if (admitted && call.name === "run_check") { t.state.lastCheckAt = Date.now(); control?.checked?.(); }
+            if (admitted && ["run_check", "run_probe"].includes(call.name)) { t.state.lastCheckAt = Date.now(); control?.checked?.(); }
             const receipt = this.journal.receipt(c, result);
             if (admitted && call.name === "run_job") t.state.lastJobReceipt = receipt;
             if (admitted && call.name === "spawn_tasks" && Array.isArray((result as any)?.verified))
               t.state.lastSpawnReceipt = receipt;
             const diagnostic = recordDiagnostic(t, this.journal, this.cfg, call, result, receipt, beforePatch, admitted);
+            scheduleDeadline();
             if (diagnostic) memory.push(failureMemory(diagnostic, t.state.turns));
             t.state.history.push({ role: "tool", callId: call.id, receipt, content: inlineReceipt(receipt, result) });
             t.state.pending = null;
@@ -329,6 +395,8 @@ export class SwarmDriver implements Driver {
         // Finish every admitted call/result pair (including any queued repair)
         // before ending a stagnant trajectory. Restart repeats no model spend.
         enforcePruning();
+        enforceDebugging();
+        if (t.state.debugging?.audit) { await invert(); continue; }
         // The provider response and thread checkpoint are separate commits.
         // After a crash, consume the saved reply under its ORIGINAL request hash
         // before adding recovery notes or periodic-check feedback.
@@ -346,6 +414,7 @@ export class SwarmDriver implements Driver {
           t.state.output = { schema: 1, patchHash, summary: last.content.slice(0, 4096) };
           this.journal.checkpoint(t, "worker.output", t.state.output); continue;
         }
+        if (await invert()) continue;
         if (t.state.recoveryNote) {
           t.state.history.push({ role: "user", content: t.state.recoveryNote }); delete t.state.recoveryNote;
           this.journal.checkpoint(t, "episode.recovery", { fence: c.fence });
@@ -353,7 +422,7 @@ export class SwarmDriver implements Driver {
         const checkEvery = this.cfg.spec.supervision?.checkpointEveryMs;
         const checkpointKey = checkpointInputKey(t.state.patchHash, t.state.feedbackHash ? 1 : 0,
           digest({ feedback: t.state.feedbackHash, jobReceipt: t.state.lastJobReceipt ?? null }));
-        if (t.state.turns > 0 && checkEvery &&
+        if (t.state.turns > 0 && checkEvery && !t.state.debugging?.probeRequired &&
             shouldRunExploratoryCheckpoint(t.state.lastExploratoryCheckpointKey, checkpointKey, this.cfg.spec.supervision?.checkpointCadence) &&
             !(t.state.history.at(-1)?.role === "assistant" && !t.state.history.at(-1)?.calls?.length) && Date.now() - t.state.lastCheckAt! >= checkEvery) {
           const diagnosticPaths = this.cfg.spec.checks[profile.checks[0]]?.diagnosticPaths;
@@ -396,6 +465,7 @@ export class SwarmDriver implements Driver {
           }
         }
         enforcePruning();
+        if (await invert()) continue;
         if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
         this.journal.checkpoint(t, "model.intent", { step: t.state.turns });
         control?.activity?.("model:request");
@@ -414,7 +484,19 @@ export class SwarmDriver implements Driver {
         this.journal.checkpoint(t, "model.reply", next.turn.message);
         control?.activity?.("model:reply");
       }
-    } finally { await hands.dispose(); }
+    } catch (error) {
+      // The shared signal combiner does not preserve reasons. Restore this
+      // host-owned deadline classification without reclassifying cancellation.
+      if (deadlineController?.signal.aborted && !originalSignal.aborted) {
+        t.state.debugging!.prunedReason = String((deadlineController.signal.reason as Error).message);
+        enforceDebugging();
+      }
+      throw error;
+    } finally {
+      if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+      combined?.cleanup();
+      await hands.dispose();
+    }
   }
   async verify(c: Capsule, result: WorkerResult, signal: AbortSignal, control?: AttemptControl): Promise<Verification> {
     this.journal.assertLease(c);
