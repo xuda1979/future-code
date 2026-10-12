@@ -5,11 +5,13 @@ import type { CommandSpec, Contract, PinnedCommand, Recipe, SpawnPolicy, Task } 
 
 export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "run_job", "spawn_tasks", "propose_claim", "read_claims", "propose_conflict"] as const;
 export type ToolName = typeof TOOLS[number];
-export type Protocol = "anthropic" | "chat-completions";
+export type Protocol = "anthropic" | "chat-completions" | "responses" | "gemini";
+export interface ProviderAuth { scheme: "bearer" | "raw" | "none"; header: string }
 export interface ProviderRoute {
   url: string;
   model: string;
   keyEnv?: string;
+  auth?: ProviderAuth;
   allowHttp?: boolean;
   quotaPool?: string;
 }
@@ -18,6 +20,7 @@ export interface AgentProfile {
   url: string;
   model: string;
   keyEnv?: string;
+  auth?: ProviderAuth;
   system: string;
   tools: ToolName[];
   checks: string[];
@@ -153,10 +156,10 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   invariant(s.integrationChecks.every(n => s.checks[n].replaySafe), "integration checks must be replay-safe");
   for (const [id, a] of Object.entries(s.agents)) {
     identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"],
-      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs"]);
-    invariant(["anthropic", "chat-completions"].includes(a.protocol), "unsupported provider protocol");
+      ["keyEnv", "auth", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs"]);
+    invariant(["anthropic", "chat-completions", "responses", "gemini"].includes(a.protocol), "unsupported provider protocol");
     const validateRoute = (route: ProviderRoute, label: string, strictShape = true) => {
-      if (strictShape) keys(route, ["url", "model"], ["keyEnv", "allowHttp", "quotaPool"]);
+      if (strictShape) keys(route, ["url", "model"], ["keyEnv", "auth", "allowHttp", "quotaPool"]);
       const url = new URL(route.url);
       const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
       invariant(url.protocol === "https:" || (url.protocol === "http:" && (loopback || route.allowHttp === true)),
@@ -166,6 +169,14 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       if (route.keyEnv !== undefined) {
         invariant(/^[A-Z_][A-Z0-9_]*$/.test(route.keyEnv), `invalid ${label} keyEnv`);
         invariant(url.protocol === "https:" || loopback, `${label} credentials require HTTPS unless loopback`);
+      }
+      if (route.auth !== undefined) {
+        keys(route.auth, ["scheme", "header"]);
+        invariant(["bearer","raw","none"].includes(route.auth.scheme), `invalid ${label} auth scheme`);
+        invariant(typeof route.auth.header === "string" && /^[A-Za-z][A-Za-z0-9-]{0,63}$/.test(route.auth.header) &&
+          !["host","content-type","content-length","connection","cookie","set-cookie","proxy-authorization","transfer-encoding","accept-encoding"].includes(route.auth.header.toLowerCase()), `invalid ${label} auth header`);
+        invariant(route.auth.scheme !== "bearer" || route.auth.header.toLowerCase() === "authorization", "bearer auth must use Authorization");
+        invariant(route.auth.scheme !== "none" || !route.keyEnv, "none auth cannot specify a credential environment");
       }
       invariant(route.allowHttp === undefined || typeof route.allowHttp === "boolean", `invalid ${label} allowHttp`);
       if (route.quotaPool !== undefined)
@@ -252,7 +263,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       positive(job.maxConcurrent, Math.min(256, job.maxJobs), "remote concurrency");
     }
   }
-  const credentialNames = new Set(Object.values(s.agents).map(a => a.keyEnv).filter(Boolean));
+  const credentialNames = new Set(Object.values(s.agents).flatMap(a => [a.keyEnv, ...(a.fallbacks ?? []).map(r => r.keyEnv)]).filter(Boolean));
   for (const check of [...Object.values(s.checks), ...Object.values(s.jobs ?? {}).map(j => j.adapter),
     ...Object.values(s.workers ?? {}).map(w => w.adapter)]) {
     invariant(!(check.envAllow ?? []).some(name => credentialNames.has(name)),

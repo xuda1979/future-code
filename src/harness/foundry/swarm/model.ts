@@ -42,10 +42,12 @@ export const definitions: ToolDefinition[] = [
 ];
 const asJson = (x: unknown): Json => JSON.parse(canonical(x));
 function measured(raw: any, protocol: Protocol): number | null {
-  const u = raw?.usage;
+  const u = protocol === "gemini" ? raw?.usageMetadata : raw?.usage;
   if (!u || typeof u !== "object") return null;
   const ns = protocol === "anthropic"
     ? [u.input_tokens, u.output_tokens, u.cache_creation_input_tokens ?? 0, u.cache_read_input_tokens ?? 0]
+    : protocol === "responses" ? [u.input_tokens, u.output_tokens]
+    : protocol === "gemini" ? [u.promptTokenCount, u.candidatesTokenCount]
     : [u.prompt_tokens, u.completion_tokens];
   if (ns.some(x => x === undefined || x === null)) return null;
   invariant(ns.every(x => Number.isSafeInteger(x) && x >= 0), "invalid provider usage");
@@ -63,6 +65,33 @@ export function decodeTurn(protocol: Protocol, raw: any): Turn {
     }
     stop = raw.stop_reason;
     invariant(["end_turn", "tool_use", "max_tokens", "stop_sequence"].includes(stop), "unsupported stop reason");
+  } else if (protocol === "responses") {
+    invariant(Array.isArray(raw?.output) && ["completed","incomplete"].includes(raw.status), "invalid Responses reply");
+    for (const item of raw.output) {
+      if (item.type === "message") {
+        invariant(Array.isArray(item.content), "invalid Responses content");
+        for (const part of item.content) {
+          invariant(["output_text","refusal"].includes(part.type) && typeof (part.text ?? part.refusal) === "string", "unsupported Responses output");
+          content += part.text ?? part.refusal;
+        }
+      } else if (item.type === "function_call") {
+        invariant(typeof item.arguments === "string", "invalid Responses tool arguments");
+        calls.push({ id:item.call_id, name:item.name, arguments:JSON.parse(item.arguments) });
+      } else throw new FatalAttemptError("Unsupported Responses output block");
+    }
+    stop = raw.status === "incomplete" ? "length" : calls.length ? "tool_calls" : "stop";
+  } else if (protocol === "gemini") {
+    invariant(Array.isArray(raw?.candidates) && raw.candidates.length === 1, "expected one Gemini candidate");
+    const candidate=raw.candidates[0];
+    invariant(Array.isArray(candidate.content?.parts) && ["STOP","MAX_TOKENS"].includes(candidate.finishReason), "unsupported Gemini finish reason");
+    for (const [i,part] of candidate.content.parts.entries()) {
+      if (typeof part.text === "string") content+=part.text;
+      else if (part.functionCall) {
+        const f=part.functionCall;
+        calls.push({id:f.id ?? `gemini-${i}-${digest({name:f.name,args:f.args}).slice(0,24)}`,name:f.name,arguments:f.args});
+      } else throw new FatalAttemptError("Unsupported Gemini response block");
+    }
+    stop=candidate.finishReason === "MAX_TOKENS" ? "length" : calls.length ? "tool_calls" : "stop";
   } else {
     invariant(Array.isArray(raw?.choices) && raw.choices.length === 1, "expected one completion");
     const choice = raw.choices[0]; const m = choice.message;
@@ -98,7 +127,35 @@ export function requestBody(profile: AgentProfile, history: Message[], budget: S
           ({ id: c.id, type: "function", function: { name: c.name, arguments: canonical(c.arguments) } })) } : {}) })],
     tools: tools.map(t => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.schema } })),
   });
-  const messages: any[] = [];
+  if (profile.protocol === "responses") {
+    const input: any[]=[];
+    for (const m of history) {
+      if (m.role==="tool") input.push({type:"function_call_output",call_id:m.callId,output:m.content});
+      else if (m.role==="assistant") {
+        if(m.content) input.push({role:"assistant",content:[{type:"output_text",text:m.content}]});
+        for(const c of m.calls ?? []) input.push({type:"function_call",call_id:c.id,name:c.name,arguments:canonical(c.arguments)});
+      } else input.push({role:"user",content:m.content});
+    }
+    return asJson({model:profile.model,instructions:profile.system,max_output_tokens:budget.maxOutputTokens,input,
+      tools:tools.map(t=>({type:"function",name:t.name,description:t.description,parameters:t.schema,strict:false}))});
+  }
+  if (profile.protocol === "gemini") {
+    const names=new Map<string,string>();
+    for(const m of history) if(m.role==="assistant")for(const c of m.calls??[])names.set(c.id,c.name);
+    const contents=history.map(m=>{
+      if(m.role==="tool") {
+        const name=names.get(m.callId!);invariant(name,"Gemini tool result lacks original call");
+        return {role:"user",parts:[{functionResponse:{name,response:{result:m.content}}}]};
+      }
+      if(m.role==="assistant")return {role:"model",parts:[...(m.content?[{text:m.content}]:[]),
+        ...(m.calls??[]).map(c=>({functionCall:{id:c.id,name:c.name,args:c.arguments}}))]};
+      return {role:"user",parts:[{text:m.content}]};
+    });
+    return asJson({systemInstruction:{parts:[{text:profile.system}]},contents,
+      generationConfig:{maxOutputTokens:budget.maxOutputTokens},
+      tools:[{functionDeclarations:tools.map(t=>({name:t.name,description:t.description,parameters:t.schema}))}]});
+  }
+  const messages: any[]=[];
   for (const m of history) {
     if (m.role === "tool") {
       const block = { type: "tool_result", tool_use_id: m.callId, content: m.content };
@@ -124,6 +181,20 @@ export async function boundedJson(response: Response, maxBytes: number, signal?:
     }
   } finally { void reader.cancel().catch(() => {}); reader.releaseLock(); }
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+export function providerHeaders(protocol: Protocol, route: ProviderRoute): Record<string,string> {
+  const h: Record<string,string> = { "content-type":"application/json" };
+  if(protocol==="anthropic")h["anthropic-version"]="2023-06-01";
+  const defaults=protocol==="anthropic"?{scheme:"raw",header:"x-api-key"}:
+    protocol==="gemini"?{scheme:"raw",header:"x-goog-api-key"}:{scheme:"bearer",header:"authorization"};
+  const a=route.auth??defaults;
+  invariant(["bearer","raw","none"].includes(a.scheme) && /^[A-Za-z][A-Za-z0-9-]{0,63}$/.test(a.header) &&
+    !["host","content-type","content-length","connection","cookie","set-cookie","proxy-authorization","transfer-encoding","accept-encoding"].includes(a.header.toLowerCase()) &&
+    (a.scheme!=="bearer"||a.header.toLowerCase()==="authorization"),"invalid provider authentication");
+  if(a.scheme==="none") {invariant(!route.keyEnv,"none authentication must not carry credentials");return h;}
+  if(!route.keyEnv)return h;
+  const key=process.env[route.keyEnv];if(!key)throw new FatalAttemptError(`Missing credential environment: ${route.keyEnv}`);
+  h[a.header]=a.scheme==="bearer"?`Bearer ${key}`:key;return h;
 }
 export class HttpBrain {
   readonly journal: SessionJournal; readonly fetcher: typeof fetch;
@@ -157,7 +228,7 @@ export class HttpBrain {
   private async nextHedged(c: Capsule, profile: AgentProfile, projection: Message[], body: Json,
     budget: SwarmBudget, signal: AbortSignal, step: number): Promise<{ turn: Turn; history: Message[] }> {
     const routes: ProviderRoute[] = [
-      { url: profile.url, model: profile.model, keyEnv: profile.keyEnv, allowHttp: profile.allowHttp, quotaPool: profile.quotaPool },
+      { url: profile.url, model: profile.model, keyEnv: profile.keyEnv, auth: profile.auth, allowHttp: profile.allowHttp, quotaPool: profile.quotaPool },
       ...(profile.fallbacks ?? []),
     ];
     type Outcome = { index: number; kind: "success"; turn: Turn } |
@@ -169,18 +240,9 @@ export class HttpBrain {
       const route = routes[index]; const controller = controllers[index];
       const admission = createCombinedAbortSignal(signal, { signalB: controller.signal });
       let combined: ReturnType<typeof createCombinedAbortSignal> | undefined;
-      const headers: Record<string, string> = { "content-type": "application/json" };
-      if (profile.protocol === "anthropic") headers["anthropic-version"] = "2023-06-01";
-      if (route.keyEnv) {
-        const key = process.env[route.keyEnv];
-        if (!key) {
-          admission.cleanup();
-          return { index, kind: "failure", transient: false,
-            error: new FatalAttemptError(`Missing credential environment: ${route.keyEnv}`) };
-        }
-        headers[profile.protocol === "anthropic" ? "x-api-key" : "authorization"] =
-          profile.protocol === "anthropic" ? key : `Bearer ${key}`;
-      }
+      let headers: Record<string,string>;
+      try { headers=providerHeaders(profile.protocol,route); }
+      catch(e){admission.cleanup();return {index,kind:"failure",transient:false,error:e instanceof Error?e:new Error("Invalid provider auth")};}
       const provider = digest({ quotaPool: route.quotaPool ?? `${route.url}#${route.model}` });
       let id: string | null = null; let completed = false;
       try {
@@ -276,12 +338,7 @@ export class HttpBrain {
     const replay = this.readReply(c, profile, projection, body, step);
     if (replay) return replay;
     if (profile.fallbacks?.length) return this.nextHedged(c, profile, projection, body, budget, signal, step);
-    const headers: Record<string, string> = { "content-type": "application/json" };
-    if (profile.protocol === "anthropic") headers["anthropic-version"] = "2023-06-01";
-    if (profile.keyEnv) {
-      const key = process.env[profile.keyEnv]; if (!key) throw new FatalAttemptError(`Missing credential environment: ${profile.keyEnv}`);
-      headers[profile.protocol === "anthropic" ? "x-api-key" : "authorization"] = profile.protocol === "anthropic" ? key : `Bearer ${key}`;
-    }
+    const headers=providerHeaders(profile.protocol,profile);
     const provider = digest({ quotaPool: profile.quotaPool ?? `${profile.url}#${profile.model}` });
     const id = await this.journal.reserve(c, provider, body, budget, signal);
     let completed = false;

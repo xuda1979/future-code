@@ -1,27 +1,25 @@
-name: Commercial preview (offline contract)
+name: Commercial source and security verification
 on:
   push:
     branches: [commercial]
   pull_request:
     branches: [commercial]
+permissions:
+  contents: read
 jobs:
-  commercial:
+  verify:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22.16.0'
-      - name: Syntax checks
+      - name: Static syntax verification
         run: |
-          node --check src/commercial/evaluation.mjs
-          node --check src/commercial/readiness.mjs
-          node --check src/commercial/cli.mjs
-      - name: Commercial contract tests
+          for file in src/commercial/*.mjs tools/*.mjs scripts/*.mjs; do node --check "$file"; done
+      - name: Security, protocol, activation, reporting tests
         run: node scripts/test-commercial.mjs
-      - name: Offline fixture only
-        run: |
-          node src/commercial/cli.mjs demo > /tmp/commercial-offline-result.json
-          node -e "const r=require('/tmp/commercial-offline-result.json');if(r.decision!=='OFFLINE_BOUNDARY_ONLY'||r.observedSpeedup!==null)process.exit(1)"
+      - name: Swarm and provider regression tests
+        run: node scripts/test-swarm.mjs
+      - name: Distribution cleanliness and prohibited files
+        run: node scripts/check-commercial-tree.mjs

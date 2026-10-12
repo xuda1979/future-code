@@ -1,18 +1,9 @@
-# Future-Code 商业化预览（`commercial` 长期分支）
+# 商业版操作说明
 
-**产品愿景：可验证的自主科研与工程研发。** 新增客户试点评测、静态指标面板、商业化发布条件检查；现有 Foundry/Swarm 运行时保持不变，也不会修改 `main`。
+请从 [中文首页](../../README.zh.md) 开始。许可证签发参见 [LICENSE_OPERATIONS.md](LICENSE_OPERATIONS.md)；客户试点参见 [PILOT_PROTOCOL.md](PILOT_PROTOCOL.md)。
 
-使用 Node.js >=22.16：
+该分支仅保留产品执行相关的源码、校验测试、示例和发布说明，不保留学术论文与专利技术交底材料。服务地址与认证信息由用户在安装后交互式填写，保存在用户私有配置目录，不包含在代码仓库中。
 
-```sh
-node src/commercial/cli.mjs help
-node src/commercial/cli.mjs doctor
-node src/commercial/cli.mjs demo
-node scripts/test-commercial.mjs
-```
+四种内置 API 协议不代表支持所有云厂商的专有特性。密钥可选择加密存储、运行时隐藏输入或运行环境注入。签名许可证必须经供应商离线初始化发行者公钥后才能启用。客户端源码可被修改，不能将离线激活宣传为完全防破解。
 
-`doctor` 会在审批条件不满足时给出 BLOCKED；`demo` 使用**离线回放**，无法证明实际模型生产力提升。真实模型 A/B 对照实验参考英文 [README.md](README.md) 和 [PILOT_PROTOCOL.md](PILOT_PROTOCOL.md)：固定项目提交、模型、验证器、测试、预算与任务，仅允许改变调度策略，至少重复三轮。可使用 `report --input FILE --out FILE --html FILE` 生成只读 JSON 和本地 HTML 面板。
-
-**重要：当前仍未获得验证的商业再分发授权。** 详见 `docs/SOURCE_PROVENANCE.md`，存在有待查明权利归属的导入代码和依赖。此分支不会擅自增加项目全局许可证、商业收费逻辑、未授权的云服务或者未经验证的 2 倍提效宣传。上线前还需独立完成隔离安全、法务审查和真实客户验证。
-
-本次变更保留在 `commercial` 分支，不合并到 `main`。
+发布前必须完成源码权属、第三方许可和安全审核。

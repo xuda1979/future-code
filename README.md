@@ -1,126 +1,61 @@
-# Future-Code
+# Future-Code Commercial
 
 [中文](README.zh.md)
 
-Future-Code is a runtime for sustained software development and research using
-external LLM APIs. Models propose plans, code, tools and hypotheses. The kernel
-controls execution authority; independent checks determine acceptance.
+**Verified autonomous R&D execution**, with independent checks, durable objectives and model-provider choice.
 
-**Models propose. Evidence decides. Future-Code enforces.**
+This is the long-lived customer product branch. It contains the operational Foundry/Swarm runtime and a commercial CLI; research manuscripts, patent drafts and the large legacy terminal application are omitted from the branch's working tree.
 
-## Architecture
+## Requirements
 
-```mermaid
-flowchart TD
-    Objective["Human objective and acceptance contract"] --> Cognition["Cognitive plane: external LLMs"]
-    Cognition -->|"Proposal<T>"| Kernel["Sovereign kernel: admit, reject, defer"]
-    Kernel --> Execution["Execution: worktrees, tools, remote jobs"]
-    Execution --> Evidence["Evidence plane: observations, receipts, claims"]
-    Evidence --> Verification["Independent verification and adjudication"]
-    Verification -->|"verified outcomes"| Learning["Reflection and contextual intervention policy"]
-    Learning --> Cognition
-    Verification -->|"acceptance evidence"| Kernel
-```
+Node.js >=22.16 on Linux/macOS/WSL, Git, and an authorized trusted project. No npm install, default model endpoint, API key or paid provider account is bundled.
 
-| Boundary | Responsibility | Implementation |
-|---|---|---|
-| Cognition | Open-ended reasoning, decomposition, code and hypotheses | `src/harness/foundry/swarm/model.ts`, `recovery.ts` |
-| Authority | Proposal admission, frozen contracts, DAG, scopes, budgets, leases and recovery | `src/harness/foundry/` |
-| Evidence | Append-only observations, immutable artifacts, retractable claims, conflicts and independent adjudication | `store.ts`, `evidenceFabric.ts`, `claims.ts`, `adjudication.ts` |
-| Learning | Host-measured reflection and contextual intervention recommendations | `rndReflection.ts`, `interventionMemory.ts`, `contextualPolicy.ts` |
-
-A model's final answer cannot mark a task PASS, increase authority, change a
-verifier or erase history. Scheduler algorithms and constraint checks remain
-host-owned. Policy recommendations cannot bypass admission or verification.
-
-## Capabilities
-
-- Durable task DAGs, bounded child spawning, lease fencing and crash recovery.
-- Scoped worktrees, pinned checks, final integration and resumable agent journals.
-- External job identity, reconciliation and cumulative objective budgets.
-- Content-addressed artifacts and immutable event/evidence histories.
-- Versioned hypotheses with retraction, dependency invalidation and explicit conflicts.
-- Contextual recovery recommendations with sample counts, uncertainty and abstention.
-- Paired real-project evaluation with wall time, model requests, quality gates and nullable cost.
-
-These mechanisms govern the Foundry/Swarm entrypoints. The older terminal CLI
-and HACT research implementations remain separate code paths.
-
-## Quick start
-
-The core uses Node >=22.16 on Linux/macOS/WSL, built-in SQLite and TypeScript
-stripping. The core commands below need no npm installation or model credential.
-Run them from the repository root:
+## Local onboarding
 
 ```sh
-node scripts/test-foundry.mjs
-node --experimental-strip-types src/harness/foundry/cli.ts init --spec examples/foundry/spec.json
-node --experimental-strip-types src/harness/foundry/cli.ts run --tasks examples/foundry/tasks.json --allow-exec
-node --experimental-strip-types src/harness/foundry/cli.ts status
+node src/commercial/app.mjs provider add
+node src/commercial/app.mjs provider list
+node src/commercial/app.mjs license request
+node src/commercial/app.mjs license status
 ```
 
-The example uses deterministic worker/checker programs. Use a fresh `--root DIR`
-for a new contract; initialization does not overwrite an existing harness.
+The wizard asks for your **own** HTTPS endpoint, model, protocol, auth header and key source. Choose encrypted local vault, hidden prompt at execution time, environment secret injection, or no credentials for an authorized local service. No secret is stored in tracked configuration or printed by `provider list`. The local vault uses AES-256-GCM with scrypt and restricted file permissions; this is not a substitute for an enterprise KMS or an operating-system keychain.
 
-For external-API coding agents, adapt `examples/swarm/spec.json` with your project,
-provider URL, model ID, credential environment name and independent checks:
+The supported wire formats are `chat-completions`, `anthropic`, `responses`, and `gemini`. Additional vendors offering a compatible wire protocol may be configured by endpoint and header. Other native formats require an adapter; we do not claim universal protocol compatibility.
+
+## Activate paid or authorized installations
+
+Send the `license request` installation identifier to the seller. The seller signs a customer-bound, dated entitlement using an offline Ed25519 issuer. Install the delivered token privately:
 
 ```sh
-node --experimental-strip-types src/harness/foundry/swarm/cli.ts init --spec YOUR_SPEC.json --allow-exec
-node --experimental-strip-types src/harness/foundry/swarm/cli.ts run --tasks YOUR_TASKS.json --allow-exec
-node --experimental-strip-types src/harness/foundry/swarm/cli.ts integrate --run RUN_ID --allow-exec
+node src/commercial/app.mjs license activate --file YOUR_TOKEN_FILE
+node src/commercial/app.mjs license status
 ```
 
-`supervise --objective ID --goal FILE --tasks FILE --allow-exec` keeps a durable
-objective attached through execution, bounded recovery and final verification.
-`objective`, `episode`, `reflection`, `claims` and `status` expose saved evidence.
-Model requests use the configured external service and its quotas. Future-Code
-has no control over provider KV caches, batching or inference engines.
+The branch deliberately starts with **no trusted issuer**. The seller must generate a real signing key, retain the private key securely, and publish/release the corresponding reviewed public trust entry before activations can work. See [License operations](docs/commercial/LICENSE_OPERATIONS.md). Offline activation cannot offer immediate revocation and is not tamper-proof DRM for a source-visible client.
 
-## Verification and productivity
+## Execute a verified objective
+
+Use the provided application spec and your saved provider profile. No endpoint or secret belongs in the spec.
 
 ```sh
-node scripts/test-correctness.mjs
-node scripts/test-resilience.mjs
-node scripts/test-foundry.mjs
+node src/commercial/app.mjs init --profile primary --spec examples/swarm/spec.json --allow-exec
+node src/commercial/app.mjs run --profile primary --tasks examples/swarm/tasks.json --allow-exec
+node src/commercial/app.mjs status
+```
+
+The tasks fixture is a simple wiring check, not a scientific productivity benchmark. The target repository must be a committed, clean Git checkout. `--allow-exec` explicitly permits configured check commands to execute. Worktrees alone are not hardened OS sandboxes: use trusted repositories or a separately hardened worker environment.
+
+Model commands are activation-gated via the commercial entrypoint. A source-visible client can be modified; enterprise enforcement and billing should ultimately be server-side. The core Foundry/Swarm engine also exposes developer APIs and cannot be treated as unbreakable client-side license enforcement.
+
+## Evaluation and operational boundaries
+
+```sh
+node scripts/test-commercial.mjs
 node scripts/test-swarm.mjs
-node scripts/test-commands.mjs
+node src/commercial/cli.mjs demo
 ```
 
-[Real-project evaluation](docs/agent-platform/REAL_PROJECT_EVALUATION.md) describes
-matched baseline/candidate trials and report provenance. Offline fixtures measure
-host behavior; live-model productivity requires actual external-API trials.
-Missing token or dollar measurements remain unknown.
+`demo` uses a recorded **offline** replay and does not demonstrate model productivity. Live paired trials are separate, and missing billed dollars are unknown. See [Pilot guide](docs/commercial/PILOT_PROTOCOL.md).
 
-## Documentation
-
-| Topic | Guide |
-|---|---|
-| Architectural principles and trust boundaries | [Sovereign kernel](docs/agent-platform/SOVEREIGN_KERNEL.md) |
-| Claims, evidence, conflicts and adjudication | [Knowledge protocol](docs/agent-platform/KNOWLEDGE_PROTOCOL.md) |
-| Frozen contracts and recipe experiments | [Foundry](docs/agent-platform/FOUNDRY.md) |
-| External-API agents and durable sessions | [Swarm](docs/agent-platform/SWARM.md) |
-| Recovery and remote compute | [Resilient R&D](docs/agent-platform/RESILIENT_RND.md) |
-| Provider cooldowns, recovery probes and bounded transport | [External API recovery](docs/agent-platform/PROVIDER_RECOVERY.md) |
-| Evidence and allocation | [Evidence Fabric](docs/agent-platform/EVIDENCE_FABRIC.md) |
-| Measured self-reflection | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
-| Empirical strategy learning | [Intervention memory](docs/agent-platform/INTERVENTION_MEMORY.md) |
-| Current regression and real-source evidence | [Validation](docs/agent-platform/SOVEREIGN_VALIDATION.md) |
-| Full terminal CLI setup | [Linux deployment](DEPLOY-LINUX.md), [onboarding](ONBOARDING.md) |
-| Release technical reports and patent disclosure | [Release documents](docs/release/README.md) |
-
-## Repository map
-
-| Path | Contents |
-|---|---|
-| `src/harness/foundry/` | Governed runtime and public host API |
-| `src/harness/foundry/swarm/` | External model adapter, tools, workspace and objective supervisor |
-| `tests/`, `scripts/` | Regression gates and evaluation tools |
-| `examples/` | Offline examples and operator configuration |
-| `docs/agent-platform/` | System contracts and operating guides |
-| `src/` outside Foundry | Terminal CLI and existing integrations |
-| `paper/`, `hact-paper/` | Research manuscripts and experiments |
-
-[Source provenance](docs/SOURCE_PROVENANCE.md) records the imported-source
-boundary. Existing source notices remain applicable; documentation changes do
-not assign ownership or grant a repository-wide license.
+**Not approved for commercial redistribution yet.** Source ownership and third-party distribution rights require professional review. See [Source provenance](docs/SOURCE_PROVENANCE.md) and [Launch gates](docs/commercial/RELEASE_GATES.md). No blanket LICENSE is granted by this work.

@@ -1,2 +1,0 @@
-# Verify
-Stub verify skill.
