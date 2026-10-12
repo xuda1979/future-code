@@ -33,7 +33,12 @@ export interface AgentProfile {
   /** Launch configured fallbacks if the primary has not completed by this latency. */
   hedgeAfterMs?: number;
 }
-export interface CheckSpec extends CommandSpec { replaySafe: boolean }
+export interface CheckSpec extends CommandSpec {
+  replaySafe: boolean;
+  /** Operator attests that the check is independent of other checks and has no
+   * shared external effects. It runs in its own fresh Git worktree. */
+  parallelSafe?: boolean;
+}
 export interface ExecutionWorker {
   /** Trusted coordinator-side adapter. It may wrap SSH/Kubernetes/etc. */
   adapter: CommandSpec;
@@ -156,8 +161,10 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   invariant(s.checks && typeof s.checks === "object" && !Array.isArray(s.checks), "invalid checks");
   const checks = Object.keys(s.checks); positive(checks.length, 128, "check count");
   for (const [id, check] of Object.entries(s.checks)) {
-    identifier(id); keys(check, ["argv", "replaySafe"], ["files", "envAllow"]);
+    identifier(id); keys(check, ["argv", "replaySafe"], ["files", "envAllow", "parallelSafe"]);
     invariant(typeof check.replaySafe === "boolean", "explicit replaySafe required");
+    invariant(check.parallelSafe === undefined || (check.parallelSafe === true && check.replaySafe === true),
+      "parallelSafe check must be explicitly replay-safe and side-effect independent");
     invariant(Array.isArray(check.argv) && check.argv.length > 0 && check.argv.every(x => typeof x === "string" && !x.includes("\0")), "invalid check argv");
     // Shell capabilities are a user-authored, pinned configuration, never task input.
   }
