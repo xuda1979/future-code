@@ -105,7 +105,7 @@ test("actual checkpoint slicing records a skip but cannot bypass independent tas
     assert.equal(bodies.length, 2);
     const slices = store.events(0, 1000).filter(row => row.kind === "checkpoint.sliced");
     assert.ok(slices.length >= 1, "the production checkpoint path must use the changed-path evidence");
-    const details = JSON.parse(slices[0]!.payload);
+    const details = slices[0]!.payload as any;
     assert.equal(details.check, "behavior");
     assert.equal(details.pathCount, 1);
     assert.equal(details.patchHash, (result.artifact as any).patchHash);
