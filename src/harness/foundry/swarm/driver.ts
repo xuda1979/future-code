@@ -141,6 +141,8 @@ export class SwarmDriver implements Driver {
             await executeToolBatch({ batch, thread: t, journal: this.journal, cfg: this.cfg, signal, control,
               admit: admitCall, snapshot: () => hands.snapshot(),
               execute: call => batch.kind === "run_job" ? runJob(call) : timedTool(() => hands.tool(call)),
+              executeBatch: batch.kind !== "run_job" && hands.batch
+                ? calls => timedTool(() => hands.batch!(batch.kind as "read" | "workspace-write", calls)) : undefined,
             });
             continue;
           }

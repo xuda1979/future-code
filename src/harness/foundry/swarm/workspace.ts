@@ -15,11 +15,15 @@ import { runProcess, type ProcessResult } from "./process.ts";
 export interface Hands {
   /** Host capability, never model advice. Reads have no effects; write batches
    * must be replayable from the preceding durable snapshot after a crash. */
-  readonly batchPolicy?: { reads: number; writes: boolean };
+  readonly batchPolicy?: { reads: number; writes: boolean; maxCalls?: number };
+  /** Optional backend transaction: all admitted calls replay together on
+   * failover. A write result must include its exact scoped patch. */
+  batch?(kind: "read" | "workspace-write", calls: Call[]): Promise<WorkspaceBatchResult>;
   tool(call: Call): Promise<Json>;
   snapshot(): Promise<string>;
   dispose(): Promise<void>;
 }
+export interface WorkspaceBatchResult { results: Json[]; patchHash?: string }
 export async function git(cfg: PinnedSwarm, cwd: string, args: string[], signal: AbortSignal, input?: string): Promise<string> {
   const result = await runProcess(cfg.git, cwd, ["--no-pager", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
     "-c", "core.autocrlf=false", ...args], signal, cfg.spec.budget.toolTimeoutMs, Math.max(cfg.spec.budget.maxPatchBytes * 2, cfg.spec.budget.maxToolOutputBytes), input);

@@ -190,6 +190,10 @@ not distributed SQLite or multi-master acceptance:
   durable task patch;
 - after mutating tools, the patch is snapshotted back into the coordinator's
   content-addressed store;
+- compatible adjacent file operations use [bounded remote batches](REMOTE_TOOL_BATCHING.md):
+  up to four concurrent readers, ordered writes, and one durable result/patch
+  checkpoint. A failed or lost batch reply replays the whole group on a fresh
+  worker workspace; old worker endpoints retain serial RPC compatibility;
 - if a worker disappears before a durable snapshot, the task tries the remaining
   healthy worker fleet rather than stopping after one alternate host; repeated
   worker RPC failures are tracked durably and temporarily quarantine unhealthy

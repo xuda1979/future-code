@@ -106,6 +106,7 @@ Missing token or dollar measurements remain unknown.
 | Measured self-reflection | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
 | Execution timings, context retirement and resource wakeups | [Execution productivity](docs/agent-platform/EXECUTION_PRODUCTIVITY.md) |
 | Parallel reads and replayable edit batches | [Tool batching](docs/agent-platform/TOOL_BATCHING.md) |
+| Remote file batches and worker replacement | [Remote batch recovery](docs/agent-platform/REMOTE_TOOL_BATCHING.md) |
 | Empirical strategy learning | [Intervention memory](docs/agent-platform/INTERVENTION_MEMORY.md) |
 | Current regression and real-source evidence | [Validation](docs/agent-platform/SOVEREIGN_VALIDATION.md) |
 | Full terminal CLI setup | [Linux deployment](DEPLOY-LINUX.md), [onboarding](ONBOARDING.md) |

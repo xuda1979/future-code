@@ -160,7 +160,8 @@ def prepare(root: Path, repo: Path, request: dict[str, Any]) -> dict[str, Any]:
             if state.get("binding") != binding:
                 raise ValueError("workspace binding drift")
             if tree.exists():
-                return {"ok": True, "result": {"workspace": workspace, "reused": True}}
+                return {"ok": True, "result": {"workspace": workspace, "reused": True,
+                                               "capabilities": {"workspaceBatch": 1}}}
         if tree.exists():
             shutil.rmtree(tree)
         git(repo, ["cat-file", "-e", f"{request['baseCommit']}^{{commit}}"])
@@ -196,7 +197,8 @@ def prepare(root: Path, repo: Path, request: dict[str, Any]) -> dict[str, Any]:
                 pass
             shutil.rmtree(directory, ignore_errors=True)
             raise
-    return {"ok": True, "result": {"workspace": workspace, "reused": False}}
+    return {"ok": True, "result": {"workspace": workspace, "reused": False,
+                                   "capabilities": {"workspaceBatch": 1}}}
 
 
 def context(root: Path, workspace: str) -> tuple[Path, dict[str, Any]]:
@@ -313,6 +315,43 @@ def snapshot(root: Path, request: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "patch": patch}
 
 
+def batch(root: Path, template: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
+    calls = request.get("calls")
+    kind = request.get("kind")
+    allowed = {"read_file", "list_files"} if kind == "read" else {"write_file", "edit_file", "delete_file"}
+    # Validate the entire finite operation class before producing any effect.
+    # Checks and jobs have distinct replay semantics and can never join a batch.
+    if kind not in ("read", "workspace-write") or not isinstance(calls, list) or not 1 <= len(calls) <= 32:
+        raise ValueError("invalid workspace batch")
+    for call in calls:
+        if not isinstance(call, dict) or call.get("name") not in allowed or not isinstance(call.get("arguments"), dict):
+            raise ValueError("invalid workspace batch call")
+        if not isinstance(call.get("id"), str) or not call["id"]:
+            raise ValueError("invalid workspace batch call identity")
+    if len({call["id"] for call in calls}) != len(calls):
+        raise ValueError("duplicate workspace batch call identity")
+
+    def execute(call: dict[str, Any]) -> dict[str, Any]:
+        try:
+            reply = tool(root, template, {"workspace": request["workspace"], "call": call})
+            result = reply.get("result") if reply["ok"] else {"error": reply.get("error", "remote tool failed")}
+        except Exception as exc:
+            result = {"error": str(exc)[:2048]}
+        return {"callId": call["id"], "result": result}
+
+    if kind == "read":
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(4, len(calls))) as pool:
+            results = list(pool.map(execute, calls))
+        return {"ok": True, "result": {"results": results}}
+    results = [execute(call) for call in calls]
+    # No write result escapes without its exact scoped snapshot. A lost reply
+    # leaves a disposable tree; the host rebuilds and replays the entire group.
+    reply = snapshot(root, request)
+    reply["result"] = {"results": results}
+    return reply
+
+
 def dispose(root: Path, repo: Path, workspace: str) -> dict[str, Any]:
     directory = state_dir(root, workspace)
     tree = directory / "tree"
@@ -331,15 +370,23 @@ def endpoint(root: Path, repo: Path, template: dict[str, Any], request: Any) -> 
     if not isinstance(request, dict) or request.get("schema") != 1:
         raise ValueError("invalid request")
     op = request.get("op")
-    if op == "prepare":
-        return prepare(root, repo, request)
-    if op == "tool":
-        return tool(root, template, request)
-    if op == "snapshot":
-        return snapshot(root, request)
-    if op == "dispose":
-        return dispose(root, repo, request.get("workspace"))
-    raise ValueError("unknown operation")
+    workspace = request.get("workspace")
+    state_dir(root, workspace)
+    # Keep this lock outside the removable directory. Mutations, preparation
+    # and cleanup exclude concurrent RPCs; read parallelism stays inside batch.
+    with open(root / f"{workspace}.lock", "a+b") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if op == "prepare":
+            return prepare(root, repo, request)
+        if op == "tool":
+            return tool(root, template, request)
+        if op == "batch":
+            return batch(root, template, request)
+        if op == "snapshot":
+            return snapshot(root, request)
+        if op == "dispose":
+            return dispose(root, repo, workspace)
+        raise ValueError("unknown operation")
 
 
 def main() -> int:

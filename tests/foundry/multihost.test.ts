@@ -165,7 +165,7 @@ test("prepare success cannot erase repeated worker RPC failures before quarantin
       "delegate = sys.argv[1:]",
       "raw = sys.stdin.buffer.read()",
       "request = json.loads(raw)",
-      "if request.get(\"op\") == \"tool\":",
+      "if request.get(\"op\") in (\"tool\", \"batch\"):",
       "    raise SystemExit(71)",
       "p = subprocess.run(delegate, input=raw, stdout=subprocess.PIPE, stderr=subprocess.PIPE)",
       "sys.stdout.buffer.write(p.stdout)",

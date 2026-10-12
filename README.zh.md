@@ -98,6 +98,7 @@ node scripts/test-commands.mjs
 | 基于证据的反思 | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
 | 执行耗时、上下文退役与资源唤醒 | [Execution productivity](docs/agent-platform/EXECUTION_PRODUCTIVITY.md) |
 | 并行读取与可恢复的编辑批次 | [工具批处理](docs/agent-platform/TOOL_BATCHING.md) |
+| 远程文件批处理与 worker 故障恢复 | [远程批次恢复](docs/agent-platform/REMOTE_TOOL_BATCHING.md) |
 | 干预效果与策略学习 | [Intervention memory](docs/agent-platform/INTERVENTION_MEMORY.md) |
 | 回归检查与真实源码实验 | [验证记录](docs/agent-platform/SOVEREIGN_VALIDATION.md) |
 | 完整终端 CLI 安装 | [Linux 部署](DEPLOY-LINUX.md)、[上手指南](ONBOARDING.md) |
