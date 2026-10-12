@@ -21,5 +21,14 @@ jobs:
         run: node scripts/test-commercial.mjs
       - name: Swarm and provider regression tests
         run: node scripts/test-swarm.mjs
+      - name: Customer CLI smoke
+        run: |
+          node src/commercial/app.mjs help
+          node src/commercial/app.mjs provider list --state-dir "$(mktemp -d)"
+          if output=$(node src/commercial/app.mjs status --root .future-code/ci-status 2>&1); then
+            echo "Unexpected status success for an uninitialized harness"
+            exit 1
+          fi
+          echo "$output" | grep -q "swarm is not initialized"
       - name: Distribution cleanliness and prohibited files
         run: node scripts/check-commercial-tree.mjs

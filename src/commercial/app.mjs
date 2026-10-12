@@ -4,6 +4,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline/promises';
+import { spawnSync } from 'node:child_process';
 import { stateDir, protocols, upsertProvider, listProviders, providerById, saveProviderSecret, providerSecret, envName, bindProfile, validateProvider } from './providers.mjs';
 import { installationId, activate, licenseStatus, requireLicense } from './license.mjs';
 export const HELP=`Future-Code Commercial
@@ -151,7 +152,14 @@ export async function command(argv){
   }
   return handleSwarm(a);
 }
-if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url)
-  command(process.argv.slice(2)).then(value=>console.log(typeof value==='string'?value:JSON.stringify(value,null,2)),e=>{
+if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url){
+  // Node 22.16 does not strip .ts imports automatically. Relaunch transparently
+  // before reading any user secrets or starting a run; preserve terminal input.
+  if(!process.features.typescript&&!process.execArgv.includes('--experimental-strip-types')){
+    const child=spawnSync(process.execPath,['--experimental-strip-types',...process.argv.slice(1)],{stdio:'inherit'});
+    if(child.error)throw child.error;
+    process.exitCode=child.status??1;
+  }else command(process.argv.slice(2)).then(value=>console.log(typeof value==='string'?value:JSON.stringify(value,null,2)),e=>{
     console.error(e instanceof Error?e.message:String(e));process.exitCode=1;
   });
+}
