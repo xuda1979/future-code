@@ -1,6 +1,6 @@
 import { DeferredAttemptError, PersistedDeferredAttemptError } from "../continuation.ts";
 import { ResearchJobs, type JobRPC } from "./jobs.ts";
-import { checkpointInputKey, shouldRunExploratoryCheckpoint } from "./checkpointPolicy.ts";
+import { canSliceExploratoryCheckpoint, checkpointInputKey, shouldRunExploratoryCheckpoint } from "./checkpointPolicy.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { schedulerNode } from "../schedulerIndex.ts";
 import { FatalAttemptError } from "../errors.ts";
@@ -305,6 +305,23 @@ export class SwarmDriver implements Driver {
           digest({ feedback: t.state.feedbackHash, jobReceipt: t.state.lastJobReceipt ?? null }));
         if (checkEvery && shouldRunExploratoryCheckpoint(t.state.lastExploratoryCheckpointKey, checkpointKey, this.cfg.spec.supervision?.checkpointCadence) &&
             !(t.state.history.at(-1)?.role === "assistant" && !t.state.history.at(-1)?.calls?.length) && Date.now() - t.state.lastCheckAt! >= checkEvery) {
+          const diagnosticPaths = this.cfg.spec.checks[profile.checks[0]]?.diagnosticPaths;
+          let changedPaths: string[] | undefined;
+          if (diagnosticPaths && hands.changedPaths) {
+            try { changedPaths = await hands.changedPaths(); }
+            catch { control?.activity?.("checkpoint:path-scan-unavailable"); }
+          }
+          if (canSliceExploratoryCheckpoint(changedPaths, diagnosticPaths,
+            this.cfg.spec.supervision?.checkpointCadence, !!t.state.feedbackHash, !!t.state.lastJobReceipt)) {
+            // Advisory skip: do not spend a tool call or attach a PASS receipt.
+            // Persist the evaluated input key so restart cannot loop on it.
+            t.state.lastExploratoryCheckpointKey = checkpointKey;
+            this.journal.checkpoint(t, "checkpoint.sliced", {
+              check: profile.checks[0], patchHash: t.state.patchHash,
+              pathsHash: digest(changedPaths), pathCount: changedPaths!.length,
+            });
+            control?.activity?.("checkpoint:sliced");
+          } else {
           // Safe tool boundary: do not interrupt a healthy remote experiment.
           if (t.state.toolCalls >= budget.maxToolCalls) throw new FatalAttemptError("THREAD_TOOL_BUDGET_EXHAUSTED");
           t.state.toolCalls++;
@@ -321,11 +338,21 @@ export class SwarmDriver implements Driver {
           control?.checked?.();
           t.state.history.push({ role: "user", content: canonical({ checkpointCheck: inlineReceipt(receipt, check), instruction: "Use this diagnostic to choose a smaller next step. This is not final acceptance." }) });
           this.journal.checkpoint(t, "checkpoint.checked", { receipt, patchHash: t.state.patchHash });
+          }
         }
         if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
         this.journal.checkpoint(t, "model.intent", { step: t.state.turns });
         control?.activity?.("model:request");
-        const next = await this.brain.next(c, profile, t.state.history, budget, limit, signal, t.state.turns, t.state.progress ?? null);
+        // The private workspace is required by the first tool (or final patch
+        // snapshot). Prepare it while the external model is thinking, without
+        // predicting tool arguments or moving side effects across barriers.
+        // Drain *both* operations even on failure before disposing the worktree.
+        const prewarm = hands.warmup?.() ?? Promise.resolve();
+        const model = this.brain.next(c, profile, t.state.history, budget, limit, signal, t.state.turns, t.state.progress ?? null);
+        const [modelResult, prewarmResult] = await Promise.allSettled([model, prewarm]);
+        if (modelResult.status === "rejected") throw modelResult.reason;
+        if (prewarmResult.status === "rejected") throw prewarmResult.reason;
+        const next = modelResult.value;
         t.state.history = [...next.history, admitReply(next.turn.message)]; t.state.turns++;
         this.journal.checkpoint(t, "model.reply", next.turn.message);
         control?.activity?.("model:reply");
