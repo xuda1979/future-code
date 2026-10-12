@@ -86,3 +86,33 @@ test("local workspace prewarm starts before the external model reply, and patche
     const verification = await driver.verify(c, outcome, signal());
     assert.equal(verification.checks.find(c => c.id === "behavior")?.verdict, "PASS");
   }));
+
+
+test("actual checkpoint slicing records a skip but cannot bypass independent task acceptance", async () =>
+  fixture(async (store, cfg) => {
+    const scheduler = new Scheduler(store), run = scheduler.start([task("b")]);
+    const lease = scheduler.claim(run, "worker")!, c = scheduler.capsule(lease);
+    const { fetcher, bodies } = scripted([
+      async () => {
+        // Ensure the checkpoint interval has elapsed after this reply.
+        await new Promise(resolve => setTimeout(resolve, 15));
+        return reply("edit", [{ name: "write_file", arguments: { path: "src/b.txt", content: "42\\n" } }]);
+      },
+      () => reply("done"),
+    ]);
+    const driver = new SwarmDriver(store, cfg, fetcher);
+    const result = await driver.execute(c, signal());
+    assert.equal(bodies.length, 2);
+    const slices = store.events(0, 1000).filter(row => row.kind === "checkpoint.sliced");
+    assert.ok(slices.length >= 1, "the production checkpoint path must use the changed-path evidence");
+    const details = JSON.parse(slices[0]!.payload);
+    assert.equal(details.check, "behavior");
+    assert.equal(details.pathCount, 1);
+    assert.equal(details.patchHash, (result.artifact as any).patchHash);
+    // The explicit, independently reconstructed task acceptance must still fail.
+    const verification = await driver.verify(c, result, signal());
+    assert.equal(verification.checks.find(row => row.id === "behavior")?.verdict, "FAIL");
+  }, s => {
+    s.supervision = { reportEveryMs: 1000, checkpointEveryMs: 1, checkpointCadence: "on-change" };
+    s.checks.behavior.diagnosticPaths = ["src/a.txt"];
+  }));
