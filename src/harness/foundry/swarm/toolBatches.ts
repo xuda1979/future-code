@@ -9,6 +9,7 @@ import type { PinnedSwarm } from "./config.ts";
 import type { SessionJournal, Thread } from "./session.ts";
 import { toolEffectContract } from "./toolEffects.ts";
 import type { Hands, WorkspaceBatchResult } from "./workspace.ts";
+import { recordDiagnostic } from "./diagnostics.ts";
 
 export interface ToolBatch {
   kind: "read" | "workspace-write" | "run_job";
@@ -56,6 +57,7 @@ interface BatchExecution {
 export async function executeToolBatch(o: BatchExecution): Promise<void> {
   const { batch, thread: t, journal, cfg, signal, control } = o;
   const c = t.capsule, started = performance.now();
+  const beforePatch = t.state.patchHash;
   const carried = (t.state.pendingBatch ?? []).filter(id => !batch.calls.some(call => call.id === id));
   const charged = new Set(t.state.pendingBatch ?? []);
   if (t.state.pending) charged.add(t.state.pending.id);
@@ -157,6 +159,9 @@ export async function executeToolBatch(o: BatchExecution): Promise<void> {
   const deferred: DeferredAttemptError[] = [], stillPending: string[] = [];
   let terminal: Error | null = null;
   const receipts: Json[] = [];
+  const diagnosticBatch = { kind: batch.kind, calls: batch.calls.map(call => ({
+    tool: call.name, arguments: call.arguments, admitted: !rejected.has(call.id),
+  })) };
   for (let i = 0; i < results.length; i++) {
     const call = batch.calls[i]!, outcome = results[i]!;
     if (!outcome) { stillPending.push(call.id); continue; }
@@ -169,8 +174,9 @@ export async function executeToolBatch(o: BatchExecution): Promise<void> {
     } else result = outcome.value;
     const receipt = journal.receipt(c, result);
     if (batch.kind === "run_job" && outcome.status === "fulfilled") t.state.lastJobReceipt = receipt;
+    const diagnostic = recordDiagnostic(t, journal, cfg, call, result, receipt, beforePatch, !rejected.has(call.id), diagnosticBatch);
     t.state.history.push({ role: "tool", callId: call.id, receipt, content: inlineReceipt(receipt, result) });
-    receipts.push({ callId: call.id, receipt });
+    receipts.push({ callId: call.id, receipt, ...(diagnostic ? { fixture: diagnostic.fixture } : {}) });
   }
   if (carried.length || stillPending.length) t.state.pendingBatch = [...carried, ...stillPending];
   else delete t.state.pendingBatch;

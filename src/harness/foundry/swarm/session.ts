@@ -9,6 +9,7 @@ import type { SwarmBudget } from "./config.ts";
 import { ProviderRecovery } from "./providerRecovery.ts";
 import { installRequestAccounting, objectiveRequestTotals, runRequestTotals } from "./requestAccounting.ts";
 import { performance } from "node:perf_hooks";
+import type { DiagnosticMemory } from "./diagnostics.ts";
 
 export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
 export interface ThreadState {
@@ -16,9 +17,12 @@ export interface ThreadState {
   lastCheckAt?: number;
   lastExploratoryCheckpointKey?: string;
   lastJobReceipt?: string;
+  lastSpawnReceipt?: string;
   recoveryNote?: string;
   history: Message[];
   progress?: ProgressCheckpoint;
+  /** Host-measured bounded failure descriptors; full fixtures stay in receipts. */
+  diagnostics?: DiagnosticMemory;
   turns: number;
   toolCalls: number;
   patchHash: string | null;

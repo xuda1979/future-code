@@ -47,6 +47,12 @@ A failed check is never cached as success; tool/replay limits remain intact.
 This is operator-maintained **path-level diagnostic slicing**, **not** AST
 reachability, transitive soundness, or a substitute for full verification.
 
+Completed checkpoint failures also feed [durable diagnostic memory and optional
+early trajectory pruning](DURABLE_DIAGNOSTICS.md). A per-check
+`maxUnchangedFailures` limit applies only to operator-declared deterministic
+diagnostics; pending operations, unknown outcomes and mandatory acceptance
+retain their existing contracts.
+
 ## Choosing impact paths
 
 Only set `diagnosticPaths` when a project maintainer can bound its relevant

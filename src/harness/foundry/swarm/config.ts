@@ -41,6 +41,10 @@ export interface CheckSpec extends CommandSpec {
   /** Operator-asserted file/directory prefixes for *automatic exploratory*
    * checkpoints only. Never filters explicit checks or independent verification. */
   diagnosticPaths?: string[];
+  /** Opt-in operator assertion: this diagnostic is deterministic on the pinned
+   * source and completed job/feedback evidence. Repeated identical nonzero
+   * outcomes may end the current trajectory; acceptance checks still run. */
+  maxUnchangedFailures?: number;
 }
 export interface ExecutionWorker {
   /** Trusted coordinator-side adapter. It may wrap SSH/Kubernetes/etc. */
@@ -171,10 +175,13 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   invariant(s.checks && typeof s.checks === "object" && !Array.isArray(s.checks), "invalid checks");
   const checks = Object.keys(s.checks); positive(checks.length, 128, "check count");
   for (const [id, check] of Object.entries(s.checks)) {
-    identifier(id); keys(check, ["argv", "replaySafe"], ["files", "envAllow", "parallelSafe", "diagnosticPaths"]);
+    identifier(id); keys(check, ["argv", "replaySafe"], ["files", "envAllow", "parallelSafe", "diagnosticPaths", "maxUnchangedFailures"]);
     invariant(typeof check.replaySafe === "boolean", "explicit replaySafe required");
     invariant(check.parallelSafe === undefined || typeof check.parallelSafe === "boolean", "invalid parallelSafe");
     invariant(!check.parallelSafe || check.replaySafe, "parallelSafe checks must be replay-safe");
+    invariant(check.maxUnchangedFailures === undefined || (Number.isSafeInteger(check.maxUnchangedFailures) &&
+      check.maxUnchangedFailures >= 2 && check.maxUnchangedFailures <= 16 && check.replaySafe),
+      "invalid unchanged failure limit (2..16, replay-safe deterministic diagnostic required)");
     if (check.diagnosticPaths !== undefined) {
       invariant(Array.isArray(check.diagnosticPaths) && check.diagnosticPaths.length > 0 &&
         check.diagnosticPaths.length <= 128 && new Set(check.diagnosticPaths).size === check.diagnosticPaths.length,

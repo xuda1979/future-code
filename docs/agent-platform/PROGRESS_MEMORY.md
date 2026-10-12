@@ -16,6 +16,13 @@ When the provider's encoded request exceeds its admitted context, context retire
 
 Exact per-message JSON byte accounting makes suffix selection linear in the number of messages (the previous implementation serialized every candidate suffix). This reduces local context-preparation CPU work asymptotically; actual wall-time, tokens per verified objective, and model accuracy still require matched live experiments. Nothing in this change controls opaque provider KV caches.
 
+[Durable host diagnostics](DURABLE_DIAGNOSTICS.md) now preserve bounded observed
+tool/check/verifier failures alongside this optional note. The retirement notice
+prioritizes host failure references under a tight budget, labels stale inputs,
+and remains present across repeated retirement. Full regression-fixture receipts
+stay in the same session store. Operator-pinned deterministic checks can also
+end an unchanged failing trajectory early and feed objective recovery.
+
 ## Independent verification
 
 The source-level regression suite is `tests/foundry/progress-memory.test.ts` and is discovered by `node scripts/test-swarm.mjs`. It covers long histories, exact UTF-8 budget, atomic tool exchanges, journal reopen, receipt ownership, and insufficient-space fallback. Run the full Foundry/Swarm checks before merging.

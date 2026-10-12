@@ -1,5 +1,6 @@
 import { canonical, invariant } from "../kernel.ts";
 import type { Json } from "../types.ts";
+import type { DiagnosticContext } from "./diagnostics.ts";
 export interface Call { id: string; name: string; arguments: Record<string, Json> }
 export interface Message { role: "user" | "assistant" | "tool"; content: string; calls?: Call[]; callId?: string;
   /** Host-owned receipt; never accepted from an external model response. */
@@ -18,27 +19,40 @@ export interface ProgressCheckpoint {
 
 const NOTICE_MARKER = "[future-code:retired-context-v2]";
 const LEGACY_NOTICE = "Older complete exchanges are in the durable journal. Use recall with historyAfter=0 and a page limit to retrieve them; do not invent their contents.";
-function retirementNotice(progress: ProgressCheckpoint | null): Message {
+function retirementNotice(progress: ProgressCheckpoint | null, diagnostics: DiagnosticContext | null = null): Message {
   return { role: "user", content: NOTICE_MARKER + canonical({
     instruction: LEGACY_NOTICE,
     ...(progress ? { workingMemory: { trust: "UNVERIFIED_AGENT_NOTE_NOT_ACCEPTANCE",
       summary: progress.summary, nextAction: progress.nextAction, receipts: progress.receipts,
       patchHashAtNote: progress.patchHash, turn: progress.atTurn } } : {}),
+    ...(diagnostics ? { hostDiagnostics: diagnostics } : {}),
   }) };
+}
+
+/** Refresh a previously projected host notice even when the request still fits.
+ * Otherwise a new patch could keep an old failure labelled current until the
+ * next overflow. Legacy notices are untouched unless host diagnostics exist,
+ * preserving the input hash of durable replies from pre-diagnostic sessions. */
+export function refreshDiagnosticNotice(history: Message[], progress: ProgressCheckpoint | null,
+  diagnostics: DiagnosticContext | null): Message[] {
+  return history.map(m => m.role === "user" && (m.content.startsWith(NOTICE_MARKER) || m.content === LEGACY_NOTICE) &&
+    (diagnostics || m.content.includes('"hostDiagnostics":')) ? retirementNotice(progress, diagnostics) : m);
 }
 
 /** Exact JSON byte accounting lets us keep the longest recent suffix in O(n)
  * rather than repeatedly serializing progressively shorter histories (O(n^2)).
  * Never cut a tool-result pair, drop the immutable first message or forge PASS.
  * The optional note is replaced with the generic journal pointer when tight. */
-export function compactHistory(history: Message[], budget: number, progress: ProgressCheckpoint | null = null): Message[] {
+export function compactHistory(history: Message[], budget: number, progress: ProgressCheckpoint | null = null,
+  diagnostics: DiagnosticContext | null = null): Message[] {
   invariant(Number.isSafeInteger(budget) && budget >= 0, "invalid context budget");
   invariant(history.length > 0 && history[0].role === "user", "missing mandatory task message");
   const mandatory = history[0];
   invariant(bytes([mandatory]) <= budget, "CONTEXT_OVERFLOW: mandatory task exceeds budget");
-  const clean = [mandatory, ...history.slice(1).filter(m =>
-    !(m.role === "user" && (m.content.startsWith(NOTICE_MARKER) || m.content === LEGACY_NOTICE)))];
-  if (bytes(clean) <= budget) return clean;
+  const isNotice = (m: Message) => m.role === "user" && (m.content.startsWith(NOTICE_MARKER) || m.content === LEGACY_NOTICE);
+  const alreadyRetired = history.slice(1).some(isNotice);
+  const clean = [mandatory, ...history.slice(1).filter(m => !isNotice(m))];
+  if (!alreadyRetired && bytes(clean) <= budget) return clean;
 
   const groups: Message[][] = [];
   for (const message of clean.slice(1)) {
@@ -67,12 +81,17 @@ export function compactHistory(history: Message[], budget: number, progress: Pro
     }
     return best;
   }
-  let notice = retirementNotice(progress);
+  let notice = retirementNotice(progress, diagnostics);
   let start = select(notice);
   if (start < 0 && progress) {
-    notice = retirementNotice(null);
+    notice = retirementNotice(null, diagnostics);
     start = select(notice);
   }
+  if (start < 0 && diagnostics && diagnostics.failures.length > 1) {
+    notice = retirementNotice(null, { ...diagnostics, failures: diagnostics.failures.slice(0, 1) });
+    start = select(notice);
+  }
+  if (start < 0 && diagnostics) { notice = retirementNotice(null); start = select(notice); }
   invariant(start >= 0, "CONTEXT_OVERFLOW: latest complete exchange cannot fit; split the task or admit more context");
   return [mandatory, notice, ...groups.slice(start).flat()];
 }

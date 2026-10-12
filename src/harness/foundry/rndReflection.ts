@@ -101,9 +101,15 @@ function summaryForRun(store: Store, run: string): Record<string, any> {
   const maxContextBytes = attempts.reduce((max, row) => Math.max(max, Number(row.context_bytes ?? 0)), 0);
   const contextPressure = recipe.contextBytes > 0 ? maxContextBytes / recipe.contextBytes : 0;
   const contextLimits = new Map<string, number>();
+  let retainedFailures = 0, prunedTrajectories = 0, maxUnchangedFailureRepeats = 0;
   if (tableExists(store, "agent_threads")) for (const row of store.db.prepare("SELECT task,state FROM agent_threads WHERE run=?").all(run)) {
     const state = store.readArtifact(String(row.state)) as any;
     if (Number.isSafeInteger(state.contextLimit) && state.contextLimit > 0) contextLimits.set(String(row.task), state.contextLimit);
+    const diagnostics = state.diagnostics;
+    retainedFailures += diagnostics?.failures?.length ?? 0;
+    if (diagnostics?.pruned) prunedTrajectories++;
+    for (const failure of diagnostics?.failures ?? [])
+      if (failure.eligible) maxUnchangedFailureRepeats = Math.max(maxUnchangedFailureRepeats, failure.repeats);
   }
   const providerContextPressure = requests.reduce((max, row) => Math.max(max,
     Number(row.bytes) / (contextLimits.get(String(row.task)) ?? recipe.contextBytes)), 0);
@@ -129,6 +135,7 @@ function summaryForRun(store: Store, run: string): Record<string, any> {
     maxContextBytes, contextBudgetBytes: recipe.contextBytes, contextPressure, providerContextPressure,
     execution: measuredExecution,
     maxRepeatedFailure, repeatedFailureTasks,
+    diagnostics: { retainedFailures, prunedTrajectories, maxUnchangedFailureRepeats },
     verifiedFraction: tasks.length ? verifiedTasks / tasks.length : 0,
     verifiedPerAttempt: safeRatio(verifiedTasks, attempts.length),
     verifiedPerRequest: safeRatio(verifiedTasks, requests.length),
@@ -143,6 +150,10 @@ function finding(code: string, severity: ReflectionSeverity, evidence: Json, rec
 
 function findingsFor(summary: Record<string, any>, previous: Record<string, any> | null, replans: number): ReflectionFinding[] {
   const out: ReflectionFinding[] = [];
+  if (summary.diagnostics.prunedTrajectories > 0) out.push(finding(
+    "stagnant_diagnostic_pruned", "HIGH", json(summary.diagnostics),
+    "An operator-pinned deterministic check repeatedly failed on identical source and evidence. Use the host diagnostic digest and available regression fixtures to change the causal implementation or task decomposition, preserving independent acceptance. Do not restart the unchanged trajectory.",
+  ));
   if (summary.maxRepeatedFailure >= 2) out.push(finding(
     "repeated_failure_loop", summary.maxRepeatedFailure >= 3 ? "HIGH" : "MEDIUM",
     json({ maxRepeatedFailure: summary.maxRepeatedFailure, affectedTasks: summary.repeatedFailureTasks }),
