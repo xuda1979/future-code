@@ -167,6 +167,13 @@ mail, deploy code, mutate external databases, or perform other unreconciled
 external side effects. Code changes may include feature tests; frozen external
 oracles still decide acceptance and must not be weakened to get a PASS.
 
+Long independent checks may opt into bounded worktree isolation with
+`verification: { "parallelism": 4 }` and per-check `parallelSafe: true`.
+Missing policy, width one and a single check preserve the serial path. Checks
+with generated prerequisites remain ordered. New thread prompts pin permitted
+check names alongside task acceptance. See the [verification pipeline](VERIFICATION_PIPELINE.md)
+for configuration, resource limits, failure behavior and the review decisions.
+
 ## 5. State, recovery and context
 
 The existing Foundry SQLite database and content-addressed artifact store are

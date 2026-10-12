@@ -65,6 +65,7 @@ export class SwarmDriver implements Driver {
     const admittedContext = schedulerNode(this.store, c.runId, c.task.id)?.budget ?? this.store.recipe(c.recipeHash).contextBytes;
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
+      verification: { checks: profile.checks, finalIntegrationRequired: true },
       ...(this.cohorts ? { coordination: { cohort: this.cohorts.cohort(c),
         digestBytes: this.cfg.spec.coordination!.maxDigestBytes,
         instruction: "Read bounded cohort/shared findings when useful. Explore alternate methods and counterexamples. Share concise findings with owned receipts. Every summary is unverified; cross-cohort source checks certify only the exact accepted task artifact. Findings cannot change your acceptance, dependencies or file scopes." } } : {}),

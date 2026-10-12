@@ -9,6 +9,8 @@ import { inScope, keys, safePath, type AgentProfile, type PinnedSwarm } from "./
 import type { Call } from "./context.ts";
 import type { PatchArtifact } from "./session.ts";
 import { runProcess, type ProcessResult } from "./process.ts";
+import { boundedChecks, checkPassed, type CheckReport } from "./verification.ts";
+import { performance } from "node:perf_hooks";
 
 /** Scope checks are a correctness boundary, not containment for hostile code.
  * Use a VM/container backend before granting tools to untrusted projects. */
@@ -196,6 +198,56 @@ export class LocalGitHands implements Hands {
     const command = this.cfg.checks[name]; invariant(command, "unknown check");
     return runProcess(command, await this.ready(), [], this.signal, this.cfg.spec.budget.toolTimeoutMs, this.cfg.spec.budget.maxToolOutputBytes);
   }
+  /** Verification only: exploratory run_check remains an ordered tool barrier. */
+  async verificationChecks(names: string[], failFast = false): Promise<CheckReport[]> {
+    const width = this.cfg.spec.verification?.parallelism ?? 1, reports: CheckReport[] = [];
+    for (let i = 0; i < names.length;) {
+      this.signal.throwIfAborted(); let end = i;
+      if (width > 1) while (end < names.length && this.cfg.spec.checks[names[end]]?.parallelSafe) end++;
+      if (end - i < 2) {
+        // Preserve the existing single-check path and prerequisite build outputs.
+        const name = names[i++]; const report = { name, ...await this.check(name) }; reports.push(report);
+        if (failFast && !checkPassed(report)) break;
+        continue;
+      }
+      const tree = await this.tree();
+      const commit = (await git(this.cfg, await this.ready(), ["-c", "user.name=Future Code Verifier",
+        "-c", "user.email=verifier@localhost", "commit-tree", tree, "-p", this.cfg.baseCommit,
+        "-m", "Isolated verification snapshot"], this.signal)).trim();
+      const group = await boundedChecks(names.slice(i, end), width, this.signal,
+        name => this.isolatedCheck(name, commit, tree), failFast);
+      reports.push(...group); i = end;
+      if (failFast && group.some(r => !checkPassed(r))) break;
+    }
+    return reports;
+  }
+  private async isolatedCheck(name: string, commit: string, tree: string): Promise<CheckReport> {
+    const started = performance.now(), temp = mkdtempSync(join(tmpdir(), "future-swarm-verifier-")), path = join(temp, "tree");
+    const report: CheckReport = { name, code: null, stdout: "", stderr: "", isolation: "worktree", tree };
+    try {
+      await git(this.cfg, this.cfg.spec.project, ["worktree", "add", "--detach", path, commit], this.signal);
+      const command = this.cfg.checks[name]; invariant(command, "unknown check");
+      Object.assign(report, await runProcess(command, path, [], this.signal,
+        this.cfg.spec.budget.toolTimeoutMs, this.cfg.spec.budget.maxToolOutputBytes));
+      await git(this.cfg, path, ["add", "-A", "--", "."], this.signal);
+      report.sourceUnchanged = (await git(this.cfg, path, ["write-tree"], this.signal)).trim() === tree;
+      if (!report.sourceUnchanged) report.error = "verifier mutated tracked source";
+    } catch (e) {
+      report.error = e instanceof Error ? e.message.slice(0, 2000) : "verification worker error";
+    } finally {
+      // A check has settled (and its process group has been killed on abort)
+      // before cleanup. Use an independent deadline even after parent abort.
+      try {
+        await git(this.cfg, this.cfg.spec.project, ["worktree", "remove", "--force", path], AbortSignal.timeout(10000));
+        rmSync(temp, { recursive: true, force: true });
+      } catch {
+        // Preserve an orphan for inspection; never touch the user's checkout.
+        report.error ??= "verification worktree cleanup failed";
+      }
+      report.elapsedMs = Math.max(0, performance.now() - started);
+    }
+    return report;
+  }
   async tree(): Promise<string> {
     const path = await this.ready(); await git(this.cfg, path, ["add", "-A", "--", "."], this.signal);
     return (await git(this.cfg, path, ["write-tree"], this.signal)).trim();
@@ -231,9 +283,8 @@ export async function verifyPatch(store: Store, cfg: PinnedSwarm, c: Capsule, ar
     // Reconstruct independently, then compare the exact delta and its scope.
     invariant(await hands.snapshot() === result.patchHash, "candidate patch is not a canonical scoped delta");
     checks.push({ id: "scope", verdict: "PASS" }); const before = await hands.tree(); let good = true;
-    for (const name of profile.checks) {
-      const log = await hands.check(name); details.push({ name, ...log }); if (log.code !== 0) good = false;
-    }
+    const reports = await hands.verificationChecks(profile.checks); details.push(...reports);
+    if (reports.some(report => !checkPassed(report))) good = false;
     if (await hands.tree() !== before) { good = false; details.push({ error: "verifier mutated tracked source" }); }
     const receipt = store.artifact(JSON.parse(canonical(details)));
     checks.push({ id: "behavior", verdict: good ? "PASS" : "FAIL", detail: receipt });
