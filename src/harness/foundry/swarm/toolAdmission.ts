@@ -47,5 +47,6 @@ export function validateToolProposal(c: Capsule, cfg: PinnedSwarm, profile: Agen
     if (write) invariant(!inScope(path, cfg.spec.protectedPaths), "protected tool path");
   }
   if (call.name === "run_check") invariant(profile.checks.includes(call.arguments.name as string), "check not permitted");
+  if (call.name === "run_probe") invariant(profile.probes?.includes(call.arguments.name as string), "probe not permitted");
   if (call.name === "run_job") invariant(profile.jobs?.includes(call.arguments.name as string), "job not permitted");
 }

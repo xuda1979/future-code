@@ -48,10 +48,12 @@ const fixed: Partial<Record<ToolName, ToolEffectContract>> = {
 };
 
 export function toolEffectContract(cfg: PinnedSwarm, tool: ToolName, args: Json): ToolEffectContract {
-  if (tool === "run_check") {
+  if (tool === "run_check" || tool === "run_probe") {
     const name = (args as any)?.name;
     invariant(typeof name === "string" && cfg.spec.checks[name], "unknown check capability");
     const replaySafe = cfg.spec.checks[name].replaySafe;
+    if (tool === "run_probe") invariant(replaySafe && cfg.spec.checks[name].probeTimeoutMs !== undefined,
+      "micro-probe needs a pinned replay-safe deadline");
     return {
       tool, effect: "check", replay: replaySafe ? "safe" : "reconcile",
       idempotency: replaySafe ? "call-id" : "none",

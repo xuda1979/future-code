@@ -5,6 +5,7 @@ import { fabricStatus } from "./evidenceFabric.ts";
 import { providerRecoveryStatus, type ProviderCircuit } from "./swarm/providerRecovery.ts";
 import { executionProfile } from "./executionProfile.ts";
 import { runRequestTotals } from "./swarm/requestAccounting.ts";
+import type { TriageCard } from "./swarm/debugging.ts";
 
 export interface HealthReport {
   runId: string; at: number; status: string; elapsedMs: number;
@@ -26,6 +27,7 @@ export interface HealthReport {
     wakeAt: number | null; reason: string | null }[];
   truncated: boolean;
   productivity: ReturnType<typeof executionProfile>;
+  triage?: { task: string; card: TriageCard }[];
 }
 export type HealthObserver = (report: HealthReport) => void;
 
@@ -89,12 +91,17 @@ export function runHealth(store: Store, runId: string, now = Date.now()): Health
     indexedVersion: scheduler?.sourceVersion ?? null,
     unattestedTerminalJobs: remoteJobs?.unattestedTerminal ?? 0,
   };
+  const triage = store.db.prepare("SELECT 1 FROM sqlite_master WHERE name='agent_triage' AND type='table'").get()
+    ? store.db.prepare(`SELECT x.task,x.card FROM agent_triage x JOIN tasks t ON x.run=t.run AND x.task=t.id
+        WHERE x.run=? AND t.status<>'PASS' ORDER BY x.task LIMIT 8`).all(runId)
+      .map(row => ({ task: String(row.task), card: JSON.parse(String(row.card)) as TriageCard })) : [];
   return { runId, at: now, status: run.status, elapsedMs: Math.max(0, now - run.started), counts, waiting,
     scheduler, provider, remoteJobs, fabric, integrity,
     tasks: rows.slice(0, 100).map(r => ({ id: r.id, status: r.status, stage: r.kind ?? r.stage ?? "queued",
       activityAgeMs: age(r.activity_at), progressAgeMs: age(r.progress_at), checkAgeMs: age(r.check_at),
       deadline: r.deadline ?? null, wakeAt: r.wake ?? null, reason: r.reason ?? r.error ?? null })),
-    truncated: rows.length > 100, productivity: executionProfile(store, runId, now) };
+    truncated: rows.length > 100, productivity: executionProfile(store, runId, now),
+    ...(triage.length ? { triage } : {}) };
 }
 
 export function formatHealth(r: HealthReport): string {
@@ -112,6 +119,7 @@ export function formatHealth(r: HealthReport): string {
     (p.provider?.admissionWaitMs == null ? "" : ` | provider queue ms=${Math.round(p.provider.admissionWaitMs)}`);
   return [head, `${queue} | ${provider} | ${jobs}`, `${fabric} | ${integrity}`,
     measured,
+    ...(r.triage ?? []).map(t => `TRIAGE ${t.task}: ${t.card.cycles} failing cycles (${t.card.pattern}) in ${t.card.check}. ${t.card.question}`),
     ...r.tasks.slice(0, 8).map(t => `${t.id}: ${t.stage}; activity=${age(t.activityAgeMs)} progress=${age(t.progressAgeMs)} check=${age(t.checkAgeMs)}${t.reason ? `; ${t.reason}` : ""}`),
     ...(r.tasks.length > 8 || r.truncated ? ["More tasks are available through /swarm status."] : [])].join("\n");
 }

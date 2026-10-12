@@ -196,6 +196,14 @@ export class LocalGitHands implements Hands {
         keys(a, ["name"]); invariant(typeof a.name === "string" && this.profile.checks.includes(a.name), "check not permitted");
         return JSON.parse(canonical(await this.check(a.name)));
       }
+      case "run_probe": {
+        keys(a, ["name", "hypothesis", "falsifyWhen", "negativeControl"]);
+        invariant(typeof a.name === "string" && this.profile.probes?.includes(a.name), "probe not permitted");
+        const timeout = this.cfg.spec.checks[a.name]?.probeTimeoutMs;
+        invariant(timeout !== undefined && timeout <= 2000, "probe deadline missing");
+        return JSON.parse(canonical(await runProcess(this.cfg.checks[a.name], await this.ready(), [], this.signal,
+          Math.min(timeout, this.cfg.spec.budget.toolTimeoutMs), this.cfg.spec.budget.maxToolOutputBytes)));
+      }
       default: throw new Error("unknown filesystem tool");
     }
   }
