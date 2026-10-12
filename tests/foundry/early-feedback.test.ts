@@ -103,9 +103,11 @@ test("actual checkpoint slicing records a skip but cannot bypass independent tas
     const driver = new SwarmDriver(store, cfg, fetcher);
     const result = await driver.execute(c, signal());
     assert.equal(bodies.length, 2);
-    const slices = store.events(0, 1000).filter(row => row.kind === "checkpoint.sliced");
+    const slices = store.db.prepare(
+      "SELECT payload FROM agent_events WHERE run=? AND task=? AND kind='checkpoint.sliced' ORDER BY seq",
+    ).all(c.runId, c.task.id);
     assert.ok(slices.length >= 1, "the production checkpoint path must use the changed-path evidence");
-    const details = slices[0]!.payload as any;
+    const details = store.readArtifact(slices[0]!.payload as string) as any;
     assert.equal(details.check, "behavior");
     assert.equal(details.pathCount, 1);
     assert.equal(details.patchHash, (result.artifact as any).patchHash);
