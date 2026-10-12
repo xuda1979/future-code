@@ -257,17 +257,21 @@ test("config mutations cannot replace the immutable verifier", async () => fixtu
   s.setMeta("extension.swarm", cfg); assert.throws(() => loadSwarm(s));
 }));
 
-test("native slash commands are registered and delegate to the same host facade", async () => {
-  const { default: command, swarmPlan } = await import("../../src/commands/swarm/index.ts");
-  assert.equal(command.disableModelInvocation, true); assert.equal(command.name, "swarm");
-  const impl = await command.load();
-  const result = await impl.call("help", { abortController: new AbortController() } as any);
-  assert.equal(result.type, "text"); assert.match((result as any).value, /Foundry Swarm/);
-  const prompt = await swarmPlan.getPromptForCommand("change API safely", {} as any);
-  assert.match((prompt[0] as any).text, /change API safely/); assert.match((prompt[0] as any).text, /no recursive delegation/i);
-  const registry = readFileSync(new URL("../../src/commands.ts", import.meta.url), "utf8");
-  assert.match(registry, /import swarm, \{ swarmPlan \}/);
-  assert.match(registry, /const COMMANDS[\s\S]*?\n  swarm,\n  swarmPlan,/);
+test("commercial entrypoint and backend expose the scoped host facade without legacy slash commands", async () => {
+  const { command } = await import("../../src/commercial/app.mjs");
+  const help = await command(["help"]);
+  assert.match(help, /Future-Code Commercial/);
+  assert.match(help, /license activate/);
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const profileDir = mkdtempSync(join(tmpdir(), "commercial-profiles-"));
+  try {
+    const empty = await command(["provider", "list", "--state-dir", profileDir]);
+    assert.ok(Array.isArray(empty)); assert.equal(empty.length, 0);
+  } finally { rmSync(profileDir, {recursive:true,force:true}); }
+  const { handleSwarm } = await import("../../src/harness/foundry/swarm/cli.ts");
+  const backend = await handleSwarm(["help"]);
+  assert.match(backend.help, /Foundry Swarm/);
 });
 
 test("late model spend is recorded but cannot publish a reply under a replacement fence", async () => fixture(async (s, cfg) => {
@@ -335,11 +339,17 @@ test("per-task passing patches may still conflict; integration fails without pub
   assert.equal(execFileSync("git", ["-C", project, "for-each-ref", "refs/heads/swarm"], { encoding: "utf8" }), "");
 }, s => { s.checks.behavior.argv = [process.execPath, "-e", "if(!['1','2'].includes(require('node:fs').readFileSync('src/a.txt','utf8').trim()))process.exit(1)"]; }));
 
-test("example spec is valid but does not silently choose an operator's model", () => {
+test("example spec contains no provider URL or key; commercial wizard binds a valid provider", async () => {
   const sample = JSON.parse(readFileSync(new URL("../../examples/swarm/spec.json", import.meta.url), "utf8"));
-  validateSwarmSpec(sample);
-  assert.equal(sample.agents.coder.model, "YOUR_DEPLOYED_MODEL_ID");
+  assert.equal(sample.agents.coder.url, "CONFIGURED_BY_PROVIDER_WIZARD");
+  assert.equal(sample.agents.coder.model, "CONFIGURED_BY_PROVIDER_WIZARD");
   assert.equal(sample.checks.behavior.argv[0], "$NODE");
+  assert.throws(() => validateSwarmSpec(sample), /Invalid URL/);
+  const { bindProfile } = await import("../../src/commercial/providers.mjs");
+  const p = { id: "fixture", protocol: "chat-completions", url: "http://127.0.0.1:1/v1/chat/completions",
+    model: "fixture-model", auth: {scheme: "none", header: "authorization"}, secretMode: "none" };
+  const configured = { ...sample, agents: { coder: bindProfile(p, sample.agents.coder) } };
+  assert.doesNotThrow(() => validateSwarmSpec(configured));
 });
 test("execution backends must match the pinned identity", async () => fixture(async (s, cfg) => {
   const backend = { id: "unapproved", open() { throw new Error("must not execute"); }, async verify() { throw new Error("must not verify"); } };
