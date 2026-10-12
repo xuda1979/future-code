@@ -261,7 +261,7 @@ export class LocalGitHands implements Hands {
   async changedPaths(): Promise<string[]> {
     const path = await this.ready(); await this.tree();
     const names = (await git(this.cfg, path, ["diff", "--cached", "--no-renames", "--name-only", "-z", this.baseTree!], this.signal))
-      .split("\\0").filter(Boolean);
+      .split("\0").filter(Boolean);
     for (const name of names) safePath(name);
     return names;
   }
