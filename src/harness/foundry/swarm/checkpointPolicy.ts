@@ -8,6 +8,9 @@ export function threadInputKey(state: ThreadState): string {
   return digest({ patchHash: state.patchHash ?? emptyPatch, feedbackHash: state.feedbackHash,
     jobReceipt: state.lastJobReceipt ?? null, spawnReceipt: state.lastSpawnReceipt ?? null });
 }
+export const evaluationEvidenceKey = (s: ThreadState): string => digest({
+  feedback: s.feedbackHash, job: s.lastJobReceipt ?? null, children: s.lastSpawnReceipt ?? null,
+});
 
 /** Advisory, exploratory work only. Does not bypass host acceptance or integration. */
 export function checkpointInputKey(patchHash: string | null, feedbackRevision: number, evidenceHash?: string): string {

@@ -1,6 +1,6 @@
 import { DeferredAttemptError, PersistedDeferredAttemptError } from "../continuation.ts";
 import { ResearchJobs, type JobRPC } from "./jobs.ts";
-import { canSliceExploratoryCheckpoint, checkpointInputKey, shouldRunExploratoryCheckpoint } from "./checkpointPolicy.ts";
+import { canSliceExploratoryCheckpoint, checkpointInputKey, evaluationEvidenceKey, shouldRunExploratoryCheckpoint } from "./checkpointPolicy.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { schedulerNode } from "../schedulerIndex.ts";
 import { FatalAttemptError } from "../errors.ts";
@@ -23,8 +23,8 @@ import { diagnosticContext, diagnosticInputKey, pruningCandidate, recordDiagnost
 import { failureMemory, progressMemory, readMemory, type MemoryEntry } from "./memory.ts";
 import { admitDebuggingCall, finishInversion, inversionCandidate, prepareInversion } from "./debugging.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
-import { admitJobEvaluation, checkpointReason, evaluationEvidenceKey } from "./evaluation.ts";
-import { researchDecisionGuidance } from "../../researchDecision.ts";
+import { checkpointCheck, checkpointReason } from "./evaluation.ts";
+import { DECISION_GUIDANCE } from "../../decisionGuidance.ts";
 import { admitDecisionCall, decisionContext } from "./decisions.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
@@ -73,25 +73,23 @@ export class SwarmDriver implements Driver {
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
       verification: { checks: profile.checks, finalIntegrationRequired: true },
+      ...(profile.diagnostics ? { exploratoryChecks: profile.diagnostics } : {}),
+      ...(profile.decisionPolicy ? { decisionPolicy: profile.decisionPolicy } : {}),
       ...(this.cfg.spec.supervision ? { automaticEvaluation: {
-        check: profile.checkpointCheck ?? profile.checks[0],
+        check: checkpointCheck({}, profile),
         maxUnmeasuredTurns: this.cfg.spec.supervision.checkpointEveryTurns ?? 4,
         afterEvidence: this.cfg.spec.supervision.checkpointAfterEvidence !== false,
       } } : {}),
-      ...(profile.diagnostics ? { exploratoryChecks: profile.diagnostics } : {}),
-      ...(profile.decisionPolicy ? { decisionPolicy: profile.decisionPolicy } : {}),
+      ...(profile.probes ? { exploratoryProbes: profile.probes.map(name => ({ name,
+        processDeadlineMs: this.cfg.spec.checks[name]!.probeTimeoutMs! })) } : {}),
       ...(profile.jobs?.some(name => this.cfg.spec.jobs?.[name]?.preflightChecks) ? {
         jobPreconditions: Object.fromEntries(profile.jobs.map(name => [name, this.cfg.spec.jobs![name].preflightChecks ?? []])),
       } : {}),
-      ...(profile.probes ? { exploratoryProbes: profile.probes.map(name => ({ name,
-        processDeadlineMs: this.cfg.spec.checks[name]!.probeTimeoutMs! })) } : {}),
-      ...(profile.jobs ? { experimentPreflights: Object.fromEntries(profile.jobs.map(name =>
-        [name, this.cfg.spec.jobs![name]!.preflightChecks ?? []])) } : {}),
       ...(this.cohorts ? { coordination: { cohort: this.cohorts.cohort(c),
         digestBytes: this.cfg.spec.coordination!.maxDigestBytes,
         instruction: "Read bounded cohort/shared findings when useful. Explore alternate methods and counterexamples. Share concise findings with owned receipts. Every summary is unverified; cross-cohort source checks certify only the exact accepted task artifact. Findings cannot change your acceptance, dependencies or file scopes." } } : {}),
       contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. " +
-        researchDecisionGuidance + " " +
+        DECISION_GUIDANCE + " " +
         (profile.jobs ? "New jobs with configured preflight checks require passing run_check receipts on the current source and evidence. Inspect failed checks and repair before submitting; existing job identities always reconcile. " : "") +
         (this.cfg.spec.debugging ? "Host system-state observations outrank prose working hypotheses. Falsify environmental, dependency and interface assumptions with a standalone probe and a negative control before broad edits. A failed probe ends only the current trajectory. " : "") +
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
@@ -163,7 +161,6 @@ export class SwarmDriver implements Driver {
         validateToolProposal(c, this.cfg, profile, value);
         admitDecisionCall(t.state, value);
         admitDebuggingCall(t.state, this.cfg, value);
-        admitJobEvaluation(t.state, this.cfg, value, value.name === "run_job" && !!jobs?.hasSubmission(c, value));
       });
       scheduleDeadline();
       return proposal.id;
@@ -441,8 +438,8 @@ export class SwarmDriver implements Driver {
           this.journal.checkpoint(t, "episode.recovery", { fence: c.fence });
         }
         const reason = checkpointReason(t.state, this.cfg, profile);
-        const checkName = profile.checkpointCheck ?? profile.checks[0]!;
-        const alreadyEvaluated = t.state.evaluations?.[checkName]?.inputKey === diagnosticInputKey(t.state);
+        const checkName = checkpointCheck(t.state, profile);
+        const alreadyEvaluated = t.state.decisions?.measurements[checkName]?.inputKey === diagnosticInputKey(t.state);
         const checkpointKey = checkpointInputKey(t.state.patchHash, t.state.feedbackHash ? 1 : 0,
           evaluationEvidenceKey(t.state));
         if (reason && !t.state.debugging?.probeRequired &&
@@ -455,7 +452,7 @@ export class SwarmDriver implements Driver {
             try { changedPaths = await hands.changedPaths(); }
             catch { control?.activity?.("checkpoint:path-scan-unavailable"); }
           }
-          if (canSliceExploratoryCheckpoint(changedPaths, diagnosticPaths,
+          if (reason !== "measurement-due" && canSliceExploratoryCheckpoint(changedPaths, diagnosticPaths,
             this.cfg.spec.supervision?.checkpointCadence, !!t.state.feedbackHash, !!(t.state.lastJobReceipt || t.state.lastSpawnReceipt))) {
             // Advisory skip: do not spend a tool call or attach a PASS receipt.
             // Persist the evaluated input key so restart cannot loop on it.

@@ -4,8 +4,6 @@ import type { PinnedSwarm } from "./config.ts";
 import type { Call } from "./context.ts";
 import type { SessionJournal, Thread, ThreadState } from "./session.ts";
 import { recordDebugging, systemStateLedger } from "./debugging.ts";
-import { recordEvaluation } from "./evaluation.ts";
-import { threadInputKey } from "./checkpointPolicy.ts";
 import { decisionContext, decisionInputKey, recordDecisionObservation } from "./decisions.ts";
 
 export interface DiagnosticFailure {
@@ -141,7 +139,6 @@ export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: Pinned
   admitted: boolean, batch?: DiagnosticBatch): DiagnosticFailure | null {
   const failure = recordFailure(t, journal, cfg, call, result, receipt, beforePatch, admitted, batch);
   recordDebugging(t.state, cfg, call, result, receipt, beforePatch, admitted, failure);
-  recordEvaluation(t.state, call, result, receipt, beforePatch, admitted);
   recordDecisionObservation(t, cfg, call, result, receipt, beforePatch, admitted);
   return failure;
 }

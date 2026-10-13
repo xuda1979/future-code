@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 // Import the command definitions
 import goal from "../../src/commands/goal/index.ts";
 import { readAutoGoal } from "../../src/commands/goal/auto.ts";
-import { researchDecisionGuidance } from "../../src/harness/researchDecision.ts";
+import { DECISION_GUIDANCE } from "../../src/harness/decisionGuidance.ts";
 import loop from "../../src/commands/loop/index.ts";
 import retry from "../../src/commands/retry/index.ts";
 import save from "../../src/commands/save/index.ts";
@@ -58,7 +58,7 @@ async function invokeCommand(cmd: { getPromptForCommand: (args: string, ...rest:
 
 test('plain /goal is continuous; explicit limits and pause/resume are durable', async () => goalDirectory(async () => {
   const initial = await goal.getPromptForCommand('Build verified research tools');
-  assert.ok(JSON.stringify(initial).includes(researchDecisionGuidance));
+  assert.ok(JSON.stringify(initial).includes(DECISION_GUIDANCE));
   assert.equal(readAutoGoal()?.state, 'ACTIVE');
   assert.equal(readAutoGoal()?.maxContinuations, null);
   await goal.getPromptForCommand('--limit 4 Bounded research');
@@ -66,7 +66,7 @@ test('plain /goal is continuous; explicit limits and pause/resume are durable', 
   await goal.getPromptForCommand('--pause');
   assert.equal(readAutoGoal()?.state, 'PAUSED');
   const resumed = await goal.getPromptForCommand('--resume');
-  assert.ok(JSON.stringify(resumed).includes(researchDecisionGuidance));
+  assert.ok(JSON.stringify(resumed).includes(DECISION_GUIDANCE));
   assert.equal(readAutoGoal()?.maxContinuations, 4);
   assert.equal(readAutoGoal()?.state, 'ACTIVE');
 }));

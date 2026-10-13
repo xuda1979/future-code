@@ -160,3 +160,71 @@ test("a lost model checkpoint after an automatic evaluation replays without anot
   assert.equal(events(s, run, "model.reply").length, 6);
   assert.equal((await next.verify(c, result, signal())).checks.find(r => r.id === "behavior")?.verdict, "PASS");
 }, supervised));
+
+test("automatic evaluation clears a due write policy using its diagnostic and retains transactional preflights", async () => fixture(async (s, cfg) => {
+  const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "worker")!);
+  const current = () => s.readArtifact(s.db.prepare("SELECT state FROM agent_threads WHERE run=?").get(run)!.state) as any;
+  let submissions = 0;
+  const mock = scripted([
+    () => reply("first change", [{ name: "write_file", arguments: { path: "src/a.txt", content: "1\n" } }]),
+    () => reply("second change", [{ name: "write_file", arguments: { path: "src/a.txt", content: "2\n" } }]),
+    () => {
+      const checks = events(s, run, "checkpoint.checked");
+      assert.equal(checks.length, 1); assert.equal(checks[0].check, "evaluate");
+      assert.equal(checks[0].reason, "measurement-due");
+      assert.equal(current().decisions.review, undefined);
+      assert.equal(current().decisions.lastMeasurement.code, 1, "a negative measurement reopens the repair path");
+      return reply("repair, measure, then fan out", [
+        { name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } },
+        { name: "run_check", arguments: { name: "evaluate" } },
+        ...["a", "b"].map(id => ({ id, name: "run_job", arguments: { name: "trial", input: { seed: id } } })),
+      ]);
+    },
+    () => reply("ready for acceptance"),
+  ]);
+  const d = new SwarmDriver(s, cfg, mock.fetcher, undefined, async (_cmd, _cfg, raw: any) => {
+    submissions++;
+    return { schema: 1, key: raw.key, jobId: raw.key, status: "SUCCEEDED", result: {} };
+  });
+  const result = await d.execute(c, signal());
+  assert.equal(submissions, 2); assert.equal(mock.bodies.length, 4);
+  const intents = s.db.prepare("SELECT payload FROM events WHERE run=? AND kind='job.intent'").all(run);
+  assert.equal(intents.length, 2);
+  for (const intent of intents) {
+    const proof: any = s.readArtifact(JSON.parse(intent.payload as string).preflightReceipt);
+    assert.equal(proof.observations[0].name, "evaluate");
+    assert.ok(d.journal.ownsReceipt(c, proof.observations[0].receipt));
+  }
+  const verification = await d.verify(c, result, signal());
+  assert.equal(verification.checks.find(r => r.id === "behavior")?.verdict, "PASS");
+  assert.equal(verification.checks.some(r => r.id === "evaluate"), false, "exploratory diagnostics remain separate from acceptance");
+}, s => {
+  supervised(s);
+  s.checks.evaluate = { ...s.checks.behavior };
+  s.checks.evaluate.diagnosticPaths = ["src/b.txt"];
+  s.agents.coder.diagnostics = ["evaluate"];
+  s.agents.coder.checkpointCheck = "behavior";
+  s.agents.coder.decisionPolicy = { maxUnmeasuredWriteTurns: 2, measurementChecks: ["evaluate"] };
+  s.jobs = { trial: { adapter: { argv: [process.execPath, "-e", "process.exit(0)"] },
+    idempotentEnsure: true, pollMs: 100, staleMs: 10000, maxJobs: 4, maxConcurrent: 2, preflightChecks: ["evaluate"] } };
+  s.agents.coder.tools.push("run_job"); s.agents.coder.jobs = ["trial"];
+}));
+
+test("supervision may select a diagnostic without adding it to acceptance", async () => fixture(async (s, cfg) => {
+  const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "worker")!);
+  const mock = scripted([
+    ...Array.from({ length: 4 }, (_, i) => () => reply("read", [{ id: `read-${i}`, name: "read_file", arguments: { path: "src/a.txt" } }])),
+    () => {
+      assert.equal(events(s, run, "checkpoint.checked")[0]?.check, "evaluate");
+      return reply("repair", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]);
+    },
+    () => reply("done"),
+  ]);
+  const d = new SwarmDriver(s, cfg, mock.fetcher), result = await d.execute(c, signal());
+  const checked = await d.verify(c, result, signal());
+  assert.equal(checked.checks.find(r => r.id === "behavior")?.verdict, "PASS");
+  assert.equal(checked.checks.some(r => r.id === "evaluate"), false);
+}, s => {
+  supervised(s); s.checks.evaluate = { ...s.checks.behavior };
+  s.agents.coder.diagnostics = ["evaluate"]; s.agents.coder.checkpointCheck = "evaluate";
+}));

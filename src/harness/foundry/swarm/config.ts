@@ -274,7 +274,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       invariant(a.jobs && a.jobs.length > 0, "job tools require named job capabilities");
     if (s.supervision) invariant(a.tools.includes("run_check"), "supervision requires a permitted checkpoint check");
     names(a.tools, [...TOOLS], "tools"); names(a.checks, checks, "agent checks");
-    if (a.checkpointCheck !== undefined) invariant(a.tools.includes("run_check") && a.checks.includes(a.checkpointCheck),
+    if (a.checkpointCheck !== undefined) invariant(a.tools.includes("run_check") && permittedChecks(a).includes(a.checkpointCheck),
       "checkpoint check must be a permitted run_check capability");
     if (a.diagnostics !== undefined) {
       names(a.diagnostics, checks, "agent diagnostics");
@@ -372,10 +372,10 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs", "preflightChecks"]);
       if (job.preflightChecks !== undefined) {
         names(job.preflightChecks, checks, "job preflight checks");
-        invariant(job.preflightChecks.length <= 16 && job.preflightChecks.every(n => s.checks[n].replaySafe),
+        invariant(job.preflightChecks.length <= 16 && job.preflightChecks.every(name => s.checks[name].replaySafe),
           "job preflight checks must be bounded and replay-safe");
         for (const a of Object.values(s.agents).filter(a => a.jobs?.includes(id)))
-          invariant(a.tools.includes("run_check") && job.preflightChecks.every(n => permittedChecks(a).includes(n)),
+          invariant(a.tools.includes("run_check") && job.preflightChecks.every(name => permittedChecks(a).includes(name)),
             "job preflight checks must be permitted to the submitting agent");
       }
       keys(job.adapter, ["argv"], ["envAllow", "files"]);

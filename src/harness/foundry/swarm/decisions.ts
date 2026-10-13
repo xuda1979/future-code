@@ -3,9 +3,13 @@ import type { Json } from "../types.ts";
 import type { PinnedSwarm } from "./config.ts";
 import type { Call } from "./context.ts";
 import type { SessionJournal, Thread, ThreadState } from "./session.ts";
+import { evaluationEvidenceKey, threadInputKey } from "./checkpointPolicy.ts";
 
 export interface MeasurementObservation {
   name: string; receipt: string; inputKey: string; code: number; atTurn: number;
+  /** Optional for threads recorded before automatic evaluation clocks. */
+  at?: number;
+  evidenceKey?: string;
 }
 export interface DecisionReview {
   writeTurns: number; measurementChecks: string[];
@@ -25,13 +29,12 @@ const emptyPatch = digest("");
 
 /** Matches diagnostic currentness: source plus host feedback/child/job evidence. */
 export function decisionInputKey(s: ThreadState): string {
-  return digest({ patchHash: s.patchHash ?? emptyPatch, feedbackHash: s.feedbackHash,
-    jobReceipt: s.lastJobReceipt ?? null, spawnReceipt: s.lastSpawnReceipt ?? null });
+  return threadInputKey(s);
 }
 
-/** Called in the same durable checkpoint as the tool result, including batches.
- * Only declared measurements count. Prose, reads and unrelated passing checks
- * cannot clear an overdue review; failures are useful observations, not PASS. */
+/** Completed permitted checks share one durable observation ledger with the
+ * automatic evaluation clock and job preflights. Only declared measurements
+ * clear an overdue write review; failures are useful observations, not PASS. */
 export function recordDecisionObservation(t: Thread, cfg: PinnedSwarm, call: Call,
   result: Json, receipt: string, beforePatch: string | null, admitted: boolean): void {
   if (!admitted) return;
@@ -39,10 +42,9 @@ export function recordDecisionObservation(t: Thread, cfg: PinnedSwarm, call: Cal
   const policy = profile.decisionPolicy;
   const name = String(call.arguments.name);
   const selected = policy?.measurementChecks.includes(name);
-  const preflight = (profile.jobs ?? []).some(job => cfg.spec.jobs?.[job]?.preflightChecks?.includes(name));
   const changed = (beforePatch ?? emptyPatch) !== (s.patchHash ?? emptyPatch);
   const isWrite = writes.has(call.name) && changed && policy;
-  const isCheck = call.name === "run_check" && (selected || preflight);
+  const isCheck = call.name === "run_check";
   if (!isWrite && !isCheck) return;
   const d = s.decisions ??= { writeTurns: 0, measurements: {}, reviews: 0 };
   if (isWrite && d.lastWriteTurn !== s.turns) {
@@ -59,7 +61,7 @@ export function recordDecisionObservation(t: Thread, cfg: PinnedSwarm, call: Cal
   delete d.measurements[name];
   if (changed || !Number.isSafeInteger(r?.code) || r.code < 0 || r.error !== undefined) return;
   const observation: MeasurementObservation = { name, receipt, code: r.code,
-    inputKey: decisionInputKey(s), atTurn: s.turns };
+    inputKey: decisionInputKey(s), atTurn: s.turns, at: Date.now(), evidenceKey: evaluationEvidenceKey(s) };
   d.measurements = { ...d.measurements, [name]: observation };
   if (selected && (previous?.receipt !== receipt || previous.inputKey !== observation.inputKey)) {
     d.lastMeasurement = observation;

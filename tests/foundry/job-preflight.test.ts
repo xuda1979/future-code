@@ -26,13 +26,13 @@ test("unmeasured and failing candidates cannot submit single or batched expensiv
     const mock = scripted([
       () => reply("submit before measuring", calls),
       body => {
-        assert.match(errors(body), /EVALUATION_REQUIRED/);
+        assert.match(errors(body), /JOB_PREFLIGHT_REQUIRED/);
         assert.equal(submissions, 0); assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM research_jobs").get()!.n, 0);
         return reply("measure", [check()]);
       },
       () => reply("submit failing candidate", calls),
       body => {
-        assert.match(errors(body), /EVALUATION_REQUIRED/); assert.equal(submissions, 0);
+        assert.match(errors(body), /JOB_PREFLIGHT_REQUIRED/); assert.equal(submissions, 0);
         return reply("repair and measure", [write("42\n"), check()]);
       },
       () => reply("submit passing candidate", calls),
@@ -56,7 +56,7 @@ test("source edits invalidate a passing preflight receipt", async () => fixture(
     () => reply("prepare", [write("42\n"), check()]),
     () => reply("changed candidate", [write("wrong\n"), job()]),
     body => {
-      assert.match(errors(body), /EVALUATION_REQUIRED/); assert.equal(submissions, 0);
+      assert.match(errors(body), /JOB_PREFLIGHT_REQUIRED/); assert.equal(submissions, 0);
       return reply("repair", [write("42\n"), check(), job()]);
     },
     () => reply("done"),
@@ -75,7 +75,7 @@ test("new experiment evidence requires re-evaluation before a dependent experime
   const mock = scripted([
     () => reply("prepare", [write("42\n"), check(), job("first"),
       { name: "read_file", arguments: { path: "src/a.txt" } }, job("second")]),
-    body => { assert.match(errors(body), /EVALUATION_REQUIRED/); assert.equal(submissions, 1);
+    body => { assert.match(errors(body), /JOB_PREFLIGHT_REQUIRED/); assert.equal(submissions, 1);
       return reply("re-evaluate", [check(), job("second")]); },
     () => reply("done"),
   ]);
@@ -90,7 +90,7 @@ test("a source-mutating zero-exit check cannot authorize an experiment", async (
   const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "worker")!);
   const mock = scripted([
     () => reply("measure", [check(), job()]),
-    body => { assert.match(errors(body), /EVALUATION_REQUIRED/); return reply("done"); },
+    body => { assert.match(errors(body), /JOB_PREFLIGHT_REQUIRED/); return reply("done"); },
   ]);
   let submissions = 0;
   await new SwarmDriver(s, cfg, mock.fetcher, undefined, async () => { submissions++; throw new Error("must not submit"); }).execute(c, signal());
@@ -115,7 +115,7 @@ test("preflight evidence survives a process-equivalent restart without repeat ch
   });
   await d.execute(c, signal()); assert.equal(submissions, 1);
   const state: any = s.readArtifact(s.db.prepare("SELECT state FROM agent_threads WHERE run=?").get(run)!.state);
-  assert.equal(state.evaluations.behavior.turn, 1); assert.equal(state.evaluations.behavior.passed, true);
+  assert.equal(state.decisions.measurements.behavior.atTurn, 1); assert.equal(state.decisions.measurements.behavior.code, 0);
   assert.equal(state.toolCalls, 3, "write, one check, one submission; no synthetic extra call");
 }, configure));
 
@@ -130,7 +130,7 @@ test("existing remote identities reconcile even after preflight evidence becomes
   });
   await assert.rejects(d.execute(c, signal()), DeferredAttemptError);
   const state: any = s.readArtifact(s.db.prepare("SELECT state FROM agent_threads WHERE run=?").get(run)!.state);
-  const t = d.journal.open(c, state); t.state.evaluations = {};
+  const t = d.journal.open(c, state); t.state.decisions!.measurements = {};
   d.journal.checkpoint(t, "fixture.evidence-unavailable", {});
   s.db.prepare("UPDATE research_jobs SET poll_at=0 WHERE run=?").run(run);
   await d.execute(c, signal());

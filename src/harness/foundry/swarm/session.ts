@@ -11,7 +11,6 @@ import { installRequestAccounting, objectiveRequestTotals, runRequestTotals } fr
 import { performance } from "node:perf_hooks";
 import type { DiagnosticMemory } from "./diagnostics.ts";
 import type { DebuggingState } from "./debugging.ts";
-import type { EvaluationObservation } from "./evaluation.ts";
 import { installMemoryTables, indexMemory } from "./memory.ts";
 import type { DecisionState } from "./decisions.ts";
 
@@ -29,8 +28,6 @@ export interface ThreadState {
   /** Host-measured bounded failure descriptors; full fixtures stay in receipts. */
   diagnostics?: DiagnosticMemory;
   debugging?: DebuggingState;
-  /** Exact host check observations; persisted with the corresponding result. */
-  evaluations?: Record<string, EvaluationObservation>;
   decisions?: DecisionState;
   turns: number;
   toolCalls: number;

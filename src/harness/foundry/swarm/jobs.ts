@@ -31,9 +31,6 @@ export interface JobReply {
 }
 export type JobRPC = (command: NonNullable<PinnedSwarm["jobAdapters"]>[string], cfg: PinnedSwarm,
   request: Json, signal: AbortSignal) => Promise<unknown>;
-const jobKey = (c: Capsule, call: Call): string => digest({
-  run: c.runId, task: c.task.id, call: call.id, name: call.arguments.name,
-});
 const defaultRPC: JobRPC = async (command, cfg, request, signal) => {
   const result = await runProcess(command, cfg.spec.project, [], signal,
     cfg.spec.budget.toolTimeoutMs, cfg.spec.budget.maxToolOutputBytes, canonical(request));
@@ -231,7 +228,7 @@ export class ResearchJobs {
     const objective = objectiveForRun(store, c.runId);
     invariant(Buffer.byteLength(canonical(input)) <= this.cfg.spec.budget.maxToolOutputBytes, "job input too large");
     const binding = digest({ command, template, input, base: this.cfg.baseCommit });
-    const key = jobKey(c, call);
+    const key = digest({ run: c.runId, task: c.task.id, call: call.id, name });
     let row = store.transaction(() => {
       this.journal.assertLease(c);
       const old = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key);
@@ -352,10 +349,6 @@ export class ResearchJobs {
     if (terminal) return v as unknown as Json;
     row = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
     throw this.wait(row, template);
-  }
-  /** Identity lookup only; execute still validates immutable input/config binding. */
-  hasSubmission(c: Capsule, call: Call): boolean {
-    return !!this.journal.store.db.prepare("SELECT 1 FROM research_jobs WHERE key=?").get(jobKey(c, call));
   }
   private wait(row: Record<string, any>, template: JobTemplate): DeferredAttemptError | FatalAttemptError {
     const now = Date.now();
