@@ -159,27 +159,18 @@ test("a repeated unchanged check exits before another request and records host r
 
 test("automatic checkpoints share the failure memory and prune before another model request", async () => fixture(async (s, cfg) => {
   const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "fixture")!);
-  let thread: ReturnType<SessionJournal["open"]> | undefined;
-  const mock = scripted(Array.from({ length: 2 }, (_, i) => () => {
-    assert.ok(thread);
-    // Deliberately make the checkpoint due after this model reply, independent
-    // of machine speed or time spent preparing the initial thread.
-    thread.state.lastCheckAt = 0;
-    return reply("", [{ id: "read-" + i, name: "read_file", arguments: { path: "src/a.txt" } }]);
-  }));
+  // Pin a one-turn cadence rather than mutating the old generic check timer.
+  // This makes the production checkpoint due independently of machine speed.
+  const mock = scripted(Array.from({ length: 2 }, (_, i) => () =>
+    reply("", [{ id: "read-" + i, name: "read_file", arguments: { path: "src/a.txt" } }])));
   const driver = new SwarmDriver(s, cfg, mock.fetcher);
-  const open = driver.journal.open.bind(driver.journal);
-  driver.journal.open = (capsule, initial) => {
-    thread = open(capsule, initial);
-    thread.state.lastCheckAt = Number.MAX_SAFE_INTEGER; // not due before the first request
-    return thread;
-  };
   await assert.rejects(() => driver.execute(c, signal()), /STAGNANT_DIAGNOSTIC/);
   assert.equal(mock.bodies.length, 2);
   assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM agent_events WHERE kind='checkpoint.checked'").get()!.n, 2);
   assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM agent_events WHERE kind='trajectory.pruned'").get()!.n, 1);
 }, s => {
-  s.supervision = { reportEveryMs: 1000, checkpointEveryMs: 1, checkpointCadence: "periodic" };
+  s.supervision = { reportEveryMs: 1000, checkpointEveryMs: 3600000,
+    checkpointEveryTurns: 1, checkpointCadence: "periodic" };
   s.checks.behavior.maxUnchangedFailures = 2;
 }));
 

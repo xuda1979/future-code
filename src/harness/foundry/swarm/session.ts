@@ -18,6 +18,7 @@ export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
 export interface ThreadState {
   lastFence?: number;
   lastCheckAt?: number;
+  evaluationStartedAt?: number;
   lastExploratoryCheckpointKey?: string;
   lastJobReceipt?: string;
   lastSpawnReceipt?: string;

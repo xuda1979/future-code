@@ -1,6 +1,6 @@
 import { DeferredAttemptError, PersistedDeferredAttemptError } from "../continuation.ts";
 import { ResearchJobs, type JobRPC } from "./jobs.ts";
-import { canSliceExploratoryCheckpoint, checkpointInputKey, shouldRunExploratoryCheckpoint } from "./checkpointPolicy.ts";
+import { canSliceExploratoryCheckpoint, checkpointInputKey, evaluationEvidenceKey, shouldRunExploratoryCheckpoint } from "./checkpointPolicy.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { schedulerNode } from "../schedulerIndex.ts";
 import { FatalAttemptError } from "../errors.ts";
@@ -19,10 +19,11 @@ import { claimsForGoals, proposeClaim, proposeClaimConflict, type ClaimInput } f
 import { validateToolProposal } from "./toolAdmission.ts";
 import { CohortBoard, type FindingInput } from "./cohorts.ts";
 import { performance } from "node:perf_hooks";
-import { diagnosticContext, pruningCandidate, recordDiagnostic } from "./diagnostics.ts";
+import { diagnosticContext, diagnosticInputKey, pruningCandidate, recordDiagnostic } from "./diagnostics.ts";
 import { failureMemory, progressMemory, readMemory, type MemoryEntry } from "./memory.ts";
 import { admitDebuggingCall, finishInversion, inversionCandidate, prepareInversion } from "./debugging.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
+import { checkpointCheck, checkpointReason } from "./evaluation.ts";
 import { DECISION_GUIDANCE } from "../../decisionGuidance.ts";
 import { admitDecisionCall, decisionContext } from "./decisions.ts";
 
@@ -74,16 +75,22 @@ export class SwarmDriver implements Driver {
       verification: { checks: profile.checks, finalIntegrationRequired: true },
       ...(profile.diagnostics ? { exploratoryChecks: profile.diagnostics } : {}),
       ...(profile.decisionPolicy ? { decisionPolicy: profile.decisionPolicy } : {}),
+      ...(this.cfg.spec.supervision ? { automaticEvaluation: {
+        check: checkpointCheck({}, profile),
+        maxUnmeasuredTurns: this.cfg.spec.supervision.checkpointEveryTurns ?? 4,
+        afterEvidence: this.cfg.spec.supervision.checkpointAfterEvidence !== false,
+      } } : {}),
+      ...(profile.probes ? { exploratoryProbes: profile.probes.map(name => ({ name,
+        processDeadlineMs: this.cfg.spec.checks[name]!.probeTimeoutMs! })) } : {}),
       ...(profile.jobs?.some(name => this.cfg.spec.jobs?.[name]?.preflightChecks) ? {
         jobPreconditions: Object.fromEntries(profile.jobs.map(name => [name, this.cfg.spec.jobs![name].preflightChecks ?? []])),
       } : {}),
-      ...(profile.probes ? { exploratoryProbes: profile.probes.map(name => ({ name,
-        processDeadlineMs: this.cfg.spec.checks[name]!.probeTimeoutMs! })) } : {}),
       ...(this.cohorts ? { coordination: { cohort: this.cohorts.cohort(c),
         digestBytes: this.cfg.spec.coordination!.maxDigestBytes,
         instruction: "Read bounded cohort/shared findings when useful. Explore alternate methods and counterexamples. Share concise findings with owned receipts. Every summary is unverified; cross-cohort source checks certify only the exact accepted task artifact. Findings cannot change your acceptance, dependencies or file scopes." } } : {}),
       contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. " +
         DECISION_GUIDANCE + " " +
+        (profile.jobs ? "New jobs with configured preflight checks require passing run_check receipts on the current source and evidence. Inspect failed checks and repair before submitting; existing job identities always reconcile. " : "") +
         (this.cfg.spec.debugging ? "Host system-state observations outrank prose working hypotheses. Falsify environmental, dependency and interface assumptions with a standalone probe and a negative control before broad edits. A failed probe ends only the current trajectory. " : "") +
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
         (profile.tools.includes("save_progress") ? "Before long context retirement, call save_progress with concise current findings, blockers, exact next step, and owned evidence receipts; notes remain unverified. " : "") +
@@ -220,6 +227,7 @@ export class SwarmDriver implements Driver {
       return true;
     };
     t.state.lastCheckAt ??= Date.now();
+    t.state.evaluationStartedAt ??= t.state.lastCheckAt;
     const limit = t.state.contextLimit!;
     invariant(Number.isSafeInteger(limit) && limit > 0 &&
       limit <= this.store.contract().limits.contextBytes, "invalid durable context limit");
@@ -429,25 +437,28 @@ export class SwarmDriver implements Driver {
           t.state.history.push({ role: "user", content: t.state.recoveryNote }); delete t.state.recoveryNote;
           this.journal.checkpoint(t, "episode.recovery", { fence: c.fence });
         }
-        const checkEvery = this.cfg.spec.supervision?.checkpointEveryMs;
+        const reason = checkpointReason(t.state, this.cfg, profile);
+        const checkName = checkpointCheck(t.state, profile);
+        const alreadyEvaluated = t.state.decisions?.measurements[checkName]?.inputKey === diagnosticInputKey(t.state);
         const checkpointKey = checkpointInputKey(t.state.patchHash, t.state.feedbackHash ? 1 : 0,
-          digest({ feedback: t.state.feedbackHash, jobReceipt: t.state.lastJobReceipt ?? null }));
-        if (t.state.turns > 0 && checkEvery && !t.state.debugging?.probeRequired &&
+          evaluationEvidenceKey(t.state));
+        if (reason && !t.state.debugging?.probeRequired &&
+            (!alreadyEvaluated || this.cfg.spec.supervision?.checkpointCadence === "periodic") &&
             shouldRunExploratoryCheckpoint(t.state.lastExploratoryCheckpointKey, checkpointKey, this.cfg.spec.supervision?.checkpointCadence) &&
-            !(t.state.history.at(-1)?.role === "assistant" && !t.state.history.at(-1)?.calls?.length) && Date.now() - t.state.lastCheckAt! >= checkEvery) {
-          const diagnosticPaths = this.cfg.spec.checks[profile.checks[0]]?.diagnosticPaths;
+            !(t.state.history.at(-1)?.role === "assistant" && !t.state.history.at(-1)?.calls?.length)) {
+          const diagnosticPaths = this.cfg.spec.checks[checkName]?.diagnosticPaths;
           let changedPaths: string[] | undefined;
           if (diagnosticPaths && hands.changedPaths) {
             try { changedPaths = await hands.changedPaths(); }
             catch { control?.activity?.("checkpoint:path-scan-unavailable"); }
           }
-          if (canSliceExploratoryCheckpoint(changedPaths, diagnosticPaths,
-            this.cfg.spec.supervision?.checkpointCadence, !!t.state.feedbackHash, !!t.state.lastJobReceipt)) {
+          if (reason !== "measurement-due" && canSliceExploratoryCheckpoint(changedPaths, diagnosticPaths,
+            this.cfg.spec.supervision?.checkpointCadence, !!t.state.feedbackHash, !!(t.state.lastJobReceipt || t.state.lastSpawnReceipt))) {
             // Advisory skip: do not spend a tool call or attach a PASS receipt.
             // Persist the evaluated input key so restart cannot loop on it.
             t.state.lastExploratoryCheckpointKey = checkpointKey;
             this.journal.checkpoint(t, "checkpoint.sliced", {
-              check: profile.checks[0], patchHash: t.state.patchHash,
+              check: checkName, reason, patchHash: t.state.patchHash,
               pathsHash: digest(changedPaths), pathCount: changedPaths!.length,
             });
             control?.activity?.("checkpoint:sliced");
@@ -456,7 +467,7 @@ export class SwarmDriver implements Driver {
           if (t.state.toolCalls >= budget.maxToolCalls) throw new FatalAttemptError("THREAD_TOOL_BUDGET_EXHAUSTED");
           t.state.toolCalls++;
           control?.activity?.("checkpoint:check");
-          const call: Call = { id: `checkpoint-${t.seq}`, name: "run_check", arguments: { name: profile.checks[0] } };
+          const call: Call = { id: `checkpoint-${t.seq}`, name: "run_check", arguments: { name: checkName } };
           const effect = toolEffectContract(this.cfg, "run_check", call.arguments);
           this.journal.checkpoint(t, "tool.effect", { callId: call.id, ...effect });
           const beforePatch = t.state.patchHash;
@@ -466,10 +477,11 @@ export class SwarmDriver implements Driver {
           const receipt = this.journal.receipt(c, check); t.state.lastCheckAt = Date.now();
           const diagnostic = recordDiagnostic(t, this.journal, this.cfg, call, check, receipt, beforePatch, true);
           t.state.lastExploratoryCheckpointKey = checkpointInputKey(t.state.patchHash, t.state.feedbackHash ? 1 : 0,
-            digest({ feedback: t.state.feedbackHash, jobReceipt: t.state.lastJobReceipt ?? null }));
+            evaluationEvidenceKey(t.state));
           control?.checked?.();
-          t.state.history.push({ role: "user", content: canonical({ checkpointCheck: inlineReceipt(receipt, check), instruction: "Use this diagnostic to choose a smaller next step. This is not final acceptance." }) });
-          this.journal.checkpoint(t, "checkpoint.checked", { receipt, patchHash: t.state.patchHash,
+          t.state.history.push({ role: "user", content: canonical({ checkpointCheck: inlineReceipt(receipt, check),
+            check: checkName, reason, instruction: "Use this measured result to choose the next decision: diagnose and repair a failure, or scale only with applicable evidence. This is not final acceptance." }) });
+          this.journal.checkpoint(t, "checkpoint.checked", { check: checkName, reason, receipt, patchHash: t.state.patchHash,
             ...(diagnostic ? { memory: [failureMemory(diagnostic, t.state.turns)] } : {}),
             ...(diagnostic ? { fixture: diagnostic.fixture } : {}) });
           }

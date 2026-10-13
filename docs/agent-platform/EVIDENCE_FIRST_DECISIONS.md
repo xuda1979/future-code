@@ -64,7 +64,7 @@ that every four-turn task needs the same experiment.
 | Situation | Host behavior |
 |---|---|
 | A model turn changes scoped source | Count once, including multi-edit batches. Reads, notes and no-change batches do not count. |
-| The declared interval is reached | Show a `MEASUREMENT` health card and inject a bounded decision review into the next ordinary worker request. No separate reviewer request or automatic test is created. |
+| The declared interval is reached | With supervision, the automatic checkpoint selects the due declared measurement at the next complete tool boundary. Otherwise show a `MEASUREMENT` health card and inject a bounded decision review into the next ordinary worker request. No separate reviewer request is created. |
 | Another source-changing turn is proposed | Reject edits before effects until a declared measurement produces a new completed observation. Remaining edits in the current turn retain their original order. |
 | A selected measurement exits nonzero on unchanged source | Record useful negative evidence and reopen the repair path. It cannot authorize a successful job prerequisite or task PASS. |
 | A check is unrelated, has an unknown outcome, mutates source, or simply repeats an identical result on identical input | It cannot clear an overdue review. Unknown/mutating results invalidate older support for that check. |
