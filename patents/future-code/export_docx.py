@@ -1,38 +1,34 @@
 #!/usr/bin/env python3
-"""Export the two patent source documents with real diagrams and hyperlinks."""
+"""Export patent sources using the supplied attachments' native Word formats."""
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 from datetime import datetime, timezone
-from io import BytesIO
 from pathlib import Path
 import re
+import zipfile
 
 from docx import Document
-from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Cm, Pt, RGBColor
-from PIL import Image, ImageDraw, ImageFont
+from docx.shared import Inches
+from docx.table import Table
+from docx.text.paragraph import Paragraph
+
+from patent_diagrams import diagram
 
 HERE = Path(__file__).resolve().parent
-FONT_NAME = 'Noto Sans CJK SC'
 SOURCES = ['INVENTION_DISCLOSURE_CN', 'PRIOR_ART_SEARCH_CN']
-REVIEW_COMMENTS = {
-    SOURCES[0]: [
-        ('中国移动通信有限公司研究院（内部申报建议主体', 'R01 已按指定单位填写；申请权及共同申请安排由院知识产权管理流程核定。'),
-        ('本地租约校验只能拒绝', 'R03 已收窄本地租约保障范围，远端去重另依赖受信适配器。'),
-        ('对同一持久工具调用', 'R04 已说明稳定键的作用域及旧作业未决时的替代运行限制。'),
-        ('权利要求11：', 'R10 已移出HACT布局特征，改为同一目标历史修订作业门控。'),
-    ],
-    SOURCES[1]: [
-        ('本报告的 A—E', 'R08 已区分内容分组、技术接近风险与官方检索类别。'),
-        ('权利要求1(b)', 'R06 已更正对通用验证规则的概括；它不直接要求执行者之外的独立检查器。'),
-        ('普通自愿上传 GitHub', 'R09 已加入中国公开时间规则；提交时间不能代替实际公众可获取证据。'),
-        ('金融工具数据及对抗式纠正', 'R07 已补回金融数据限定，避免将特定权利要求扩大为通用代理编排。'),
-    ],
+FIGURES = {
+    1: '图1：模型提议、宿主控制及证据验证数据流',
+    2: '图2：提议绑定、租约复核及动态子任务准入流程',
+    3: '图3：远端作业 ensure/inspect 协调与完成门控流程',
 }
+FORMAT_PARTS = ['word/styles.xml', 'word/theme/theme1.xml',
+                'word/numbering.xml', 'word/settings.xml', 'word/fontTable.xml',
+                'word/webSettings.xml']
 
 
 def font_path(value: str | None) -> Path:
@@ -40,295 +36,266 @@ def font_path(value: str | None) -> Path:
         Path('/usr/local/share/fonts/noto-cjk/NotoSansCJKsc-Regular.otf'),
         Path('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'),
     ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
+    for path in candidates:
+        if path.is_file():
+            return path
     raise SystemExit('Install Noto Sans CJK SC or pass --font-file PATH.')
 
 
-def diagram(number: int, font: Path) -> BytesIO:
-    """Exact black and white flow figures; model images are not used."""
-    sizes = {1: (1800, 680), 2: (1800, 780), 3: (1800, 1060)}
-    canvas = Image.new('RGB', sizes[number], 'white')
-    draw = ImageDraw.Draw(canvas)
-    normal = ImageFont.truetype(str(font), 37)
-    small = ImageFont.truetype(str(font), 31)
-
-    def box(rect, label):
-        draw.rectangle(rect, outline='black', width=3)
-        lines = label.split('\n')
-        center = ((rect[0] + rect[2]) / 2, (rect[1] + rect[3]) / 2)
-        for i, line in enumerate(lines):
-            bounds = draw.textbbox((0, 0), line, font=normal)
-            w, h = bounds[2] - bounds[0], bounds[3] - bounds[1]
-            draw.text((center[0] - w / 2, center[1] + (i - (len(lines)-1)/2)*49 - h/2 - bounds[1]), line, font=normal, fill='black')
-
-    def arrow(points, label=None, at=None):
-        draw.line(points, fill='black', width=3, joint='curve')
-        end, previous = points[-1], points[-2]
-        dx, dy = end[0]-previous[0], end[1]-previous[1]
-        length = (dx*dx+dy*dy)**.5
-        ux, uy = dx/length, dy/length
-        draw.polygon([end, (end[0]-16*ux+8*uy,end[1]-16*uy-8*ux), (end[0]-16*ux-8*uy,end[1]-16*uy+8*ux)], fill='black')
-        if label:
-            draw.text(at, label, font=small, fill='black')
-
-    if number == 1:
-        box((50,40,550,180), '模型结构化提议')
-        box((650,40,1150,180), '宿主身份绑定\n与权限准入')
-        box((1250,40,1750,180), '冻结契约与\n任务图及租约')
-        arrow([(550,110),(650,110)])
-        arrow([(1150,110),(1250,110)])
-        box((1250,280,1750,420), '本地工具或\n远端作业协调')
-        arrow([(1500,180),(1500,280)])
-        box((650,280,1150,420), '工件及独立\n机器检查证据')
-        arrow([(1250,350),(1150,350)])
-        box((50,280,550,420), '完成门控与\n集成再验证')
-        arrow([(650,350),(550,350)])
-        box((50,520,550,650), '持久目标完成记录')
-        arrow([(300,420),(300,520)])
-    elif number == 2:
-        box((480,30,1320,140), '提议与任务租约代际 f')
-        box((480,210,1320,350), '核验契约 载荷 作用域\n及当前租约有效期')
-        arrow([(900,140),(900,210)])
-        box((40,430,770,570), '登记准入\n原子追加子任务')
-        box((1050,430,1760,570), '拒绝或延期')
-        arrow([(650,350),(650,390),(405,390),(405,430)], '有效', (430,351))
-        arrow([(1150,350),(1150,390),(1405,390),(1405,430)], '无效', (1420,351))
-        box((40,650,770,760), '实际操作前复核 f\n有效才执行和验证')
-        box((1050,650,1760,760), '旧代际或过期\n拒绝宿主写入')
-        arrow([(405,570),(405,650)])
-        arrow([(770,705),(1050,705)], '失效', (847,655))
-    else:
-        box((420,25,1380,140), '事务中持久化意图\n稳定作业键及输入绑定')
-        box((520,210,1280,310), '本地是否已有 job_id')
-        arrow([(900,140),(900,210)])
-        box((50,385,750,505), '幂等 ensure\n复用原 key')
-        box((1050,385,1750,505), 'inspect\n使用已知 job_id')
-        arrow([(600,310),(600,345),(400,345),(400,385)], '否', (380,310))
-        arrow([(1200,310),(1200,345),(1400,345),(1400,385)], '是', (1430,310))
-        box((520,590,1280,710), '核验响应身份和状态')
-        arrow([(400,505),(400,550),(720,550),(720,590)])
-        arrow([(1400,505),(1400,550),(1080,550),(1080,590)])
-        box((60,810,740,940), '终态回执及检查证据\n进入目标完成门控')
-        box((1060,810,1760,940), '未决或 UNKNOWN\n持久等待或人工协调')
-        arrow([(650,710),(650,750),(400,750),(400,810)], '终态', (430,715))
-        arrow([(1150,710),(1150,750),(1410,750),(1410,810)], '未确认', (1440,715))
-        arrow([(1760,875),(1780,875),(1780,170),(1280,170),(1280,260)], '原身份重查', (1430,175))
-        draw.text((65,980), '外部终态不等于目标验收通过；未决作业阻止目标完成', font=small, fill='black')
-    output = BytesIO()
-    canvas.save(output, format='PNG', dpi=(300,300))
-    output.seek(0)
-    return output
-
-
-def hyperlink(paragraph, url: str):
-    from docx.opc.constants import RELATIONSHIP_TYPE
+def hyperlink(paragraph, url):
+    """Keep links clickable, using compact labels rather than overflowing URLs."""
     url = url.rstrip('.,;；。，、')
-    name = re.search(r'/patent/([^/]+)', url)
-    if name:
-        label = name.group(1) + ' 文献页'
+    patent = re.search(r'/patent/([^/]+)', url)
+    if patent:
+        label = patent.group(1) + ' 文献页'
     elif 'cnipa.gov.cn' in url:
         label = 'CNIPA 专利法' if '2020/' in url else 'CNIPA 审查指南修改决定'
     elif '/commit/' in url:
-        label = '历史提交 ' + url.rsplit('/',1)[1][:12]
+        label = '历史提交 ' + url.rsplit('/', 1)[1][:12]
     elif 'arxiv' in url:
         label = 'AutoGen 原论文'
     elif 'remote_execution.proto' in url:
         label = 'Bazel 远程执行接口'
     elif 'the-immortal-life' in url:
         label = 'Temporal Pi 公开文章'
+    elif 'event-history' in url:
+        label = 'Temporal Event History'
+    elif 'understanding-temporal' in url:
+        label = 'Understanding Temporal'
+    elif 'saga-pattern' in url:
+        label = 'Temporal Saga 文章'
+    elif 'durable_execution' in url:
+        label = 'LangGraph Durable Execution'
     else:
-        label = url.split('//')[-1]
-    element = OxmlElement('w:hyperlink')
-    element.set(qn('r:id'), paragraph.part.relate_to(url, RELATIONSHIP_TYPE.HYPERLINK, is_external=True))
+        label = 'LangGraph Persistence' if 'langchain' in url else url.split('//')[-1]
+    link = OxmlElement('w:hyperlink')
+    link.set(qn('r:id'), paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True))
     run = OxmlElement('w:r')
     properties = OxmlElement('w:rPr')
-    color = OxmlElement('w:color'); color.set(qn('w:val'),'000000'); properties.append(color)
-    underline = OxmlElement('w:u'); underline.set(qn('w:val'),'single'); properties.append(underline)
+    style = OxmlElement('w:rStyle')
+    style.set(qn('w:val'), 'Hyperlink')
+    properties.append(style)
     run.append(properties)
-    content = OxmlElement('w:t'); content.text = label; run.append(content)
-    element.append(run); paragraph._p.append(element)
+    text = OxmlElement('w:t')
+    text.text = label
+    run.append(text)
+    link.append(run)
+    paragraph._p.append(link)
 
 
-def add_inline(paragraph, value: str):
-    token = re.compile(r'(https?://[^\s；。\)）]+|\*\*[^*]+\*\*|`[^`]+`)')
+def add_inline(paragraph, value, base_properties=None):
+    pattern = re.compile(r'(https?://[^\s；。\)）]+|\*\*[^*]+\*\*|`[^`]+`)')
+
+    def add(value, bold=False, code=False):
+        if not value:
+            return
+        run = paragraph.add_run(value)
+        if base_properties is not None:
+            run._r.insert(0, deepcopy(base_properties))
+        if bold:
+            run.bold = True
+        if code and 'Verbatim Char' in paragraph.part.document.styles:
+            run.style = 'Verbatim Char'
+
     position = 0
-    for match in token.finditer(value):
-        if match.start() > position:
-            paragraph.add_run(value[position:match.start()])
+    for match in pattern.finditer(value):
+        add(value[position:match.start()])
         part = match.group()
         if part.startswith('http'):
             hyperlink(paragraph, part)
         elif part.startswith('**'):
-            paragraph.add_run(part[2:-2]).bold = True
+            add(part[2:-2], bold=True)
         else:
-            run = paragraph.add_run(part[1:-1]); run.font.name='DejaVu Sans Mono'; run.font.size=Pt(9)
+            add(part[1:-1], code=True)
         position = match.end()
-    if position < len(value):
-        paragraph.add_run(value[position:])
+    add(value[position:])
 
 
-def style_document(document):
-    section = document.sections[0]
-    # Preserve the A4 format used by the existing patent package.
-    section.page_width=Cm(21); section.page_height=Cm(29.7)
-    section.top_margin=Cm(1.9); section.bottom_margin=Cm(1.8)
-    section.left_margin=Cm(2.0); section.right_margin=Cm(2.0)
-    section.footer_distance=Cm(.8)
-    for border in list(document.styles.element.iter(qn('w:pBdr'))):
-        border.getparent().remove(border)
-    for name in ['Normal','Title','Subtitle','Heading 1','Heading 2','Heading 3','Caption']:
-        style=document.styles[name]
-        style.font.name=FONT_NAME; style.font.color.rgb=RGBColor(0,0,0)
-        style.font.italic=False
-        style._element.get_or_add_rPr().get_or_add_rFonts().set(qn('w:eastAsia'),FONT_NAME)
-    normal=document.styles['Normal']
-    normal.font.size=Pt(11)
-    normal.paragraph_format.line_spacing=Pt(17)
-    normal.paragraph_format.space_after=Pt(6)
-    normal.paragraph_format.widow_control=True
-    document.styles['Title'].font.size=Pt(19)
-    document.styles['Title'].paragraph_format.line_spacing=Pt(28)
-    document.styles['Title'].paragraph_format.space_after=Pt(10)
-    document.styles['Subtitle'].font.size=Pt(12)
-    document.styles['Subtitle'].paragraph_format.line_spacing=Pt(20)
-    for level,size in [(1,14),(2,12),(3,11)]:
-        style=document.styles[f'Heading {level}']; style.font.size=Pt(size); style.font.bold=True
-        style.paragraph_format.line_spacing=Pt(21 if level==1 else 18)
-        style.paragraph_format.space_before=Pt(11 if level==1 else 7)
-        style.paragraph_format.space_after=Pt(5)
-        style.paragraph_format.keep_with_next=True
-    footer=section.footer.paragraphs[0]
-    footer.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    footer.add_run('第 ')
-    field=OxmlElement('w:fldSimple'); field.set(qn('w:instr'),'PAGE'); footer._p.append(field)
-    footer.add_run(' 页')
-    for run in footer.runs: run.font.size=Pt(9)
-    document.core_properties.author='许达、王飞'
-    document.core_properties.last_modified_by='许达、王飞'
-    document.core_properties.created=datetime(2026,10,13,tzinfo=timezone.utc)
-    document.core_properties.modified=datetime(2026,10,13,tzinfo=timezone.utc)
-    document.core_properties.comments='中国移动通信有限公司研究院 专利资料'
+def reset_paragraph(element):
+    for child in list(element):
+        if child.tag != qn('w:pPr'):
+            element.remove(child)
 
 
-def add_table(document, rows):
-    cols=len(rows[0]); table=document.add_table(rows=1, cols=cols)
-    table.alignment=WD_TABLE_ALIGNMENT.CENTER; table.autofit=False
-    if cols==2: widths=[3.4,13.6]
-    elif cols==3: widths=[3.2,7.1,6.7]
-    else: widths=[3.0,3.0,6.4,4.6]
-    if '代码参照' in rows[0]: widths=[3.1,3.2,6.3,4.4]
-    if cols==4 and '公开日期' in rows[0]: widths=[3.1,2.5,7.6,3.8]
-    if rows[0][0]=='公开或授权号': widths=[3.4,5.6,1.4,6.6]
-    if rows[0]==['记录','关键字段','核验目的']: widths=[4.5,6.4,6.1]
-    for i,width in enumerate(widths): table.columns[i].width=Cm(width)
-    borders=OxmlElement('w:tblBorders')
-    for edge in ['top','left','bottom','right','insideH','insideV']:
-        element=OxmlElement('w:'+edge)
-        for attr,value in [('val','single'),('sz','4'),('color','D9D9D9')]: element.set(qn('w:'+attr),value)
-        borders.append(element)
-    table._tbl.tblPr.append(borders)
-    for row_index,record in enumerate(rows):
-        cells=table.rows[0].cells if row_index==0 else table.add_row().cells
-        properties=cells[0]._tc.getparent().get_or_add_trPr()
-        no_split=OxmlElement('w:cantSplit'); properties.append(no_split)
-        if row_index==0: properties.append(OxmlElement('w:tblHeader'))
-        for column,(cell,text) in enumerate(zip(cells,record)):
-            cell.width=Cm(widths[column]); cell.vertical_alignment=WD_ALIGN_VERTICAL.CENTER
-            tcpr=cell._tc.get_or_add_tcPr()
-            margin=OxmlElement('w:tcMar')
-            for side in ['top','bottom','left','right']:
-                edge=OxmlElement('w:'+side); edge.set(qn('w:w'),'85'); edge.set(qn('w:type'),'dxa'); margin.append(edge)
-            tcpr.append(margin)
-            if row_index==0:
-                shade=OxmlElement('w:shd'); shade.set(qn('w:fill'),'E8EDF2'); tcpr.append(shade)
-            paragraph=cell.paragraphs[0]
-            paragraph.paragraph_format.space_after=Pt(1)
-            paragraph.paragraph_format.line_spacing=Pt(15)
-            if row_index==0 or len(text)<14: paragraph.alignment=WD_ALIGN_PARAGRAPH.CENTER
-            add_inline(paragraph,text)
-            for run in paragraph.runs:
-                run.font.size=Pt(10)
-                if row_index==0: run.bold=True
-    spacer=document.add_paragraph()
-    spacer.paragraph_format.space_after=Pt(2); spacer.paragraph_format.line_spacing=Pt(3)
-    spacer.paragraph_format.space_before=Pt(0)
-    return table
+class NativeFormat:
+    """Clone paragraph and table properties; never restyle the attachment."""
+
+    def __init__(self, path):
+        self.path = path
+        self.doc = Document(path)
+        self.paragraphs = {}
+        self.heading_sequence = []
+        self.lists = {}
+        numbering = self.doc.part.numbering_part.element
+        abstracts = {a.get(qn('w:abstractNumId')): a for a in numbering.findall(qn('w:abstractNum'))}
+        formats = {}
+        for num in numbering.findall(qn('w:num')):
+            abstract = abstracts[num.find(qn('w:abstractNumId')).get(qn('w:val'))]
+            formats[num.get(qn('w:numId'))] = abstract.find(qn('w:lvl')).find(qn('w:numFmt')).get(qn('w:val'))
+        for p in self.doc.paragraphs:
+            self.paragraphs.setdefault(p.style.name, deepcopy(p._p))
+            if p.style.name in ['Heading 1', 'Heading 2', 'Heading 3']:
+                self.heading_sequence.append(p.style.name)
+            num = p._p.pPr.find(qn('w:numPr')) if p._p.pPr is not None else None
+            if num is not None:
+                kind = formats[num.find(qn('w:numId')).get(qn('w:val'))]
+                self.lists.setdefault(kind, deepcopy(p._p))
+        self.tables = [deepcopy(t._tbl) for t in self.doc.tables]
+        self.toc = deepcopy(self.doc._element.body.find(qn('w:sdt')))
+        for element in list(self.doc._element.body):
+            if element.tag != qn('w:sectPr'):
+                self.doc._element.body.remove(element)
+
+    def append(self, element):
+        self.doc._element.body.insert(len(self.doc._element.body) - 1, element)
+
+    def paragraph(self, style, value='', list_kind=None):
+        source = self.lists[list_kind] if list_kind else self.paragraphs[style]
+        element = deepcopy(source)
+        reset_paragraph(element)
+        self.append(element)
+        paragraph = Paragraph(element, self.doc._body)
+        add_inline(paragraph, value)
+        return paragraph
+
+    def table(self, index, rows):
+        element = deepcopy(self.tables[index])
+        template = Table(element, self.doc._body)
+        if len(template.columns) != len(rows[0]):
+            raise ValueError(f'Table {index + 1}: columns differ from attachment')
+        head = deepcopy(template.rows[0]._tr)
+        body = deepcopy(template.rows[1]._tr)
+        for row in list(element.findall(qn('w:tr'))):
+            element.remove(row)
+        for i, record in enumerate(rows):
+            row = deepcopy(head if i == 0 else body)
+            # Keep one comparison record on one page without changing the
+            # reference's column widths, fonts, borders, or table style.
+            if row.get_or_add_trPr().find(qn('w:cantSplit')) is None:
+                row.get_or_add_trPr().append(OxmlElement('w:cantSplit'))
+            for cell, value in zip(row.findall(qn('w:tc')), record):
+                prototype = cell.find(qn('w:p'))
+                first_run = prototype.find(qn('w:r'))
+                properties = first_run.find(qn('w:rPr')) if first_run is not None else None
+                properties = deepcopy(properties) if properties is not None else None
+                for child in list(cell):
+                    if child.tag != qn('w:tcPr'):
+                        cell.remove(child)
+                reset_paragraph(prototype)
+                cell.append(prototype)
+                add_inline(Paragraph(prototype, self.doc._body), value, properties)
+            element.append(row)
+        self.append(element)
+
+    def title(self, search):
+        title = self.paragraph('Title')
+        title.add_run('现有技术检索报告' if search else '发明专利技术交底书').bold = True
+        title.add_run().add_break()
+        if search:
+            title.add_run('Prior Art Search Report').add_break()
+            title.add_run('研发智能体外部作业协调及完成控制').add_break()
+            title.add_run('R&D Agent Job Reconciliation and Completion Control')
+        else:
+            title.add_run('一种研发智能体的外部作业协调及完成控制方法')
+        self.paragraph('Author', '中国移动通信有限公司研究院')
+        self.paragraph('Date', '2026-10-13')
+        self.append(deepcopy(self.toc))
 
 
-def add_comments(document, specs):
-    paragraphs=list(document.paragraphs)
-    for table in document.tables:
-        for row in table.rows:
-            for cell in row.cells: paragraphs.extend(cell.paragraphs)
-    for needle,message in specs:
-        paragraph=next((p for p in paragraphs if needle in p.text),None)
-        if paragraph is None: raise ValueError(f'comment anchor missing: {needle}')
-        runs=paragraph.runs
-        if not runs: raise ValueError('comment needs an ordinary text run')
-        document.add_comment(runs,text=message,author='技术审阅',initials='审阅')
+def preserve_format_parts(target, template):
+    # Keep native format parts byte-identical despite XML serialization.
+    with zipfile.ZipFile(target) as package:
+        entries = {n: package.read(n) for n in package.namelist()}
+    with zipfile.ZipFile(template) as source:
+        for part in FORMAT_PARTS:
+            entries[part] = source.read(part)
+    with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as package:
+        for name, content in entries.items():
+            package.writestr(name, content)
 
 
 def export(stem, destination, font):
-    lines=(HERE/(stem+'.md')).read_text().splitlines()
-    document=Document(); style_document(document)
-    document.core_properties.title=lines[0]
-    figure=0; section_number=0; position=0
-    while position<len(lines):
-        line=lines[position].strip(); position+=1
-        if not line: continue
+    search = stem == SOURCES[1]
+    native = NativeFormat(HERE / 'formats' / ('search.docx' if search else 'disclosure.docx'))
+    native.title(search)
+    lines = (HERE / (stem + '.md')).read_text().splitlines()
+    position = next(i for i, line in enumerate(lines) if line.startswith('# '))
+    headings = []
+    figure = table_index = 0
+    first = True
+    while position < len(lines):
+        line = lines[position].strip()
+        position += 1
+        if not line:
+            continue
         if line.startswith('```mermaid'):
-            while position<len(lines) and not lines[position].startswith('```'): position+=1
-            position+=1; figure+=1
-            caption=document.add_paragraph('图'+str(figure),style='Caption')
-            caption.paragraph_format.keep_with_next=True
-            caption.alignment=WD_ALIGN_PARAGRAPH.CENTER
-            paragraph=document.add_paragraph(); paragraph.alignment=WD_ALIGN_PARAGRAPH.CENTER
-            paragraph.paragraph_format.line_spacing=1
-            run=paragraph.add_run(); shape=run.add_picture(diagram(figure,font),width=Cm(16.8))
-            shape._inline.docPr.set('descr', {1:'模型提议、宿主控制与证据验证流程',2:'提议权限与实际操作前的租约复核流程',3:'远端作业确保与查询协调流程'}[figure])
+            while position < len(lines) and not lines[position].startswith('```'):
+                position += 1
+            position += 1
+            figure += 1
+            paragraph = native.paragraph('Captioned Figure')
+            picture = paragraph.add_run().add_picture(diagram(figure, font), width=Inches(5.5))
+            picture._inline.docPr.set('descr', FIGURES[figure])
+            native.paragraph('Image Caption', FIGURES[figure])
+            first = False
             continue
         if line.startswith('|'):
-            block=[line]
-            while position<len(lines) and lines[position].strip().startswith('|'):
-                block.append(lines[position].strip()); position+=1
-            rows=[[x.strip() for x in row.strip('|').split('|')] for row in block if not re.match(r'^\|[\s:|\-]+\|$',row)]
-            assert all(len(row)==len(rows[0]) for row in rows)
-            add_table(document,rows); continue
-        heading=re.match(r'^(#{1,3})\s+(.+)',line)
-        if heading:
-            level=len(heading.group(1)); label=heading.group(2)
-            # Keep original chapter labels; only simplify their displayed punctuation.
-            label=label.replace(' / ','  ').replace('：','  ')
-            if level==1:
-                section_number+=1; label=str(section_number)+'  '+label
-            document.add_paragraph(label,style=f'Heading {level}'); continue
-        if position==1:
-            document.add_paragraph(line,style='Title'); continue
-        if position<=7 and not line.startswith('英文'):
-            paragraph=document.add_paragraph()
-            add_inline(paragraph,line)
-            paragraph.paragraph_format.space_after=Pt(4)
-            if line.startswith('**'): paragraph.style='Subtitle'
-            for run in paragraph.runs:
-                if not line.startswith('**'): run.font.size=Pt(10)
+            block = [line]
+            while position < len(lines) and lines[position].strip().startswith('|'):
+                block.append(lines[position].strip())
+                position += 1
+            rows = [[cell.strip() for cell in record.strip('|').split('|')]
+                    for record in block if not re.fullmatch(r'\|[\s:|\-]+\|', record)]
+            if not all(len(row) == len(rows[0]) for row in rows):
+                raise ValueError('Inconsistent Markdown table columns')
+            native.table(table_index, rows)
+            table_index += 1
+            first = False
             continue
-        paragraph=document.add_paragraph(); add_inline(paragraph,line)
-    assert section_number==(11 if stem==SOURCES[0] else 12)
-    assert figure==(3 if stem==SOURCES[0] else 0)
-    add_comments(document,REVIEW_COMMENTS[stem])
-    target=destination/(stem+'.docx'); document.save(target)
+        heading = re.fullmatch(r'(#{1,3})\s+(.+)', line)
+        if heading:
+            style = f'Heading {len(heading.group(1))}'
+            native.paragraph(style, heading.group(2))
+            headings.append(style)
+            first = True
+            continue
+        if line == '**行为对比**':
+            native.paragraph('Table Caption', '行为对比')
+            continue
+        number = re.fullmatch(r'\d+\. (.+)', line)
+        bullet = re.fullmatch(r'[-*] (.+)', line)
+        if number or bullet:
+            kind = 'decimal' if number else 'bullet'
+            native.paragraph('Normal', (number or bullet).group(1), list_kind=kind)
+        else:
+            native.paragraph('First Paragraph' if first else 'Body Text', line)
+        first = False
+    if headings != native.heading_sequence:
+        raise ValueError('Heading level/order differs from the supplied attachment')
+    if table_index != len(native.tables) or figure != (0 if search else 3):
+        raise ValueError('Table/figure structure differs from the supplied attachment')
+    props = native.doc.core_properties
+    props.author = props.last_modified_by = '许达、王飞'
+    props.title = '现有技术检索报告' if search else '发明专利技术交底书'
+    props.subject = '研发智能体外部作业协调及完成控制'
+    props.comments = '中国移动通信有限公司研究院'
+    props.created = props.modified = datetime(2026, 10, 13, tzinfo=timezone.utc)
+    target = destination / (stem + '.docx')
+    native.doc.save(target)
+    preserve_format_parts(target, native.path)
     return target
 
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output-dir',type=Path,default=HERE)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output-dir', type=Path, default=HERE)
     parser.add_argument('--font-file')
-    args=parser.parse_args(); args.output_dir.mkdir(parents=True,exist_ok=True)
-    font=font_path(args.font_file)
-    for stem in SOURCES: print(export(stem,args.output_dir,font))
+    args = parser.parse_args()
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    font = font_path(args.font_file)
+    for stem in SOURCES:
+        print(export(stem, args.output_dir, font))
 
 
-if __name__=='__main__': main()
+if __name__ == '__main__':
+    main()
