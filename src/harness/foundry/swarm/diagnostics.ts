@@ -4,6 +4,7 @@ import type { PinnedSwarm } from "./config.ts";
 import type { Call } from "./context.ts";
 import type { SessionJournal, Thread, ThreadState } from "./session.ts";
 import { recordDebugging, systemStateLedger } from "./debugging.ts";
+import { decisionContext, decisionInputKey, recordDecisionObservation } from "./decisions.ts";
 
 export interface DiagnosticFailure {
   identity: string;
@@ -30,6 +31,7 @@ export interface DiagnosticMemory {
 export interface DiagnosticContext {
   trust: "OBSERVATION_NOT_ACCEPTANCE";
   systemStateLedger?: Json;
+  decisionReview?: Json;
   failures: { kind: DiagnosticFailure["kind"]; tool: string; check?: string;
     job?: string; status?: "FAILED" | "CANCELLED";
     receipt: string; fixture: string; patchHash: string; current: boolean;
@@ -42,8 +44,7 @@ export interface DiagnosticBatch {
 const emptyPatch = digest("");
 const patch = (hash: string | null) => hash ?? emptyPatch;
 export function diagnosticInputKey(state: ThreadState): string {
-  return digest({ patchHash: patch(state.patchHash), feedbackHash: state.feedbackHash,
-    jobReceipt: state.lastJobReceipt ?? null, spawnReceipt: state.lastSpawnReceipt ?? null });
+  return decisionInputKey(state);
 }
 function synchronize(state: ThreadState): string {
   const current = diagnosticInputKey(state);
@@ -138,16 +139,19 @@ export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: Pinned
   admitted: boolean, batch?: DiagnosticBatch): DiagnosticFailure | null {
   const failure = recordFailure(t, journal, cfg, call, result, receipt, beforePatch, admitted, batch);
   recordDebugging(t.state, cfg, call, result, receipt, beforePatch, admitted, failure);
+  recordDecisionObservation(t, cfg, call, result, receipt, beforePatch, admitted);
   return failure;
 }
 
 /** Host observations are hints about a particular input, never current proof.
  * Keep the four latest descriptors; exact cold evidence is available via recall. */
 export function diagnosticContext(state: ThreadState): DiagnosticContext | null {
-  if (!state.diagnostics?.failures.length && !state.debugging) return null;
+  const review = decisionContext(state);
+  if (!state.diagnostics?.failures.length && !state.debugging && !review) return null;
   const current = diagnosticInputKey(state);
   return { trust: "OBSERVATION_NOT_ACCEPTANCE",
     ...(state.debugging ? { systemStateLedger: systemStateLedger(state) } : {}),
+    ...(review ? { decisionReview: review } : {}),
     failures: (state.diagnostics?.failures ?? []).slice(0, 4).map(f => ({
     kind: f.kind, tool: f.tool, ...(f.check ? { check: f.check } : {}), receipt: f.receipt,
     ...(f.job ? { job: f.job } : {}), ...(f.status ? { status: f.status } : {}),

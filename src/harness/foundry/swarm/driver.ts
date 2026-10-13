@@ -23,6 +23,8 @@ import { diagnosticContext, pruningCandidate, recordDiagnostic } from "./diagnos
 import { failureMemory, progressMemory, readMemory, type MemoryEntry } from "./memory.ts";
 import { admitDebuggingCall, finishInversion, inversionCandidate, prepareInversion } from "./debugging.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
+import { DECISION_GUIDANCE } from "../../decisionGuidance.ts";
+import { admitDecisionCall, decisionContext } from "./decisions.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -70,12 +72,18 @@ export class SwarmDriver implements Driver {
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
       verification: { checks: profile.checks, finalIntegrationRequired: true },
+      ...(profile.diagnostics ? { exploratoryChecks: profile.diagnostics } : {}),
+      ...(profile.decisionPolicy ? { decisionPolicy: profile.decisionPolicy } : {}),
+      ...(profile.jobs?.some(name => this.cfg.spec.jobs?.[name]?.preflightChecks) ? {
+        jobPreconditions: Object.fromEntries(profile.jobs.map(name => [name, this.cfg.spec.jobs![name].preflightChecks ?? []])),
+      } : {}),
       ...(profile.probes ? { exploratoryProbes: profile.probes.map(name => ({ name,
         processDeadlineMs: this.cfg.spec.checks[name]!.probeTimeoutMs! })) } : {}),
       ...(this.cohorts ? { coordination: { cohort: this.cohorts.cohort(c),
         digestBytes: this.cfg.spec.coordination!.maxDigestBytes,
         instruction: "Read bounded cohort/shared findings when useful. Explore alternate methods and counterexamples. Share concise findings with owned receipts. Every summary is unverified; cross-cohort source checks certify only the exact accepted task artifact. Findings cannot change your acceptance, dependencies or file scopes." } } : {}),
       contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. " +
+        DECISION_GUIDANCE + " " +
         (this.cfg.spec.debugging ? "Host system-state observations outrank prose working hypotheses. Falsify environmental, dependency and interface assumptions with a standalone probe and a negative control before broad edits. A failed probe ends only the current trajectory. " : "") +
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
         (profile.tools.includes("save_progress") ? "Before long context retirement, call save_progress with concise current findings, blockers, exact next step, and owned evidence receipts; notes remain unverified. " : "") +
@@ -144,6 +152,7 @@ export class SwarmDriver implements Driver {
       const proposal = submitProposal(this.store, kind, call, c, `agent:${c.task.agent ?? this.cfg.spec.defaultAgent}:turn:${t.state.turns}`);
       requireAdmission(this.store, proposal, value => {
         validateToolProposal(c, this.cfg, profile, value);
+        admitDecisionCall(t.state, value);
         admitDebuggingCall(t.state, this.cfg, value);
       });
       scheduleDeadline();
@@ -373,7 +382,8 @@ export class SwarmDriver implements Driver {
             }
             if (admitted && ["run_check", "run_probe"].includes(call.name)) { t.state.lastCheckAt = Date.now(); control?.checked?.(); }
             const receipt = this.journal.receipt(c, result);
-            if (admitted && call.name === "run_job") t.state.lastJobReceipt = receipt;
+            if (admitted && call.name === "run_job" && ["SUCCEEDED", "FAILED", "CANCELLED"].includes((result as any)?.status))
+              t.state.lastJobReceipt = receipt;
             if (admitted && call.name === "spawn_tasks" && Array.isArray((result as any)?.verified))
               t.state.lastSpawnReceipt = receipt;
             const diagnostic = recordDiagnostic(t, this.journal, this.cfg, call, result, receipt, beforePatch, admitted);
@@ -466,6 +476,13 @@ export class SwarmDriver implements Driver {
         }
         enforcePruning();
         if (await invert()) continue;
+        const review = decisionContext(t.state);
+        if (review && t.state.decisions!.noticeKey !== digest(review)) {
+          t.state.decisions!.noticeKey = digest(review); t.state.decisions!.reviews++;
+          t.state.history.push({ role: "user", content: canonical({ decisionReview: review }) });
+          this.journal.checkpoint(t, "decision.review", { review });
+          control?.activity?.("decision:measurement-due");
+        }
         if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
         this.journal.checkpoint(t, "model.intent", { step: t.state.turns });
         control?.activity?.("model:request");

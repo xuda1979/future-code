@@ -12,6 +12,7 @@ import { performance } from "node:perf_hooks";
 import type { DiagnosticMemory } from "./diagnostics.ts";
 import type { DebuggingState } from "./debugging.ts";
 import { installMemoryTables, indexMemory } from "./memory.ts";
+import type { DecisionState } from "./decisions.ts";
 
 export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
 export interface ThreadState {
@@ -26,6 +27,7 @@ export interface ThreadState {
   /** Host-measured bounded failure descriptors; full fixtures stay in receipts. */
   diagnostics?: DiagnosticMemory;
   debugging?: DebuggingState;
+  decisions?: DecisionState;
   turns: number;
   toolCalls: number;
   patchHash: string | null;
@@ -108,6 +110,8 @@ export class SessionJournal {
       CREATE TABLE IF NOT EXISTS agent_cooldowns(provider TEXT PRIMARY KEY, until_ms REAL NOT NULL);
       CREATE TABLE IF NOT EXISTS agent_triage(run TEXT NOT NULL, task TEXT NOT NULL, card TEXT NOT NULL,
         PRIMARY KEY(run,task));
+      CREATE TABLE IF NOT EXISTS agent_decision_reviews(run TEXT NOT NULL, task TEXT NOT NULL, card TEXT NOT NULL,
+        PRIMARY KEY(run,task));
     `);
     const columns = new Set(store.db.prepare("PRAGMA table_info(agent_requests)").all().map(r => String(r.name)));
     if (!columns.has("finished")) store.db.exec("ALTER TABLE agent_requests ADD COLUMN finished REAL");
@@ -171,6 +175,12 @@ export class SessionJournal {
           this.store.db.prepare("INSERT INTO agent_triage VALUES(?,?,?) ON CONFLICT(run,task) DO UPDATE SET card=excluded.card")
             .run(c.runId, c.task.id, canonical(t.state.debugging.card));
         else this.store.db.prepare("DELETE FROM agent_triage WHERE run=? AND task=?").run(c.runId, c.task.id);
+      }
+      if (t.state.decisions) {
+        if (t.state.decisions.review)
+          this.store.db.prepare("INSERT INTO agent_decision_reviews VALUES(?,?,?) ON CONFLICT(run,task) DO UPDATE SET card=excluded.card")
+            .run(c.runId, c.task.id, canonical(t.state.decisions.review));
+        else this.store.db.prepare("DELETE FROM agent_decision_reviews WHERE run=? AND task=?").run(c.runId, c.task.id);
       }
       this.store.db.prepare("UPDATE agent_threads SET seq=?,state=? WHERE run=? AND task=?").run(t.seq + 1, state, c.runId, c.task.id);
     });
