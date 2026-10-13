@@ -5,7 +5,7 @@ import { canonical, digest, invariant, validateEvidence } from "../kernel.ts";
 import { FatalAttemptError } from "../errors.ts";
 import type { Capsule, Json, Task, Verification } from "../types.ts";
 import type { Store } from "../store.ts";
-import { inScope, keys, safePath, type AgentProfile, type PinnedSwarm } from "./config.ts";
+import { inScope, keys, permittedChecks, safePath, type AgentProfile, type PinnedSwarm } from "./config.ts";
 import type { Call } from "./context.ts";
 import type { PatchArtifact } from "./session.ts";
 import { runProcess, type ProcessResult } from "./process.ts";
@@ -193,7 +193,7 @@ export class LocalGitHands implements Hands {
         keys(a, ["path"]); const path = await this.pathFor(a.path as string, true); invariant(lstatSync(path).isFile(), "not a regular file"); unlinkSync(path); return { path: a.path, deleted: true };
       }
       case "run_check": {
-        keys(a, ["name"]); invariant(typeof a.name === "string" && this.profile.checks.includes(a.name), "check not permitted");
+        keys(a, ["name"]); invariant(typeof a.name === "string" && permittedChecks(this.profile).includes(a.name), "check not permitted");
         return JSON.parse(canonical(await this.check(a.name)));
       }
       case "run_probe": {

@@ -6,6 +6,7 @@ import { providerRecoveryStatus, type ProviderCircuit } from "./swarm/providerRe
 import { executionProfile } from "./executionProfile.ts";
 import { runRequestTotals } from "./swarm/requestAccounting.ts";
 import type { TriageCard } from "./swarm/debugging.ts";
+import type { DecisionReview } from "./swarm/decisions.ts";
 
 export interface HealthReport {
   runId: string; at: number; status: string; elapsedMs: number;
@@ -28,6 +29,7 @@ export interface HealthReport {
   truncated: boolean;
   productivity: ReturnType<typeof executionProfile>;
   triage?: { task: string; card: TriageCard }[];
+  decisionReviews?: { task: string; card: DecisionReview }[];
 }
 export type HealthObserver = (report: HealthReport) => void;
 
@@ -95,13 +97,17 @@ export function runHealth(store: Store, runId: string, now = Date.now()): Health
     ? store.db.prepare(`SELECT x.task,x.card FROM agent_triage x JOIN tasks t ON x.run=t.run AND x.task=t.id
         WHERE x.run=? AND t.status<>'PASS' ORDER BY x.task LIMIT 8`).all(runId)
       .map(row => ({ task: String(row.task), card: JSON.parse(String(row.card)) as TriageCard })) : [];
+  const decisionReviews = store.db.prepare("SELECT 1 FROM sqlite_master WHERE name='agent_decision_reviews' AND type='table'").get()
+    ? store.db.prepare(`SELECT x.task,x.card FROM agent_decision_reviews x JOIN tasks t ON x.run=t.run AND x.task=t.id
+        WHERE x.run=? AND t.status<>'PASS' ORDER BY x.task LIMIT 8`).all(runId)
+      .map(row => ({ task: String(row.task), card: JSON.parse(String(row.card)) as DecisionReview })) : [];
   return { runId, at: now, status: run.status, elapsedMs: Math.max(0, now - run.started), counts, waiting,
     scheduler, provider, remoteJobs, fabric, integrity,
     tasks: rows.slice(0, 100).map(r => ({ id: r.id, status: r.status, stage: r.kind ?? r.stage ?? "queued",
       activityAgeMs: age(r.activity_at), progressAgeMs: age(r.progress_at), checkAgeMs: age(r.check_at),
       deadline: r.deadline ?? null, wakeAt: r.wake ?? null, reason: r.reason ?? r.error ?? null })),
     truncated: rows.length > 100, productivity: executionProfile(store, runId, now),
-    ...(triage.length ? { triage } : {}) };
+    ...(triage.length ? { triage } : {}), ...(decisionReviews.length ? { decisionReviews } : {}) };
 }
 
 export function formatHealth(r: HealthReport): string {
@@ -120,6 +126,7 @@ export function formatHealth(r: HealthReport): string {
   return [head, `${queue} | ${provider} | ${jobs}`, `${fabric} | ${integrity}`,
     measured,
     ...(r.triage ?? []).map(t => `TRIAGE ${t.task}: ${t.card.cycles} failing cycles (${t.card.pattern}) in ${t.card.check}. ${t.card.question}`),
+    ...(r.decisionReviews ?? []).map(t => `MEASUREMENT ${t.task}: ${t.card.writeTurns} source-changing turns without a declared measurement. Next: ${t.card.measurementChecks.join(", ")}.`),
     ...r.tasks.slice(0, 8).map(t => `${t.id}: ${t.stage}; activity=${age(t.activityAgeMs)} progress=${age(t.progressAgeMs)} check=${age(t.checkAgeMs)}${t.reason ? `; ${t.reason}` : ""}`),
     ...(r.tasks.length > 8 || r.truncated ? ["More tasks are available through /swarm status."] : [])].join("\n");
 }

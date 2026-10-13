@@ -7,7 +7,8 @@ import type { Capsule, Json } from "../types.ts";
 import type { PinnedSwarm, AgentProfile, JobTemplate } from "./config.ts";
 import { keys } from "./config.ts";
 import type { Call } from "./context.ts";
-import { SessionJournal } from "./session.ts";
+import { SessionJournal, type ThreadState } from "./session.ts";
+import { jobPreflight } from "./decisions.ts";
 import { runProcess } from "./process.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
 import { abortable } from "./transport.ts";
@@ -232,6 +233,14 @@ export class ResearchJobs {
       this.journal.assertLease(c);
       const old = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key);
       if (old) { invariant(old.input_hash === binding, "job replay input drift"); return old; }
+      let preflight: Json | null = null;
+      if (template.preflightChecks || profile.decisionPolicy) {
+        const thread = store.db.prepare("SELECT state,fence FROM agent_threads WHERE run=? AND task=?")
+          .get(c.runId, c.task.id);
+        invariant(thread && thread.fence === c.fence, "JOB_PREFLIGHT_REQUIRED: durable task observations missing");
+        preflight = jobPreflight(this.journal, store.readArtifact(thread.state) as unknown as ThreadState,
+          c, template.preflightChecks ?? []);
+      }
       const count = store.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE run=? AND template=?").get(c.runId, name)!.n;
       if (count >= template.maxJobs) throw new FatalAttemptError("RUN_JOB_BUDGET_EXHAUSTED");
       if (objective) {
@@ -249,7 +258,11 @@ export class ResearchJobs {
         (key,run,task,template,input_hash,created,progress_at,progress_token,poll_at,failures,job_id,status,result_hash,updated,reconciliation_hash,progress_rank,stale_at,idle_polls)
         VALUES(?,?,?,?,?,?,?,NULL,0,0,NULL,'UNKNOWN',NULL,?,NULL,0,?,0)`)
         .run(key, c.runId, c.task.id, name, binding, now, now, now, now + template.staleMs);
-      store.event("job.intent", { key, template: name, inputHash: binding, objective }, c.runId, c.task.id);
+      const preflightReceipt = preflight ? store.artifact({ ...preflight as object, key, inputHash: binding } as Json) : null;
+      if (preflightReceipt) store.db.prepare("INSERT OR IGNORE INTO agent_receipts VALUES(?,?,?)")
+        .run(c.runId, c.task.id, preflightReceipt);
+      store.event("job.intent", { key, template: name, inputHash: binding, objective,
+        ...(preflightReceipt ? { preflightReceipt } : {}) }, c.runId, c.task.id);
       return store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
     });
     if (row.stale_at == null) {
