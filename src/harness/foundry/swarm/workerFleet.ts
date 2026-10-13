@@ -5,7 +5,7 @@ import { DeferredAttemptError } from "../continuation.ts";
 import { FatalAttemptError } from "../errors.ts";
 import type { Capsule, Json, Verification } from "../types.ts";
 import type { Store } from "../store.ts";
-import type { AgentProfile, PinnedSwarm } from "./config.ts";
+import { permittedChecks, type AgentProfile, type PinnedSwarm } from "./config.ts";
 import type { Call } from "./context.ts";
 import { orderedTasks, patchText, readPatchArtifact, verifyPatch, type Hands, type HandsBackend, type WorkspaceBatchResult } from "./workspace.ts";
 
@@ -160,7 +160,7 @@ class RemoteHands implements Hands {
       dependencyPatches: this.dependencies(), restorePatch: this.restorePatch === null ? null
         : patchText(this.store, this.restorePatch, this.cfg.spec.budget.maxPatchBytes),
       task: { writeScope: this.c.task.writeScope, readScope: this.c.task.readScope ?? [] },
-      protectedPaths: this.cfg.spec.protectedPaths, allowedChecks: this.profile.checks,
+      protectedPaths: this.cfg.spec.protectedPaths, allowedChecks: permittedChecks(this.profile),
       allowedProbes: Object.fromEntries((this.profile.probes ?? []).map(name => [name,
         this.cfg.spec.checks[name]!.probeTimeoutMs!])),
       limits: { toolTimeoutMs: this.cfg.spec.budget.toolTimeoutMs,

@@ -1,6 +1,6 @@
 import { canonical, invariant } from "../kernel.ts";
 import type { Capsule } from "../types.ts";
-import { inScope, safePath, type AgentProfile, type PinnedSwarm } from "./config.ts";
+import { inScope, permittedChecks, safePath, type AgentProfile, type PinnedSwarm } from "./config.ts";
 import type { Call } from "./context.ts";
 import { definitions } from "./model.ts";
 import { toolEffectContract } from "./toolEffects.ts";
@@ -46,7 +46,7 @@ export function validateToolProposal(c: Capsule, cfg: PinnedSwarm, profile: Agen
     invariant(inScope(path, write ? c.task.writeScope : [...c.task.writeScope, ...(c.task.readScope ?? [])]), "tool path outside task authority");
     if (write) invariant(!inScope(path, cfg.spec.protectedPaths), "protected tool path");
   }
-  if (call.name === "run_check") invariant(profile.checks.includes(call.arguments.name as string), "check not permitted");
+  if (call.name === "run_check") invariant(permittedChecks(profile).includes(call.arguments.name as string), "check not permitted");
   if (call.name === "run_probe") invariant(profile.probes?.includes(call.arguments.name as string), "probe not permitted");
   if (call.name === "run_job") invariant(profile.jobs?.includes(call.arguments.name as string), "job not permitted");
 }

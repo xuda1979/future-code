@@ -17,6 +17,15 @@ function fixture(fn: (dir: string) => void): void {
 }
 const take = (cwd: string) => takeAutoGoalContinuation({ cwd, mainThread: true, withinTurnBudget: true });
 
+test("goal continuations ask for decision-relevant evidence within the existing turn", () => fixture(dir => {
+  enableAutoGoal("Improve a research result", dir);
+  const prompt = take(dir)!;
+  assert.match(prompt, /uncertainty that could change the next action/);
+  assert.match(prompt, /different outcomes/);
+  assert.match(prompt, /reconcile existing external work/);
+  assert.equal(readAutoGoal(dir)?.totalContinuations, 1);
+}));
+
 test('urgent user questions preserve the goal; explicit cancellation and errors pause it', () => {
   assert.equal(shouldPauseGoalAfterTerminal('completed'), false);
   assert.equal(shouldPauseGoalAfterTerminal('aborted_streaming', 'interrupt'), false);

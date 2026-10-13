@@ -89,6 +89,7 @@ test("goal command getPromptForCommand returns set-goal prompt when args provide
   assert.ok(prompt.includes("GOAL:"));
   assert.ok(prompt.includes(".future-code/goal.md"));
   assert.ok(prompt.includes("checklist"));
+  assert.ok(prompt.includes("uncertainty that could change the next action"));
   assert.ok(prompt.includes("in_progress"));
 });
 

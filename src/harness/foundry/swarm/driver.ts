@@ -25,6 +25,7 @@ import { admitDebuggingCall, finishInversion, inversionCandidate, prepareInversi
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
 import { admitJobEvaluation, checkpointReason, evaluationEvidenceKey } from "./evaluation.ts";
 import { researchDecisionGuidance } from "../../researchDecision.ts";
+import { admitDecisionCall, decisionContext } from "./decisions.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -77,6 +78,11 @@ export class SwarmDriver implements Driver {
         maxUnmeasuredTurns: this.cfg.spec.supervision.checkpointEveryTurns ?? 4,
         afterEvidence: this.cfg.spec.supervision.checkpointAfterEvidence !== false,
       } } : {}),
+      ...(profile.diagnostics ? { exploratoryChecks: profile.diagnostics } : {}),
+      ...(profile.decisionPolicy ? { decisionPolicy: profile.decisionPolicy } : {}),
+      ...(profile.jobs?.some(name => this.cfg.spec.jobs?.[name]?.preflightChecks) ? {
+        jobPreconditions: Object.fromEntries(profile.jobs.map(name => [name, this.cfg.spec.jobs![name].preflightChecks ?? []])),
+      } : {}),
       ...(profile.probes ? { exploratoryProbes: profile.probes.map(name => ({ name,
         processDeadlineMs: this.cfg.spec.checks[name]!.probeTimeoutMs! })) } : {}),
       ...(profile.jobs ? { experimentPreflights: Object.fromEntries(profile.jobs.map(name =>
@@ -155,6 +161,7 @@ export class SwarmDriver implements Driver {
       const proposal = submitProposal(this.store, kind, call, c, `agent:${c.task.agent ?? this.cfg.spec.defaultAgent}:turn:${t.state.turns}`);
       requireAdmission(this.store, proposal, value => {
         validateToolProposal(c, this.cfg, profile, value);
+        admitDecisionCall(t.state, value);
         admitDebuggingCall(t.state, this.cfg, value);
         admitJobEvaluation(t.state, this.cfg, value, value.name === "run_job" && !!jobs?.hasSubmission(c, value));
       });
@@ -386,7 +393,8 @@ export class SwarmDriver implements Driver {
             }
             if (admitted && ["run_check", "run_probe"].includes(call.name)) { t.state.lastCheckAt = Date.now(); control?.checked?.(); }
             const receipt = this.journal.receipt(c, result);
-            if (admitted && call.name === "run_job") t.state.lastJobReceipt = receipt;
+            if (admitted && call.name === "run_job" && ["SUCCEEDED", "FAILED", "CANCELLED"].includes((result as any)?.status))
+              t.state.lastJobReceipt = receipt;
             if (admitted && call.name === "spawn_tasks" && Array.isArray((result as any)?.verified))
               t.state.lastSpawnReceipt = receipt;
             const diagnostic = recordDiagnostic(t, this.journal, this.cfg, call, result, receipt, beforePatch, admitted);
@@ -483,6 +491,13 @@ export class SwarmDriver implements Driver {
         }
         enforcePruning();
         if (await invert()) continue;
+        const review = decisionContext(t.state);
+        if (review && t.state.decisions!.noticeKey !== digest(review)) {
+          t.state.decisions!.noticeKey = digest(review); t.state.decisions!.reviews++;
+          t.state.history.push({ role: "user", content: canonical({ decisionReview: review }) });
+          this.journal.checkpoint(t, "decision.review", { review });
+          control?.activity?.("decision:measurement-due");
+        }
         if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
         this.journal.checkpoint(t, "model.intent", { step: t.state.turns });
         control?.activity?.("model:request");

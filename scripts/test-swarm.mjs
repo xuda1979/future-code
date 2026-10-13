@@ -11,6 +11,7 @@ const result = spawnSync(process.execPath, ["--experimental-strip-types", "--tes
   "tests/foundry/debugging-guardrails.test.ts",
   "tests/foundry/evaluation-cadence.test.ts",
   "tests/foundry/job-preflight.test.ts",
+  "tests/foundry/decision-policy.test.ts",
   "tests/foundry/job-evidence.test.ts", "tests/foundry/episodic-memory.test.ts"], { cwd, stdio: "inherit" });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

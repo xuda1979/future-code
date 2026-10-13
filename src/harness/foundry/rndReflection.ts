@@ -103,11 +103,13 @@ function summaryForRun(store: Store, run: string): Record<string, any> {
   const contextLimits = new Map<string, number>();
   let retainedFailures = 0, prunedTrajectories = 0, maxUnchangedFailureRepeats = 0;
   let inversionResets = 0, debuggingPruned = 0;
+  let measurementReviews = 0;
   if (tableExists(store, "agent_threads")) for (const row of store.db.prepare("SELECT task,state FROM agent_threads WHERE run=?").all(run)) {
     const state = store.readArtifact(String(row.state)) as any;
     if (Number.isSafeInteger(state.contextLimit) && state.contextLimit > 0) contextLimits.set(String(row.task), state.contextLimit);
     const diagnostics = state.diagnostics;
     inversionResets += state.debugging?.resets ?? 0;
+    measurementReviews += state.decisions?.reviews ?? 0;
     if (state.debugging?.prunedReason) debuggingPruned++;
     retainedFailures += diagnostics?.failures?.length ?? 0;
     if (diagnostics?.pruned) prunedTrajectories++;
@@ -138,7 +140,7 @@ function summaryForRun(store: Store, run: string): Record<string, any> {
     maxContextBytes, contextBudgetBytes: recipe.contextBytes, contextPressure, providerContextPressure,
     execution: measuredExecution,
     maxRepeatedFailure, repeatedFailureTasks,
-    diagnostics: { retainedFailures, prunedTrajectories, maxUnchangedFailureRepeats, inversionResets, debuggingPruned },
+    diagnostics: { retainedFailures, prunedTrajectories, maxUnchangedFailureRepeats, inversionResets, debuggingPruned, measurementReviews },
     verifiedFraction: tasks.length ? verifiedTasks / tasks.length : 0,
     verifiedPerAttempt: safeRatio(verifiedTasks, attempts.length),
     verifiedPerRequest: safeRatio(verifiedTasks, requests.length),
@@ -153,6 +155,10 @@ function finding(code: string, severity: ReflectionSeverity, evidence: Json, rec
 
 function findingsFor(summary: Record<string, any>, previous: Record<string, any> | null, replans: number): ReflectionFinding[] {
   const out: ReflectionFinding[] = [];
+  if (summary.diagnostics.measurementReviews > 0) out.push(finding(
+    "measurement_overdue", "MEDIUM", json({ reviews: summary.diagnostics.measurementReviews }),
+    "The host observed source-changing turns without a new declared measurement. Schedule a relevant small evaluation before expanding implementation or external compute. Preserve negative observations, distinguish unknown outcomes, and keep independent acceptance unchanged.",
+  ));
   if (summary.diagnostics.inversionResets > 0 || summary.diagnostics.debuggingPruned > 0) out.push(finding(
     "nonconvergent_debugging", "HIGH", json(summary.diagnostics),
     "The host observed failing diagnostic cycles across edits or a failed/inconclusive premise probe. Use the system-state ledger to falsify environment, dependency, and contract assumptions before a smaller replacement trajectory. Auditor explanations remain hypotheses. Preserve independent acceptance.",

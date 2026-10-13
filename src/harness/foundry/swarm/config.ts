@@ -25,6 +25,10 @@ export interface AgentProfile {
   checks: string[];
   /** Cheap permitted check used for autonomous evaluation; defaults to checks[0]. */
   checkpointCheck?: string;
+  /** Permitted exploratory checks; never added to independent acceptance. */
+  diagnostics?: string[];
+  /** Host-observed measurement cadence, opt-in for sustained implementation. */
+  decisionPolicy?: { maxUnmeasuredWriteTurns: number; measurementChecks: string[] };
   /** Exploratory capabilities, separate from independent acceptance checks. */
   probes?: string[];
   jobs?: string[];
@@ -177,6 +181,7 @@ export function inScope(path: string, scopes: string[]): boolean {
 function names(names: string[], known: string[], label: string): void {
   invariant(Array.isArray(names) && names.length > 0 && new Set(names).size === names.length && names.every(n => known.includes(n)), `invalid ${label}`);
 }
+export const permittedChecks = (a: AgentProfile): string[] => [...new Set([...a.checks, ...(a.diagnostics ?? [])])];
 export function validateSwarmSpec(s: SwarmSpec): void {
   keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack", "coordination", "verification", "debugging"]);
   invariant(s.schema === 1 && typeof s.name === "string" && !!s.name.trim(), "invalid swarm identity");
@@ -223,7 +228,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   invariant(s.integrationChecks.every(n => s.checks[n].replaySafe), "integration checks must be replay-safe");
   for (const [id, a] of Object.entries(s.agents)) {
     identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"],
-      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs", "cohort", "probes", "checkpointCheck"]);
+      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs", "cohort", "probes", "checkpointCheck", "diagnostics", "decisionPolicy"]);
     if (a.cohort !== undefined) {
       identifier(a.cohort);
       invariant(s.coordination && Object.hasOwn(s.coordination.cohorts, a.cohort), "unknown agent cohort");
@@ -271,6 +276,19 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     names(a.tools, [...TOOLS], "tools"); names(a.checks, checks, "agent checks");
     if (a.checkpointCheck !== undefined) invariant(a.tools.includes("run_check") && a.checks.includes(a.checkpointCheck),
       "checkpoint check must be a permitted run_check capability");
+    if (a.diagnostics !== undefined) {
+      names(a.diagnostics, checks, "agent diagnostics");
+      invariant(a.tools.includes("run_check") && a.diagnostics.every(n => s.checks[n].replaySafe),
+        "diagnostics require replay-safe permitted checks");
+    }
+    if (a.decisionPolicy !== undefined) {
+      const p = a.decisionPolicy;
+      keys(p, ["maxUnmeasuredWriteTurns", "measurementChecks"]);
+      invariant(Number.isSafeInteger(p.maxUnmeasuredWriteTurns) && p.maxUnmeasuredWriteTurns >= 2 &&
+        p.maxUnmeasuredWriteTurns <= 32, "invalid unmeasured write-turn limit (2..32)");
+      names(p.measurementChecks, permittedChecks(a), "decision measurements");
+      invariant(a.tools.includes("run_check"), "decision policy requires run_check");
+    }
     if (a.probes !== undefined) {
       names(a.probes, checks, "agent probes");
       invariant(a.probes.every(name => s.checks[name].probeTimeoutMs !== undefined), "probe capability needs a pinned deadline");
@@ -354,10 +372,11 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs", "preflightChecks"]);
       if (job.preflightChecks !== undefined) {
         names(job.preflightChecks, checks, "job preflight checks");
-        invariant(job.preflightChecks.every(name => s.checks[name].replaySafe), "preflight checks must be replay-safe");
+        invariant(job.preflightChecks.length <= 16 && job.preflightChecks.every(n => s.checks[n].replaySafe),
+          "job preflight checks must be bounded and replay-safe");
         for (const a of Object.values(s.agents).filter(a => a.jobs?.includes(id)))
-          invariant(a.tools.includes("run_check") && job.preflightChecks.every(name => a.checks.includes(name)),
-            "job preflight checks must be permitted for every submitting agent");
+          invariant(a.tools.includes("run_check") && job.preflightChecks.every(n => permittedChecks(a).includes(n)),
+            "job preflight checks must be permitted to the submitting agent");
       }
       keys(job.adapter, ["argv"], ["envAllow", "files"]);
       invariant(job.idempotentEnsure === true, "remote ensure must be idempotent");

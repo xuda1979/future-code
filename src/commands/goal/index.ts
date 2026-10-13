@@ -1,6 +1,7 @@
 import type { Command } from '../../commands.js'
 import { enableAutoGoal, pauseAutoGoal, resumeAutoGoal, readAutoGoal, MAX_AUTO_GOAL_CONTINUATIONS } from './auto.ts'
 import { researchDecisionGuidance } from '../../harness/researchDecision.ts'
+import { DECISION_GUIDANCE } from '../../harness/decisionGuidance.ts'
 
 const goal: Command = {
   type: 'prompt',
@@ -22,7 +23,7 @@ const goal: Command = {
     }
     if (value === '--resume') {
       const state = resumeAutoGoal()
-      return [{ type: 'text' as const, text: state ? 'Autonomous goal resumed; its configured limit is preserved. Continue verified work on: ' + state.goal + '\n' + researchDecisionGuidance : 'No autonomous goal is configured.' }]
+      return [{ type: 'text' as const, text: state ? 'Autonomous goal resumed; its configured limit is preserved. Continue verified work on: ' + state.goal + '\n\n' + researchDecisionGuidance + '\n\n' + DECISION_GUIDANCE : 'No autonomous goal is configured.' }]
     }
     if (value) {
       let goal = value.startsWith('--auto ') ? value.slice('--auto '.length).trim() : value
@@ -38,11 +39,10 @@ const goal: Command = {
       }
       const state = enableAutoGoal(goal, process.cwd(), limit)
       const budget = state.maxContinuations === null ? 'continues until review, a concrete blocker, or an operator pause' : `up to ${state.maxContinuations} automatic continuation turns`
-      return [{ type: 'text' as const, text: `Autonomous goal armed (${budget}). The host continues after completed model turns. Preserve caller budgets and permissions; operator review remains separate from model claims.\n\nGOAL: ${goal}\n\n${researchDecisionGuidance}\n\nWrite this goal, a checklist, and Status: in_progress to .future-code/goal.md now. Execute the highest-impact next step and preserve durable progress and evidence. After independent checks succeed, set Status: completed. If an obstacle is recoverable, diagnose it and try a different supported approach. When no safe approach remains, write Status: blocked and Blocker: <specific cause and attempted recovery> to the goal file, and report the blocker and safe next action. Completing the goal does NOT end the session; remain fully available for subsequent instructions.` }]
+      return [{ type: 'text' as const, text: `Autonomous goal armed (${budget}). The host continues after completed model turns. Preserve caller budgets and permissions; operator review remains separate from model claims.\n\nGOAL: ${goal}\n\n${researchDecisionGuidance}\n\n${DECISION_GUIDANCE}\n\nWrite this goal, a checklist, and Status: in_progress to .future-code/goal.md now. Execute the highest-impact next step and preserve durable progress and evidence. After independent checks succeed, set Status: completed. If an obstacle is recoverable, diagnose it and try a different supported approach. When no safe approach remains, write Status: blocked and Blocker: <specific cause and attempted recovery> to the goal file, and report the blocker and safe next action. Completing the goal does NOT end the session; remain fully available for subsequent instructions.` }]
     }
     return [{ type: 'text' as const, text: `Read the current goal from .future-code/goal.md if it exists. If it exists, summarize the current goal and the progress made so far. If it does not exist, tell the user that no goal has been set yet and suggest they use /goal <description> to set one.` }]
   },
 }
 
 export default goal
-
