@@ -23,6 +23,8 @@ export interface AgentProfile {
   system: string;
   tools: ToolName[];
   checks: string[];
+  /** Cheap permitted check used for autonomous evaluation; defaults to checks[0]. */
+  checkpointCheck?: string;
   /** Exploratory capabilities, separate from independent acceptance checks. */
   probes?: string[];
   jobs?: string[];
@@ -72,6 +74,8 @@ export interface SwarmBudget {
 }
 export interface JobTemplate {
   adapter: CommandSpec;
+  /** Optional submission gate: exact-source/evidence passing run_check receipts. */
+  preflightChecks?: string[];
   /** Adapter ensure(key) must reconcile/deduplicate remotely, not blindly resubmit. */
   idempotentEnsure: true;
   pollMs: number; staleMs: number; maxJobs: number; maxConcurrent: number;
@@ -90,6 +94,11 @@ export interface SupervisionPolicy {
   checkpointEveryMs: number;
   /** Optional dedupe of periodic exploratory checks when source is unchanged. */
   checkpointCadence?: "periodic" | "on-change";
+  /** Also evaluate after this many model turns without the selected check. Default 4. */
+  checkpointEveryTurns?: number;
+  /** Evaluate newly completed job/child/verification evidence before another
+   * model decision. Default true; independent acceptance is unchanged. */
+  checkpointAfterEvidence?: boolean;
   snapshotReads?: boolean;
   /** Optional hard lifetime cap. Omit for persistent recovery under objective budgets; set 0 to disable autonomous replanning. */
   maxReplans?: number;
@@ -214,7 +223,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   invariant(s.integrationChecks.every(n => s.checks[n].replaySafe), "integration checks must be replay-safe");
   for (const [id, a] of Object.entries(s.agents)) {
     identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"],
-      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs", "cohort", "probes"]);
+      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs", "cohort", "probes", "checkpointCheck"]);
     if (a.cohort !== undefined) {
       identifier(a.cohort);
       invariant(s.coordination && Object.hasOwn(s.coordination.cohorts, a.cohort), "unknown agent cohort");
@@ -260,6 +269,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       invariant(a.jobs && a.jobs.length > 0, "job tools require named job capabilities");
     if (s.supervision) invariant(a.tools.includes("run_check"), "supervision requires a permitted checkpoint check");
     names(a.tools, [...TOOLS], "tools"); names(a.checks, checks, "agent checks");
+    if (a.checkpointCheck !== undefined) invariant(a.tools.includes("run_check") && a.checks.includes(a.checkpointCheck),
+      "checkpoint check must be a permitted run_check capability");
     if (a.probes !== undefined) {
       names(a.probes, checks, "agent probes");
       invariant(a.probes.every(name => s.checks[name].probeTimeoutMs !== undefined), "probe capability needs a pinned deadline");
@@ -297,11 +308,13 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       p.maxDigestBytes <= Math.min(65536, Math.floor(s.recipe.contextBytes / 2)), "invalid finding digest bytes");
   }
   if (s.supervision) {
-    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["checkpointCadence", "snapshotReads", "maxReplans", "maxObjectiveRequests", "maxObjectiveRequestBytes", "recoveryBackoffMs", "recoveryAgent", "dynamicDAG"]);
+    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["checkpointCadence", "checkpointEveryTurns", "checkpointAfterEvidence", "snapshotReads", "maxReplans", "maxObjectiveRequests", "maxObjectiveRequestBytes", "recoveryBackoffMs", "recoveryAgent", "dynamicDAG"]);
     positive(s.supervision.reportEveryMs, 3600000, "reportEveryMs");
     invariant(s.supervision.reportEveryMs >= 10, "report interval too small");
     positive(s.supervision.checkpointEveryMs, 3600000, "checkpointEveryMs");
     invariant(s.supervision.checkpointCadence === undefined || ["periodic", "on-change"].includes(s.supervision.checkpointCadence), "invalid checkpoint cadence");
+    if (s.supervision.checkpointEveryTurns !== undefined) positive(s.supervision.checkpointEveryTurns, 1000, "checkpointEveryTurns");
+    invariant(s.supervision.checkpointAfterEvidence === undefined || typeof s.supervision.checkpointAfterEvidence === "boolean", "invalid checkpointAfterEvidence");
     invariant(s.supervision.snapshotReads === undefined || typeof s.supervision.snapshotReads === "boolean", "invalid snapshotReads");
     invariant(s.supervision.maxReplans === undefined || (Number.isSafeInteger(s.supervision.maxReplans) && s.supervision.maxReplans >= 0 && s.supervision.maxReplans <= 256), "invalid maxReplans");
     invariant(s.supervision.maxObjectiveRequests === undefined ||
@@ -338,7 +351,14 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   if (s.jobs) {
     keys(s.jobs, [], Object.keys(s.jobs)); positive(Object.keys(s.jobs).length, 32, "job templates");
     for (const [id, job] of Object.entries(s.jobs)) {
-      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs"]);
+      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs", "preflightChecks"]);
+      if (job.preflightChecks !== undefined) {
+        names(job.preflightChecks, checks, "job preflight checks");
+        invariant(job.preflightChecks.every(name => s.checks[name].replaySafe), "preflight checks must be replay-safe");
+        for (const a of Object.values(s.agents).filter(a => a.jobs?.includes(id)))
+          invariant(a.tools.includes("run_check") && job.preflightChecks.every(name => a.checks.includes(name)),
+            "job preflight checks must be permitted for every submitting agent");
+      }
       keys(job.adapter, ["argv"], ["envAllow", "files"]);
       invariant(job.idempotentEnsure === true, "remote ensure must be idempotent");
       positive(job.pollMs, 3600000, "job poll interval"); invariant(job.pollMs >= 10, "job poll interval too short");

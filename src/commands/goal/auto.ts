@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { researchDecisionGuidance } from "../../harness/researchDecision.ts";
 
 // A /goal authorizes continued work until REVIEW, an explicit pause, or a
 // concrete blocker. Optional operator limits remain durable across restarts.
@@ -187,6 +188,7 @@ export function decideAutoGoalContinuation(options: {
     return { kind: "CONTINUE", prompt: "[Host-driven autonomous goal continuation " + next +
       (state.maxContinuations === null ? "" : "/" + state.maxContinuations) + "]\n" +
       "Goal: " + state.goal + "\n" +
+      researchDecisionGuidance + "\n" +
       "The previous assistant turn ended but the durable goal is not yet complete. " +
       "Inspect actual artifacts and test results, identify the highest-impact next step, " +
       "then execute it using permitted tools. Do not merely restate the plan or assume success. " +

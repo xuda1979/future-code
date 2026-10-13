@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { researchDecisionGuidance } from "../../src/harness/researchDecision.ts";
 import {
   enableAutoGoal, pauseAutoGoal, readAutoGoal, resumeAutoGoal,
   takeAutoGoalContinuation, decideAutoGoalContinuation, parkActiveAutoGoal, AUTO_GOAL_BATCH_LIMIT, MAX_AUTO_GOAL_CONTINUATIONS,
@@ -32,6 +33,7 @@ test("opt-in only; SDK/subagents and explicit turn ceilings never auto-continue"
   assert.equal(readAutoGoal(dir)?.totalContinuations, 0);
   assert.match(take(dir)!, /Build verified demo/);
   assert.equal(readAutoGoal(dir)?.totalContinuations, 1);
+  assert.ok(take(dir)?.includes(researchDecisionGuidance), "continuations preserve the early-evaluation decision discipline");
 }));
 
 test("pause/resume preserve durable accounting across process-equivalent reads", () => fixture(dir => {

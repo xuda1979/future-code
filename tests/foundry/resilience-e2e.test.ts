@@ -42,7 +42,11 @@ test("real job subprocess + Swarm yields its sole slot without extra model calls
   assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM attempts WHERE status='FAIL'").get()!.n, 0);
   const j = new SessionJournal(s);
   const aState: any = s.readArtifact(s.db.prepare("SELECT state FROM agent_threads WHERE task='a'").get()!.state);
-  assert.equal(aState.toolCalls, 2, "resuming the pending job must not charge a second tool call");
+  const checkpoints = s.db.prepare("SELECT payload FROM agent_events WHERE task='a' AND kind='checkpoint.checked'").all();
+  assert.equal(checkpoints.length, 1, "completed experiment evidence triggers one real evaluation");
+  const evaluation: any = s.readArtifact(checkpoints[0]!.payload as string);
+  assert.equal(evaluation.reason, "new-evidence");
+  assert.equal(aState.toolCalls, 3, "one job, one write, and one evaluation; remote polling adds no tool charge");
   assert.equal(j.usage(result.id).requests, 4);
 }, s => {
   localJob(s);

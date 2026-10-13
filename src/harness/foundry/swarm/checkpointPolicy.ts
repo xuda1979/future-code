@@ -1,4 +1,13 @@
 import { digest } from "../kernel.ts";
+import type { ThreadState } from "./session.ts";
+
+const emptyPatch = digest("");
+/** Shared binding for diagnostics and submission preflights. Thread ownership
+ * separately pins the task, dependency capsule, base commit, and configuration. */
+export function threadInputKey(state: ThreadState): string {
+  return digest({ patchHash: state.patchHash ?? emptyPatch, feedbackHash: state.feedbackHash,
+    jobReceipt: state.lastJobReceipt ?? null, spawnReceipt: state.lastSpawnReceipt ?? null });
+}
 
 /** Advisory, exploratory work only. Does not bypass host acceptance or integration. */
 export function checkpointInputKey(patchHash: string | null, feedbackRevision: number, evidenceHash?: string): string {

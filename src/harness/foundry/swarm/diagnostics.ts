@@ -4,6 +4,8 @@ import type { PinnedSwarm } from "./config.ts";
 import type { Call } from "./context.ts";
 import type { SessionJournal, Thread, ThreadState } from "./session.ts";
 import { recordDebugging, systemStateLedger } from "./debugging.ts";
+import { recordEvaluation } from "./evaluation.ts";
+import { threadInputKey } from "./checkpointPolicy.ts";
 
 export interface DiagnosticFailure {
   identity: string;
@@ -42,8 +44,7 @@ export interface DiagnosticBatch {
 const emptyPatch = digest("");
 const patch = (hash: string | null) => hash ?? emptyPatch;
 export function diagnosticInputKey(state: ThreadState): string {
-  return digest({ patchHash: patch(state.patchHash), feedbackHash: state.feedbackHash,
-    jobReceipt: state.lastJobReceipt ?? null, spawnReceipt: state.lastSpawnReceipt ?? null });
+  return threadInputKey(state);
 }
 function synchronize(state: ThreadState): string {
   const current = diagnosticInputKey(state);
@@ -138,6 +139,7 @@ export function recordDiagnostic(t: Thread, journal: SessionJournal, cfg: Pinned
   admitted: boolean, batch?: DiagnosticBatch): DiagnosticFailure | null {
   const failure = recordFailure(t, journal, cfg, call, result, receipt, beforePatch, admitted, batch);
   recordDebugging(t.state, cfg, call, result, receipt, beforePatch, admitted, failure);
+  recordEvaluation(t.state, call, result, receipt, beforePatch, admitted);
   return failure;
 }
 

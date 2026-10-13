@@ -30,7 +30,7 @@ is a file/directory-prefix **impact declaration**, for example:
 }
 ```
 
-When `unit` is the first check permitted to a supervised agent, an automatic
+When `unit` is the selected `checkpointCheck` (or the first permitted check by default), an automatic
 exploratory checkpoint may be *omitted* if the authoritative Git path delta
 relative to that task's accepted dependency tree contains only unrelated
 paths. Paths come from NUL-delimited Git output, not diff header parsing or
@@ -52,6 +52,89 @@ early trajectory pruning](DURABLE_DIAGNOSTICS.md). A per-check
 `maxUnchangedFailures` limit applies only to operator-declared deterministic
 diagnostics; pending operations, unknown outcomes and mandatory acceptance
 retain their existing contracts.
+
+## Evaluation before costly work
+
+Supervised workers also evaluate after four model turns without the selected
+check, or when completed external jobs, accepted children, or verifier feedback
+provide new evidence. These triggers run at a complete tool boundary before the
+next model request; they do not wait for `checkpointEveryMs`. They retain the
+existing input deduplication and conservative path slicing. A current explicit
+`run_check` can satisfy the selected evaluation, including a failing baseline.
+An unrelated check or premise micro-probe does not reset its evaluation clock.
+Failures remain diagnostics, never acceptance or proof that a goal is impossible.
+
+Choose a cheap, decision-relevant check rather than an expensive full suite:
+
+```json
+{
+  "agents": {
+    "researcher": {
+      "checks": ["quick_evaluation", "full_regression"],
+      "checkpointCheck": "quick_evaluation"
+    }
+  },
+  "supervision": {
+    "reportEveryMs": 30000,
+    "checkpointEveryMs": 60000,
+    "checkpointEveryTurns": 4,
+    "checkpointAfterEvidence": true,
+    "checkpointCadence": "on-change"
+  },
+  "jobs": {
+    "expensive_experiment": {
+      "preflightChecks": ["quick_evaluation"]
+    }
+  }
+}
+```
+
+This is a configuration fragment: retain each profile's provider/tools, each
+check's pinned command, each job's adapter/reconciliation limits, and all other
+required specification fields. Every submitting profile must have `run_check`
+authority for the listed `preflightChecks`. No job is classified as expensive
+by its name or the model's opinion; the operator selects this gate per template.
+
+Before a **new** `run_job` intent, the gate requires zero-exit, non-source-mutating
+observations for every listed check, bound to the thread's exact source patch,
+verifier feedback, completed job receipt, and child-result receipt. Missing,
+failed, timed-out, unknown, or stale observations return `EVALUATION_REQUIRED`
+before any adapter invocation or external intent. Agent summaries and saved
+progress cannot satisfy this gate. Adjacent independent job calls are admitted
+against one source/evidence boundary and can still launch concurrently. A later
+dependent experiment needs re-evaluation after the earlier result. Existing
+submitted identities always retain ensure/inspect reconciliation, even if check
+evidence becomes unavailable; they are never replaced to bypass the gate.
+
+The gate certifies only the predicates implemented by its pinned checks. It does
+not automatically validate arbitrary `job.input`, a remote dataset, or a remote
+checkpoint. Check commands and task dependencies must validate the relevant
+artifact/input identities. If observations depend on changing unobserved external
+state, use periodic checkpoints and choose the project's required freshness
+policy rather than assuming source-only deduplication measures that state.
+
+Check observations persist with the corresponding result checkpoint and survive
+restart. `checkpoint.checked` / `checkpoint.sliced` records include the check and
+trigger reason (`turn-budget`, `new-evidence`, or `interval`). Actual checks use
+the existing tool-call, deadline, output, diagnostic, and objective boundaries.
+Unchanged inputs do not acquire repeated automatic measurements under the
+default cadence. Short two-request tasks with no new evidence need no additional
+check or provider request. Final independent checks always run.
+
+Ordinary CLI task instructions, `/goal` creation/resume/continuation, Swarm
+workers, and recovery planning now share the same decision discipline: identify
+the uncertainty that can change the next action, obtain the cheapest applicable
+measurement, diagnose/repair/re-evaluate, then scale costly work. When there is no
+evaluable artifact, first build the smallest one. The CLI guidance is a model
+instruction; the deterministic turn/evidence triggers and job gate govern
+Foundry/Swarm, not arbitrary terminal shell commands.
+
+These changes address delayed measurement, not a demonstrated general ability
+to anticipate every important issue. `evaluation-cadence.test.ts` and
+`job-preflight.test.ts` reproduce the old delayed-check behavior and cover input
+staleness, failed baselines, independent final verification, batch submission,
+checkpoint replay, and remote reconciliation. Live-model R&D gains require a
+matched task/acceptance comparison; offline regressions cannot establish them.
 
 ## Choosing impact paths
 
