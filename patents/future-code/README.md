@@ -1,25 +1,22 @@
-# Future-Code patent materials
+# Future-Code 专利资料
 
-This directory holds the **reviewed** Chinese invention disclosure and preliminary prior-art search report, following the supplied documents' original top-level chapter structure.
+修订日期：2026-10-13。编制单位为中国移动通信有限公司研究院（中国移动研究院），发明人为**许达、王飞**。所属单位已明确，正式申请主体及共同申请安排按院职务发明管理流程核定。
 
-- [INVENTION_DISCLOSURE_CN.md](INVENTION_DISCLOSURE_CN.md): eleven original top-level sections, three diagram source blocks, thirteen proposed claims; inventor names **许达、王飞** (listed in supplied order; final order and ownership require confirmation).
-- [PRIOR_ART_SEARCH_CN.md](PRIOR_ART_SEARCH_CN.md): original twelve top-level sections including sources A-E, risk analysis, claim matrix and filing strategy. Includes closer adverse prior art from Temporal's October 8, 2026 Pi-agent recovery publication, autonomous testing and patent-family correction.
+拟议主题：**一种研发智能体的外部作业协调及完成控制方法**。核心是授权绑定、稳定远端作业协调与目标完成再检查的相互约束。
 
-Key corrections in this review:
-- Remote jobs rely on a pinned adapter's **idempotent ensure(key)** and **inspect(jobId)** contract, not an unsupported claim of global exactly-once semantics; `UNKNOWN` remains unresolved.
-- The API recovery implementation uses `agent_provider_health`, `agent_provider_admissions`, `agent_provider_waits`, not an invented `provider_circuits` table.
-- Claim 1 focuses on proposal authority binding + remote job identity + independent objective completion gate; generic DAG, leases, retries, verification and HACT alone are not asserted as novel.
-- Prior-art risks and patent-family overlap are disclosed; neither novelty nor non-obviousness or freedom-to-operate has been established.
+| 文件 | 用途 |
+|---|---|
+| [INVENTION_DISCLOSURE_CN.md](INVENTION_DISCLOSURE_CN.md) | 保留原十一项一级章节的交底书源文稿，13项拟议权利要求 |
+| [INVENTION_DISCLOSURE_CN.docx](INVENTION_DISCLOSURE_CN.docx) | 可编辑Word交底书，包含三幅实际流程图及关键修订批注 |
+| [PRIOR_ART_SEARCH_CN.md](PRIOR_ART_SEARCH_CN.md) | 保留原十二项一级章节的初步检索报告源文稿 |
+| [PRIOR_ART_SEARCH_CN.docx](PRIOR_ART_SEARCH_CN.docx) | 可编辑Word检索报告，引用使用真实文献链接 |
+| [REVIEW_20261013.md](REVIEW_20261013.md) | 十项审阅问题、处理依据、源代码定位及103项测试结果 |
+| [export_docx.py](export_docx.py) | 从源文稿重建两份Word文件；需要python-docx、Pillow及Noto Sans CJK SC字体 |
 
-Editable DOCX exports of this revision were generated separately and visually checked for requester delivery. The disclosure occupies **5 A4 pages**, and the search report **6 A4 pages**. The connected GitHub writer supports only UTF-8 text; binary DOCX files are **not** part of the PR.
+本次修订纠正了对验证专利及特定领域权利要求的过度概括，补充远端接口契约、历史修订作业门控、集成前后核验及完成记录重放。HACT布局优化留作后续专项主题，不列入本案拟议权利要求。
 
-## Implementation traceability
+代码复核基线为 `249b8ccafee935a66accab3ae37c65742b11ecd3`。七个相关现有测试文件共103项通过、0项失败。测试仅支持受控宿主及适配器行为，不证明真实模型生产力或专利可授权性。
 
-- Proposal authorization: `src/harness/foundry/proposals.ts`
-- Atomic dynamic children: `src/harness/foundry/dynamicDag.ts`
-- Research jobs and idempotent adapter: `src/harness/foundry/swarm/jobs.ts`
-- Shared provider recovery: `src/harness/foundry/swarm/providerRecovery.ts`
-- Host objective evidence gate: `src/harness/foundry/swarm/supervisor.ts`
-- Optional HACT evidence export: `src/hact/`
+Word文件按A4、正文11pt排版，交底书9页、检索报告9页，18页均已逐页渲染核对附图、表格、中文字体及分页。目录内的Word文件与本次源文稿对应；旧稿中“二进制Word无法提交”的说明不再适用。
 
-**Important:** These are technical drafts for inventor/counsel review, not a formal patentability/FTO opinion. Applicant ownership, inventor contribution/order, actual earliest public disclosure, prior art status and the applicability of any grace period must be checked before filing. The older `docs/release/FUTURE_CODE_PATENT_CN.md` is retained for historical traceability.
+这些资料用于院内研发与知识产权工作，不是正式申请文件、官方检索报告或自由实施意见。检索报告列明现有技术、实际公开时间和申请日尚需核定的具体事项。旧文件 `docs/release/FUTURE_CODE_PATENT_CN.md` 保留为历史材料，当前交底书与检索报告以本目录为准。
