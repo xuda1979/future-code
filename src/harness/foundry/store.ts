@@ -9,6 +9,7 @@ import { canonical, digest, invariant, validateContract, validateRecipe } from "
 import type { Contract, Json, Recipe, PinnedCommand } from "./types.ts";
 import { attachWakeup, type Wakeup } from "./wakeup.ts";
 import { installExecutionProfile } from "./executionProfile.ts";
+import { installSchedulerDispatch } from "./schedulerDispatch.ts";
 
 // Runtime-selected built-ins: Bun has bun:sqlite; Node >=22.13 has node:sqlite.
 // Keep this module free of a new npm dependency and of engine-specific TS types.
@@ -86,7 +87,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS spawn_edges(
         run TEXT NOT NULL, parent TEXT NOT NULL, child TEXT NOT NULL, request_key TEXT NOT NULL,
         depth INTEGER NOT NULL, created REAL NOT NULL, PRIMARY KEY(run,child));
-      CREATE INDEX IF NOT EXISTS spawn_edges_parent ON spawn_edges(run,parent);
+      CREATE INDEX IF NOT EXISTS spawn_edges_parent ON spawn_edges(run,parent,child);
       CREATE TABLE IF NOT EXISTS evaluations(id TEXT PRIMARY KEY, json TEXT NOT NULL, hash TEXT NOT NULL, promoted INTEGER NOT NULL DEFAULT 0);`);
     const runCols = new Set(db.prepare("PRAGMA table_info(runs)").all().map(r => String(r.name)));
     if (!runCols.has("graph_version")) db.exec("ALTER TABLE runs ADD COLUMN graph_version INTEGER NOT NULL DEFAULT 0");
@@ -94,6 +95,7 @@ export class Store {
     if (!metaCols.has("source_hash")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_hash TEXT");
     if (!metaCols.has("source_version")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_version INTEGER");
     const store = new Store(root, db); installContinuationTables(store); installEvidenceFabricTables(store);
+    installSchedulerDispatch(store);
     installProposalTables(store); installClaimTables(store); installExecutionProfile(store); return store;
   }
   transaction<T>(fn: () => T): T {

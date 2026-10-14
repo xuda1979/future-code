@@ -1,0 +1,549 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-10-14T07:36:16.112Z",
+  "scope": "Offline host measurements and regression checks, not live-model productivity",
+  "baselineCommit": "0a130d20bf91672e80e82c0f6848b67e8f5b9505",
+  "dispatch": {
+    "schema": 1,
+    "generatedAt": "2026-10-14T07:35:20.382Z",
+    "modelCalls": 0,
+    "scope": "Synthetic host queries and initialization; no accepted-output or live-LLM productivity claim",
+    "runtime": {
+      "node": "v24.19.0",
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "runtimes": {
+      "baseline": {
+        "commit": "0a130d20bf91672e80e82c0f6848b67e8f5b9505",
+        "sourceHashes": {
+          "store.ts": "04f29effef201a78b86c7ef85527d3a25a8a42a85d8db9e00a289667d4264571",
+          "schedulerIndex.ts": "f5e067b277e91d84f1b2d75e06f99de91b3955d71f614dc0b5e8bb3ee6a55553",
+          "evidenceFabric.ts": "60b5bcf368b69c321d85da02e2879838bc0db3c642a859f479a6b00d74879c14",
+          "swarm/workspace.ts": "da86941f5eb9ea79b46e95771d80602465160a84b076cbc2c64fbd7a348dc578"
+        },
+        "cases": [
+          {
+            "count": 1000,
+            "fixtureOnly": true,
+            "modelCalls": 0,
+            "taskHash": "d98dd17abd7765e29cd06f3aec33cab4ba53d83f26701272a8dac10b8007604b",
+            "initializationMs": 367.819265,
+            "initializationSamples": 1,
+            "runnableFixtureTasks": 499,
+            "unrelatedSpawnEdges": 499,
+            "candidatePlan": [
+              "SEARCH n USING INDEX scheduler_nodes_ready (run=? AND remaining=?)",
+              "SEARCH t USING INDEX sqlite_autoindex_tasks_1 (run=? AND id=?)",
+              "SEARCH w USING INDEX sqlite_autoindex_task_waits_1 (run=? AND task=?) LEFT-JOIN",
+              "SEARCH a USING INDEX sqlite_autoindex_fabric_allocations_1 (run=? AND task=?) LEFT-JOIN",
+              "USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+            ],
+            "readyWindow": {
+              "medianMs": 1.0330144500000018,
+              "perCallMs": [
+                1.0131153499999983,
+                1.0565890999999965,
+                1.0285696999999971,
+                1.1401990000000013,
+                0.9615879500000005,
+                1.0330144500000018,
+                0.9862457500000005,
+                1.0407201000000044,
+                1.1076363000000016
+              ],
+              "iterationsPerSample": 20
+            },
+            "maxRank": {
+              "medianMs": 0.0532139500000028,
+              "perCallMs": [
+                0.050586500000002844,
+                0.06254255000000057,
+                0.05061799999999721,
+                0.053159399999998413,
+                0.0532139500000028,
+                0.054896000000002235,
+                0.04967809999999986,
+                0.05454500000000166,
+                0.05371969999999919
+              ],
+              "iterationsPerSample": 20
+            },
+            "dependencyClosure": {
+              "medianMs": 0.5962014999999952,
+              "perCallMs": [
+                0.6709509999999966,
+                0.6466172500000027,
+                0.5610182500000007,
+                0.5968965000000026,
+                0.5962014999999952,
+                0.5336142999999993,
+                0.5811071500000026,
+                0.6077439500000026,
+                0.5931819000000018
+              ],
+              "iterationsPerSample": 20
+            },
+            "orderingMatchesReference": true
+          },
+          {
+            "count": 10000,
+            "fixtureOnly": true,
+            "modelCalls": 0,
+            "taskHash": "45d24ac29212c73d88052a36f78428c23bcdc9bac0901cec4e1eda94994d35f4",
+            "initializationMs": 9155.560689000002,
+            "initializationSamples": 1,
+            "runnableFixtureTasks": 4999,
+            "unrelatedSpawnEdges": 4999,
+            "candidatePlan": [
+              "SEARCH n USING INDEX scheduler_nodes_ready (run=? AND remaining=?)",
+              "SEARCH t USING INDEX sqlite_autoindex_tasks_1 (run=? AND id=?)",
+              "SEARCH w USING INDEX sqlite_autoindex_task_waits_1 (run=? AND task=?) LEFT-JOIN",
+              "SEARCH a USING INDEX sqlite_autoindex_fabric_allocations_1 (run=? AND task=?) LEFT-JOIN",
+              "USE TEMP B-TREE FOR LAST 3 TERMS OF ORDER BY"
+            ],
+            "readyWindow": {
+              "medianMs": 8.997946349999983,
+              "perCallMs": [
+                9.187399300000015,
+                8.851771350000035,
+                8.840920450000066,
+                8.86826630000005,
+                9.393705299999965,
+                10.646208099999967,
+                9.362714400000005,
+                8.949497100000007,
+                8.997946349999983
+              ],
+              "iterationsPerSample": 20
+            },
+            "maxRank": {
+              "medianMs": 0.5042950000000019,
+              "perCallMs": [
+                0.5136606999999458,
+                0.4983154499999728,
+                0.4926664499999788,
+                0.5024041500000749,
+                0.5082921000000169,
+                0.4956549999999879,
+                0.544849300000078,
+                0.5042950000000019,
+                0.5086967000000187
+              ],
+              "iterationsPerSample": 20
+            },
+            "dependencyClosure": {
+              "medianMs": 4.981090649999987,
+              "perCallMs": [
+                5.596385050000026,
+                5.35461490000007,
+                4.963181100000019,
+                4.732151749999957,
+                4.689060599999993,
+                4.968638900000042,
+                4.981090649999987,
+                5.133730949999972,
+                5.299604799999997
+              ],
+              "iterationsPerSample": 20
+            },
+            "orderingMatchesReference": true
+          }
+        ]
+      },
+      "candidate": {
+        "commit": "0a130d20bf91672e80e82c0f6848b67e8f5b9505",
+        "sourceHashes": {
+          "store.ts": "8bfae0ca086430f4dea96c21f2a2df077a635fb16f95ebb9eb08ef9391ef2b4c",
+          "schedulerIndex.ts": "ae85cc01ea0e7956a27651a4e80850f3d1fec38d507866c58b912e11565bef32",
+          "schedulerDispatch.ts": "39d47570e9d63df5acfe445b941fb3629edc3500f3b20ca9b84a0a255b7b66eb",
+          "evidenceFabric.ts": "60b5bcf368b69c321d85da02e2879838bc0db3c642a859f479a6b00d74879c14",
+          "swarm/workspace.ts": "4daf55ba686c72e8801aba8d8a4dbf100a48a1d48a74822a69c6e6c87b0d6f89"
+        },
+        "cases": [
+          {
+            "count": 1000,
+            "fixtureOnly": true,
+            "modelCalls": 0,
+            "taskHash": "d98dd17abd7765e29cd06f3aec33cab4ba53d83f26701272a8dac10b8007604b",
+            "initializationMs": 337.34782200000006,
+            "initializationSamples": 1,
+            "runnableFixtureTasks": 499,
+            "unrelatedSpawnEdges": 499,
+            "candidatePlan": [
+              "SEARCH n USING INDEX scheduler_nodes_dispatch (run=? AND dispatch_status=? AND remaining=?)",
+              "SEARCH t USING INDEX sqlite_autoindex_tasks_1 (run=? AND id=?)",
+              "SEARCH w USING INDEX sqlite_autoindex_task_waits_1 (run=? AND task=?) LEFT-JOIN"
+            ],
+            "readyWindow": {
+              "medianMs": 0.21098855000000186,
+              "perCallMs": [
+                0.21758499999999686,
+                0.1997771000000057,
+                0.20811364999999568,
+                0.31351704999999586,
+                0.2587627500000053,
+                0.21098855000000186,
+                0.2697693999999956,
+                0.1850612999999953,
+                0.17718939999999747
+              ],
+              "iterationsPerSample": 20
+            },
+            "maxRank": {
+              "medianMs": 0.0016745500000070023,
+              "perCallMs": [
+                0.00264350000001059,
+                0.0016730000000052315,
+                0.0017841500000031374,
+                0.001666499999998905,
+                0.0017456499999980225,
+                0.0016430000000013933,
+                0.0016745500000070023,
+                0.0016905500000007124,
+                0.0016104000000041196
+              ],
+              "iterationsPerSample": 20
+            },
+            "dependencyClosure": {
+              "medianMs": 0.03044800000000123,
+              "perCallMs": [
+                0.028881200000000717,
+                0.04242264999999179,
+                0.03044800000000123,
+                0.028334849999998822,
+                0.0343289000000027,
+                0.04872369999999364,
+                0.03285214999999653,
+                0.027846100000010664,
+                0.025668800000005376
+              ],
+              "iterationsPerSample": 20
+            },
+            "orderingMatchesReference": true
+          },
+          {
+            "count": 10000,
+            "fixtureOnly": true,
+            "modelCalls": 0,
+            "taskHash": "45d24ac29212c73d88052a36f78428c23bcdc9bac0901cec4e1eda94994d35f4",
+            "initializationMs": 2911.9304979999997,
+            "initializationSamples": 1,
+            "runnableFixtureTasks": 4999,
+            "unrelatedSpawnEdges": 4999,
+            "candidatePlan": [
+              "SEARCH n USING INDEX scheduler_nodes_dispatch (run=? AND dispatch_status=? AND remaining=?)",
+              "SEARCH t USING INDEX sqlite_autoindex_tasks_1 (run=? AND id=?)",
+              "SEARCH w USING INDEX sqlite_autoindex_task_waits_1 (run=? AND task=?) LEFT-JOIN"
+            ],
+            "readyWindow": {
+              "medianMs": 0.1739259999999831,
+              "perCallMs": [
+                0.16877720000002228,
+                0.17802214999996976,
+                0.1739259999999831,
+                0.16766705,
+                0.19107389999999214,
+                0.16958190000000287,
+                0.16715574999998353,
+                0.19188060000001314,
+                0.19904900000001363
+              ],
+              "iterationsPerSample": 20
+            },
+            "maxRank": {
+              "medianMs": 0.0016995500000120956,
+              "perCallMs": [
+                0.0016845499999817548,
+                0.0018317499999739085,
+                0.001693550000027244,
+                0.0016925500000070314,
+                0.0017787000000225816,
+                0.0016780500000095344,
+                0.004265949999989971,
+                0.0018017000000327243,
+                0.0016995500000120956
+              ],
+              "iterationsPerSample": 20
+            },
+            "dependencyClosure": {
+              "medianMs": 0.028253700000004756,
+              "perCallMs": [
+                0.031139100000018516,
+                0.027874149999979635,
+                0.025974749999977575,
+                0.031174150000015288,
+                0.025961750000033135,
+                0.026838100000031773,
+                0.02879054999998516,
+                0.028253700000004756,
+                0.029895699999997305
+              ],
+              "iterationsPerSample": 20
+            },
+            "orderingMatchesReference": true
+          }
+        ]
+      }
+    },
+    "comparisons": [
+      {
+        "count": 1000,
+        "readyWindowRatio": 4.896068767712716,
+        "maxRankRatio": 31.77805977712238,
+        "dependencyClosureRatio": 19.580974119809873,
+        "initializationRatioSingleSample": 1.0903264850484196
+      },
+      {
+        "count": 10000,
+        "readyWindowRatio": 51.73433730437576,
+        "maxRankRatio": 296.72266187897554,
+        "dependencyClosureRatio": 176.29870247079668,
+        "initializationRatioSingleSample": 3.1441549498823247
+      }
+    ]
+  },
+  "shortTask": {
+    "baseline": {
+      "schema": 1,
+      "generatedAt": "2026-10-14T07:35:20.522Z",
+      "modelCalls": 0,
+      "runtime": {
+        "node": "v24.19.0",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "sourceHashes": {
+        "types.ts": "ac5505c69df010b93824630d0b99646777b1df9721623f4dd3bbdd4af6706f7e",
+        "kernel.ts": "195315826473b71ac044ae2aa6b5d8c86be872c286e8edb193150f4175806111",
+        "store.ts": "04f29effef201a78b86c7ef85527d3a25a8a42a85d8db9e00a289667d4264571",
+        "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+        "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+        "commands.ts": "ca222073f87ea10d174458538d9996fee3d888374404b1b73fccbce5523ac57c",
+        "productivity.ts": "3c5049b8be5880069972fc977f7843f4cce6b05f7f1d19c318b4dba5be515a2e"
+      },
+      "overhead": {
+        "kind": "real-clock synthetic arithmetic workers; includes SQLite and artifact I/O",
+        "count": 1,
+        "taskHash": "a620072fdb2c168edef44ee8b36a814f84a10c30a01aba0006e909cf242edea5",
+        "repetitions": 10,
+        "samples": [
+          {
+            "repetition": 0,
+            "elapsedMs": 11.870418999999998,
+            "verifiedTasksPerSecond": 84.24302461437968,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 1,
+            "elapsedMs": 5.469670000000008,
+            "verifiedTasksPerSecond": 182.82638623536678,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 2,
+            "elapsedMs": 6.336983000000004,
+            "verifiedTasksPerSecond": 157.80380032580163,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 3,
+            "elapsedMs": 6.862367000000006,
+            "verifiedTasksPerSecond": 145.72231418109803,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 4,
+            "elapsedMs": 5.3165189999999996,
+            "verifiedTasksPerSecond": 188.0929984450352,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 5,
+            "elapsedMs": 5.043545999999992,
+            "verifiedTasksPerSecond": 198.27319905479231,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 6,
+            "elapsedMs": 5.121353999999997,
+            "verifiedTasksPerSecond": 195.2608626546809,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 7,
+            "elapsedMs": 4.843163000000004,
+            "verifiedTasksPerSecond": 206.4766352071981,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 8,
+            "elapsedMs": 4.893418999999994,
+            "verifiedTasksPerSecond": 204.35609540078238,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 9,
+            "elapsedMs": 4.599564000000015,
+            "verifiedTasksPerSecond": 217.41191121593192,
+            "peak": 1,
+            "accepted": 1
+          }
+        ],
+        "medianMs": 5.218936499999998,
+        "medianVerifiedTasksPerSecond": 191.60991899403265
+      }
+    },
+    "candidate": {
+      "schema": 1,
+      "generatedAt": "2026-10-14T07:35:20.740Z",
+      "modelCalls": 0,
+      "runtime": {
+        "node": "v24.19.0",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "sourceHashes": {
+        "types.ts": "ac5505c69df010b93824630d0b99646777b1df9721623f4dd3bbdd4af6706f7e",
+        "kernel.ts": "195315826473b71ac044ae2aa6b5d8c86be872c286e8edb193150f4175806111",
+        "store.ts": "8bfae0ca086430f4dea96c21f2a2df077a635fb16f95ebb9eb08ef9391ef2b4c",
+        "scheduler.ts": "b7ea1d4b2d3107a395611825cd010521fde48ec9e7fd474c3bc4fac242807825",
+        "runtime.ts": "cf95ed1b61c23af32900e38ac1597a6e347beed1cccbecb7b472a5b20e7e0a50",
+        "commands.ts": "ca222073f87ea10d174458538d9996fee3d888374404b1b73fccbce5523ac57c",
+        "productivity.ts": "3c5049b8be5880069972fc977f7843f4cce6b05f7f1d19c318b4dba5be515a2e"
+      },
+      "overhead": {
+        "kind": "real-clock synthetic arithmetic workers; includes SQLite and artifact I/O",
+        "count": 1,
+        "taskHash": "a620072fdb2c168edef44ee8b36a814f84a10c30a01aba0006e909cf242edea5",
+        "repetitions": 10,
+        "samples": [
+          {
+            "repetition": 0,
+            "elapsedMs": 11.521140000000003,
+            "verifiedTasksPerSecond": 86.79696627243483,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 1,
+            "elapsedMs": 5.142465999999985,
+            "verifiedTasksPerSecond": 194.45923414953117,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 2,
+            "elapsedMs": 5.716363999999999,
+            "verifiedTasksPerSecond": 174.9363756401797,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 3,
+            "elapsedMs": 5.836666000000008,
+            "verifiedTasksPerSecond": 171.3306877590732,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 4,
+            "elapsedMs": 5.237508999999989,
+            "verifiedTasksPerSecond": 190.93045949897217,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 5,
+            "elapsedMs": 5.3871249999999975,
+            "verifiedTasksPerSecond": 185.6277699143793,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 6,
+            "elapsedMs": 5.3078160000000025,
+            "verifiedTasksPerSecond": 188.4014065295405,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 7,
+            "elapsedMs": 5.417683000000011,
+            "verifiedTasksPerSecond": 184.58075158697878,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 8,
+            "elapsedMs": 5.161653999999999,
+            "verifiedTasksPerSecond": 193.73634885251903,
+            "peak": 1,
+            "accepted": 1
+          },
+          {
+            "repetition": 9,
+            "elapsedMs": 4.879528000000022,
+            "verifiedTasksPerSecond": 204.93785464495656,
+            "peak": 1,
+            "accepted": 1
+          }
+        ],
+        "medianMs": 5.3474705,
+        "medianVerifiedTasksPerSecond": 187.00430418456727
+      }
+    },
+    "medianRatio": 0.9759635887659405
+  },
+  "validation": [
+    {
+      "command": "node scripts/test-correctness.mjs",
+      "nodeTests": 62,
+      "failed": 0,
+      "pythonSuites": [
+        15,
+        15
+      ],
+      "passed": true
+    },
+    {
+      "command": "node scripts/test-resilience.mjs",
+      "nodeTests": 158,
+      "failed": 0,
+      "pythonSuites": [
+        15
+      ],
+      "passed": true
+    },
+    {
+      "command": "node scripts/test-foundry.mjs",
+      "nodeTests": 520,
+      "failed": 0,
+      "pythonSuites": [],
+      "passed": true
+    },
+    {
+      "command": "node scripts/test-swarm.mjs",
+      "nodeTests": 248,
+      "failed": 0,
+      "pythonSuites": [],
+      "passed": true
+    },
+    {
+      "command": "node scripts/test-commands.mjs",
+      "nodeTests": 100,
+      "failed": 0,
+      "pythonSuites": [],
+      "passed": true
+    }
+  ]
+}
