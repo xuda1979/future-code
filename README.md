@@ -105,6 +105,7 @@ Missing token or dollar measurements remain unknown.
 | Evidence and allocation | [Evidence Fabric](docs/agent-platform/EVIDENCE_FABRIC.md) |
 | Measured self-reflection | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
 | Execution timings, context retirement and resource wakeups | [Execution productivity](docs/agent-platform/EXECUTION_PRODUCTIVITY.md) |
+| Execution review, indexed dispatch and alternate-model recovery | [Dispatch scaling](docs/agent-platform/DISPATCH_SCALING.md) |
 | Parallel reads and replayable edit batches | [Tool batching](docs/agent-platform/TOOL_BATCHING.md) |
 | Remote file batches and worker replacement | [Remote batch recovery](docs/agent-platform/REMOTE_TOOL_BATCHING.md) |
 | Premise probes, cross-patch failure loops and fresh-context audits | [Falsification debugging](docs/agent-platform/FALSIFICATION_DEBUGGING.md) |

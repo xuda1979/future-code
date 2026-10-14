@@ -160,10 +160,13 @@ export class HttpBrain {
     diagnostics: DiagnosticContext | null = null): { projection: Message[]; body: Json } {
     let projection = refreshDiagnosticNotice(history, progress, diagnostics);
     let body = requestBody(profile, projection, budget);
+    // All routes share one history projection and logical replay key. Reserve
+    // enough envelope space for the longest encoded model identifier as well.
+    const routeExtra = Math.max(0, ...(profile.fallbacks ?? []).map(route => bytes(route.model) - bytes(profile.model)));
     // Enforce the actual provider input, including system and tool definitions.
-    if (bytes(body) > contextBytes) {
+    if (bytes(body) + routeExtra > contextBytes) {
       const overhead = bytes(requestBody(profile, [], budget));
-      const remaining = Math.max(0, contextBytes - overhead - 512);
+      const remaining = Math.max(0, contextBytes - overhead - routeExtra - 512);
       try { projection = compactHistory(projection, remaining, progress, diagnostics); }
       catch (e) {
         if (!(e instanceof Error) || !e.message.startsWith("CONTEXT_OVERFLOW")) throw e;
@@ -174,7 +177,7 @@ export class HttpBrain {
       }
       body = requestBody(profile, projection, budget);
     }
-    if (bytes(body) > contextBytes) throw new FatalAttemptError("CONTEXT_OVERFLOW: encoded provider request exceeds admitted context");
+    if (bytes(body) + routeExtra > contextBytes) throw new FatalAttemptError("CONTEXT_OVERFLOW: encoded provider request exceeds admitted context");
     return { projection, body };
   }
   private readReply(c: Capsule, profile: AgentProfile, projection: Message[], body: Json, step: number): { turn: Turn; history: Message[] } | null {
@@ -222,10 +225,11 @@ export class HttpBrain {
       const provider = digest({ quotaPool: route.quotaPool ?? `${route.url}#${route.model}` });
       let id: string | null = null; let completed = false;
       try {
-        id = await this.journal.reserve(c, provider, body, budget, admission.signal);
+        const wireBody = { ...(body as Record<string, Json>), model: route.model };
+        id = await this.journal.reserve(c, provider, wireBody, budget, admission.signal, body);
         combined = createCombinedAbortSignal(admission.signal, { timeoutMs: budget.requestTimeoutMs });
         const response = await boundedFetch(this.fetcher, route.url, {
-          method: "POST", headers, body: canonical(body), redirect: "error", signal: combined.signal,
+          method: "POST", headers, body: canonical(wireBody), redirect: "error", signal: combined.signal,
         });
         if (!response.ok) {
           discardResponse(response);

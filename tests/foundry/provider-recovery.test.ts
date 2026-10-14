@@ -8,6 +8,7 @@ import { DeferredAttemptError } from "../../src/harness/foundry/continuation.ts"
 import { runHealth } from "../../src/harness/foundry/health.ts";
 import { SessionJournal } from "../../src/harness/foundry/swarm/session.ts";
 import { HttpBrain } from "../../src/harness/foundry/swarm/model.ts";
+import { bytes, type Message } from "../../src/harness/foundry/swarm/context.ts";
 import { runSwarm, integrateSwarm } from "../../src/harness/foundry/swarm/host.ts";
 import { createApiRecoveryPlanner } from "../../src/harness/foundry/swarm/recovery.ts";
 import { retryAfterMs } from "../../src/harness/foundry/swarm/providerRecovery.ts";
@@ -149,6 +150,76 @@ test("a cooled primary route is skipped while a healthy fallback can complete an
   assert.deepEqual(calls, [profile.fallbacks[0].url]);
   await brain.next(capsules[0], profile, history, cfg.spec.budget, 32768, signal());
   assert.equal(calls.length, 1); assert.equal(j.usage(capsules[0].runId).requests, 1);
+}));
+
+for (const protocol of ["chat-completions", "anthropic"] as const) {
+  test(`${protocol} fallback sends its own model, meters wire bytes and replays the logical turn after reopen`, async () => fixture(async (s, cfg) => {
+    const { capsules } = start(s), c = capsules[0], j = new SessionJournal(s), requests: any[] = [];
+    const profile = { ...cfg.spec.agents.coder, protocol,
+      fallbacks: [{ url: "https://fallback.example/v1", model: "alternate-model-with-a-different-name" }] };
+    j.cooldown(pool(cfg), 5000);
+    const brain = new HttpBrain(j, (async (_url, init) => {
+      const body = JSON.parse(init!.body as string); requests.push(body);
+      assert.equal(body.model, profile.fallbacks[0].model);
+      return protocol === "anthropic" ? Response.json({ content: [{ type: "text", text: "fallback" }],
+        stop_reason: "end_turn", usage: { input_tokens: 10, output_tokens: 5 } }) : reply("fallback");
+    }) as typeof fetch);
+    assert.equal((await brain.next(c, profile, history, cfg.spec.budget, 32768, signal())).turn.message.content, "fallback");
+    const row = s.db.prepare("SELECT request,bytes FROM agent_requests WHERE run=?").get(c.runId)!;
+    assert.deepEqual(s.readArtifact(row.request), requests[0]);
+    assert.equal(row.bytes, bytes(requests[0]));
+    const other = await Store.open(s.root);
+    try {
+      const replay = new HttpBrain(new SessionJournal(other), (async () => { throw new Error("replay must not call a provider"); }) as typeof fetch);
+      assert.equal((await replay.next(c, profile, history, cfg.spec.budget, 32768, signal())).turn.message.content, "fallback");
+      assert.equal(new SessionJournal(other).usage(c.runId).requests, 1);
+      await assert.rejects(replay.next(c, profile, [{ role: "user", content: "changed task" }], cfg.spec.budget, 32768, signal()), /replay input drift/);
+    } finally { other.close(); }
+    assert.equal(requests.length, 1);
+  }));
+}
+
+test("different-model hedge races bind both wire requests to one replayable turn and count the loser", async () => fixture(async (s, cfg) => {
+  const { capsules } = start(s), c = capsules[0], j = new SessionJournal(s), requests: any[] = [];
+  const profile = { ...cfg.spec.agents.coder, hedgeAfterMs: 1,
+    fallbacks: [{ url: "https://fallback.example/v1", model: "alternate-model" }] };
+  const brain = new HttpBrain(j, (async (url, init) => {
+    requests.push(JSON.parse(init!.body as string));
+    if (String(url).includes("fallback")) return reply("winner");
+    return new Promise<Response>(resolve => setTimeout(() => resolve(reply("loser")), 30));
+  }) as typeof fetch);
+  assert.equal((await brain.next(c, profile, history, cfg.spec.budget, 32768, signal())).turn.message.content, "winner");
+  assert.deepEqual(requests.map(r => r.model), [profile.model, "alternate-model"]);
+  assert.equal(j.usage(c.runId).requests, 2);
+  assert.equal((await brain.next(c, profile, history, cfg.spec.budget, 32768, signal())).turn.message.content, "winner");
+  assert.equal(requests.length, 2);
+}));
+
+test("a longer fallback model identifier cannot overflow the admitted context or spend a request", async () => fixture(async (s, cfg) => {
+  const { capsules } = start(s), c = capsules[0], j = new SessionJournal(s);
+  j.cooldown(pool(cfg), 5000); let calls = 0;
+  const profile = { ...cfg.spec.agents.coder,
+    fallbacks: [{ url: "https://fallback.example/v1", model: "long-".repeat(1000) }] };
+  const messages: Message[] = [{ role: "user", content: "task" }];
+  const brain = new HttpBrain(j, (async () => { calls++; return reply(); }) as typeof fetch);
+  await assert.rejects(brain.next(c, profile, messages, cfg.spec.budget, 5000, signal()), /CONTEXT_OVERFLOW/);
+  assert.equal(calls, 0); assert.equal(j.usage(c.runId).requests, 0);
+}));
+
+test("competing route replies preserve the first logical response, account both, and reject unrelated replay inputs", async () => fixture(async (s, cfg) => {
+  const { capsules } = start(s), c = capsules[0], j = new SessionJournal(s);
+  const logical = { model: "primary", messages: history };
+  const wire = { ...logical, model: "alternate" };
+  await assert.rejects(j.reserve(c, "alternate", { ...wire, messages: [{ role: "user", content: "different" }] },
+    cfg.spec.budget, signal(), logical), /replay binding may only change/);
+  assert.equal(j.usage(c.runId).requests, 0);
+  const primary = await j.reserve(c, "primary", logical, cfg.spec.budget, signal(), logical);
+  const fallback = await j.reserve(c, "alternate", wire, cfg.spec.budget, signal(), logical);
+  const winner = await reply("first").json(), loser = await reply("later").json();
+  assert.equal(j.complete(fallback, 7, winner, 0, true), true);
+  assert.equal(j.complete(primary, 5, loser, 0, true), false);
+  assert.deepEqual(j.cached(c, 0, logical), winner);
+  assert.equal(j.usage(c.runId).knownTokens, 12); assert.equal(j.usage(c.runId).requests, 2);
 }));
 
 test("request deadlines bound a fetch adapter that ignores abort without counting operator cancellation as an outage", async () => fixture(async (s, cfg) => {

@@ -5,6 +5,7 @@ const result = spawnSync(process.execPath, ["--experimental-strip-types", "--tes
   "tests/foundry/productivity.test.ts", "tests/foundry/swarm.test.ts", "tests/foundry/swarm-http.test.ts",
   "tests/foundry/multihost.test.ts", "tests/foundry/remote-tool-batching.test.ts", "tests/foundry/provider-recovery.test.ts",
   "tests/foundry/cohort-coordination.test.ts", "tests/foundry/execution-loop.test.ts",
+  "tests/foundry/dispatch-index.test.ts", "tests/foundry/dependency-closure.test.ts",
   "tests/foundry/context-envelope.test.ts", "tests/foundry/tool-batching.test.ts",
   "tests/foundry/verification-batching.test.ts", "tests/foundry/early-feedback.test.ts",
   "tests/foundry/diagnostic-memory.test.ts", "tests/foundry/progress-memory.test.ts",

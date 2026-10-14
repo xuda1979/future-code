@@ -43,9 +43,9 @@ function directSpawned(store: Store, run: string, parent: string): string[] {
 export function orderedTasks(store: Store, run: string, roots?: string[]): Task[] {
   if (roots?.length === 0) return [];
   const spawned = new Map<string, string[]>();
-  for (const edge of store.db.prepare(
+  for (const edge of roots === undefined ? store.db.prepare(
     "SELECT parent,child FROM spawn_edges WHERE run=? ORDER BY parent,child"
-  ).all(run)) {
+  ).all(run) : []) {
     const list = spawned.get(edge.parent) ?? [];
     list.push(edge.child); spawned.set(edge.parent, list);
   }
@@ -53,11 +53,14 @@ export function orderedTasks(store: Store, run: string, roots?: string[]): Task[
   // Ancestor queries scale with the needed closure, not the whole run.
   const rows = roots === undefined ? store.db.prepare("SELECT id,spec,status,artifact FROM tasks WHERE run=?").all(run) : [];
   const one = store.db.prepare("SELECT id,spec,status,artifact FROM tasks WHERE run=? AND id=?");
+  const childrenOf = roots === undefined ? null : store.db.prepare(
+    "SELECT child FROM spawn_edges WHERE run=? AND parent=? ORDER BY child");
   const all = new Map(rows.map(r => [r.id, r])); const needed = new Set<string>(); const todo = roots ? [...roots] : rows.map(r => r.id);
   for (let i = 0; i < todo.length; i++) {
     const id = todo[i]; if (needed.has(id)) continue;
     const row = all.get(id) ?? one.get(run, id); invariant(row?.status === "PASS" && row.artifact, `unverified patch dependency ${id}`);
     all.set(id, row); needed.add(id);
+    if (childrenOf) spawned.set(id, childrenOf.all(run, id).map(edge => String(edge.child)));
     const task = JSON.parse(row.spec) as Task;
     todo.push(...task.dependencies, ...(spawned.get(id) ?? []));
   }

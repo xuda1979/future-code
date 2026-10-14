@@ -62,12 +62,13 @@ export function rebuildSchedulerIndex(store: Store, runId: string, recipe: Recip
     prerequisites.set(edge.dependent, list);
   }
   const nodeInsert = store.db.prepare(
-    "INSERT INTO scheduler_nodes(run,task,remaining,priority,rank,budget) VALUES(?,?,?,?,?,?)"
+    `INSERT INTO scheduler_nodes(run,task,remaining,priority,rank,budget,dispatch_status,allocation_score)
+      VALUES(?,?,?,?,?,?,?,COALESCE((SELECT score FROM fabric_allocations WHERE run=? AND task=?),0))`
   );
   for (const task of runtime) {
     const remaining = (prerequisites.get(task.id) ?? []).filter(id => status.get(id) !== "PASS").length;
     nodeInsert.run(runId, task.id, remaining, task.priority ?? 0,
-      plan.ranks.get(task.id) ?? 0, plan.budgets.get(task.id)!);
+      plan.ranks.get(task.id) ?? 0, plan.budgets.get(task.id)!, status.get(task.id), runId, task.id);
   }
   store.db.prepare(`INSERT INTO scheduler_index_meta(run,task_count,edge_count,rebuilds,built_at,source_hash,source_version)
     VALUES(?,?,?,?,?,?,?)
@@ -142,12 +143,14 @@ export function readyCandidates(store: Store, runId: string, now: number, limit:
   { id: string; spec: string; fence: number; priority: number; rank: number; budget: number }[] {
   invariant(Number.isSafeInteger(limit) && limit > 0 && limit <= 4096, "invalid candidate window");
   invariant(Number.isSafeInteger(offset) && offset >= 0, "invalid candidate offset");
+  // CROSS JOIN keeps the ordered, bounded node traversal outermost. Source
+  // status/dependencies are still checked independently before a lease exists.
   return store.db.prepare(`SELECT t.id,t.spec,t.fence,n.priority,n.rank,n.budget
-    FROM scheduler_nodes n JOIN tasks t ON t.run=n.run AND t.id=n.task
+    FROM scheduler_nodes n INDEXED BY scheduler_nodes_dispatch
+    CROSS JOIN tasks t ON t.run=n.run AND t.id=n.task
     LEFT JOIN task_waits w ON w.run=t.run AND w.task=t.id
-    LEFT JOIN fabric_allocations a ON a.run=t.run AND a.task=t.id
-    WHERE n.run=? AND n.remaining=0 AND t.status='READY' AND (w.wake IS NULL OR w.wake<=?)
-    ORDER BY n.priority DESC,COALESCE(a.score,0) DESC,n.rank DESC,t.id LIMIT ? OFFSET ?`).all(runId, now, limit, offset)
+    WHERE n.run=? AND n.dispatch_status='READY' AND n.remaining=0 AND t.status='READY' AND (w.wake IS NULL OR w.wake<=?)
+    ORDER BY n.priority DESC,n.allocation_score DESC,n.rank DESC,n.task LIMIT ? OFFSET ?`).all(runId, now, limit, offset)
     .map(row => ({ id: String(row.id), spec: String(row.spec), fence: Number(row.fence),
       priority: Number(row.priority), rank: Number(row.rank), budget: Number(row.budget) }));
 }

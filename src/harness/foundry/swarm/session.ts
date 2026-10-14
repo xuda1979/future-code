@@ -117,6 +117,7 @@ export class SessionJournal {
     const columns = new Set(store.db.prepare("PRAGMA table_info(agent_requests)").all().map(r => String(r.name)));
     if (!columns.has("finished")) store.db.exec("ALTER TABLE agent_requests ADD COLUMN finished REAL");
     if (!columns.has("wait_ms")) store.db.exec("ALTER TABLE agent_requests ADD COLUMN wait_ms REAL");
+    if (!columns.has("replay_request")) store.db.exec("ALTER TABLE agent_requests ADD COLUMN replay_request TEXT");
     installRequestAccounting(store);
     installMemoryTables(store);
     this.providerRecovery = new ProviderRecovery(store);
@@ -234,9 +235,19 @@ export class SessionJournal {
     }
     return this.store.db.prepare("SELECT hash FROM agent_feedback WHERE run=? AND task=?").get(c.runId, c.task.id)?.hash ?? null;
   }
-  async reserve(c: Capsule, provider: string, body: Json, budget: SwarmBudget, signal: AbortSignal): Promise<string> {
+  async reserve(c: Capsule, provider: string, body: Json, budget: SwarmBudget, signal: AbortSignal,
+    replayBody?: Json): Promise<string> {
     const waitingSince = performance.now();
+    if (replayBody !== undefined) {
+      const wire = body as Record<string, Json>, logical = replayBody as Record<string, Json>;
+      invariant(wire && logical && typeof wire.model === "string" && typeof logical.model === "string" &&
+        digest({ ...wire, model: logical.model }) === digest(logical),
+      "route replay binding may only change the model identifier");
+    }
     const count = Buffer.byteLength(canonical(body)); const request = this.store.artifact(body);
+    // Meter/store the exact wire payload. Alternate models compete for the
+    // same logical turn, whose original input must remain replayable on restart.
+    const replayRequest = replayBody === undefined || digest(replayBody) === request ? null : this.store.artifact(replayBody);
     for (;;) {
       signal.throwIfAborted();
       const id = this.store.transaction(() => {
@@ -252,10 +263,10 @@ export class SessionJournal {
         if (live >= budget.modelConcurrency) return null;
         const id = randomUUID();
         this.store.db.prepare(`INSERT INTO agent_requests
-          (id,run,task,fence,provider,bytes,request,started,deadline,status,wait_ms)
-          VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',?)`)
+          (id,run,task,fence,provider,bytes,request,started,deadline,status,wait_ms,replay_request)
+          VALUES(?,?,?,?,?,?,?,?,?,'ACTIVE',?,?)`)
           .run(id, c.runId, c.task.id, c.fence, provider, count, request, now, now + budget.requestTimeoutMs,
-            Math.max(0, performance.now() - waitingSince));
+            Math.max(0, performance.now() - waitingSince), replayRequest);
         this.providerRecovery.admit(id, provider);
         return id;
       });
@@ -345,14 +356,15 @@ export class SessionJournal {
       const current = task?.status === "RUNNING" && task.fence === row.fence && task.deadline > Date.now();
       if (step === undefined || !hash || !current) return false;
       invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");
+      const replayRequest = row.replay_request ?? row.request;
       const old = this.store.db.prepare("SELECT body,response FROM agent_replies WHERE run=? AND task=? AND step=?").get(row.run, row.task, step);
       if (old) {
-        invariant(old.body === row.request, "model replay input drift");
+        invariant(old.body === replayRequest, "model replay input drift");
         if (!competing) invariant(old.response === hash, "model reply already committed");
         return old.response === hash;
       }
       this.store.db.prepare("INSERT INTO agent_replies VALUES(?,?,?,?,?)")
-        .run(row.run, row.task, step, row.request, hash);
+        .run(row.run, row.task, step, replayRequest, hash);
       return true;
     });
   }
