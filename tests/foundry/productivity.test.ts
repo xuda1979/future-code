@@ -304,7 +304,9 @@ test("rolling novelty keeps long legitimate attempts alive beyond 1024 checkpoin
     const result = await runTasks(s, [task("a")], d);
     assert.equal(result.status, "PASS");
     assert.equal(s.db.prepare("SELECT progress_count FROM attempt_telemetry WHERE run=?").get(result.id)!.progress_count, 1050);
-  }, { ...recipe, attempts: 1, noProgressMs: 100, timeoutMs: 2000 });
+  // Load tolerance: the loop's real duration is ~1-2.2s under parallel lanes;
+  // the deadline exists only as a backstop, the test verifies window rollover.
+  }, { ...recipe, attempts: 1, noProgressMs: 100, timeoutMs: 8000 });
 });
 test("no-progress deadline cancels an unresponsive worker before the hard deadline", async () => {
   await fixture(async s => {

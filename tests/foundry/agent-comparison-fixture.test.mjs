@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -24,7 +24,7 @@ test('fixture is a standalone pinned and clean R&D Git project', t => {
   const f = setup(t);
   assert.equal(git(f.project, ['rev-parse', 'HEAD']), f.baseCommit);
   assert.equal(git(f.project, ['status', '--porcelain']), '');
-  assert.equal(f.config.repository, resolve(f.project));
+  assert.equal(f.config.repository, realpathSync(f.project));
   assert.equal(f.config.cases.length, 4);
   assert.deepEqual(new Set(f.config.cases.map(c => c.tier)), new Set(['simple', 'medium', 'research']));
   assert(!JSON.stringify(f.config).includes('repository_full_name'));

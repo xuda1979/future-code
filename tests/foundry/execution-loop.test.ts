@@ -125,4 +125,6 @@ test("a non-cooperating job RPC is bounded and retains an unresolved identity fo
   const row = s.db.prepare("SELECT status,result_hash,failures FROM research_jobs WHERE run=?").get(run)!;
   assert.equal(row.status, "UNKNOWN"); assert.equal(row.result_hash, null); assert.equal(row.failures, 1);
   assert.equal(q.summary(run).accepted, 0);
-}, s => { withJobs(s); s.budget.toolTimeoutMs = 30; }));
+// Load tolerance: initializeSwarm itself spawns bounded git processes under the
+// same budget, so keep the ceiling tight but above spawn latency under load.
+}, s => { withJobs(s); s.budget.toolTimeoutMs = 500; }));

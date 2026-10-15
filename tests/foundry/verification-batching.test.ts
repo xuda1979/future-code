@@ -139,8 +139,12 @@ test("timeouts retain every named check result, drain workers, and fail acceptan
   assert.equal(reports[0].code, null); assert.match(reports[0].error, /deadline/);
   assert.equal(reports[1].code, 0); assert.equal(reports[2].code, 7); assert.equal(worktrees(project).length, 1);
 }, s => {
-  configure(s, { timeout: command("setTimeout(()=>{},10000)"), pass: command(behavior), fail: command("process.exit(7)") });
-  s.budget.toolTimeoutMs = 2000;
+  configure(s, { timeout: command("setTimeout(()=>{},30000)"), pass: command(behavior), fail: command("process.exit(7)") });
+  // Load tolerance: this budget also bounds every host git spawn (worktree add,
+  // commit-tree, snapshot) in candidate() and verifyPatch(), which have no
+  // catch. 10s keeps the deadline kill of the 30s sleeper deterministic while
+  // tolerating spawn-latency outliers under parallel lanes.
+  s.budget.toolTimeoutMs = 10000;
 }));
 
 test("cancellation kills all launched checks before disposing their worktrees", async () => fixture(async (s, cfg, project) => {
@@ -155,8 +159,12 @@ test("cancellation kills all launched checks before disposing their worktrees", 
   for (const pid of pids) assert.throws(() => process.kill(pid, 0), (e: any) => e.code === "ESRCH");
   assert.equal(worktrees(project).length, 1);
 }, s => {
-  const code = `require('node:fs').appendFileSync(${JSON.stringify(join(s.project, "..", "pids"))},process.pid+'\\n');setTimeout(()=>{},20000);`;
+  const code = `require('node:fs').appendFileSync(${JSON.stringify(join(s.project, "..", "pids"))},process.pid+'\\n');setTimeout(()=>{},60000);`;
   configure(s, { one: command(code), two: command(code) });
+  // Load tolerance: the poll-abort must be the only way these checks end;
+  // under lane load a 5s host-git spawn budget killed them by deadline first,
+  // so verifyPatch resolved FAIL instead of rejecting on cancellation.
+  s.budget.toolTimeoutMs = s.recipe.timeoutMs;
 }));
 
 test("integration independently checks the combined tree in private workers and caches only accepted evidence", async () => fixture(async (s, cfg, project) => {
@@ -177,6 +185,11 @@ test("integration independently checks the combined tree in private workers and 
   configure(s, { one: command(code), two: command(code) });
   s.checks.produce = command("if(require('node:fs').readFileSync('src/b.txt','utf8')!=='42\\n')process.exit(1)", false);
   s.agents.producer = { ...s.agents.coder, checks: ["produce"] };
+  // Load tolerance: this budget also bounds every host git spawn (worktree add,
+  // commit-tree, snapshot) inside runSwarm/integrateSwarm, which have no catch.
+  // Under parallel lanes a 5s budget killed a spawn by deadline, so runSwarm
+  // resolved FAIL before integration evidence was ever collected.
+  s.budget.toolTimeoutMs = s.recipe.timeoutMs;
 }));
 
 test("failed integration drains its group, skips later checks and publishes no acceptance receipt or branch", async () => fixture(async (s, cfg, project) => {
