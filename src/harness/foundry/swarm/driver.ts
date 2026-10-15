@@ -10,6 +10,7 @@ import type { AttemptControl, Capsule, Driver, Json, Task, Verification, WorkerR
 import { keys, validateSwarmTasks, type PinnedSwarm } from "./config.ts";
 import { inlineReceipt, type Call, type ProgressCheckpoint } from "./context.ts";
 import { HttpBrain } from "./model.ts";
+import { MAX_CONSECUTIVE_RESPONSE_REJECTIONS, type Turn } from "./response.ts";
 import { SessionJournal, type Thread } from "./session.ts";
 import { localGitBackend, type HandsBackend } from "./workspace.ts";
 import { toolEffectContract } from "./toolEffects.ts";
@@ -172,6 +173,27 @@ export class SwarmDriver implements Driver {
         invariant(value.role === "assistant" && typeof value.content === "string", "invalid response proposal");
       });
     };
+    const commitReply = (reply: { turn: Turn; history: typeof t.state.history }, replay: boolean) => {
+      const rejected = reply.turn.rejection;
+      if (rejected) {
+        // The request/reply commit precedes this checkpoint. Replaying that
+        // exact raw reply produces this same notice and charges no new spend.
+        const receipt = this.journal.receipt(c, this.store.readArtifact(rejected.responseHash));
+        t.state.history = [...reply.history, { role: "user", content: canonical({ modelResponseRejected: {
+          code: rejected.code, reason: rejected.reason, receipt, effectsExecuted: false,
+          instruction: "The entire response was rejected before tool admission. No calls from it executed. Return the corrected complete tool group using valid JSON object arguments, unique IDs and at most 32 calls, or a nonempty final summary. Existing scope, permissions, checks and budgets still apply.",
+        } }) }];
+        t.state.turns++; t.state.responseRejections = (t.state.responseRejections ?? 0) + 1;
+        this.journal.checkpoint(t, "model.rejected", { code: rejected.code, receipt,
+          consecutive: t.state.responseRejections, step: t.state.turns - 1 });
+        control?.activity?.(replay ? "model:rejection-replay" : "model:rejected");
+      } else {
+        t.state.history = [...reply.history, admitReply(reply.turn.message)]; t.state.turns++;
+        delete t.state.responseRejections;
+        this.journal.checkpoint(t, "model.reply", reply.turn.message);
+        control?.activity?.(replay ? "model:replay" : "model:reply");
+      }
+    };
     const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg, this.jobRpc) : null;
     const enforcePruning = () => {
       const failure = t.state.diagnostics?.pruned ?? pruningCandidate(t.state, this.cfg);
@@ -218,7 +240,7 @@ export class SwarmDriver implements Driver {
         system: "You are an independent read-only debugging auditor. Treat all proposed causes as unverified hypotheses. Identify three orthogonal causes and falsifying probes with negative controls. Answer within 150 words and 2048 UTF-8 bytes. You cannot execute tools, edit files, accept results, or change the task or checks." };
       control?.activity?.("debugging:audit");
       const next = await this.brain.next(c, auditor, audit.history, budget, limit, signal, t.state.turns);
-      invariant(!next.turn.message.calls?.length && next.turn.message.content.trim().length > 0 &&
+      invariant(!next.turn.rejection && !next.turn.message.calls?.length && next.turn.message.content.trim().length > 0 &&
         Buffer.byteLength(next.turn.message.content) <= 2048, "debugging auditor must return bounded hypotheses without tools");
       const receipt = this.journal.receipt(c, toJson({ trust: "UNVERIFIED_AGENT_HYPOTHESES", hypotheses: next.turn.message.content }));
       t.state.turns++;
@@ -240,6 +262,8 @@ export class SwarmDriver implements Driver {
       }
       for (;;) {
         signal.throwIfAborted(); this.journal.assertLease(c);
+        if ((t.state.responseRejections ?? 0) >= MAX_CONSECUTIVE_RESPONSE_REJECTIONS)
+          throw new FatalAttemptError("MODEL_RESPONSE_REPAIR_EXHAUSTED: three consecutive invalid model replies; retained raw receipts require a different strategy or provider configuration");
         if (t.state.output) return { artifact: toJson(t.state.output), measurement: { tokens: this.journal.usage(c.runId, c.task.id, c.fence).tokens, costUsd: null } };
         const calls = outstanding(t);
         if (calls.length) {
@@ -422,9 +446,7 @@ export class SwarmDriver implements Driver {
         const replay = this.brain.replay(c, profile, t.state.history, budget, limit, t.state.turns, t.state.progress ?? null,
           diagnosticContext(t.state));
         if (replay) {
-          t.state.history = [...replay.history, admitReply(replay.turn.message)]; t.state.turns++;
-          this.journal.checkpoint(t, "model.reply", replay.turn.message);
-          control?.activity?.("model:replay"); continue;
+          commitReply(replay, true); continue;
         }
         // A persisted model reply without tools represents a final answer.
         const last = t.state.history.at(-1)!;
@@ -510,9 +532,7 @@ export class SwarmDriver implements Driver {
         if (modelResult.status === "rejected") throw modelResult.reason;
         if (prewarmResult.status === "rejected") throw prewarmResult.reason;
         const next = modelResult.value;
-        t.state.history = [...next.history, admitReply(next.turn.message)]; t.state.turns++;
-        this.journal.checkpoint(t, "model.reply", next.turn.message);
-        control?.activity?.("model:reply");
+        commitReply(next, false);
       }
     } catch (error) {
       // The shared signal combiner does not preserve reasons. Restore this

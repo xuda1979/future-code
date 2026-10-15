@@ -29,6 +29,8 @@ export interface ThreadState {
   diagnostics?: DiagnosticMemory;
   debugging?: DebuggingState;
   decisions?: DecisionState;
+  /** Durable bounded repair streak; a valid admitted model message clears it. */
+  responseRejections?: number;
   turns: number;
   toolCalls: number;
   patchHash: string | null;
@@ -351,22 +353,32 @@ export class SessionJournal {
         .run(response === null ? "UNKNOWN" : "DONE", tokens, hash, Date.now(), id);
       this.store.changed();
       notifyPermit(String(row.provider));
-      const task = this.store.db.prepare("SELECT status,fence,deadline FROM tasks WHERE run=? AND id=?").get(row.run, row.task);
-      // Record late spend, but a superseded RPC must never publish a replayable reply.
-      const current = task?.status === "RUNNING" && task.fence === row.fence && task.deadline > Date.now();
-      if (step === undefined || !hash || !current) return false;
-      invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");
-      const replayRequest = row.replay_request ?? row.request;
-      const old = this.store.db.prepare("SELECT body,response FROM agent_replies WHERE run=? AND task=? AND step=?").get(row.run, row.task, step);
-      if (old) {
-        invariant(old.body === replayRequest, "model replay input drift");
-        if (!competing) invariant(old.response === hash, "model reply already committed");
-        return old.response === hash;
-      }
-      this.store.db.prepare("INSERT INTO agent_replies VALUES(?,?,?,?,?)")
-        .run(row.run, row.task, step, replayRequest, hash);
-      return true;
+      return step !== undefined && hash ? this.recordReply(row, hash, step, competing) : false;
     });
+  }
+  /** Select an already metered rejected hedge only after no valid route won. */
+  publishReply(id: string, step: number): boolean {
+    return this.store.transaction(() => {
+      const row = this.store.db.prepare("SELECT * FROM agent_requests WHERE id=?").get(id);
+      invariant(row?.status === "DONE" && row.response, "reply requires a completed response");
+      return this.recordReply(row, String(row.response), step, true);
+    });
+  }
+  private recordReply(row: Record<string, any>, hash: string, step: number, competing: boolean): boolean {
+    const task = this.store.db.prepare("SELECT status,fence,deadline FROM tasks WHERE run=? AND id=?").get(row.run, row.task);
+    // Late spend remains recorded, but superseded RPCs cannot publish replies.
+    if (task?.status !== "RUNNING" || task.fence !== row.fence || task.deadline <= Date.now()) return false;
+    invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");
+    const replayRequest = row.replay_request ?? row.request;
+    const old = this.store.db.prepare("SELECT body,response FROM agent_replies WHERE run=? AND task=? AND step=?").get(row.run, row.task, step);
+    if (old) {
+      invariant(old.body === replayRequest, "model replay input drift");
+      if (!competing) invariant(old.response === hash, "model reply already committed");
+      return old.response === hash;
+    }
+    this.store.db.prepare("INSERT INTO agent_replies VALUES(?,?,?,?,?)")
+      .run(row.run, row.task, step, replayRequest, hash);
+    return true;
   }
   cooldown(provider: string, ms: number): void {
     invariant(Number.isFinite(ms) && ms >= 0 && ms <= 60000, "invalid provider cooldown");
