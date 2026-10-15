@@ -102,6 +102,7 @@ Missing token or dollar measurements remain unknown.
 | External-API agents and durable sessions | [Swarm](docs/agent-platform/SWARM.md) |
 | Recovery and remote compute | [Resilient R&D](docs/agent-platform/RESILIENT_RND.md) |
 | Provider cooldowns, recovery probes and bounded transport | [External API recovery](docs/agent-platform/PROVIDER_RECOVERY.md) |
+| Bounded correction of malformed or empty worker replies | [Model-response repair](docs/agent-platform/MODEL_RESPONSE_REPAIR.md) |
 | Evidence and allocation | [Evidence Fabric](docs/agent-platform/EVIDENCE_FABRIC.md) |
 | Measured self-reflection | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
 | Execution timings, context retirement and resource wakeups | [Execution productivity](docs/agent-platform/EXECUTION_PRODUCTIVITY.md) |
