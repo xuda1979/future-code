@@ -49,6 +49,11 @@ export const definitions: ToolDefinition[] = [
   }, ["children"]),
   def("list_files", "List tracked and new files in the task's readable scopes. Paginated; paths only.", { offset: integer, limit: { type: "integer", minimum: 1, maximum: 200 } }, []),
   def("read_file", "Read a bounded line range of a non-symlink UTF-8 file in readable scopes.", { path: string, start: { type: "integer", minimum: 1 }, lines: { type: "integer", minimum: 1, maximum: 300 } }, ["path"]),
+  def("search_files", "Find case-sensitive literal text in scoped Git-tracked and nonignored new UTF-8 files. Returns line locations and bounded excerpts. Narrow with a file/directory path; omit path for all readable scopes. Continue with nextCursor until null; skippedFiles reports unsearched inputs. Restart pagination after edits or worker replacement. This is source discovery, never a check or proof of absence.", {
+    query: { type: "string", minLength: 1, maxLength: 256 }, path: string,
+    limit: { type: "integer", minimum: 1, maximum: 100 },
+    cursor: { type: "object", properties: { path: string, line: { type: "integer", minimum: 1 } }, required: ["path", "line"], additionalProperties: false },
+  }, ["query"]),
   def("write_file", "Write a UTF-8 file within the task's exclusive write scopes; use edit_file for small changes.", { path: string, content: string }, ["path", "content"]),
   def("edit_file", "Replace exactly one literal occurrence. A missing or ambiguous match is an error.", { path: string, oldText: string, newText: string }, ["path", "oldText", "newText"]),
   def("delete_file", "Delete one non-symlink file within the task's write scopes.", { path: string }, ["path"]),

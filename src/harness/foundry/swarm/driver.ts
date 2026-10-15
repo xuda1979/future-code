@@ -96,6 +96,7 @@ export class SwarmDriver implements Driver {
         (profile.tools.includes("save_progress") ? "Before long context retirement, call save_progress with concise current findings, blockers, exact next step, and owned evidence receipts; notes remain unverified. " : "") +
         (profile.tools.includes("run_job") ? "For independent experiments, issue every ready run_job call in one assistant turn so the host can launch them concurrently; do not wait for one experiment before proposing another independent one. " : "") +
         "Issue independent file reads in one turn, and ordered related edits together. Use run_check as a boundary when you need an intermediate diagnostic. " +
+        (profile.tools.includes("search_files") ? "Locate symbols and error text with scoped search_files before reading whole files; follow continuation cursors and inspect skipped-file counts. " : "") +
         "Do not edit harness infrastructure outside the declared task scope." }) }],
       turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null,
       contextLimit: admittedContext });

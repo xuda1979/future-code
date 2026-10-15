@@ -3,7 +3,7 @@ import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { identifier, invariant, positive, validateContract, validateRecipe } from "../kernel.ts";
 import type { CommandSpec, Contract, PinnedCommand, Recipe, SpawnPolicy, Task } from "../types.ts";
 
-export const TOOLS = ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "run_probe", "recall", "run_job", "read_job_artifact", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict", "publish_finding", "read_findings"] as const;
+export const TOOLS = ["list_files", "read_file", "search_files", "write_file", "edit_file", "delete_file", "run_check", "run_probe", "recall", "run_job", "read_job_artifact", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict", "publish_finding", "read_findings"] as const;
 export type ToolName = typeof TOOLS[number];
 export type Protocol = "anthropic" | "chat-completions";
 export interface ProviderRoute {

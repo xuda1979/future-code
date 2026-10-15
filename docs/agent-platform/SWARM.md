@@ -148,10 +148,13 @@ provider-specific compaction and advisor protocols are **not implemented**.
 Unsupported returned block types fail closed instead of silently removing data
 required for a later API turn. Choose a compatible profile for the initial canary.
 
-Tools are `list_files`, bounded `read_file`, `write_file`, exact-once-match
+Tools are `list_files`, bounded `read_file`, scoped literal `search_files`, `write_file`, exact-once-match
 `edit_file`, `delete_file`, `run_check` and `recall`. There is no arbitrary shell
 command supplied by the model. `run_check` accepts only a configured check name.
 Trusted checks may themselves execute arbitrary code; configure them accordingly.
+The opt-in [source search capability](SOURCE_SEARCH.md) locates symbols and error
+text in local/remote private worktrees, with bounded scans, skip counts and
+continuation cursors. It returns observations, never acceptance evidence.
 
 `$NODE` in a check's executable position resolves and pins the installed Node
 binary at initialization. This matters when the native Future Code executable

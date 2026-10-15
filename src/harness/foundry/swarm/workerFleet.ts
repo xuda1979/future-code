@@ -209,7 +209,7 @@ class RemoteHands implements Hands {
   }
   batch(kind: "read" | "workspace-write", calls: Call[]): Promise<WorkspaceBatchResult> {
     invariant(["read", "workspace-write"].includes(kind) && calls.length > 0 && calls.length <= 32 && calls.every(c =>
-      (kind === "read" ? ["read_file", "list_files"] : ["write_file", "edit_file", "delete_file"]).includes(c.name)),
+      (kind === "read" ? ["read_file", "list_files", "search_files"] : ["write_file", "edit_file", "delete_file"]).includes(c.name)),
     "invalid remote workspace batch");
     return this.exclusive(() => this.retry(async lease => {
       const results: Json[] = []; let patchHash: string | undefined;

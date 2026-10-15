@@ -107,6 +107,7 @@ Missing token or dollar measurements remain unknown.
 | Execution timings, context retirement and resource wakeups | [Execution productivity](docs/agent-platform/EXECUTION_PRODUCTIVITY.md) |
 | Execution review, indexed dispatch and alternate-model recovery | [Dispatch scaling](docs/agent-platform/DISPATCH_SCALING.md) |
 | Parallel reads and replayable edit batches | [Tool batching](docs/agent-platform/TOOL_BATCHING.md) |
+| Scoped literal source search and repository review priorities | [Source search](docs/agent-platform/SOURCE_SEARCH.md) |
 | Remote file batches and worker replacement | [Remote batch recovery](docs/agent-platform/REMOTE_TOOL_BATCHING.md) |
 | Premise probes, cross-patch failure loops and fresh-context audits | [Falsification debugging](docs/agent-platform/FALSIFICATION_DEBUGGING.md) |
 | Proactive measurement reviews and prerequisites for external experiments | [Evidence-first decisions](docs/agent-platform/EVIDENCE_FIRST_DECISIONS.md) |

@@ -7,6 +7,7 @@ const result = spawnSync(process.execPath, ["--experimental-strip-types", "--tes
   "tests/foundry/cohort-coordination.test.ts", "tests/foundry/execution-loop.test.ts",
   "tests/foundry/dispatch-index.test.ts", "tests/foundry/dependency-closure.test.ts",
   "tests/foundry/context-envelope.test.ts", "tests/foundry/tool-batching.test.ts",
+  "tests/foundry/source-search.test.ts",
   "tests/foundry/verification-batching.test.ts", "tests/foundry/early-feedback.test.ts",
   "tests/foundry/diagnostic-memory.test.ts", "tests/foundry/progress-memory.test.ts",
   "tests/foundry/debugging-guardrails.test.ts",

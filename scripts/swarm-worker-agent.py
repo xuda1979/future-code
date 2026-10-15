@@ -88,7 +88,7 @@ def run(argv: list[str], cwd: Path, timeout_ms: int, max_bytes: int, stdin: byte
     total = len(out) + len(err)
     if total > max_bytes:
         return {"code": proc.returncode, "stdout": out[-max_bytes // 2:].decode("utf-8", "replace"),
-                "stderr": (err[-max_bytes // 2:] + b"\nworker output exceeded byte budget")[-max_bytes:].decode("utf-8", "replace")}
+                "stderr": (err[-max_bytes // 2:] + b"\nworker output exceeded byte budget")[-max_bytes:].decode("utf-8", "replace"), "truncated": True}
     return {"code": proc.returncode, "stdout": out.decode("utf-8", "replace"), "stderr": err.decode("utf-8", "replace")}
 
 
@@ -100,7 +100,7 @@ if not GIT:
 def git(repo: Path, args: list[str], timeout_ms: int = 30000, stdin: bytes | None = None) -> str:
     result = run([GIT, "--no-pager", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
                   "-c", "core.autocrlf=false", *args], repo, timeout_ms, 16 * 1024 * 1024, stdin)
-    if result["code"] != 0:
+    if result["code"] != 0 or result.get("truncated"):
         raise ValueError(f"git {args[0]} failed: {result['stderr'][-1200:]}")
     return result["stdout"]
 
@@ -211,6 +211,91 @@ def context(root: Path, workspace: str) -> tuple[Path, dict[str, Any]]:
     return tree, state["request"]
 
 
+def search_source(tree: Path, prepared: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
+    """Read-only literal discovery; cursors assume an unchanged private tree."""
+    if set(args) - {"query", "path", "limit", "cursor"}:
+        raise ValueError("unexpected search argument")
+    query, prefix, limit, cursor = args.get("query"), args.get("path"), args.get("limit", 20), args.get("cursor")
+    scopes = [*prepared["task"].get("writeScope", []), *prepared["task"].get("readScope", [])]
+
+    def search_path(path: str) -> Path:
+        rel = safe_rel(path)
+        if any(ord(c) < 32 for c in path):
+            raise ValueError("unsafe search path")
+        return rel
+
+    if not isinstance(query, str) or not query or len(query.encode()) > 256 or any(c in query for c in ("\x00", "\r", "\n")):
+        raise ValueError("invalid search query (single-line literal, 1..256 UTF-8 bytes)")
+    if type(limit) is not int or not 1 <= limit <= 100:
+        raise ValueError("invalid search limit")
+    if prefix is not None:
+        search_path(prefix)
+        if not in_scope(prefix, scopes) and not any(in_scope(scope, [prefix]) for scope in scopes):
+            raise ValueError("search path outside task authority")
+    if cursor is not None:
+        if not isinstance(cursor, dict) or set(cursor) != {"path", "line"}:
+            raise ValueError("invalid search cursor")
+        search_path(cursor["path"])
+        if not in_scope(cursor["path"], scopes) or (prefix is not None and not in_scope(cursor["path"], [prefix])):
+            raise ValueError("search cursor outside task authority")
+        if type(cursor["line"]) is not int or not 1 <= cursor["line"] <= 9007199254740991:
+            raise ValueError("invalid search cursor line")
+    max_out = prepared["limits"]["maxToolOutputBytes"]
+    max_file = min(max_out, 1024 * 1024)
+    max_read = min(8 * 1024 * 1024, max_file * 64)
+    deadline = time.monotonic() + prepared["limits"]["toolTimeoutMs"] / 1000
+    result: dict[str, Any] = {"matches": [], "nextCursor": None, "scannedFiles": 0, "skippedFiles": 0, "bytesRead": 0}
+
+    def finish(next_cursor: dict[str, Any] | None) -> dict[str, Any]:
+        result["nextCursor"] = next_cursor
+        if len(encoded(result)) > max_out:
+            raise ValueError("search response exceeds output budget")
+        return result
+
+    if not scopes:
+        return finish(None)
+    names = git(tree, ["--literal-pathspecs", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *([prefix] if prefix else scopes)]).split("\0")
+    files = sorted({p for p in names if p and in_scope(p, scopes) and (prefix is None or in_scope(p, [prefix]))})
+    for path in files:
+        if cursor and path < cursor["path"]:
+            continue
+        start = cursor["line"] if cursor and cursor["path"] == path else 1
+        if result["scannedFiles"] >= 256 or result["bytesRead"] + max_file + 1 > max_read or time.monotonic() >= deadline:
+            return finish({"path": path, "line": start})
+        result["scannedFiles"] += 1
+        try:
+            rel = search_path(path)
+            check_no_symlinks(tree, rel)
+            target = tree / rel
+            if not target.is_file() or target.stat().st_size > max_file:
+                raise ValueError("search file too large or not regular")
+            with target.open("rb") as source:
+                data = source.read(max_file + 1)
+            result["bytesRead"] += len(data)
+            if len(data) > max_file:
+                raise ValueError("search file exceeds byte budget")
+            if b"\x00" in data:
+                raise ValueError("binary search input")
+            text = data.decode("utf-8")
+        except (OSError, ValueError):
+            result["skippedFiles"] += 1
+            continue
+        for i, line in enumerate(text.split("\n")[start - 1:], start):
+            if time.monotonic() >= deadline:
+                return finish({"path": path, "line": i})
+            at = line.find(query)
+            if at < 0:
+                continue
+            excerpt = line[max(0, at - 40):at] + query + line[at + len(query):at + len(query) + 80]
+            result["matches"].append({"path": path, "line": i, "text": excerpt, "truncated": excerpt != line})
+            if len(result["matches"]) > limit or len(encoded({**result, "nextCursor": {"path": path, "line": i}})) + 64 > max_out:
+                result["matches"].pop()
+                if not result["matches"]:
+                    raise ValueError("search output budget cannot fit one match; narrow the path or increase the configured output budget")
+                return finish({"path": path, "line": i})
+    return finish(None)
+
+
 def tool(root: Path, template: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     tree, prepared = context(root, request["workspace"])
     call = request.get("call")
@@ -225,6 +310,9 @@ def tool(root: Path, template: dict[str, Any], request: dict[str, Any]) -> dict[
     limits = prepared["limits"]
     max_out = limits["maxToolOutputBytes"]
     timeout = limits["toolTimeoutMs"]
+
+    if name == "search_files":
+        return {"ok": True, "result": search_source(tree, prepared, args)}
 
     if name == "list_files":
         offset = args.get("offset", 0)
@@ -326,7 +414,7 @@ def snapshot(root: Path, request: dict[str, Any]) -> dict[str, Any]:
 def batch(root: Path, template: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     calls = request.get("calls")
     kind = request.get("kind")
-    allowed = {"read_file", "list_files"} if kind == "read" else {"write_file", "edit_file", "delete_file"}
+    allowed = {"read_file", "list_files", "search_files"} if kind == "read" else {"write_file", "edit_file", "delete_file"}
     # Validate the entire finite operation class before producing any effect.
     # Checks and jobs have distinct replay semantics and can never join a batch.
     if kind not in ("read", "workspace-write") or not isinstance(calls, list) or not 1 <= len(calls) <= 32:
