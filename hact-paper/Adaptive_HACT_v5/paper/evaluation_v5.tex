@@ -1,6 +1,6 @@
 \section{Evaluation}\label{sec:v5evaluation}
 \subsection{Questions, data, and provenance}
-The evaluation is organized around four questions rather than around successive artifact revisions:
+The evaluation is organized around five questions rather than around successive artifact revisions:
 \begin{table}[H]\centering\small
 \caption{Research questions and the evidence used to answer them.}\label{tab:rqs}
 \begin{tabularx}{\linewidth}{@{}p{.06\linewidth}>{\raggedright\arraybackslash}p{.27\linewidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{.26\linewidth}@{}}\toprule
@@ -8,7 +8,8 @@ RQ & Question & Evidence & Main observation\\\midrule
 RQ1 & When does learned ordering reduce evidence cost? & 27 frozen synthetic workloads; separate train, validation, and held-out epochs & Benefit appears on clustered completion structure, not on independent/global controls.\\
 RQ2 & What is traded for the practical no-DP compiler? & 36 replays of 12 archived source candidates under fixed8, learned balanced, and learned exact & Balanced is simpler and smaller than fixed8; exact retains a 1.52--11.68\% compressed-byte advantage.\\
 RQ3 & Does changing layout change semantic output? & Verdict/count comparisons, authorization checks, and root-status equality across all replay triples & Semantic results agree; root status is byte-identical in 12/12 triples.\\
-RQ4 & When can evidence savings repay extra work? & Codec-matched bytes plus 27 declared sensitivity scenarios & Break-even depends on goodput, repetition, and extra cost; no universal latency claim follows.\\\bottomrule
+RQ4 & When can evidence savings repay extra work? & Codec-matched bytes plus 27 declared sensitivity scenarios & Break-even depends on goodput, repetition, and extra cost; no universal latency claim follows.\\
+RQ5 & Does HACT beat simpler services delivering the same evidence at equal semantics? & Service-equal cost study on 12 archived trajectories (Section~\ref{sec:v8evaluation}) & Zero of six frozen families benefit; maintenance and storage dominate the total.\\\bottomrule
 \end{tabularx}
 \end{table}
 

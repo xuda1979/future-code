@@ -1,8 +1,8 @@
-# Adaptive HACT empirical artifact v5.0 / journal manuscript v7.0
+# Adaptive HACT empirical artifact v5.0 + v8 service-equal study / journal manuscript v8.0
 
-**Journal framing:** Verification-Evidence Virtualization for Long-Horizon Agentic Software Engineering
+**Journal framing:** Adaptive HACT for Cost-Aware Delivery of Verification Evidence
 
-Start with `paper/main.pdf`, `paper/SUBMISSION_NOTES_V7.md`, `docs/RESPONSE_TO_REVIEWERS.md`, and `docs/V5_OPERATING_GUIDE.md`. The empirical records remain the frozen v5 artifact; manuscript v7 strengthens theory, positioning, and retrospective control baselines without relabeling old evidence as new trials. This is a research artifact, not a production security service or an accepted paper.
+Start with `paper/main.pdf`, `paper/SUBMISSION_NOTES_V7.md`, `docs/V8_MAJOR_REVISION_PLAN.md`, `docs/V8_SERVICE_CONTRACT.md`, and `docs/V5_OPERATING_GUIDE.md`. The empirical records remain the frozen v5 artifact; manuscript v8 adds the service-equal study, strong indexed-flat baseline, higher-order ablation ladder, and a full numbers audit on those frozen records without relabeling old evidence as new trials. This is a research artifact, not a production security service or an accepted paper.
 
 ## New v7 strong-baseline audit
 
@@ -43,6 +43,23 @@ the runtime is not silently converted into a live self-retuning LLM service.
 | Independent v5 audit | 27 workloads, 36 replays, 27 conditional planning scenarios, 131 numeric comparisons |
 | Actual public-vocabulary BPE | UNKNOWN; no installed tokenizer or downloaded vocabulary; no byte-ratio proxy |
 | Physical WAN / live LLM | NOT RUN; local TLS protocol tests are neither |
+
+## Measured v8 service-equal evidence
+
+| Item | Result and boundary |
+|---|---|
+| Semantic equivalence (Q1--Q6 on 12 archived trajectories) | 168/168 checks identical on hierarchy and indexed flat ledger; layout-invariance holds on all arms |
+| Service-equal cost decision | Hierarchy **not beneficial** in 6/6 frozen query families under the pre-frozen rule (complete-answer bytes and arrival time, maintenance counted on both sides) |
+| Higher-order ablation ladder | Rung-3 (direct completion-wave search) beats rung-2 (pairwise seriation) in 0/9 clustered workloads; rung-1 (frequency) loses by 2.53% mean; rung-4 (exact DP reference) bounds headroom at 5.12% mean |
+| Exhaustive n=9 reference | Deployed rung-2 order within 0.06% of best feasible layout in all five seeds |
+| Numbers audit | 70/70 manuscript entries regenerate exactly from frozen JSON via a second implementation; fails closed on drift |
+| v8 prototype tests | 82 passed (service equivalence, cost study, ablation ladder, audit); earlier suites remain green separately |
+
+The v8 study is a pre-specified retrospective analysis on frozen v5/v7 records
+under `docs/V8_SERVICE_CONTRACT.md` and the decision rule frozen in
+`docs/V8_MAJOR_REVISION_PLAN.md` before any run. Negative outcomes are
+published as specified. No new checker executions, LLM trials, WAN transfers,
+or BPE measurements were run.
 
 Historical v3/v4 observations are preserved separately. In particular, the older
 288 loopback transfers, exact-layout savings, and strict-wrapper timing are not
