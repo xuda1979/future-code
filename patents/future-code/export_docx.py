@@ -20,7 +20,7 @@ from docx.text.paragraph import Paragraph
 from patent_diagrams import diagram
 
 HERE = Path(__file__).resolve().parent
-SOURCES = ['INVENTION_DISCLOSURE_CN', 'PRIOR_ART_SEARCH_CN']
+SOURCES = ['交底书', '检索报告']
 FIGURES = {
     1: '图1：模型提议、宿主控制及证据验证数据流',
     2: '图2：提议绑定、租约复核及动态子任务准入流程',
@@ -234,7 +234,7 @@ def export(stem, destination, font):
             position += 1
             figure += 1
             paragraph = native.paragraph('Captioned Figure')
-            picture = paragraph.add_run().add_picture(diagram(figure, font), width=Inches(5.5))
+            picture = paragraph.add_run().add_picture(diagram(figure, font), width=Inches(4.2))
             picture._inline.docPr.set('descr', FIGURES[figure])
             native.paragraph('Image Caption', FIGURES[figure])
             first = False
