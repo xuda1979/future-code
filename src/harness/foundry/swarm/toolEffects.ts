@@ -29,6 +29,8 @@ const fixed: Partial<Record<ToolName, ToolEffectContract>> = {
     compensation: "none", risk: "low", rationale: "bounded project metadata read" },
   read_file: { tool: "read_file", effect: "read", replay: "safe", idempotency: "none",
     compensation: "none", risk: "low", rationale: "bounded scoped file read" },
+  search_files: { tool: "search_files", effect: "read", replay: "safe", idempotency: "none",
+    compensation: "none", risk: "low", rationale: "bounded literal source discovery inside readable scopes; no acceptance evidence" },
   recall: { tool: "recall", effect: "read", replay: "safe", idempotency: "none",
     compensation: "none", risk: "low", rationale: "durable receipt read" },
   save_progress: { tool: "save_progress", effect: "control-plane", replay: "state-bound", idempotency: "call-id",

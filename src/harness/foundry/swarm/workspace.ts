@@ -11,6 +11,7 @@ import type { PatchArtifact } from "./session.ts";
 import { runProcess, type ProcessResult } from "./process.ts";
 import { boundedChecks, checkPassed, type CheckReport } from "./verification.ts";
 import { performance } from "node:perf_hooks";
+import { readSearchFile, searchSource, validateSourceSearch } from "./sourceSearch.ts";
 
 /** Scope checks are a correctness boundary, not containment for hostile code.
  * Use a VM/container backend before granting tools to untrusted projects. */
@@ -30,9 +31,9 @@ export interface Hands {
   dispose(): Promise<void>;
 }
 export interface WorkspaceBatchResult { results: Json[]; patchHash?: string }
-export async function git(cfg: PinnedSwarm, cwd: string, args: string[], signal: AbortSignal, input?: string): Promise<string> {
+export async function git(cfg: PinnedSwarm, cwd: string, args: string[], signal: AbortSignal, input?: string, maxBytes?: number): Promise<string> {
   const result = await runProcess(cfg.git, cwd, ["--no-pager", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
-    "-c", "core.autocrlf=false", ...args], signal, cfg.spec.budget.toolTimeoutMs, Math.max(cfg.spec.budget.maxPatchBytes * 2, cfg.spec.budget.maxToolOutputBytes), input);
+    "-c", "core.autocrlf=false", ...args], signal, cfg.spec.budget.toolTimeoutMs, maxBytes ?? Math.max(cfg.spec.budget.maxPatchBytes * 2, cfg.spec.budget.maxToolOutputBytes), input);
   invariant(result.code === 0, `git ${args[0]} failed: ${result.stderr.slice(-1000)}`);
   return result.stdout;
 }
@@ -162,6 +163,19 @@ export class LocalGitHands implements Hands {
     this.signal.throwIfAborted(); invariant(this.profile.tools.includes(call.name as any), "tool not permitted for this agent");
     const a = call.arguments;
     switch (call.name) {
+      case "search_files": {
+        const scopes = [...this.c.task.writeScope, ...(this.c.task.readScope ?? [])];
+        const args = validateSourceSearch(a, scopes);
+        if (!scopes.length) return { matches: [], nextCursor: null, scannedFiles: 0, skippedFiles: 0, bytesRead: 0 };
+        const root = await this.ready();
+        const names = (await git(this.cfg, root, ["--literal-pathspecs", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--",
+          ...(args.path ? [args.path] : scopes)], this.signal, undefined, 16 * 1024 * 1024)).split("\0").filter(Boolean);
+        return searchSource(args, names, scopes, this.cfg.spec.budget.maxToolOutputBytes, async (name, maxBytes) => {
+          const path = await this.pathFor(name, false), stat = lstatSync(path);
+          invariant(stat.isFile() && stat.size <= maxBytes, "search file too large or not regular");
+          return readSearchFile(path, maxBytes);
+        }, this.signal, this.cfg.spec.budget.toolTimeoutMs);
+      }
       case "list_files": {
         keys(a, [], ["offset", "limit"]); const offset = a.offset ?? 0; const limit = a.limit ?? 100;
         invariant(Number.isSafeInteger(offset) && (offset as number) >= 0 && Number.isSafeInteger(limit) && (limit as number) > 0 && (limit as number) <= 200, "invalid listing range");

@@ -17,7 +17,7 @@ export interface ToolBatch {
   calls: Call[];
   concurrency: number;
 }
-const reads = new Set(["read_file", "list_files"]);
+const reads = new Set(["read_file", "list_files", "search_files"]);
 const writes = new Set(["write_file", "edit_file", "delete_file"]);
 
 /** Only adjacent compatible calls share a batch. Every other effect is a
