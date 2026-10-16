@@ -73,6 +73,10 @@ export function validateTasks(c: Contract, tasks: Task[]): void {
   positive(tasks.length, c.limits.tasks, "task count");
   const byId = new Map<string, Task>();
   for (const t of tasks) {
+    if (t.research !== undefined) {
+      invariant(Array.isArray(t.research) && t.research.length <= 32 && new Set(t.research).size === t.research.length, "invalid task research requirements");
+      t.research.forEach(identifier);
+    }
     canonical(t); identifier(t.id); if (t.agent !== undefined) identifier(t.agent); invariant(Object.hasOwn(t, "input"), "missing task input");
     invariant(!byId.has(t.id), "duplicate task id"); byId.set(t.id, t);
     invariant(typeof t.goal === "string" && t.goal.trim().length > 0, "empty goal");

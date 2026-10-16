@@ -50,6 +50,8 @@ export interface Task {
   /** Optional pinned swarm roster member; ignored by generic command drivers. */
   agent?: string;
   goal: string;
+  /** Required operator-pinned experiment/proof templates, verified independently. */
+  research?: string[];
   acceptance: string[];
   dependencies: string[];
   /** Logical write-scope locks, not an OS filesystem sandbox. */

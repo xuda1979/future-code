@@ -353,3 +353,7 @@ Optional research groups provide bounded notes, acceptance-gated cross-group
 references and execution caps. See [Cohort coordination](COHORT_COORDINATION.md)
 for configuration, context controls and the distinction between accepted task
 artifacts and unverified summaries.
+# Scientific experiments
+
+See [executable research contracts](research-experiments.md) for frozen hypotheses,
+replicated metrics, quantum-count validation and independent proof-checker adapters.

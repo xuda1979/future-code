@@ -1,3 +1,4 @@
+import { installResearch } from "./research.ts";
 import { runHealth, type HealthObserver } from "../health.ts";
 import { ResearchJobs } from "./jobs.ts";
 import { realpathSync } from "node:fs";
@@ -42,9 +43,14 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
   }
   if (spec.jobs) {
     cfg.jobAdapters = {};
+    if (Object.values(spec.jobs).some(j => j.research?.proofChecker)) cfg.researchCheckers = {};
     for (const [name, job] of Object.entries(spec.jobs)) {
       cfg.jobAdapters[name] = pinCommand({ ...job.adapter, argv: [job.adapter.argv[0] === "$NODE" ? executable("node") : job.adapter.argv[0], ...job.adapter.argv.slice(1)] }, spec.project);
-      for (const pin of cfg.jobAdapters[name].pins) {
+      if (job.research?.proofChecker) {
+        const checker = job.research.proofChecker;
+        cfg.researchCheckers![name] = pinCommand({ ...checker, argv: [checker.argv[0] === "$NODE" ? executable("node") : checker.argv[0], ...checker.argv.slice(1)] }, spec.project);
+      }
+      for (const pin of [...cfg.jobAdapters[name].pins, ...(cfg.researchCheckers?.[name]?.pins ?? [])]) {
         const path = relative(spec.project, pin.path).replaceAll("\\", "/");
         if (path && !path.startsWith("../") && !isAbsolute(path)) spec.protectedPaths.push(path);
       }
@@ -63,12 +69,13 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
   }
   spec.protectedPaths = [...new Set([...spec.protectedPaths, ".gitignore", ".gitattributes", ".gitmodules"])].sort();
   const contract: Contract = { schema: 1, ...(spec.supervision?.snapshotReads ? { readIsolation: "snapshot" as const } : {}), name: spec.name, workerId: workerIdentity(cfg), verifierId: verifierIdentity(cfg),
-    environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior"],
+    environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior", ...(Object.values(spec.jobs ?? {}).some(j => j.research) ? ["research"] : [])],
     slos: [], limits: spec.limits };
   store.initialize(contract, spec.recipe, undefined, {
     [KEY]: json(cfg),
     "extension.evidenceDomain": spec.domainPack ?? "software-engineering",
   });
+  if (Object.values(spec.jobs ?? {}).some(j => j.research)) installResearch(store);
   new SessionJournal(store); return cfg;
 }
 export function loadSwarm(store: Store): PinnedSwarm {
@@ -77,6 +84,7 @@ export function loadSwarm(store: Store): PinnedSwarm {
   invariant((cfg.handsId === remoteWorkerFleetBackend.id) === !!cfg.spec.workers, "execution backend drift");
   validateSwarmSpec(cfg.spec); checkPins(cfg.git); Object.values(cfg.checks).forEach(checkPins);
   Object.values(cfg.jobAdapters ?? {}).forEach(checkPins);
+  Object.values(cfg.researchCheckers ?? {}).forEach(checkPins);
   Object.values(cfg.workerAdapters ?? {}).forEach(checkPins);
   invariant((store.contract().readIsolation === "snapshot") === !!cfg.spec.supervision?.snapshotReads, "snapshot isolation drift");
   invariant(store.getMeta("extension.evidenceDomain") === (cfg.spec.domainPack ?? "software-engineering"),
