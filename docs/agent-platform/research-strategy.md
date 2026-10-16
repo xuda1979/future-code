@@ -84,7 +84,9 @@ Both arms preserve the same observed refuted research lines. This is evidence
 of avoided work in this declared smoke test, not a statistical claim of general
 research productivity or a comparison against every static planner.
 
-For your own **local numerical** comparison, construct a
+For new local comparisons, use the [domain-neutral framework](SCIENTIFIC_EXPERIMENT_FRAMEWORK.md)
+with schema-2 specifications and separately pinned validators. The existing
+schema-1 numerical comparison remains supported. Construct a
 `ResearchComparisonProtocol` (`src/harness/foundry/researchEvaluation.ts`) with
 absolute executor/file paths and cases mapping every strategy template to its
 frozen `ResearchSpec`. The pinned executable reads `{schema:1,spec}` from stdin

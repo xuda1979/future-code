@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { assessResearch, validateResearchSpec, type ResearchSpec } from "../../src/harness/foundry/research.ts";
+import { assessResearch, validateResearchSpec, type ResearchSpec } from "../../adapters/research/legacy.ts";
 import { digest } from "../../src/harness/foundry/kernel.ts";
 import { runSwarm } from "../../src/harness/foundry/swarm/host.ts";
 import { ResearchJobs } from "../../src/harness/foundry/swarm/jobs.ts";

@@ -158,6 +158,47 @@ class JobEvidenceTests(unittest.TestCase):
         self.assertNotIn("data", reply["result"])
         self.assertFalse((self.root / self.key / "stdout.bin").exists())
 
+    def test_named_raw_artifacts_are_snapshotted_and_reads_detect_tampering(self):
+        raw = bytes(range(256)) * 40
+        self.configure("import os;from pathlib import Path;"
+                       f"Path(os.environ['FUTURE_JOB_ARTIFACT_DIR'],'raw-data').write_bytes({raw!r})",
+                       artifacts={"raw-data": {"maxBytes": 20000}})
+        reply = self.complete()
+        self.assertEqual(reply["status"], "SUCCEEDED")
+        meta = reply["result"]["artifacts"]["raw-data"]
+        self.assertEqual(meta, {"sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)})
+        (self.root / self.key / "outputs/raw-data").write_bytes(b"later child-output mutation")
+        page = self.artifact("raw-data", offset=8100, length=1000)
+        self.assertEqual(base64.b64decode(page["contentBase64"]), raw[8100:9100])
+        (self.root / self.key / "raw-data.bin").write_bytes(b"x" * len(raw))
+        self.assertEqual(self.call({"schema": 1, "operation": "read_artifact", "key": self.key,
+                                   "jobId": self.key, "artifact": "raw-data"}, check=False).returncode, 64)
+
+    def test_missing_oversized_and_nonregular_named_artifacts_fail_closed(self):
+        outside = self.base / "external"
+        outside.write_bytes(b"external")
+        actions = {"missing": "pass", "oversized": "p.write_bytes(b'x'*33)",
+                   "symlink": f"p.symlink_to({str(outside)!r})", "fifo": "os.mkfifo(p)"}
+        for label, action in actions.items():
+            with self.subTest(label=label):
+                self.key = hashlib.sha256(label.encode()).hexdigest()
+                self.request["key"] = self.key
+                self.configure("import os;from pathlib import Path;p=Path(os.environ['FUTURE_JOB_ARTIFACT_DIR'],'raw');" + action,
+                               artifacts={"raw": {"maxBytes": 32}})
+                reply = self.complete()
+                self.assertEqual(reply["status"], "FAILED")
+                self.assertNotIn("raw", reply["result"].get("artifacts", {}))
+
+    def test_named_artifact_paths_and_total_budgets_are_operator_bounded(self):
+        for artifacts in [{"../escape": {"maxBytes": 12}}, {"result": {"maxBytes": 12}},
+                          {"constructor": {"maxBytes": 12}}, {"raw": {"maxBytes": True}},
+                          {"raw": {"maxBytes": 0}}, {"raw": {"maxBytes": 12, "path": "/tmp/escape"}},
+                          {"a": {"maxBytes": 268435456}, "b": {"maxBytes": 1}}]:
+            with self.subTest(artifacts=artifacts):
+                self.configure("print('must not run')", artifacts=artifacts)
+                self.assertEqual(self.call(check=False).returncode, 64)
+                self.assertFalse(self.root.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

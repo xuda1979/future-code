@@ -28,7 +28,7 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   objective --objective ID
   episode --objective ID
   research-strategy --run ID
-  research-compare --spec FILE --allow-exec (matched local numerical experiments)
+  research-compare --spec FILE --allow-exec (matched local experiments with configured validators)
   knowledge [--finding ID --version HASH] [--task-after ID] [--limit N]
   knowledge-retract --finding ID --version HASH --reason TEXT --allow-exec
   reflection --objective ID

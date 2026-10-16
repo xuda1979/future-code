@@ -1,7 +1,6 @@
 import { SessionJournal } from "./session.ts";
-import { invoke } from "../commands.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
-import { assessResearch } from "../research.ts";
+import { runResearchValidation } from "../researchValidation.ts";
 import type { Store } from "../store.ts";
 import type { Capsule, Check } from "../types.ts";
 import type { PinnedSwarm } from "./config.ts";
@@ -34,19 +33,29 @@ export async function verifyResearch(store: Store, cfg: PinnedSwarm, c: Capsule,
       invariant(receipt.key === row.key && receipt.jobId === row.job_id && receipt.status === row.status &&
         receipt.result?.exitCode === 0 && receipt.result.data, "research result receipt mismatch");
       const spec = config.spec;
-      let audit: unknown;
-      if (spec.kind === "formal-proof") {
-        const checker = cfg.researchCheckers?.[String(row.template)]; invariant(checker, "independent proof checker missing");
-        // This command is separately pinned by the operator; it is not the worker/job adapter.
-        audit = await invoke(checker, { schema: 1, spec, result: receipt.result.data }, cfg.spec.budget.maxToolOutputBytes,
-          AbortSignal.any([signal, AbortSignal.timeout(cfg.spec.budget.toolTimeoutMs)]));
-      }
-      signal.throwIfAborted(); new SessionJournal(store).assertLease(c);
-      const assessment = assessResearch(spec, receipt.result.data, audit);
-      const assessmentHash = store.artifact(JSON.parse(canonical({ ...assessment,
-        receiptHash: row.result_hash, ...(audit ? { auditHash: store.artifact(audit as any) } : {}) })));
       const previous = store.db.prepare(`SELECT assessment_hash FROM research_assessments WHERE run=? AND task=? AND template=? AND job_key=?`)
         .get(c.runId, c.task.id, row.template, row.key);
+      const old: any = previous ? store.readArtifact(String(previous.assessment_hash)) : undefined;
+      const context = { key: String(row.key), jobId: String(row.job_id),
+        adapterHash: digest(cfg.jobAdapters![String(row.template)]), artifacts: receipt.result.artifacts ?? {} };
+      const validation = await runResearchValidation(spec, receipt.result.data, context,
+        cfg.experimentValidators?.[String(row.template)] ?? {}, signal, {
+          legacyChecker: cfg.researchCheckers?.[String(row.template)], legacyTimeoutMs: cfg.spec.budget.toolTimeoutMs,
+          maxOutputBytes: cfg.spec.budget.maxToolOutputBytes,
+          onReport: (id, implementationHash, requestHash, report) => {
+            new SessionJournal(store).assertLease(c);
+            const reportHash = store.artifact(report);
+            store.event("research.validation.observed", { validator: id, jobKey: String(row.key), implementationHash, requestHash, reportHash,
+              trust: "OUTPUT_REQUIRES_HOST_VALIDATION" }, c.runId, c.task.id);
+          },
+          ...(spec.schema === 2 && old ? { cached: (old.validation ?? []).map((v: any) => ({ id: v.id,
+            implementationHash: v.implementationHash, report: store.readArtifact(v.reportHash) })) } : {}),
+        });
+      signal.throwIfAborted(); new SessionJournal(store).assertLease(c);
+      for (const evidence of validation.evidence) store.artifact(evidence);
+      const assessment = validation.assessment;
+      const assessmentHash = store.artifact(JSON.parse(canonical({ ...assessment, receiptHash: row.result_hash,
+        ...(validation.legacyAudit ? { auditHash: store.artifact(validation.legacyAudit) } : {}) })));
       invariant(!previous || previous.assessment_hash === assessmentHash, "independent assessment changed on replay");
       if (!previous) store.transaction(() => {
         store.db.prepare(`INSERT INTO research_assessments VALUES(?,?,?,?,?,?,?,?)`)

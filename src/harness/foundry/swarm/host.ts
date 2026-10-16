@@ -45,13 +45,19 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
   if (spec.jobs) {
     cfg.jobAdapters = {};
     if (Object.values(spec.jobs).some(j => j.research?.proofChecker)) cfg.researchCheckers = {};
+    if (Object.values(spec.jobs).some(j => j.research?.validators)) cfg.experimentValidators = {};
     for (const [name, job] of Object.entries(spec.jobs)) {
       cfg.jobAdapters[name] = pinCommand({ ...job.adapter, argv: [job.adapter.argv[0] === "$NODE" ? executable("node") : job.adapter.argv[0], ...job.adapter.argv.slice(1)] }, spec.project);
       if (job.research?.proofChecker) {
         const checker = job.research.proofChecker;
         cfg.researchCheckers![name] = pinCommand({ ...checker, argv: [checker.argv[0] === "$NODE" ? executable("node") : checker.argv[0], ...checker.argv.slice(1)] }, spec.project);
       }
-      for (const pin of [...cfg.jobAdapters[name].pins, ...(cfg.researchCheckers?.[name]?.pins ?? [])]) {
+      if (job.research?.validators) {
+        cfg.experimentValidators![name] = Object.fromEntries(Object.entries(job.research.validators).map(([id, v]) => [id, { ...v,
+          command: pinCommand({ ...v.command, argv: [v.command.argv[0] === "$NODE" ? executable("node") : v.command.argv[0], ...v.command.argv.slice(1)] }, spec.project) }]));
+      }
+      for (const pin of [...cfg.jobAdapters[name].pins, ...(cfg.researchCheckers?.[name]?.pins ?? []),
+        ...Object.values(cfg.experimentValidators?.[name] ?? {}).flatMap(v => v.command.pins)]) {
         const path = relative(spec.project, pin.path).replaceAll("\\", "/");
         if (path && !path.startsWith("../") && !isAbsolute(path)) spec.protectedPaths.push(path);
       }
@@ -87,6 +93,7 @@ export function loadSwarm(store: Store): PinnedSwarm {
   validateSwarmSpec(cfg.spec); checkPins(cfg.git); Object.values(cfg.checks).forEach(checkPins);
   Object.values(cfg.jobAdapters ?? {}).forEach(checkPins);
   Object.values(cfg.researchCheckers ?? {}).forEach(checkPins);
+  Object.values(cfg.experimentValidators ?? {}).flatMap(v => Object.values(v)).forEach(v => checkPins(v.command));
   Object.values(cfg.workerAdapters ?? {}).forEach(checkPins);
   invariant((store.contract().readIsolation === "snapshot") === !!cfg.spec.supervision?.snapshotReads, "snapshot isolation drift");
   invariant(store.getMeta("extension.evidenceDomain") === (cfg.spec.domainPack ?? "software-engineering"),

@@ -110,7 +110,7 @@ export class ResearchProgramme {
       const version = digest(body), record = { ...body, version };
       const head = this.store.db.prepare(`SELECT k.* FROM research_knowledge_heads h JOIN research_knowledge k
         ON k.programme=h.programme AND k.id=h.id AND k.version=h.version WHERE h.programme=? AND h.id=?`).get(this.policy.id, id);
-      let state = "ACTIVE";
+      let state = assessment.conflicted ? "CONFLICTED" : "ACTIVE";
       if (head) {
         const old = this.read({ id, version: String(head.version) }, true);
         const contradictory = old.assessment.specHash === assessment.specHash &&
