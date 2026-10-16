@@ -10,7 +10,7 @@ const analysis = { command: { argv: [process.execPath, "--experimental-strip-typ
   files: [file("../src/harness/foundry/kernel.ts"), file("../src/harness/foundry/research.ts")] }, readOnly: true, timeoutMs: 3000, maxOutputBytes: 16384 };
 const cases = [tableFixtureSpec("project-a"), tableFixtureSpec("project-b", "/nested/signal", true)].map((spec, i) => ({
   id: `case${i}`, strategy: { schema: 1, maxExperiments: 1, maxSnapshotBytes: 4096, stopOnRefutation: true,
-    candidates: [{ id: "trial", template: "trial", line: "hypothesis", purpose: "falsification" }] }, experiments: { trial: spec } }));
+    candidates: [{ id: "trial", template: "trial", line: "hypothesis", purpose: "falsification" }] }, experiments: { trial: { ...spec, planValidation: [{ id: "analysis", checks: ["analysis-parameters", "paired-design"] }] } } }));
 const protocol = { schema: 1, name: "domain-neutral-fixture-demo", executor, validators: { analysis }, maxArmMs: 10000, maxOutputBytes: 65536, cases };
 const report = await compareResearchStrategies(protocol, pinCommand(executor, process.cwd()), new AbortController().signal);
 console.log(JSON.stringify(report, null, 2));

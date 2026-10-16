@@ -24,6 +24,8 @@ export interface ExperimentSpec extends ResearchBase {
   units: { id: string; role: "primary" | "control" | "reference"; replicates: string[] }[];
   artifacts: { id: string; minimumBytes: number; maximumBytes: number }[];
   validation: { id: string; checks: string[] }[];
+  /** Optional, frozen checks required before any experiment submission. */
+  planValidation?: { id: string; checks: string[] }[];
 }
 export type ResearchSpec = ExperimentSpec | LegacyResearchSpec;
 export interface ExperimentContext {
@@ -31,6 +33,12 @@ export interface ExperimentContext {
   jobId: string;
   adapterHash: string;
   artifacts: Json;
+}
+export interface ExperimentPlanContext { key: string; adapterHash: string; inputHash: string }
+export interface PlanValidatorReport {
+  schema: 1; phase: "plan"; validator: string; implementationHash: string;
+  specHash: string; contextHash: string;
+  checks: { id: string; verdict: "PASS" | "FAIL" | "UNKNOWN"; detail?: string }[];
 }
 export interface ValidatorReport {
   schema: 1;
@@ -67,7 +75,7 @@ function ids(v: unknown, max: number): asserts v is string[] {
 const base = ["schema", "kind", "question", "hypothesis", "assumptions", "refutation", "protocol", "identity", "input", "acceptance"];
 export function validateResearchSpec(s: ResearchSpec): void {
   invariant(s && (s.schema === 1 || s.schema === 2), "unknown research schema");
-  if (s.schema === 2) fields(s, [...base, "parameters", "execution", "units", "artifacts", "validation"]);
+  if (s.schema === 2) fields(s, [...base, "parameters", "execution", "units", "artifacts", "validation"], ["planValidation"]);
   else invariant(base.every(k => Object.hasOwn(s, k)), "incomplete legacy research specification");
   identifier(s.kind); [s.question, s.hypothesis, s.refutation, s.protocol].forEach(x => text(x));
   invariant(Array.isArray(s.assumptions) && s.assumptions.length <= 64 && new Set(s.assumptions).size === s.assumptions.length, "invalid assumptions");
@@ -92,8 +100,10 @@ export function validateResearchSpec(s: ResearchSpec): void {
     invariant(Number.isSafeInteger(a.minimumBytes) && Number.isSafeInteger(a.maximumBytes) && a.minimumBytes >= 0 &&
       a.maximumBytes > 0 && a.minimumBytes <= a.maximumBytes && a.maximumBytes <= 2 ** 40, "invalid artifact byte limits");
   }
-  invariant(Array.isArray(s.validation) && s.validation.length > 0 && s.validation.length <= 8 && new Set(s.validation.map(v => v.id)).size === s.validation.length, "invalid experiment validators");
-  for (const v of s.validation) { fields(v, ["id", "checks"]); identifier(v.id); ids(v.checks, 64); }
+  for (const requirements of [s.validation, ...(s.planValidation === undefined ? [] : [s.planValidation])]) {
+    invariant(Array.isArray(requirements) && requirements.length > 0 && requirements.length <= 8 && new Set(requirements.map(v => v.id)).size === requirements.length, "invalid experiment validators");
+    for (const v of requirements) { fields(v, ["id", "checks"]); identifier(v.id); ids(v.checks, 64); }
+  }
 }
 
 /** Universal completeness/provenance checks. Scientific semantics belong to the
@@ -150,4 +160,24 @@ export function assessResearch(s: ExperimentSpec, raw: unknown, context: Experim
     outcomes.size === 1 && outcomes.has("SUPPORTED") ? "SUPPORTED" : "INCONCLUSIVE";
   return { schema: 1, specHash: digest(s), resultHash: digest(raw), outcome, estimates: [], assumptions: s.assumptions,
     contextHash: digest(context), conflicted, validation: validation.sort((a, b) => a.id.localeCompare(b.id)) };
+}
+
+/** A plan receipt permits submission only; it is never evidence of an outcome. */
+export function validatePlanReport(s: ExperimentSpec, context: ExperimentPlanContext, id: string,
+  implementationHash: string, raw: unknown): void {
+  validateResearchSpec(s); fields(context, ["key", "adapterHash", "inputHash"]); Object.values(context).forEach(hash);
+  invariant(context.inputHash === digest(s.input), "plan input differs from frozen protocol"); hash(implementationHash);
+  const required = s.planValidation?.find(v => v.id === id); invariant(required, "undeclared plan validator");
+  const r = raw as PlanValidatorReport;
+  fields(r, ["schema", "phase", "validator", "implementationHash", "specHash", "contextHash", "checks"]);
+  invariant(Buffer.byteLength(canonical(r)) <= 65536, "plan report too large");
+  invariant(r.schema === 1 && r.phase === "plan" && r.validator === id && r.implementationHash === implementationHash &&
+    r.specHash === digest(s) && r.contextHash === digest(context), "plan validator binding mismatch");
+  invariant(Array.isArray(r.checks) && r.checks.length === required.checks.length &&
+    new Set(r.checks.map(c => c.id)).size === r.checks.length, "incomplete plan checks");
+  for (const check of r.checks) {
+    fields(check, ["id", "verdict"], ["detail"]);
+    invariant(required.checks.includes(check.id) && check.verdict === "PASS", "plan check failed or unknown");
+    if (check.detail !== undefined) text(check.detail, 2048);
+  }
 }

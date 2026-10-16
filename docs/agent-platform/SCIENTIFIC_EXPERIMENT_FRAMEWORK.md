@@ -27,6 +27,7 @@ The preferred `ExperimentSpec` is defined in `src/harness/foundry/research.ts`:
 | `execution: {mode,backend,configurationHash}` | Declared `computational`, `simulation` or `physical` execution and pinned configuration manifest |
 | `units: [{id,role,replicates}]` | All expected observations, with generic `primary`, `control` or `reference` roles and explicit replication IDs |
 | `artifacts: [{id,minimumBytes,maximumBytes}]` | Required complete raw-evidence files and bounds |
+| `planValidation?: [{id,checks}]` | Optional frozen checks that must PASS before submitting an experiment |
 | `validation: [{id,checks}]` | Required validators and exact required check IDs |
 | `acceptance` | `valid-result` retains valid negative/inconclusive results; `supported-hypothesis` additionally requires support |
 
@@ -39,7 +40,7 @@ declaring a control or a replication does not establish its scientific suitabili
 ## 2. Configure independent validators
 
 Add `research: {spec, validators}` to the existing job template. For each ID in
-`spec.validation`, configure exactly one `ScientificValidator`:
+`spec.validation` or `spec.planValidation`, configure exactly one `ScientificValidator`:
 
 ```json
 {
@@ -58,15 +59,65 @@ experiment executor and protected against worker edits. An identical execution
 command cannot serve as its own validator. `readOnly` declares reproducible,
 side-effect-free validation; these are trusted executables, not an OS sandbox.
 Allowlist only necessary environment variables; model credentials are rejected.
-The sum of validator deadlines must fit the existing tool-stage budget, and
-individual outputs must fit the coordinator's output cap. Checks cannot be
+The sum of deadlines for all declared plan and result checks must fit the existing
+tool-stage budget, and individual outputs must fit the coordinator's output cap. Checks cannot be
 removed, renamed or replaced by a worker result.
 
 Require the template on the task using `research: ["template-name"]`, and grant
 the worker only its existing named-job/tool capabilities. Existing dynamic DAG,
 scope, integration and objective-budget constraints continue to apply.
 
-## 3. Execute and normalize observations
+## 3. Check the plan, then execute
+
+Declare `planValidation`, for example:
+
+```json
+[{"id":"design","checks":["sampling-design","analysis-plan","execution-requirements"]}]
+```
+
+The IDs and their scientific meaning belong to the project. Configure `design`
+in the same `validators` mapping. The core requires every declared check exactly
+once with verdict PASS, but has no built-in interpretation of these check names.
+A project may configure separate plan and result validators, or one command that
+handles both phases. Plan validators receive:
+
+```text
+{schema:1, phase:"plan", validator:id, implementationHash:digest(pinnedCommand),
+ spec, context:{key,adapterHash,inputHash:digest(spec.input)}}
+```
+
+They return exactly:
+
+```text
+{schema:1, phase:"plan", validator:id, implementationHash, specHash:digest(spec),
+ contextHash:digest(context), checks:[{id,verdict:"PASS"|"FAIL"|"UNKNOWN",detail?}, ...]}
+```
+
+Plan approval has no hypothesis outcome and cannot create a finding. FAIL,
+UNKNOWN, missing checks, mismatched bindings, malformed output, timeout or
+cancellation prevents the job adapter from being called. No job intent is
+created and no external-job quota is consumed. The runtime rechecks the lease
+and command pins after validation, before admitting the job. Existing code
+`preflightChecks` and objective/concurrency limits still apply.
+
+Each complete JSON report is persisted in `research_plan_reports` and referenced
+by a `research.plan.observed` event before interpreting its verdict. Rejected
+reports stay rejected on retry. After interruption, completed reports replay
+under the same submission/protocol/implementation bindings; only missing
+read-only checks rerun. A crash after admission resumes the existing job via
+its stable key and remote identity, without making a new plan decision or
+submitting replacement work. The job-intent event references its plan receipts.
+
+This gate validates the **frozen plan**, not changing instrument conditions or
+time-limited clearance. Project execution adapters must enforce fresh operational
+interlocks, authorization and calibration requirements immediately before actual
+execution. Read-only validators must not perform those external effects. An
+adapter's reviewed plan checks remain responsible for method suitability; the
+core cannot infer that suitability from check names. Existing protocols without
+`planValidation` retain their prior behavior and hashes. Physical deployments
+should declare appropriate plan checks in their reviewed configuration.
+
+### Normalize observations
 
 Use the durable `ensure`/`inspect` job path. The result envelope is:
 
@@ -161,8 +212,8 @@ node --experimental-strip-types scripts/quantum-experiment.mjs --demo
 
 The first exercises the new generic protocol, independent paired-table validator
 and matched local runner with two arbitrary project labels/data layouts. It uses
-explicit offline fixtures and demonstrates supported/inconclusive outcomes; it
-does not claim biological or physical experimental results. The reusable
+explicit offline fixtures and demonstrates plan checks plus supported/inconclusive
+outcomes; it does not claim biological or physical experimental results. The reusable
 paired-table statistical method lives in `adapters/research/`, outside the core.
 An actual deployment replaces the fixture executor with a reviewed project
 simulator, instrument or provider adapter and supplies appropriate validators.
@@ -178,9 +229,10 @@ retain its pinned code/environment when resuming old experiments.
 The local comparison protocol accepts a `validators` mapping alongside its
 executor and cases. Schema-2 executors receive `{schema:2,spec,execution:{key,jobId}}`
 and return `{result,artifacts}`; validators run in separate bounded subprocesses.
-Reports retain validator implementation hashes and outputs, including failed
-checks. Matched arms keep identical frozen methods/budgets and separate execution
-identities. Physical/remote submissions belong in `ResearchJobs`, not the
+Plan checks run before the local executor as well. Reports retain validator
+implementation hashes and outputs, including failed plan/result checks. Rejected
+plans remain diagnostic records and do not count as executed jobs. Matched arms
+keep identical frozen methods/budgets and separate execution identities. Physical/remote submissions belong in `ResearchJobs`, not the
 synchronous local comparison runner. The framework enforces an evidence contract;
 field-specific scientific validity remains the responsibility of the reviewed
 protocol, actual execution adapter and independent validators.

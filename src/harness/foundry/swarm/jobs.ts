@@ -1,6 +1,7 @@
 import { DeferredAttemptError } from "../continuation.ts";
 import { FatalAttemptError } from "../errors.ts";
 import { checkPins } from "../commands.ts";
+import { runPlanValidation } from "../researchValidation.ts";
 import { canonical, digest, identifier, invariant } from "../kernel.ts";
 import type { Store } from "../store.ts";
 import type { Capsule, Json } from "../types.ts";
@@ -147,6 +148,9 @@ export class ResearchJobs {
       reconciliation_hash TEXT, progress_rank INTEGER NOT NULL DEFAULT 0, stale_at REAL,
       idle_polls INTEGER NOT NULL DEFAULT 0);
       CREATE INDEX IF NOT EXISTS research_jobs_run ON research_jobs(run,task);
+      CREATE TABLE IF NOT EXISTS research_plan_reports(
+        key TEXT NOT NULL, validator TEXT NOT NULL, implementation_hash TEXT NOT NULL,
+        request_hash TEXT NOT NULL, report_hash TEXT NOT NULL, PRIMARY KEY(key,validator));
       CREATE TABLE IF NOT EXISTS research_job_progress(
         key TEXT NOT NULL, token TEXT NOT NULL, observed REAL NOT NULL,
         PRIMARY KEY(key,token));`);
@@ -232,10 +236,41 @@ export class ResearchJobs {
     const binding = digest({ command, template, input, base: this.cfg.baseCommit });
     const key = template.research ? digest({ run: c.runId, task: c.task.id, name, binding }) :
       digest({ run: c.runId, task: c.task.id, call: call.id, name });
+    const planReceipts: string[] = [];
+    // Never gate reconciliation of an already submitted experiment on a new
+    // pre-execution decision. Its durable intent was admitted under this binding.
+    if (template.research?.spec.schema === 2 && template.research.spec.planValidation &&
+      !store.db.prepare("SELECT 1 FROM research_jobs WHERE key=?").get(key)) {
+      const cached = store.db.prepare("SELECT * FROM research_plan_reports WHERE key=?").all(key);
+      const context = { key, adapterHash: digest(command), inputHash: digest(input) };
+      await runPlanValidation(template.research.spec, context, this.cfg.experimentValidators?.[name] ?? {}, signal, {
+        cached: cached.map(r => ({ id: String(r.validator), implementationHash: String(r.implementation_hash),
+          report: store.readArtifact(String(r.report_hash)) })),
+        onReport: (id, implementationHash, requestHash, report) => store.transaction(() => {
+          signal.throwIfAborted(); this.journal.assertLease(c);
+          const reportHash = store.artifact(report);
+          const old = store.db.prepare("SELECT * FROM research_plan_reports WHERE key=? AND validator=?").get(key, id);
+          invariant(!old || (old.report_hash === reportHash && old.request_hash === requestHash &&
+            old.implementation_hash === implementationHash), "plan validation replay drift");
+          if (!old) {
+            store.db.prepare("INSERT INTO research_plan_reports VALUES(?,?,?,?,?)").run(key, id, implementationHash, requestHash, reportHash);
+            store.event("research.plan.observed", { key, template: name, validator: id, implementationHash,
+              requestHash, reportHash, trust: "OUTPUT_REQUIRES_HOST_VALIDATION" }, c.runId, c.task.id);
+          }
+        }),
+      });
+      // Collect references from durable storage, including reports recovered from
+      // a prior interrupted attempt. No transcript or raw input enters the event.
+      planReceipts.push(...store.db.prepare("SELECT report_hash FROM research_plan_reports WHERE key=? ORDER BY validator")
+        .all(key).map(r => String(r.report_hash)));
+    }
+    signal.throwIfAborted(); this.journal.assertLease(c); checkPins(command);
     let row = store.transaction(() => {
       this.journal.assertLease(c);
       const old = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key);
       if (old) { invariant(old.input_hash === binding, "job replay input drift"); return old; }
+      for (const requirement of template.research?.spec.schema === 2 ? template.research.spec.planValidation ?? [] : [])
+        checkPins(this.cfg.experimentValidators![name][requirement.id].command);
       let preflight: Json | null = null;
       if (template.preflightChecks || profile.decisionPolicy) {
         const thread = store.db.prepare("SELECT state,fence FROM agent_threads WHERE run=? AND task=?")
@@ -265,7 +300,8 @@ export class ResearchJobs {
       if (preflightReceipt) store.db.prepare("INSERT OR IGNORE INTO agent_receipts VALUES(?,?,?)")
         .run(c.runId, c.task.id, preflightReceipt);
       store.event("job.intent", { key, template: name, inputHash: binding, objective,
-        ...(preflightReceipt ? { preflightReceipt } : {}) }, c.runId, c.task.id);
+        ...(preflightReceipt ? { preflightReceipt } : {}),
+        ...(planReceipts.length ? { planReceipts } : {}) }, c.runId, c.task.id);
       return store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
     });
     if (row.stale_at == null) {
