@@ -73,6 +73,10 @@ export function validateTasks(c: Contract, tasks: Task[]): void {
   positive(tasks.length, c.limits.tasks, "task count");
   const byId = new Map<string, Task>();
   for (const t of tasks) {
+    if (t.knowledge !== undefined) {
+      invariant(Array.isArray(t.knowledge) && t.knowledge.length <= 32 && new Set(t.knowledge.map(r => r.id)).size === t.knowledge.length, "invalid knowledge references");
+      for (const r of t.knowledge) { identifier(r.id); invariant(typeof r.version === "string" && /^[a-f0-9]{64}$/.test(r.version), "invalid knowledge version"); }
+    }
     if (t.research !== undefined) {
       invariant(Array.isArray(t.research) && t.research.length <= 32 && new Set(t.research).size === t.research.length, "invalid task research requirements");
       t.research.forEach(identifier);

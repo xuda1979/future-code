@@ -1,5 +1,7 @@
 # Executable research contracts
 
+For explicit reuse across runs, see [persistent research programmes](research-programmes.md).
+
 Long research projects need refutable hypotheses, reproducible experiments and
 independent checks. More agents alone do not supply those properties. Foundry's
 job path now supports immutable scientific protocols without giving workers the

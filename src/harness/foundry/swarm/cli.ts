@@ -1,3 +1,4 @@
+import { ResearchProgramme } from "../researchProgramme.ts";
 import { formatHealth, type HealthObserver } from "../health.ts";
 import { superviseSwarm, objectiveStatus } from "./supervisor.ts";
 import { readFileSync, statSync } from "node:fs";
@@ -23,6 +24,8 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   supervise --objective ID [--goal FILE --tasks FILE] --allow-exec
   objective --objective ID
   episode --objective ID
+  knowledge [--finding ID --version HASH] [--task-after ID] [--limit N]
+  knowledge-retract --finding ID --version HASH --reason TEXT --allow-exec
   reflection --objective ID
   claims --run ID --task ID [--after CLAIM_ID]
   claim-revalidation-task --run ID --claim ID
@@ -55,15 +58,15 @@ export function tokenize(text: string): string[] {
 function file(path: string): any { invariant(statSync(path).size <= 32 * 1024 * 1024, "JSON input exceeds 32 MiB"); return JSON.parse(readFileSync(path, "utf8")); }
 export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal, onProgress: HealthObserver = r => console.error(formatHealth(r))): Promise<Json> {
   const cmd = argv[0] ?? "help"; if (cmd === "help") return { help };
-  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit"]);
+  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence", "--finding", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit"]);
   for (let i = 1; i < argv.length; i++) {
     const k = argv[i]; invariant(allowed.has(k) && !opts.has(k), `unknown/duplicate option ${k}`);
     if (k === "--allow-exec") opts.set(k, "true");
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "workflow", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate"].includes(cmd), "unknown swarm command");
-  if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate"].includes(cmd)) need("--allow-exec");
+  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "workflow", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate", "knowledge", "knowledge-retract"].includes(cmd), "unknown swarm command");
+  if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate", "knowledge-retract"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
     switch (cmd) {
@@ -84,6 +87,15 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
       case "claim-revalidation-task": return JSON.parse(canonical(claimRevalidationTask(store, need("--run"), need("--claim"))));
       case "claim-retract": return JSON.parse(canonical(retractClaim(store, need("--run"), need("--claim"), Number(need("--version")), need("--reason"))));
       case "claim-adjudicate": return JSON.parse(canonical(adjudicateClaim(store, need("--run"), need("--claim"), Number(need("--version")), need("--evidence"))));
+      case "knowledge": case "knowledge-retract": {
+        const cfg = loadSwarm(store); invariant(cfg.spec.researchProgramme, "research programme not configured");
+        const programme = new ResearchProgramme(store, cfg.spec.researchProgramme);
+        if (cmd === "knowledge-retract") {
+          programme.retract({ id: need("--finding"), version: need("--version") }, need("--reason")); return { retracted: true };
+        }
+        return opts.has("--finding") ? JSON.parse(canonical(programme.read({ id: need("--finding"), version: need("--version") }, true))) :
+          programme.list(opts.get("--task-after"), Number(opts.get("--limit") ?? 20));
+      }
       case "recommend": {
         const tasks = file(need("--tasks")) as Task[];
         const cfg = loadSwarm(store);
