@@ -1,3 +1,4 @@
+import { ResearchProgramme } from "../researchProgramme.ts";
 import { verifyResearch } from "./research.ts";
 import { decodeSpawnChildren } from "./spawn.ts";
 import { DeferredAttemptError, PersistedDeferredAttemptError } from "../continuation.ts";
@@ -49,6 +50,7 @@ export class SwarmDriver implements Driver {
   readonly journal: SessionJournal; readonly brain: HttpBrain;
   readonly store: Store; readonly cfg: PinnedSwarm; readonly backend: HandsBackend; readonly jobRpc?: JobRPC;
   readonly cohorts: CohortBoard | null;
+  readonly programme: ResearchProgramme | null;
   readonly accepted?: Driver["accepted"];
   constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend,
     jobRpc?: JobRPC) {
@@ -57,8 +59,14 @@ export class SwarmDriver implements Driver {
     this.workerId = workerIdentity(cfg); this.verifierId = verifierIdentity(cfg);
     this.journal = new SessionJournal(store); this.brain = new HttpBrain(this.journal, fetcher);
     this.cohorts = cfg.spec.coordination ? new CohortBoard(store, cfg, this.journal) : null;
-    if (this.cohorts) this.accepted = (c, artifact, artifactHash, evidenceHash) =>
-      this.cohorts!.accepted(c, artifact, artifactHash, evidenceHash);
+    this.programme = cfg.spec.researchProgramme ? new ResearchProgramme(store, cfg.spec.researchProgramme) : null;
+    if (this.cohorts || this.programme) this.accepted = (c, artifact, artifactHash, evidenceHash) => {
+      this.cohorts?.accepted(c, artifact, artifactHash, evidenceHash);
+      if (this.programme) {
+        this.programme.context(c.task.knowledge ?? []);
+        this.programme.accepted(c, artifactHash, evidenceHash, Object.fromEntries(Object.entries(cfg.spec.jobs ?? {}).map(([name, job]) => [name, job.research?.provides ?? name])));
+      }
+    };
   }
   measurement(lease: Lease): Measurement {
     return { tokens: this.journal.usage(lease.runId, lease.taskId, lease.fence).tokens, costUsd: null };
@@ -75,6 +83,7 @@ export class SwarmDriver implements Driver {
     const admittedContext = schedulerNode(this.store, c.runId, c.task.id)?.budget ?? this.store.recipe(c.recipeHash).contextBytes;
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
+      ...(this.programme && c.task.knowledge?.length ? { knowledge: this.programme.context(c.task.knowledge) } : {}),
       ...(c.task.research?.length ? { research: Object.fromEntries(c.task.research.map(name => [name, this.cfg.spec.jobs![name].research!.spec])) } : {}),
       ...(this.cfg.spec.supervision?.workflowPolicy ? { workflowChildren: this.store.db.prepare(`SELECT t.id AS taskId,t.artifact AS artifactHash,t.evidence AS evidenceHash
         FROM spawn_edges e JOIN tasks t ON t.run=e.run AND t.id=e.child
@@ -528,6 +537,10 @@ export class SwarmDriver implements Driver {
     this.journal.assertLease(c);
     const verification = await this.backend.verify(this.store, this.cfg, c, result.artifact, signal);
     if (this.store.contract().requiredChecks.includes("research")) verification.checks.push(await verifyResearch(this.store, this.cfg, c, signal));
+    if (this.programme) {
+      try { this.programme.context(c.task.knowledge ?? []); verification.checks.push({ id: "knowledge", verdict: "PASS" }); }
+      catch (error) { verification.checks.push({ id: "knowledge", verdict: "FAIL", detail: String(error) }); }
+    }
     signal.throwIfAborted(); this.journal.assertLease(c);
     if (verification.checks.some(check => check.verdict !== "PASS")) this.journal.feedback(c, verification);
     control?.progress(`verify:${digest(verification)}`); return verification;

@@ -1,3 +1,4 @@
+import { ResearchProgramme } from "../researchProgramme.ts";
 import { installResearch } from "./research.ts";
 import { runHealth, type HealthObserver } from "../health.ts";
 import { ResearchJobs } from "./jobs.ts";
@@ -69,13 +70,14 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
   }
   spec.protectedPaths = [...new Set([...spec.protectedPaths, ".gitignore", ".gitattributes", ".gitmodules"])].sort();
   const contract: Contract = { schema: 1, ...(spec.supervision?.snapshotReads ? { readIsolation: "snapshot" as const } : {}), name: spec.name, workerId: workerIdentity(cfg), verifierId: verifierIdentity(cfg),
-    environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior", ...(Object.values(spec.jobs ?? {}).some(j => j.research) ? ["research"] : [])],
+    environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior", ...(Object.values(spec.jobs ?? {}).some(j => j.research) ? ["research"] : []), ...(spec.researchProgramme ? ["knowledge"] : [])],
     slos: [], limits: spec.limits };
   store.initialize(contract, spec.recipe, undefined, {
     [KEY]: json(cfg),
     "extension.evidenceDomain": spec.domainPack ?? "software-engineering",
   });
   if (Object.values(spec.jobs ?? {}).some(j => j.research)) installResearch(store);
+  if (spec.researchProgramme) new ResearchProgramme(store, spec.researchProgramme);
   new SessionJournal(store); return cfg;
 }
 export function loadSwarm(store: Store): PinnedSwarm {
@@ -98,6 +100,10 @@ export async function runSwarm(store: Store, tasks: Task[], signal: AbortSignal,
   const cfg = loadSwarm(store);
   const actual: Task[] = resumeRun ? store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(resumeRun).map(r => JSON.parse(r.spec)) : tasks;
   validateTasks(store.contract(), actual); validateSwarmTasks(cfg.spec, actual);
+  if (cfg.spec.researchProgramme) {
+    const programme = new ResearchProgramme(store, cfg.spec.researchProgramme);
+    for (const task of actual) programme.context(task.knowledge ?? []);
+  }
   const backend = cfg.handsId === remoteWorkerFleetBackend.id ? remoteWorkerFleetBackend : undefined;
   const driver = new SwarmDriver(store, cfg, fetcher, backend);
   const policy = cfg.spec.supervision?.workflowPolicy ? new WorkflowPolicyAgent(store, cfg, fetcher) : undefined;

@@ -1,3 +1,4 @@
+import type { KnowledgeRef } from "./researchProgramme.ts";
 /** A bounded, single-host harness lifecycle. The contract is not optimizer state. */
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Verdict = "PASS" | "FAIL" | "UNKNOWN" | "INVALID";
@@ -52,6 +53,8 @@ export interface Task {
   goal: string;
   /** Required operator-pinned experiment/proof templates, verified independently. */
   research?: string[];
+  /** Explicit imports of exact durable programme findings, never implicit latest versions. */
+  knowledge?: KnowledgeRef[];
   acceptance: string[];
   dependencies: string[];
   /** Logical write-scope locks, not an OS filesystem sandbox. */

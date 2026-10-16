@@ -10,6 +10,7 @@ export const spawnChildrenSchema = { type: "array", minItems: 1, maxItems: 32,
       writeScope: { type: "array", items: { type: "string" } },
       readScope: { type: "array", items: { type: "string" } },
       dependsOn: { type: "array", maxItems: 32, items: { type: "string" } },
+      knowledge: { type: "array", maxItems: 32, items: { type: "object", additionalProperties: false, properties: { id: { type: "string" }, version: { type: "string" } }, required: ["id", "version"] } },
       research: { type: "array", maxItems: 32, items: { type: "string" } },
       agent: { type: "string" }, priority: { type: "number" },
       estimatedDurationMs: { type: "integer", minimum: 1 }, contextBudget: { type: "integer", minimum: 1 } },
@@ -24,7 +25,7 @@ export function decodeSpawnChildren(spec: SwarmSpec, parent: Task, value: unknow
     invariant(item && typeof item === "object" && !Array.isArray(item), "invalid spawned child");
     const raw = item as Record<string, any>;
     keys(raw, ["id", "goal", "acceptance", "input", "writeScope", "readScope"],
-      ["dependsOn", "agent", "priority", "estimatedDurationMs", "contextBudget", "research"]);
+      ["dependsOn", "agent", "priority", "estimatedDurationMs", "contextBudget", "research", "knowledge"]);
     invariant(typeof raw.id === "string" && raw.id.length > 0, "invalid child id");
     return raw;
   });
@@ -42,6 +43,11 @@ export function decodeSpawnChildren(spec: SwarmSpec, parent: Task, value: unknow
       writeScope: raw.writeScope, readScope: raw.readScope, input: raw.input };
     const agent = raw.agent ?? parent.agent;
     if (agent !== undefined) child.agent = agent;
+    const knowledge = raw.knowledge ?? parent.knowledge;
+    if (knowledge !== undefined) {
+      invariant(Array.isArray(knowledge) && knowledge.every((ref: any) => (parent.knowledge ?? []).some(p => p.id === ref.id && p.version === ref.version)), "child widens programme knowledge authority");
+      child.knowledge = knowledge;
+    }
     if (raw.research !== undefined) child.research = raw.research;
     if (raw.priority !== undefined) child.priority = raw.priority;
     if (raw.estimatedDurationMs !== undefined) child.estimatedDurationMs = raw.estimatedDurationMs;
