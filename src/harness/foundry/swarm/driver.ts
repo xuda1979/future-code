@@ -1,3 +1,4 @@
+import { verifyResearch } from "./research.ts";
 import { decodeSpawnChildren } from "./spawn.ts";
 import { DeferredAttemptError, PersistedDeferredAttemptError } from "../continuation.ts";
 import { ResearchJobs, type JobRPC } from "./jobs.ts";
@@ -74,6 +75,7 @@ export class SwarmDriver implements Driver {
     const admittedContext = schedulerNode(this.store, c.runId, c.task.id)?.budget ?? this.store.recipe(c.recipeHash).contextBytes;
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
+      ...(c.task.research?.length ? { research: Object.fromEntries(c.task.research.map(name => [name, this.cfg.spec.jobs![name].research!.spec])) } : {}),
       ...(this.cfg.spec.supervision?.workflowPolicy ? { workflowChildren: this.store.db.prepare(`SELECT t.id AS taskId,t.artifact AS artifactHash,t.evidence AS evidenceHash
         FROM spawn_edges e JOIN tasks t ON t.run=e.run AND t.id=e.child
         WHERE e.run=? AND e.parent=? AND t.status='PASS' ORDER BY t.id`).all(c.runId, c.task.id) } : {}),
@@ -525,6 +527,7 @@ export class SwarmDriver implements Driver {
   async verify(c: Capsule, result: WorkerResult, signal: AbortSignal, control?: AttemptControl): Promise<Verification> {
     this.journal.assertLease(c);
     const verification = await this.backend.verify(this.store, this.cfg, c, result.artifact, signal);
+    if (this.store.contract().requiredChecks.includes("research")) verification.checks.push(await verifyResearch(this.store, this.cfg, c, signal));
     signal.throwIfAborted(); this.journal.assertLease(c);
     if (verification.checks.some(check => check.verdict !== "PASS")) this.journal.feedback(c, verification);
     control?.progress(`verify:${digest(verification)}`); return verification;

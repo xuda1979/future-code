@@ -10,6 +10,7 @@ export const spawnChildrenSchema = { type: "array", minItems: 1, maxItems: 32,
       writeScope: { type: "array", items: { type: "string" } },
       readScope: { type: "array", items: { type: "string" } },
       dependsOn: { type: "array", maxItems: 32, items: { type: "string" } },
+      research: { type: "array", maxItems: 32, items: { type: "string" } },
       agent: { type: "string" }, priority: { type: "number" },
       estimatedDurationMs: { type: "integer", minimum: 1 }, contextBudget: { type: "integer", minimum: 1 } },
     required: ["id", "goal", "acceptance", "input", "writeScope", "readScope"] } };
@@ -23,7 +24,7 @@ export function decodeSpawnChildren(spec: SwarmSpec, parent: Task, value: unknow
     invariant(item && typeof item === "object" && !Array.isArray(item), "invalid spawned child");
     const raw = item as Record<string, any>;
     keys(raw, ["id", "goal", "acceptance", "input", "writeScope", "readScope"],
-      ["dependsOn", "agent", "priority", "estimatedDurationMs", "contextBudget"]);
+      ["dependsOn", "agent", "priority", "estimatedDurationMs", "contextBudget", "research"]);
     invariant(typeof raw.id === "string" && raw.id.length > 0, "invalid child id");
     return raw;
   });
@@ -41,6 +42,7 @@ export function decodeSpawnChildren(spec: SwarmSpec, parent: Task, value: unknow
       writeScope: raw.writeScope, readScope: raw.readScope, input: raw.input };
     const agent = raw.agent ?? parent.agent;
     if (agent !== undefined) child.agent = agent;
+    if (raw.research !== undefined) child.research = raw.research;
     if (raw.priority !== undefined) child.priority = raw.priority;
     if (raw.estimatedDurationMs !== undefined) child.estimatedDurationMs = raw.estimatedDurationMs;
     if (raw.contextBudget !== undefined) child.contextBudget = raw.contextBudget;

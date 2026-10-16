@@ -227,8 +227,10 @@ export class ResearchJobs {
     const store = this.journal.store; const input = call.arguments.input;
     const objective = objectiveForRun(store, c.runId);
     invariant(Buffer.byteLength(canonical(input)) <= this.cfg.spec.budget.maxToolOutputBytes, "job input too large");
+    if (template.research) invariant(digest(input) === digest(template.research.spec.input), "experiment input differs from frozen research protocol");
     const binding = digest({ command, template, input, base: this.cfg.baseCommit });
-    const key = digest({ run: c.runId, task: c.task.id, call: call.id, name });
+    const key = template.research ? digest({ run: c.runId, task: c.task.id, name, binding }) :
+      digest({ run: c.runId, task: c.task.id, call: call.id, name });
     let row = store.transaction(() => {
       this.journal.assertLease(c);
       const old = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key);

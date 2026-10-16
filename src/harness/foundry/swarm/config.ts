@@ -1,3 +1,4 @@
+import { validateResearchSpec, type ResearchSpec } from "../research.ts";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { identifier, invariant, positive, validateContract, validateRecipe } from "../kernel.ts";
@@ -78,6 +79,7 @@ export interface SwarmBudget {
   maxPatchBytes: number;
 }
 export interface JobTemplate {
+  research?: { spec: ResearchSpec; proofChecker?: CommandSpec };
   adapter: CommandSpec;
   /** Optional submission gate: exact-source/evidence passing run_check receipts. */
   preflightChecks?: string[];
@@ -174,6 +176,7 @@ export interface PinnedSwarm {
   git: PinnedCommand;
   checks: Record<string, PinnedCommand>;
   jobAdapters?: Record<string, PinnedCommand>;
+  researchCheckers?: Record<string, PinnedCommand>;
   workerAdapters?: Record<string, PinnedCommand>;
 }
 export function keys(value: object, required: string[], optional: string[] = []): void {
@@ -398,7 +401,12 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   if (s.jobs) {
     keys(s.jobs, [], Object.keys(s.jobs)); positive(Object.keys(s.jobs).length, 32, "job templates");
     for (const [id, job] of Object.entries(s.jobs)) {
-      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs", "preflightChecks"]);
+      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs", "preflightChecks", "research"]);
+      if (job.research !== undefined) {
+        keys(job.research, ["spec"], ["proofChecker"]); validateResearchSpec(job.research.spec);
+        invariant((job.research.spec.kind === "formal-proof") === !!job.research.proofChecker, "formal obligations require a separate independent proof checker");
+        if (job.research.proofChecker) keys(job.research.proofChecker, ["argv"], ["envAllow", "files"]);
+      }
       if (job.preflightChecks !== undefined) {
         names(job.preflightChecks, checks, "job preflight checks");
         invariant(job.preflightChecks.length <= 16 && job.preflightChecks.every(name => s.checks[name].replaySafe),
@@ -427,7 +435,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   }
   const credentialNames = new Set(Object.values(s.agents).map(a => a.keyEnv).filter(Boolean));
   for (const check of [...Object.values(s.checks), ...Object.values(s.jobs ?? {}).map(j => j.adapter),
-    ...Object.values(s.workers ?? {}).map(w => w.adapter)]) {
+    ...Object.values(s.workers ?? {}).map(w => w.adapter),
+    ...Object.values(s.jobs ?? {}).flatMap(j => j.research?.proofChecker ? [j.research.proofChecker] : [])]) {
     invariant(!(check.envAllow ?? []).some(name => credentialNames.has(name)),
       "model credentials may not be forwarded to checks/jobs/execution workers");
   }
@@ -443,6 +452,11 @@ export function validateSwarmTasks(s: SwarmSpec, tasks: Task[]): void {
   for (const task of tasks) {
     const agent = task.agent ?? s.defaultAgent;
     invariant(Object.hasOwn(s.agents, agent), `unknown agent: ${agent}`);
+    if (task.research !== undefined) {
+      invariant(Array.isArray(task.research) && task.research.length <= 32 && new Set(task.research).size === task.research.length, "invalid task research requirements");
+      for (const name of task.research) invariant(Object.hasOwn(s.jobs ?? {}, name) && s.jobs![name].research &&
+        s.agents[agent].jobs?.includes(name) && s.agents[agent].tools.includes("run_job"), "research requirement is not an authorized scientific job");
+    }
     for (const path of [...task.writeScope, ...(task.readScope ?? [])]) safePath(path);
     for (const path of task.writeScope) invariant(!s.protectedPaths.some(p => inScope(path, [p]) || inScope(p, [path])), "write scope overlaps protected paths");
   }
