@@ -424,7 +424,10 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       if (job.research !== undefined) {
         validateResearchConfiguration(job.research, job.adapter);
         const validators = Object.values(job.research.validators ?? {});
-        invariant(validators.reduce((n, v) => n + v.timeoutMs, 0) <= s.budget.toolTimeoutMs &&
+        const requirements = job.research.spec.schema === 2 ?
+          [...job.research.spec.validation, ...(job.research.spec.planValidation ?? [])] : [];
+        const validationMs = requirements.reduce((n, r) => n + job.research!.validators![r.id].timeoutMs, 0);
+        invariant(validationMs <= s.budget.toolTimeoutMs &&
           validators.every(v => v.maxOutputBytes <= s.budget.maxToolOutputBytes), "scientific validation exceeds stage budget");
         if (job.research.provides !== undefined) identifier(job.research.provides);
         if (job.research.proofChecker) keys(job.research.proofChecker, ["argv"], ["envAllow", "files"]);

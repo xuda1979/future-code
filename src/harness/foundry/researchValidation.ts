@@ -2,7 +2,7 @@ import * as legacy from "../../../adapters/research/legacy.ts";
 import { checkPins, invoke } from "./commands.ts";
 import { digest, invariant, positive } from "./kernel.ts";
 import { assessResearch, fields, validateExperimentResult, validateResearchSpec,
-  type ExperimentContext, type ResearchAssessment, type ResearchSpec } from "./research.ts";
+  validatePlanReport, type ExperimentPlanContext, type ExperimentContext, type ExperimentSpec, type ResearchAssessment, type ResearchSpec } from "./research.ts";
 import type { CommandSpec, Json, PinnedCommand } from "./types.ts";
 
 export interface ScientificValidator {
@@ -19,6 +19,8 @@ export interface ResearchConfiguration {
   proofChecker?: CommandSpec;
   provides?: string;
 }
+export const researchValidatorIds = (s: ExperimentSpec): string[] => [...new Set([...s.validation, ...(s.planValidation ?? [])].map(v => v.id))];
+
 export function validateResearchConfiguration(config: ResearchConfiguration, executor?: CommandSpec): void {
   fields(config, ["spec"], ["validators", "proofChecker", "provides"]); validateResearchSpec(config.spec);
   if (config.spec.schema === 1) {
@@ -29,7 +31,7 @@ export function validateResearchConfiguration(config: ResearchConfiguration, exe
     return;
   }
   invariant(config.proofChecker === undefined && config.validators, "schema-2 experiments require independent validators");
-  fields(config.validators, config.spec.validation.map(v => v.id));
+  fields(config.validators, researchValidatorIds(config.spec));
   for (const validator of Object.values(config.validators)) {
     fields(validator, ["command", "readOnly", "timeoutMs", "maxOutputBytes"]);
     fields(validator.command, ["argv"], ["envAllow", "files"]);
@@ -58,7 +60,7 @@ export async function runResearchValidation(s: ResearchSpec, raw: unknown, conte
     }
     return { assessment: legacy.assessResearch(s as any, raw, audit), evidence: [], ...(audit ? { legacyAudit: audit as Json } : {}) };
   }
-  validateExperimentResult(s, raw, context); fields(validators, s.validation.map(v => v.id));
+  validateExperimentResult(s, raw, context); fields(validators, researchValidatorIds(s));
   const reports: { id: string; implementationHash: string; report: unknown }[] = [];
   for (const requirement of s.validation) {
     const validator = validators[requirement.id]; checkPins(validator.command);
@@ -79,4 +81,34 @@ export async function runResearchValidation(s: ResearchSpec, raw: unknown, conte
     signal.throwIfAborted();
   }
   return { assessment: assessResearch(s, raw, context, reports), evidence: reports.map(r => r.report as Json) };
+}
+
+/** Read-only checks may be rerun after interruption. Persist each complete report
+ * before interpreting it so a rejected plan cannot silently acquire a new verdict. */
+export async function runPlanValidation(s: ExperimentSpec, context: ExperimentPlanContext,
+  validators: Record<string, PinnedScientificValidator>, signal: AbortSignal,
+  options: { cached?: { id: string; implementationHash: string; report: unknown }[];
+    onReport?: (id: string, implementationHash: string, requestHash: string, report: Json) => void } = {}): Promise<void> {
+  validateResearchSpec(s); fields(validators, researchValidatorIds(s));
+  for (const requirement of s.planValidation ?? []) {
+    signal.throwIfAborted();
+    const validator = validators[requirement.id]; checkPins(validator.command);
+    const implementationHash = digest(validator.command);
+    const request = { schema: 1, phase: "plan", validator: requirement.id, implementationHash, spec: s, context };
+    const cached = options.cached?.find(c => c.id === requirement.id);
+    let report: unknown;
+    if (cached) {
+      invariant(cached.implementationHash === implementationHash, "cached plan validator implementation changed");
+      report = cached.report;
+    } else {
+      const deadline = new AbortController(), timer = setTimeout(() => deadline.abort(), validator.timeoutMs);
+      try {
+        report = await invoke(validator.command, request, validator.maxOutputBytes, AbortSignal.any([signal, deadline.signal]));
+        signal.throwIfAborted();
+        options.onReport?.(requirement.id, implementationHash, digest(request), report as Json);
+      } finally { clearTimeout(timer); }
+    }
+    signal.throwIfAborted(); checkPins(validator.command);
+    validatePlanReport(s, context, requirement.id, implementationHash, report);
+  }
 }

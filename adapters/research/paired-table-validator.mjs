@@ -15,6 +15,13 @@ invariant(typeof p.path === "string" && p.path.startsWith("/") &&
 const a = spec.units.find(u => u.id === p.primary), b = spec.units.find(u => u.id === p.reference);
 invariant(a && b && a.id !== b.id && a.role === "primary" && b.role === "control" && a.replicates.length >= 2 &&
   digest([...a.replicates].sort()) === digest([...b.replicates].sort()), "paired design requires matching independent replications");
+if (request.phase === "plan") {
+  const required = spec.planValidation.find(v => v.id === request.validator);
+  invariant(required && required.checks.every(c => ["analysis-parameters", "paired-design"].includes(c)), "unknown plan check");
+  console.log(JSON.stringify({ schema: 1, phase: "plan", validator: request.validator, implementationHash: request.implementationHash,
+    specHash: digest(spec), contextHash: digest(context), checks: required.checks.map(id => ({ id, verdict: "PASS" })) }));
+  process.exit(0);
+}
 const value = data => {
   for (const segment of p.path.slice(1).split("/")) {
     invariant(!/~(?![01])/.test(segment), "invalid JSON pointer");
