@@ -36,6 +36,8 @@ host-owned. Policy recommendations cannot bypass admission or verification.
 ## Capabilities
 
 - Durable task DAGs, bounded child spawning, lease fencing and crash recovery.
+- Optional independent workflow policy reviews with bounded state pages, atomic
+  child-DAG/timeout/parallelism proposals and durable audit receipts.
 - Scoped worktrees, pinned checks, final integration and resumable agent journals.
 - External job identity, reconciliation and cumulative objective budgets.
 - Content-addressed artifacts and immutable event/evidence histories.
@@ -100,6 +102,7 @@ Missing token or dollar measurements remain unknown.
 | Claims, evidence, conflicts and adjudication | [Knowledge protocol](docs/agent-platform/KNOWLEDGE_PROTOCOL.md) |
 | Frozen contracts and recipe experiments | [Foundry](docs/agent-platform/FOUNDRY.md) |
 | External-API agents and durable sessions | [Swarm](docs/agent-platform/SWARM.md) |
+| Independent policy proposals during execution | [Workflow policy](docs/agent-platform/WORKFLOW_POLICY.md) |
 | Recovery and remote compute | [Resilient R&D](docs/agent-platform/RESILIENT_RND.md) |
 | Provider cooldowns, recovery probes and bounded transport | [External API recovery](docs/agent-platform/PROVIDER_RECOVERY.md) |
 | Bounded correction of malformed or empty worker replies | [Model-response repair](docs/agent-platform/MODEL_RESPONSE_REPAIR.md) |

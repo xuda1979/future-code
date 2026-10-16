@@ -15,6 +15,7 @@ import { readLatestObjectiveReflection } from "../rndReflection.ts";
 import { adjudicateClaim, claimsForGoals, claimRevalidationTask, retractClaim } from "../claims.ts";
 import { readMemory, rebuildMemoryPage, type MemoryQuery } from "./memory.ts";
 import type { ThreadState } from "./session.ts";
+import { workflowObservation } from "../workflow.ts";
 export const help = `Foundry Swarm: durable coding agents on the existing Foundry kernel
   init --spec FILE --allow-exec
   run --tasks FILE --allow-exec
@@ -29,6 +30,7 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   claim-adjudicate --run ID --claim ID --version N --evidence ID --allow-exec
   recommend --tasks FILE (advisory: direct vs supervised; no execution)
   status [--run ID] [--task-after TASK_ID]
+  workflow --run ID [--task-after TASK_ID] [--limit N]
   receipt --hash HASH [--offset N] [--length N]
   events --run ID --task ID [--after N]
   memory --run ID --task ID [--memory-kind all|progress|failure] [--before CURSOR] [--patch HASH] [--failure-signature HASH] [--limit N]
@@ -60,7 +62,7 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate"].includes(cmd), "unknown swarm command");
+  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "workflow", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate"].includes(cmd), "unknown swarm command");
   if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
@@ -88,6 +90,9 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
         return JSON.parse(canonical(recommendExecutionLane(tasks, cfg.spec)));
       }
       case "status": return swarmStatus(store, opts.get("--run"), opts.get("--task-after"));
+      case "workflow": return store.transaction(() => workflowObservation(store, need("--run"), {
+        after: opts.get("--task-after"), limit: opts.has("--limit") ? Number(opts.get("--limit")) : undefined,
+      }));
       case "receipt": {
         const offset = Number(opts.get("--offset") ?? 0); const length = Number(opts.get("--length") ?? 4096);
         invariant(Number.isSafeInteger(offset) && offset >= 0 && Number.isSafeInteger(length) && length > 0 && length <= 16384, "invalid receipt slice");

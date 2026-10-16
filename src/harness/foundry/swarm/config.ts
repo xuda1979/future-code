@@ -2,6 +2,7 @@ import { existsSync, realpathSync, statSync } from "node:fs";
 import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { identifier, invariant, positive, validateContract, validateRecipe } from "../kernel.ts";
 import type { CommandSpec, Contract, PinnedCommand, Recipe, SpawnPolicy, Task } from "../types.ts";
+import { WORKFLOW_OPERATIONS, type WorkflowBounds } from "../workflow.ts";
 
 export const TOOLS = ["list_files", "read_file", "search_files", "write_file", "edit_file", "delete_file", "run_check", "run_probe", "recall", "run_job", "read_job_artifact", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict", "publish_finding", "read_findings"] as const;
 export type ToolName = typeof TOOLS[number];
@@ -116,6 +117,15 @@ export interface SupervisionPolicy {
   recoveryAgent?: string;
   /** Provider-neutral runtime DAG expansion, enforced by the host scheduler. */
   dynamicDAG?: SpawnPolicy;
+  /** Independent control-plane reviews. Worker capabilities are never exposed
+   * to this role; observe mode records proposals without applying mutations. */
+  workflowPolicy?: Omit<WorkflowBounds, "spawn"> & {
+    agent: string;
+    mode: "observe" | "apply";
+    minIntervalMs: number;
+    maxSnapshotTasks: number;
+    maxSnapshotBytes: number;
+  };
 }
 export interface SwarmSpec {
   /** Opt-in debugging policy. Healthy single-file tasks need no extra requests. */
@@ -326,7 +336,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       p.maxDigestBytes <= Math.min(65536, Math.floor(s.recipe.contextBytes / 2)), "invalid finding digest bytes");
   }
   if (s.supervision) {
-    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["checkpointCadence", "checkpointEveryTurns", "checkpointAfterEvidence", "snapshotReads", "maxReplans", "maxObjectiveRequests", "maxObjectiveRequestBytes", "recoveryBackoffMs", "recoveryAgent", "dynamicDAG"]);
+    keys(s.supervision, ["reportEveryMs", "checkpointEveryMs"], ["checkpointCadence", "checkpointEveryTurns", "checkpointAfterEvidence", "snapshotReads", "maxReplans", "maxObjectiveRequests", "maxObjectiveRequestBytes", "recoveryBackoffMs", "recoveryAgent", "dynamicDAG", "workflowPolicy"]);
     positive(s.supervision.reportEveryMs, 3600000, "reportEveryMs");
     invariant(s.supervision.reportEveryMs >= 10, "report interval too small");
     positive(s.supervision.checkpointEveryMs, 3600000, "checkpointEveryMs");
@@ -352,6 +362,25 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       positive(d.maxChildrenPerTask, 32, "dynamic child limit");
       positive(d.maxDepth, 32, "dynamic depth limit");
       positive(d.maxSpawnedTasks, s.limits.tasks, "dynamic task limit");
+    }
+    if (s.supervision.workflowPolicy) {
+      const p = s.supervision.workflowPolicy;
+      keys(p, ["agent", "mode", "minIntervalMs", "maxReviews", "maxOperations", "maxSnapshotTasks",
+        "maxSnapshotBytes", "maxTaskTimeoutMs", "allowedOperations"]);
+      invariant(Object.hasOwn(s.agents, p.agent), "unknown workflow policy agent");
+      invariant(p.mode === "observe" || p.mode === "apply", "invalid workflow policy mode");
+      positive(p.minIntervalMs, 3600000, "workflow review interval");
+      invariant(p.minIntervalMs >= 100, "workflow review interval too small");
+      positive(p.maxReviews, 256, "workflow review limit");
+      positive(p.maxOperations, 16, "workflow operation limit");
+      positive(p.maxSnapshotTasks, 128, "workflow snapshot task limit");
+      positive(p.maxSnapshotBytes, Math.min(131072, s.limits.contextBytes), "workflow snapshot byte limit");
+      invariant(p.maxSnapshotBytes >= 2048, "workflow snapshot byte limit too small");
+      positive(p.maxTaskTimeoutMs, s.limits.timeoutMs, "workflow task timeout ceiling");
+      invariant(Array.isArray(p.allowedOperations) && new Set(p.allowedOperations).size === p.allowedOperations.length &&
+        p.allowedOperations.every(op => WORKFLOW_OPERATIONS.includes(op)), "invalid workflow operation whitelist");
+      if (p.allowedOperations.includes("expand_task")) invariant(s.supervision.dynamicDAG,
+        "workflow expansion requires supervision.dynamicDAG");
     }
   }
   if (s.workers) {

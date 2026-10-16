@@ -2,7 +2,7 @@ import { canonical, digest, invariant } from "./kernel.ts";
 import type { Store } from "./store.ts";
 import type { Capsule, Json } from "./types.ts";
 
-export type ProposalKind = "RESPONSE" | "PLAN" | "TOOL_CALL" | "SPAWN" | "CLAIM" | "CONFLICT" | "RECOVERY";
+export type ProposalKind = "RESPONSE" | "PLAN" | "TOOL_CALL" | "SPAWN" | "CLAIM" | "CONFLICT" | "RECOVERY" | "POLICY";
 export type AdmissionVerdict = "ADMIT" | "REJECT" | "DEFER";
 /** A proposal is data, never a capability. The host supplies every binding. */
 export interface Proposal<T> {
@@ -33,7 +33,7 @@ export function installProposalTables(store: Store): void {
 
 export function submitProposal<T>(store: Store, kind: ProposalKind, payload: T,
   context: Capsule | string, source: string): Proposal<T> {
-  invariant(["RESPONSE", "PLAN", "TOOL_CALL", "SPAWN", "CLAIM", "CONFLICT", "RECOVERY"].includes(kind), "invalid proposal kind");
+  invariant(["RESPONSE", "PLAN", "TOOL_CALL", "SPAWN", "CLAIM", "CONFLICT", "RECOVERY", "POLICY"].includes(kind), "invalid proposal kind");
   invariant(typeof source === "string" && source.length > 0 && source.length <= 256, "invalid proposal source");
   const run = typeof context === "string" ? context : context.runId;
   const row = store.db.prepare("SELECT contract,recipe FROM runs WHERE id=?").get(run);
