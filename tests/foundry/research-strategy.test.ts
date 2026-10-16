@@ -121,13 +121,14 @@ test("independent workflow role uses verified refutation to stop an optional res
     }
     const id = packet.task.id, turn = turns.get(id) ?? 0; turns.set(id, turn + 1);
     if (id === "a.screen" && turn === 0) return reply("", [{ name: "run_job", arguments: { name: "screen", input: cfg.spec.jobs!.screen.research!.spec.input } }]);
-    if (turn === (id === "a.screen" ? 1 : 0)) return reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]);
+    if (turn === (id === "a.screen" ? 1 : 0)) return reply("", [{ name: "write_file", arguments: { path: `src/${id === "a.screen" ? "a" : id}.txt`, content: "42\n" } }]);
+    if (id === "b") await new Promise(resolve => setTimeout(resolve, 500));
     return reply("ready for independent acceptance");
   }) as typeof fetch;
   const driver = new SwarmDriver(s, cfg, fetcher, undefined, async (_c, _cfg, input: any) => ({ schema: 1,
     key: input.key, jobId: input.key, status: "SUCCEEDED", result: { exitCode: 0, data: simulateQuantum(cfg.spec.jobs!.screen.research!.spec) } }));
   const policy = new WorkflowPolicyAgent(s, cfg, fetcher);
-  const result = await runTasks(s, [task()], driver, { signal: signal(), beforeRefill: (run, signal) => policy.review(run, signal) });
+  const result = await runTasks(s, [task(), task("b", ["a"])], driver, { signal: signal(), beforeRefill: (run, signal) => policy.review(run, signal) });
   assert.equal(result.status, "PASS", JSON.stringify(s.db.prepare("SELECT id,error FROM tasks").all()));
   assert.equal(s.db.prepare("SELECT COUNT(*) n FROM spawn_edges").get()!.n, 1);
   assert.equal(s.db.prepare("SELECT COUNT(*) n FROM research_jobs").get()!.n, 1);
