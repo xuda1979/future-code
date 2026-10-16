@@ -16,8 +16,11 @@ and durable model-thread binding remain immutable; spawn edges are stored separa
 `runTasks` and `Scheduler` own dependencies,
 leases, attempts, logical read/write reservations, critical-path ordering and
 acceptance. `SwarmDriver` supplies the missing model/tool loop and an independent
-verifier. Agents do not get Store authority and cannot alter the DAG or spawn
-recursive workers. Different tasks may select different entries in a pinned
+verifier. Agents do not get Store authority. They may propose recursive child
+tasks within the host's depth/count/scope limits. Optional independent
+[workflow policy reviews](WORKFLOW_POLICY.md) can also propose atomic child-DAG,
+future-timeout and run-parallelism adjustments during execution. The runtime
+owns admission and scheduling. Different tasks may select different entries in a pinned
 model/tool/check roster using `task.agent`.
 
 ```
@@ -148,10 +151,13 @@ provider-specific compaction and advisor protocols are **not implemented**.
 Unsupported returned block types fail closed instead of silently removing data
 required for a later API turn. Choose a compatible profile for the initial canary.
 
-Tools are `list_files`, bounded `read_file`, `write_file`, exact-once-match
+Tools are `list_files`, bounded `read_file`, scoped literal `search_files`, `write_file`, exact-once-match
 `edit_file`, `delete_file`, `run_check` and `recall`. There is no arbitrary shell
 command supplied by the model. `run_check` accepts only a configured check name.
 Trusted checks may themselves execute arbitrary code; configure them accordingly.
+The opt-in [source search capability](SOURCE_SEARCH.md) locates symbols and error
+text in local/remote private worktrees, with bounded scans, skip counts and
+continuation cursors. It returns observations, never acceptance evidence.
 
 `$NODE` in a check's executable position resolves and pins the installed Node
 binary at initialization. This matters when the native Future Code executable
@@ -347,3 +353,7 @@ Optional research groups provide bounded notes, acceptance-gated cross-group
 references and execution caps. See [Cohort coordination](COHORT_COORDINATION.md)
 for configuration, context controls and the distinction between accepted task
 artifacts and unverified summaries.
+# Scientific experiments
+
+See [executable research contracts](research-experiments.md) for frozen hypotheses,
+replicated metrics, quantum-count validation and independent proof-checker adapters.

@@ -54,7 +54,8 @@ export class Scheduler {
     return this.store.transaction(() => {
       const run = this.store.db.prepare("SELECT * FROM runs WHERE id=?").get(runId); invariant(run, "unknown run");
       if (run.status !== "RUNNING") return [];
-      invariant(run.contract === digest(this.store.contract()), "run contract drift");
+      const contract = this.store.contract();
+      invariant(run.contract === digest(contract), "run contract drift");
       const recipe = this.store.recipe(run.recipe);
       ensureSchedulerIndex(this.store, runId, recipe, now);
       ensureRunFabric(this.store, runId, now);
@@ -101,7 +102,10 @@ export class Scheduler {
       const runningRows = this.store.db.prepare(
         "SELECT id,spec FROM tasks WHERE run=? AND status='RUNNING' ORDER BY id"
       ).all(runId);
-      const capacity = Math.min(limit, recipe.parallelism - runningRows.length);
+      const policy = this.store.db.prepare("SELECT revision,parallelism FROM workflow_run_policy WHERE run=?").get(runId);
+      const parallelism = Math.min(recipe.parallelism, Number(policy?.parallelism ?? recipe.parallelism));
+      invariant(Number.isSafeInteger(parallelism) && parallelism > 0, "invalid workflow parallelism policy");
+      const capacity = Math.min(limit, parallelism - runningRows.length);
       if (capacity <= 0) return [];
       const active = runningRows.map(row => JSON.parse(row.spec) as Task);
       let reserved = runningRows.reduce((sum, row) =>
@@ -139,7 +143,11 @@ export class Scheduler {
           if (recipe.maxInFlightContextBytes !== undefined &&
               reserved + candidate.budget > recipe.maxInFlightContextBytes) continue;
 
-          const fence = candidate.fence + 1; const deadline = now + recipe.timeoutMs;
+          const timeout = policy ? this.store.db.prepare("SELECT timeout_ms FROM workflow_task_policy WHERE run=? AND task=?")
+            .get(runId, candidate.id) : undefined;
+          const timeoutMs = Math.min(contract.limits.timeoutMs, Number(timeout?.timeout_ms ?? recipe.timeoutMs));
+          invariant(Number.isSafeInteger(timeoutMs) && timeoutMs > 0, "invalid task timeout policy");
+          const fence = candidate.fence + 1; const deadline = now + timeoutMs;
           const updated = this.store.db.prepare(`UPDATE tasks SET status='RUNNING',fence=?,owner=?,deadline=?,error=NULL
             WHERE run=? AND id=? AND status='READY' AND fence=?`)
             .run(fence, owner, deadline, runId, candidate.id, candidate.fence);

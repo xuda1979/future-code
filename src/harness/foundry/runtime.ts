@@ -117,7 +117,7 @@ async function executeAttempt(scheduler: Scheduler, lease: Lease, driver: Driver
 }
 /** Bounded DAG execution; a different process may claim the same run safely. */
 export async function runTasks(store: Store, tasks: Task[], driver: Driver,
-  options: { recipeHash?: string; resumeRun?: string; signal?: AbortSignal; onProgress?: HealthObserver; reportEveryMs?: number } = {}): Promise<RunSummary> {
+  options: { recipeHash?: string; resumeRun?: string; signal?: AbortSignal; onProgress?: HealthObserver; reportEveryMs?: number; beforeRefill?: (run: string, signal: AbortSignal) => Promise<void> } = {}): Promise<RunSummary> {
   invariant(driver.verifierId === store.contract().verifierId && driver.workerId === store.contract().workerId, "driver identity mismatch");
   const scheduler = new Scheduler(store);
   const runId = options.resumeRun ?? scheduler.start(tasks, options.recipeHash);
@@ -151,6 +151,11 @@ export async function runTasks(store: Store, tasks: Task[], driver: Driver,
   let idleMs = 25;
   try {
     while (!options.signal?.aborted) {
+      // Optional host control-plane hook. Never holds a DB transaction or an
+      // execution lease while waiting for a policy model. Active workers continue.
+      if (options.beforeRefill && scheduler.status(runId) === "RUNNING")
+        await options.beforeRefill(runId, options.signal ?? new AbortController().signal);
+      if (options.signal?.aborted) break;
       // Observe before inspecting/claiming state so a commit between inspection
       // and registration cannot be lost. Cross-process hints use data_version.
       const observed = store.observeChanges();

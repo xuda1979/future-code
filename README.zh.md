@@ -34,6 +34,7 @@ flowchart TD
 ## 能力
 
 - 持久化 DAG、受限子任务裂变、租约 fencing 与崩溃恢复。
+- 可选独立流程策略角色：读取有界状态摘要，原子提交子 DAG、超时和并行度提案，保留审计回执。
 - 独立工作树、作用域约束、固定验证器、最终集成检查与可恢复会话。
 - 远程计算任务的稳定身份、结果核对与跨恢复轮次的累计预算。
 - 内容寻址工件、不可覆盖的事件与证据记录。
@@ -92,6 +93,7 @@ node scripts/test-commands.mjs
 | 结论、证据、冲突与裁决 | [知识协议](docs/agent-platform/KNOWLEDGE_PROTOCOL.md) |
 | 冻结契约与运行方案实验 | [Foundry](docs/agent-platform/FOUNDRY.md) |
 | 外部 API 智能体与会话 | [Swarm](docs/agent-platform/SWARM.md) |
+| 运行中的独立流程策略提案 | [Workflow policy](docs/agent-platform/WORKFLOW_POLICY.md) |
 | 假设证伪、跨补丁错误循环与独立上下文审查 | [调试约束](docs/agent-platform/FALSIFICATION_DEBUGGING.md) |
 | 恢复与远程计算 | [Resilient R&D](docs/agent-platform/RESILIENT_RND.md) |
 | API 冷却、恢复探测与传输超时 | [外部 API 恢复](docs/agent-platform/PROVIDER_RECOVERY.md) |

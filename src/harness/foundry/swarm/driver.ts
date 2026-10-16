@@ -1,3 +1,6 @@
+import { ResearchProgramme } from "../researchProgramme.ts";
+import { verifyResearch } from "./research.ts";
+import { decodeSpawnChildren } from "./spawn.ts";
 import { DeferredAttemptError, PersistedDeferredAttemptError } from "../continuation.ts";
 import { ResearchJobs, type JobRPC } from "./jobs.ts";
 import { canSliceExploratoryCheckpoint, checkpointInputKey, evaluationEvidenceKey, shouldRunExploratoryCheckpoint } from "./checkpointPolicy.ts";
@@ -6,10 +9,11 @@ import { schedulerNode } from "../schedulerIndex.ts";
 import { FatalAttemptError } from "../errors.ts";
 import { spawnTasks } from "../dynamicDag.ts";
 import type { Store } from "../store.ts";
-import type { AttemptControl, Capsule, Driver, Json, Task, Verification, WorkerResult, Lease, Measurement } from "../types.ts";
-import { keys, validateSwarmTasks, type PinnedSwarm } from "./config.ts";
+import type { AttemptControl, Capsule, Driver, Json, Verification, WorkerResult, Lease, Measurement } from "../types.ts";
+import { keys, type PinnedSwarm } from "./config.ts";
 import { inlineReceipt, type Call, type ProgressCheckpoint } from "./context.ts";
 import { HttpBrain } from "./model.ts";
+import { MAX_CONSECUTIVE_RESPONSE_REJECTIONS, type Turn } from "./response.ts";
 import { SessionJournal, type Thread } from "./session.ts";
 import { localGitBackend, type HandsBackend } from "./workspace.ts";
 import { toolEffectContract } from "./toolEffects.ts";
@@ -46,6 +50,7 @@ export class SwarmDriver implements Driver {
   readonly journal: SessionJournal; readonly brain: HttpBrain;
   readonly store: Store; readonly cfg: PinnedSwarm; readonly backend: HandsBackend; readonly jobRpc?: JobRPC;
   readonly cohorts: CohortBoard | null;
+  readonly programme: ResearchProgramme | null;
   readonly accepted?: Driver["accepted"];
   constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend,
     jobRpc?: JobRPC) {
@@ -54,8 +59,14 @@ export class SwarmDriver implements Driver {
     this.workerId = workerIdentity(cfg); this.verifierId = verifierIdentity(cfg);
     this.journal = new SessionJournal(store); this.brain = new HttpBrain(this.journal, fetcher);
     this.cohorts = cfg.spec.coordination ? new CohortBoard(store, cfg, this.journal) : null;
-    if (this.cohorts) this.accepted = (c, artifact, artifactHash, evidenceHash) =>
-      this.cohorts!.accepted(c, artifact, artifactHash, evidenceHash);
+    this.programme = cfg.spec.researchProgramme ? new ResearchProgramme(store, cfg.spec.researchProgramme) : null;
+    if (this.cohorts || this.programme) this.accepted = (c, artifact, artifactHash, evidenceHash) => {
+      this.cohorts?.accepted(c, artifact, artifactHash, evidenceHash);
+      if (this.programme) {
+        this.programme.context(c.task.knowledge ?? []);
+        this.programme.accepted(c, artifactHash, evidenceHash, Object.fromEntries(Object.entries(cfg.spec.jobs ?? {}).map(([name, job]) => [name, job.research?.provides ?? name])));
+      }
+    };
   }
   measurement(lease: Lease): Measurement {
     return { tokens: this.journal.usage(lease.runId, lease.taskId, lease.fence).tokens, costUsd: null };
@@ -72,6 +83,11 @@ export class SwarmDriver implements Driver {
     const admittedContext = schedulerNode(this.store, c.runId, c.task.id)?.budget ?? this.store.recipe(c.recipeHash).contextBytes;
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
+      ...(this.programme && c.task.knowledge?.length ? { knowledge: this.programme.context(c.task.knowledge) } : {}),
+      ...(c.task.research?.length ? { research: Object.fromEntries(c.task.research.map(name => [name, this.cfg.spec.jobs![name].research!.spec])) } : {}),
+      ...(this.cfg.spec.supervision?.workflowPolicy ? { workflowChildren: this.store.db.prepare(`SELECT t.id AS taskId,t.artifact AS artifactHash,t.evidence AS evidenceHash
+        FROM spawn_edges e JOIN tasks t ON t.run=e.run AND t.id=e.child
+        WHERE e.run=? AND e.parent=? AND t.status='PASS' ORDER BY t.id`).all(c.runId, c.task.id) } : {}),
       verification: { checks: profile.checks, finalIntegrationRequired: true },
       ...(profile.diagnostics ? { exploratoryChecks: profile.diagnostics } : {}),
       ...(profile.decisionPolicy ? { decisionPolicy: profile.decisionPolicy } : {}),
@@ -96,6 +112,7 @@ export class SwarmDriver implements Driver {
         (profile.tools.includes("save_progress") ? "Before long context retirement, call save_progress with concise current findings, blockers, exact next step, and owned evidence receipts; notes remain unverified. " : "") +
         (profile.tools.includes("run_job") ? "For independent experiments, issue every ready run_job call in one assistant turn so the host can launch them concurrently; do not wait for one experiment before proposing another independent one. " : "") +
         "Issue independent file reads in one turn, and ordered related edits together. Use run_check as a boundary when you need an intermediate diagnostic. " +
+        (profile.tools.includes("search_files") ? "Locate symbols and error text with scoped search_files before reading whole files; follow continuation cursors and inspect skipped-file counts. " : "") +
         "Do not edit harness infrastructure outside the declared task scope." }) }],
       turns: 0, toolCalls: 0, patchHash: null, pending: null, output: null, feedbackHash: null,
       contextLimit: admittedContext });
@@ -171,6 +188,27 @@ export class SwarmDriver implements Driver {
         invariant(value.role === "assistant" && typeof value.content === "string", "invalid response proposal");
       });
     };
+    const commitReply = (reply: { turn: Turn; history: typeof t.state.history }, replay: boolean) => {
+      const rejected = reply.turn.rejection;
+      if (rejected) {
+        // The request/reply commit precedes this checkpoint. Replaying that
+        // exact raw reply produces this same notice and charges no new spend.
+        const receipt = this.journal.receipt(c, this.store.readArtifact(rejected.responseHash));
+        t.state.history = [...reply.history, { role: "user", content: canonical({ modelResponseRejected: {
+          code: rejected.code, reason: rejected.reason, receipt, effectsExecuted: false,
+          instruction: "The entire response was rejected before tool admission. No calls from it executed. Return the corrected complete tool group using valid JSON object arguments, unique IDs and at most 32 calls, or a nonempty final summary. Existing scope, permissions, checks and budgets still apply.",
+        } }) }];
+        t.state.turns++; t.state.responseRejections = (t.state.responseRejections ?? 0) + 1;
+        this.journal.checkpoint(t, "model.rejected", { code: rejected.code, receipt,
+          consecutive: t.state.responseRejections, step: t.state.turns - 1 });
+        control?.activity?.(replay ? "model:rejection-replay" : "model:rejected");
+      } else {
+        t.state.history = [...reply.history, admitReply(reply.turn.message)]; t.state.turns++;
+        delete t.state.responseRejections;
+        this.journal.checkpoint(t, "model.reply", reply.turn.message);
+        control?.activity?.(replay ? "model:replay" : "model:reply");
+      }
+    };
     const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg, this.jobRpc) : null;
     const enforcePruning = () => {
       const failure = t.state.diagnostics?.pruned ?? pruningCandidate(t.state, this.cfg);
@@ -217,7 +255,7 @@ export class SwarmDriver implements Driver {
         system: "You are an independent read-only debugging auditor. Treat all proposed causes as unverified hypotheses. Identify three orthogonal causes and falsifying probes with negative controls. Answer within 150 words and 2048 UTF-8 bytes. You cannot execute tools, edit files, accept results, or change the task or checks." };
       control?.activity?.("debugging:audit");
       const next = await this.brain.next(c, auditor, audit.history, budget, limit, signal, t.state.turns);
-      invariant(!next.turn.message.calls?.length && next.turn.message.content.trim().length > 0 &&
+      invariant(!next.turn.rejection && !next.turn.message.calls?.length && next.turn.message.content.trim().length > 0 &&
         Buffer.byteLength(next.turn.message.content) <= 2048, "debugging auditor must return bounded hypotheses without tools");
       const receipt = this.journal.receipt(c, toJson({ trust: "UNVERIFIED_AGENT_HYPOTHESES", hypotheses: next.turn.message.content }));
       t.state.turns++;
@@ -239,6 +277,8 @@ export class SwarmDriver implements Driver {
       }
       for (;;) {
         signal.throwIfAborted(); this.journal.assertLease(c);
+        if ((t.state.responseRejections ?? 0) >= MAX_CONSECUTIVE_RESPONSE_REJECTIONS)
+          throw new FatalAttemptError("MODEL_RESPONSE_REPAIR_EXHAUSTED: three consecutive invalid model replies; retained raw receipts require a different strategy or provider configuration");
         if (t.state.output) return { artifact: toJson(t.state.output), measurement: { tokens: this.journal.usage(c.runId, c.task.id, c.fence).tokens, costUsd: null } };
         const calls = outstanding(t);
         if (calls.length) {
@@ -277,37 +317,7 @@ export class SwarmDriver implements Driver {
                 const policy = this.cfg.spec.supervision?.dynamicDAG;
                 invariant(policy, "dynamic DAG spawning is not configured");
                 const a = call.arguments; keys(a, ["children"]);
-                invariant(Array.isArray(a.children) && a.children.length > 0, "spawn_tasks requires children");
-                const rawChildren = (a.children as unknown[]).map(item => {
-                  invariant(item && typeof item === "object" && !Array.isArray(item), "invalid spawned child");
-                  const raw = item as Record<string, any>;
-                  keys(raw, ["id", "goal", "acceptance", "input", "writeScope", "readScope"],
-                    ["dependsOn", "agent", "priority", "estimatedDurationMs", "contextBudget"]);
-                  invariant(typeof raw.id === "string" && raw.id.length > 0, "invalid child id");
-                  return raw;
-                });
-                const localIds = new Set(rawChildren.map(raw => raw.id as string));
-                invariant(localIds.size === rawChildren.length, "duplicate spawned child id");
-                const children: Task[] = rawChildren.map(raw => {
-                  const dependsOn = raw.dependsOn ?? [];
-                  invariant(Array.isArray(dependsOn) && dependsOn.length <= policy.maxChildrenPerTask &&
-                    dependsOn.every((id: unknown) => typeof id === "string") &&
-                    new Set(dependsOn).size === dependsOn.length, "invalid spawned child dependencies");
-                  for (const id of dependsOn as string[]) invariant(localIds.has(id) && id !== raw.id,
-                    "spawned child dependency must name another child in this batch");
-                  const child: Task = { id: `${c.task.id}.${raw.id}`, goal: raw.goal, acceptance: raw.acceptance,
-                    dependencies: [...c.task.dependencies, ...(dependsOn as string[]).map(id => `${c.task.id}.${id}`)],
-                    writeScope: raw.writeScope, readScope: raw.readScope, input: raw.input };
-                  const agent = raw.agent ?? c.task.agent;
-                  if (agent !== undefined) child.agent = agent;
-                  if (raw.priority !== undefined) child.priority = raw.priority;
-                  if (raw.estimatedDurationMs !== undefined) child.estimatedDurationMs = raw.estimatedDurationMs;
-                  if (raw.contextBudget !== undefined) child.contextBudget = raw.contextBudget;
-                  if (c.task.dependencyViews !== undefined)
-                    child.dependencyViews = JSON.parse(canonical(c.task.dependencyViews));
-                  return child;
-                });
-                validateSwarmTasks(this.cfg.spec, children);
+                const children = decodeSpawnChildren(this.cfg.spec, c.task, a.children);
                 const reason = `Spawned ${children.length} child task(s); parent resumes after independent verification`;
                 const spawned = spawnTasks(this.store, c, call.id, digest(call.arguments), children, policy,
                   Date.now(), { reason, wakeAt: Date.now(), measurement: {
@@ -421,9 +431,7 @@ export class SwarmDriver implements Driver {
         const replay = this.brain.replay(c, profile, t.state.history, budget, limit, t.state.turns, t.state.progress ?? null,
           diagnosticContext(t.state));
         if (replay) {
-          t.state.history = [...replay.history, admitReply(replay.turn.message)]; t.state.turns++;
-          this.journal.checkpoint(t, "model.reply", replay.turn.message);
-          control?.activity?.("model:replay"); continue;
+          commitReply(replay, true); continue;
         }
         // A persisted model reply without tools represents a final answer.
         const last = t.state.history.at(-1)!;
@@ -509,9 +517,7 @@ export class SwarmDriver implements Driver {
         if (modelResult.status === "rejected") throw modelResult.reason;
         if (prewarmResult.status === "rejected") throw prewarmResult.reason;
         const next = modelResult.value;
-        t.state.history = [...next.history, admitReply(next.turn.message)]; t.state.turns++;
-        this.journal.checkpoint(t, "model.reply", next.turn.message);
-        control?.activity?.("model:reply");
+        commitReply(next, false);
       }
     } catch (error) {
       // The shared signal combiner does not preserve reasons. Restore this
@@ -530,6 +536,11 @@ export class SwarmDriver implements Driver {
   async verify(c: Capsule, result: WorkerResult, signal: AbortSignal, control?: AttemptControl): Promise<Verification> {
     this.journal.assertLease(c);
     const verification = await this.backend.verify(this.store, this.cfg, c, result.artifact, signal);
+    if (this.store.contract().requiredChecks.includes("research")) verification.checks.push(await verifyResearch(this.store, this.cfg, c, signal));
+    if (this.programme) {
+      try { this.programme.context(c.task.knowledge ?? []); verification.checks.push({ id: "knowledge", verdict: "PASS" }); }
+      catch (error) { verification.checks.push({ id: "knowledge", verdict: "FAIL", detail: String(error) }); }
+    }
     signal.throwIfAborted(); this.journal.assertLease(c);
     if (verification.checks.some(check => check.verdict !== "PASS")) this.journal.feedback(c, verification);
     control?.progress(`verify:${digest(verification)}`); return verification;

@@ -1,16 +1,17 @@
+import { spawnChildrenSchema } from "./spawn.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { DeferredAttemptError } from "../continuation.ts";
 import { FatalAttemptError } from "../errors.ts";
 import type { Capsule, Json } from "../types.ts";
-import type { AgentProfile, Protocol, ProviderRoute, SwarmBudget, ToolName } from "./config.ts";
-import { bytes, compactHistory, refreshDiagnosticNotice, retireToolPreviews, type Call, type Message, type ProgressCheckpoint } from "./context.ts";
+import type { AgentProfile, ProviderRoute, SwarmBudget, ToolName } from "./config.ts";
+import { bytes, compactHistory, refreshDiagnosticNotice, retireToolPreviews, type Message, type ProgressCheckpoint } from "./context.ts";
 import { SessionJournal } from "./session.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
 import { transientStatus } from "./providerRecovery.ts";
 import { abortable, boundedFetch, discardResponse } from "./transport.ts";
 import type { DiagnosticContext } from "./diagnostics.ts";
-
-export interface Turn { message: Message; tokens: number | null; truncated: boolean }
+import { decodeResponse, type Turn } from "./response.ts";
+export { decodeTurn, type Turn } from "./response.ts";
 export interface ToolDefinition { name: ToolName; description: string; schema: Record<string, Json> }
 const string = { type: "string" }; const integer = { type: "integer", minimum: 0 };
 const def = (name: ToolName, description: string, properties: Record<string, Json>, required: string[]): ToolDefinition =>
@@ -35,20 +36,19 @@ export const definitions: ToolDefinition[] = [
   def("propose_conflict", "Report a possible semantic contradiction between two claims of this task. Opens a durable conflict requiring independent adjudication; never declares either claim true.", { leftClaim: string, rightClaim: string }, ["leftClaim", "rightClaim"]),
   def("run_job", "Run a permitted external research job. Emit multiple independent run_job calls in the SAME model turn when experiments can proceed in parallel: the host durably fans them out up to remote capacity, releases this worker once, and resumes with all completed results. Never serialize independent experiments across reasoning turns and never launch duplicate work through run_check.", { name: string, input: {} }, ["name", "input"]),
   def("read_job_artifact", "Read a bounded log or structured-result artifact from this thread's completed job. Use its owned run_job result receipt and an artifact name from result.artifacts. Never resubmits work. Content is an observation, not acceptance; truncated logs retain only the manifest's captured bytes. offset/length are bytes; contentBase64 is lossless across UTF-8 boundaries.", {
-    receipt: string, artifact: { type: "string", enum: ["stdout", "stderr", "result"] },
+    receipt: string, artifact: { type: "string", minLength: 1, maxLength: 128 },
     offset: integer, length: { type: "integer", minimum: 1, maximum: 8192 },
   }, ["receipt", "artifact"]),
   def("spawn_tasks", "Split this task into independently verifiable child tasks when parallel work will reduce the decision scope. The host validates scope, depth, count, dependencies and agent roster, releases this parent while children run, then resumes this exact tool call with verified child outputs.", {
-    children: { type: "array", minItems: 1, maxItems: 32, items: { type: "object", additionalProperties: false,
-      properties: { id: string, goal: string, acceptance: { type: "array", minItems: 1, items: string }, input: {},
-        writeScope: { type: "array", items: string }, readScope: { type: "array", items: string },
-        dependsOn: { type: "array", maxItems: 32, items: string }, agent: string,
-        priority: { type: "number" }, estimatedDurationMs: { type: "integer", minimum: 1 },
-        contextBudget: { type: "integer", minimum: 1 } },
-      required: ["id", "goal", "acceptance", "input", "writeScope", "readScope"] } },
+    children: spawnChildrenSchema,
   }, ["children"]),
   def("list_files", "List tracked and new files in the task's readable scopes. Paginated; paths only.", { offset: integer, limit: { type: "integer", minimum: 1, maximum: 200 } }, []),
   def("read_file", "Read a bounded line range of a non-symlink UTF-8 file in readable scopes.", { path: string, start: { type: "integer", minimum: 1 }, lines: { type: "integer", minimum: 1, maximum: 300 } }, ["path"]),
+  def("search_files", "Find case-sensitive literal text in scoped Git-tracked and nonignored new UTF-8 files. Returns line locations and bounded excerpts. Narrow with a file/directory path; omit path for all readable scopes. Continue with nextCursor until null; skippedFiles reports unsearched inputs. Restart pagination after edits or worker replacement. This is source discovery, never a check or proof of absence.", {
+    query: { type: "string", minLength: 1, maxLength: 256 }, path: string,
+    limit: { type: "integer", minimum: 1, maximum: 100 },
+    cursor: { type: "object", properties: { path: string, line: { type: "integer", minimum: 1 } }, required: ["path", "line"], additionalProperties: false },
+  }, ["query"]),
   def("write_file", "Write a UTF-8 file within the task's exclusive write scopes; use edit_file for small changes.", { path: string, content: string }, ["path", "content"]),
   def("edit_file", "Replace exactly one literal occurrence. A missing or ambiguous match is an error.", { path: string, oldText: string, newText: string }, ["path", "oldText", "newText"]),
   def("delete_file", "Delete one non-symlink file within the task's write scopes.", { path: string }, ["path"]),
@@ -69,53 +69,6 @@ export const definitions: ToolDefinition[] = [
       memoryBefore: { type: "string", maxLength: 32 }, patchHash: string, failureSignature: string }, []),
 ];
 const asJson = (x: unknown): Json => JSON.parse(canonical(x));
-function measured(raw: any, protocol: Protocol): number | null {
-  const u = raw?.usage;
-  if (!u || typeof u !== "object") return null;
-  const ns = protocol === "anthropic"
-    ? [u.input_tokens, u.output_tokens, u.cache_creation_input_tokens ?? 0, u.cache_read_input_tokens ?? 0]
-    : [u.prompt_tokens, u.completion_tokens];
-  if (ns.some(x => x === undefined || x === null)) return null;
-  invariant(ns.every(x => Number.isSafeInteger(x) && x >= 0), "invalid provider usage");
-  const total = ns.reduce((a, b) => a + b, 0);
-  invariant(Number.isSafeInteger(total), "provider usage overflow"); return total;
-}
-export function decodeTurn(protocol: Protocol, raw: any): Turn {
-  let content = ""; const calls: Call[] = []; let stop: string;
-  if (protocol === "anthropic") {
-    invariant(Array.isArray(raw?.content) && typeof raw.stop_reason === "string", "invalid Anthropic response");
-    for (const block of raw.content) {
-      if (block.type === "text") { invariant(typeof block.text === "string", "invalid text"); content += block.text; }
-      else if (block.type === "tool_use") calls.push({ id: block.id, name: block.name, arguments: block.input });
-      else throw new FatalAttemptError("Unsupported response block; this adapter does not enable extended thinking or server tools");
-    }
-    stop = raw.stop_reason;
-    invariant(["end_turn", "tool_use", "max_tokens", "stop_sequence"].includes(stop), "unsupported stop reason");
-  } else {
-    invariant(Array.isArray(raw?.choices) && raw.choices.length === 1, "expected one completion");
-    const choice = raw.choices[0]; const m = choice.message;
-    invariant(m && (m.content === null || m.content === undefined || typeof m.content === "string"), "invalid completion content");
-    content = m.content ?? ""; stop = choice.finish_reason;
-    invariant(["stop", "tool_calls", "length"].includes(stop), "unsupported completion finish reason");
-    if (m.tool_calls !== undefined) {
-      invariant(Array.isArray(m.tool_calls), "invalid tool_calls");
-      for (const c of m.tool_calls) {
-        invariant(c.type === "function" && typeof c.function?.arguments === "string", "invalid function call");
-        calls.push({ id: c.id, name: c.function.name, arguments: JSON.parse(c.function.arguments) });
-      }
-    }
-  }
-  invariant(calls.length <= 32, "too many tool calls in one response");
-  const seen = new Set<string>();
-  for (const c of calls) {
-    invariant(typeof c.id === "string" && c.id.length > 0 && c.id.length <= 256 && !seen.has(c.id), "invalid/duplicate tool id"); seen.add(c.id);
-    invariant(typeof c.name === "string" && c.arguments && typeof c.arguments === "object" && !Array.isArray(c.arguments), "invalid tool arguments");
-    canonical(c.arguments);
-  }
-  invariant(!["tool_calls", "tool_use"].includes(stop) || calls.length > 0, "tool stop without calls");
-  return { message: { role: "assistant", content, ...(calls.length ? { calls } : {}) }, tokens: measured(raw, protocol),
-    truncated: stop === "length" || stop === "max_tokens" };
-}
 export function requestBody(profile: AgentProfile, history: Message[], budget: SwarmBudget): Json {
   const tools = definitions.filter(x => profile.tools.includes(x.name)).sort((a, b) => a.name.localeCompare(b.name));
   if (profile.protocol === "chat-completions") return asJson({
@@ -183,7 +136,7 @@ export class HttpBrain {
   private readReply(c: Capsule, profile: AgentProfile, projection: Message[], body: Json, step: number): { turn: Turn; history: Message[] } | null {
     const raw = this.journal.cached(c, step, body);
     if (raw === null) return null;
-    const turn = decodeTurn(profile.protocol, raw);
+    const turn = decodeResponse(profile.protocol, raw);
     if (turn.truncated) throw new FatalAttemptError("Model output truncated");
     return { turn, history: projection };
   }
@@ -202,6 +155,7 @@ export class HttpBrain {
       ...(profile.fallbacks ?? []),
     ];
     type Outcome = { index: number; kind: "success"; turn: Turn } |
+      { index: number; kind: "rejected"; turn: Turn; request: string } |
       { index: number; kind: "failure"; transient: boolean; error: Error; wakeAt?: number } |
       { index: number; kind: "lost" };
     const controllers = routes.map(() => new AbortController());
@@ -241,12 +195,17 @@ export class HttpBrain {
               new FatalAttemptError(`Model HTTP ${response.status}; route configuration requires attention`) };
         }
         const raw = await boundedJson(response, budget.maxToolOutputBytes, combined.signal);
-        const turn = decodeTurn(profile.protocol, raw);
+        const turn = decodeResponse(profile.protocol, raw);
         this.journal.providerSuccess(id);
         if (turn.truncated) {
           this.journal.complete(id, turn.tokens, raw); completed = true;
           return { index, kind: "failure", transient: false,
             error: new FatalAttemptError("Model output truncated; admit more output or split task") };
+        }
+        if (turn.rejection) {
+          // Prefer a valid fallback, but retain every route's actual spend.
+          this.journal.complete(id, turn.tokens, raw); completed = true;
+          return { index, kind: "rejected", turn, request: id };
         }
         const won = this.journal.complete(id, turn.tokens, raw, step, true); completed = true;
         return won ? { index, kind: "success", turn } : { index, kind: "lost" };
@@ -278,6 +237,7 @@ export class HttpBrain {
       });
     }
     const failures: Extract<Outcome, { kind: "failure" }>[] = [];
+    const rejections: Extract<Outcome, { kind: "rejected" }>[] = [];
     try {
       for (;;) {
         const candidates: Promise<Outcome | { index: -1; kind: "hedge" }>[] = [...pending.values()];
@@ -299,6 +259,7 @@ export class HttpBrain {
           return { turn: outcome.turn, history: projection };
         }
         if (outcome.kind === "failure") failures.push(outcome);
+        if (outcome.kind === "rejected") rejections.push(outcome);
         if (!fallbacksLaunched && outcome.index === 0) {
           if (timer) clearTimeout(timer); timer = null; hedgeReady = null; fallbacksLaunched = true;
           for (let i = 1; i < routes.length; i++) launch(i);
@@ -309,6 +270,15 @@ export class HttpBrain {
       if (timer) clearTimeout(timer);
       for (const controller of controllers) controller.abort();
       await Promise.allSettled([...pending.values()]);
+    }
+    if (rejections.length) {
+      signal.throwIfAborted(); this.journal.assertLease(c);
+      const rejected = rejections.sort((a, b) => a.index - b.index)[0]!;
+      this.journal.publishReply(rejected.request, step);
+      // Another current response may have won while this host was draining.
+      const selected = this.readReply(c, profile, projection, body, step);
+      invariant(selected, "rejected response lost its current lease");
+      return selected;
     }
     const allFatal = failures.length > 0 && failures.every(x => !x.transient);
     if (allFatal) throw failures[0].error;
@@ -346,7 +316,7 @@ export class HttpBrain {
         throw new FatalAttemptError(`Model HTTP ${response.status}; credentials/configuration require attention`);
       }
       const raw = await boundedJson(response, budget.maxToolOutputBytes, combined.signal);
-      const turn = decodeTurn(profile.protocol, raw);
+      const turn = decodeResponse(profile.protocol, raw);
       this.journal.complete(id, turn.tokens, raw, step); completed = true;
       signal.throwIfAborted(); this.journal.assertLease(c);
       this.journal.providerSuccess(id);

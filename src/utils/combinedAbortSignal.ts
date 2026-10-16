@@ -32,7 +32,6 @@ export function createCombinedAbortSignal(
 
   if (timeoutMs !== undefined) {
     timer = setTimeout(abortCombined, timeoutMs)
-    timer.unref?.()
   }
   signal?.addEventListener('abort', abortCombined)
   signalB?.addEventListener('abort', abortCombined)

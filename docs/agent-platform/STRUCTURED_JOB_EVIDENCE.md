@@ -25,6 +25,7 @@ Add these fields to the **remote executable template** passed to
 |---|---|
 | `resultMaxBytes` | Optional integer, 1–65,536. When present, the executable must write a UTF-8 JSON object to `FUTURE_JOB_RESULT_PATH`. Missing, malformed, duplicate-key, nonfinite, non-object or oversized results make the job `FAILED`, including after exit code 0. Symlinks and special files are rejected. |
 | `maxLogBytes` | Optional integer, 1–268,435,456 **per stream**. Captures stdout/stderr prefixes to private endpoint files; continues draining and hashing all observed output after the cap. No configured cap means legacy tail-only behavior and no log files. |
+| `artifacts` | Optional mapping of up to 32 flat names to `{maxBytes}`; 256 MiB aggregate ceiling per job. The child writes these names below `FUTURE_JOB_ARTIFACT_DIR`. Complete raw files are snapshotted and hashed after execution. Missing, changing, oversized, symlinked or nonregular outputs fail execution. Names cannot override stdout/stderr/result or select arbitrary paths. |
 
 Write the result atomically before exiting. A generic experiment might emit:
 
@@ -97,8 +98,8 @@ After `run_job` completes, use its host-owned result receipt:
 }
 ```
 
-The artifact name must be `stdout`, `stderr` or `result` and must exist in the
-terminal manifest. Reads are scoped to the same run/task and still require that
+The artifact name must exist in the terminal manifest and be a built-in stream/result
+or an operator-declared named artifact. Reads are scoped to the same run/task and still require that
 job template's capability. They never call `ensure`, reserve another job slot,
 or consume another external-job allowance. They do consume an ordinary tool call
 and use the configured RPC deadline/output budget.

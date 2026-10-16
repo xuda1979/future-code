@@ -1,3 +1,7 @@
+import { researchStrategySnapshot } from "./researchStrategy.ts";
+import { compareResearchStrategies, validateResearchComparison } from "../researchEvaluation.ts";
+import { pinCommand } from "../commands.ts";
+import { ResearchProgramme } from "../researchProgramme.ts";
 import { formatHealth, type HealthObserver } from "../health.ts";
 import { superviseSwarm, objectiveStatus } from "./supervisor.ts";
 import { readFileSync, statSync } from "node:fs";
@@ -15,6 +19,7 @@ import { readLatestObjectiveReflection } from "../rndReflection.ts";
 import { adjudicateClaim, claimsForGoals, claimRevalidationTask, retractClaim } from "../claims.ts";
 import { readMemory, rebuildMemoryPage, type MemoryQuery } from "./memory.ts";
 import type { ThreadState } from "./session.ts";
+import { workflowObservation } from "../workflow.ts";
 export const help = `Foundry Swarm: durable coding agents on the existing Foundry kernel
   init --spec FILE --allow-exec
   run --tasks FILE --allow-exec
@@ -22,6 +27,10 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   supervise --objective ID [--goal FILE --tasks FILE] --allow-exec
   objective --objective ID
   episode --objective ID
+  research-strategy --run ID
+  research-compare --spec FILE --allow-exec (matched local experiments with configured validators)
+  knowledge [--finding ID --version HASH] [--task-after ID] [--limit N]
+  knowledge-retract --finding ID --version HASH --reason TEXT --allow-exec
   reflection --objective ID
   claims --run ID --task ID [--after CLAIM_ID]
   claim-revalidation-task --run ID --claim ID
@@ -29,6 +38,7 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   claim-adjudicate --run ID --claim ID --version N --evidence ID --allow-exec
   recommend --tasks FILE (advisory: direct vs supervised; no execution)
   status [--run ID] [--task-after TASK_ID]
+  workflow --run ID [--task-after TASK_ID] [--limit N]
   receipt --hash HASH [--offset N] [--length N]
   events --run ID --task ID [--after N]
   memory --run ID --task ID [--memory-kind all|progress|failure] [--before CURSOR] [--patch HASH] [--failure-signature HASH] [--limit N]
@@ -53,15 +63,15 @@ export function tokenize(text: string): string[] {
 function file(path: string): any { invariant(statSync(path).size <= 32 * 1024 * 1024, "JSON input exceeds 32 MiB"); return JSON.parse(readFileSync(path, "utf8")); }
 export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal, onProgress: HealthObserver = r => console.error(formatHealth(r))): Promise<Json> {
   const cmd = argv[0] ?? "help"; if (cmd === "help") return { help };
-  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit"]);
+  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence", "--finding", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit"]);
   for (let i = 1; i < argv.length; i++) {
     const k = argv[i]; invariant(allowed.has(k) && !opts.has(k), `unknown/duplicate option ${k}`);
     if (k === "--allow-exec") opts.set(k, "true");
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate"].includes(cmd), "unknown swarm command");
-  if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate"].includes(cmd)) need("--allow-exec");
+  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "workflow", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate", "knowledge", "knowledge-retract", "research-strategy", "research-compare"].includes(cmd), "unknown swarm command");
+  if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate", "knowledge-retract", "research-compare"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
     switch (cmd) {
@@ -82,12 +92,31 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
       case "claim-revalidation-task": return JSON.parse(canonical(claimRevalidationTask(store, need("--run"), need("--claim"))));
       case "claim-retract": return JSON.parse(canonical(retractClaim(store, need("--run"), need("--claim"), Number(need("--version")), need("--reason"))));
       case "claim-adjudicate": return JSON.parse(canonical(adjudicateClaim(store, need("--run"), need("--claim"), Number(need("--version")), need("--evidence"))));
+      case "research-strategy": return researchStrategySnapshot(store, loadSwarm(store), need("--run"));
+      case "research-compare": {
+        const protocol = file(need("--spec")); validateResearchComparison(protocol);
+        const report = await compareResearchStrategies(protocol, pinCommand(protocol.executor, process.cwd()), signal);
+        const reportHash = store.artifact(JSON.parse(canonical(report))); store.event("research.strategy.compared", { reportHash, protocolHash: report.protocolHash });
+        return JSON.parse(canonical({ ...report, reportHash }));
+      }
+      case "knowledge": case "knowledge-retract": {
+        const cfg = loadSwarm(store); invariant(cfg.spec.researchProgramme, "research programme not configured");
+        const programme = new ResearchProgramme(store, cfg.spec.researchProgramme);
+        if (cmd === "knowledge-retract") {
+          programme.retract({ id: need("--finding"), version: need("--version") }, need("--reason")); return { retracted: true };
+        }
+        return opts.has("--finding") ? JSON.parse(canonical(programme.read({ id: need("--finding"), version: need("--version") }, true))) :
+          programme.list(opts.get("--task-after"), Number(opts.get("--limit") ?? 20));
+      }
       case "recommend": {
         const tasks = file(need("--tasks")) as Task[];
         const cfg = loadSwarm(store);
         return JSON.parse(canonical(recommendExecutionLane(tasks, cfg.spec)));
       }
       case "status": return swarmStatus(store, opts.get("--run"), opts.get("--task-after"));
+      case "workflow": return store.transaction(() => workflowObservation(store, need("--run"), {
+        after: opts.get("--task-after"), limit: opts.has("--limit") ? Number(opts.get("--limit")) : undefined,
+      }));
       case "receipt": {
         const offset = Number(opts.get("--offset") ?? 0); const length = Number(opts.get("--length") ?? 4096);
         invariant(Number.isSafeInteger(offset) && offset >= 0 && Number.isSafeInteger(length) && length > 0 && length <= 16384, "invalid receipt slice");

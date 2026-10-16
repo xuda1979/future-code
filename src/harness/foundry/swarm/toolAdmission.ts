@@ -4,6 +4,7 @@ import { inScope, permittedChecks, safePath, type AgentProfile, type PinnedSwarm
 import type { Call } from "./context.ts";
 import { definitions } from "./model.ts";
 import { toolEffectContract } from "./toolEffects.ts";
+import { validateSourceSearch } from "./sourceSearch.ts";
 
 /** Validate the advertised finite schema before any tool can produce effects. */
 function shape(value: any, schema: any): void {
@@ -40,6 +41,7 @@ export function validateToolProposal(c: Capsule, cfg: PinnedSwarm, profile: Agen
   invariant(definition, "unknown tool proposal");
   shape(call.arguments, definition.schema);
   toolEffectContract(cfg, call.name as any, call.arguments);
+  if (call.name === "search_files") validateSourceSearch(call.arguments, [...c.task.writeScope, ...(c.task.readScope ?? [])]);
   if (["read_file", "write_file", "edit_file", "delete_file"].includes(call.name)) {
     const path = call.arguments.path as string; safePath(path);
     const write = call.name !== "read_file";

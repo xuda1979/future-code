@@ -1,3 +1,5 @@
+import { ResearchProgramme } from "../researchProgramme.ts";
+import { installResearch } from "./research.ts";
 import { runHealth, type HealthObserver } from "../health.ts";
 import { ResearchJobs } from "./jobs.ts";
 import { realpathSync } from "node:fs";
@@ -18,6 +20,8 @@ import { fabricStatus } from "../evidenceFabric.ts";
 import { claimGate } from "../claims.ts";
 import { git, LocalGitHands, orderedTasks, readPatchArtifact } from "./workspace.ts";
 import { checkPassed } from "./verification.ts";
+import { WorkflowPolicyAgent, workflowPolicyMetrics } from "./workflowPolicy.ts";
+import { workflowObservation } from "../workflow.ts";
 const json = (value: unknown): Json => JSON.parse(canonical(value));
 const KEY = "extension.swarm";
 export async function initializeSwarm(store: Store, input: SwarmSpec, signal: AbortSignal): Promise<PinnedSwarm> {
@@ -40,9 +44,20 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
   }
   if (spec.jobs) {
     cfg.jobAdapters = {};
+    if (Object.values(spec.jobs).some(j => j.research?.proofChecker)) cfg.researchCheckers = {};
+    if (Object.values(spec.jobs).some(j => j.research?.validators)) cfg.experimentValidators = {};
     for (const [name, job] of Object.entries(spec.jobs)) {
       cfg.jobAdapters[name] = pinCommand({ ...job.adapter, argv: [job.adapter.argv[0] === "$NODE" ? executable("node") : job.adapter.argv[0], ...job.adapter.argv.slice(1)] }, spec.project);
-      for (const pin of cfg.jobAdapters[name].pins) {
+      if (job.research?.proofChecker) {
+        const checker = job.research.proofChecker;
+        cfg.researchCheckers![name] = pinCommand({ ...checker, argv: [checker.argv[0] === "$NODE" ? executable("node") : checker.argv[0], ...checker.argv.slice(1)] }, spec.project);
+      }
+      if (job.research?.validators) {
+        cfg.experimentValidators![name] = Object.fromEntries(Object.entries(job.research.validators).map(([id, v]) => [id, { ...v,
+          command: pinCommand({ ...v.command, argv: [v.command.argv[0] === "$NODE" ? executable("node") : v.command.argv[0], ...v.command.argv.slice(1)] }, spec.project) }]));
+      }
+      for (const pin of [...cfg.jobAdapters[name].pins, ...(cfg.researchCheckers?.[name]?.pins ?? []),
+        ...Object.values(cfg.experimentValidators?.[name] ?? {}).flatMap(v => v.command.pins)]) {
         const path = relative(spec.project, pin.path).replaceAll("\\", "/");
         if (path && !path.startsWith("../") && !isAbsolute(path)) spec.protectedPaths.push(path);
       }
@@ -61,12 +76,14 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
   }
   spec.protectedPaths = [...new Set([...spec.protectedPaths, ".gitignore", ".gitattributes", ".gitmodules"])].sort();
   const contract: Contract = { schema: 1, ...(spec.supervision?.snapshotReads ? { readIsolation: "snapshot" as const } : {}), name: spec.name, workerId: workerIdentity(cfg), verifierId: verifierIdentity(cfg),
-    environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior"],
+    environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior", ...(Object.values(spec.jobs ?? {}).some(j => j.research) ? ["research"] : []), ...(spec.researchProgramme ? ["knowledge"] : [])],
     slos: [], limits: spec.limits };
   store.initialize(contract, spec.recipe, undefined, {
     [KEY]: json(cfg),
     "extension.evidenceDomain": spec.domainPack ?? "software-engineering",
   });
+  if (Object.values(spec.jobs ?? {}).some(j => j.research)) installResearch(store);
+  if (spec.researchProgramme) new ResearchProgramme(store, spec.researchProgramme);
   new SessionJournal(store); return cfg;
 }
 export function loadSwarm(store: Store): PinnedSwarm {
@@ -75,6 +92,8 @@ export function loadSwarm(store: Store): PinnedSwarm {
   invariant((cfg.handsId === remoteWorkerFleetBackend.id) === !!cfg.spec.workers, "execution backend drift");
   validateSwarmSpec(cfg.spec); checkPins(cfg.git); Object.values(cfg.checks).forEach(checkPins);
   Object.values(cfg.jobAdapters ?? {}).forEach(checkPins);
+  Object.values(cfg.researchCheckers ?? {}).forEach(checkPins);
+  Object.values(cfg.experimentValidators ?? {}).flatMap(v => Object.values(v)).forEach(v => checkPins(v.command));
   Object.values(cfg.workerAdapters ?? {}).forEach(checkPins);
   invariant((store.contract().readIsolation === "snapshot") === !!cfg.spec.supervision?.snapshotReads, "snapshot isolation drift");
   invariant(store.getMeta("extension.evidenceDomain") === (cfg.spec.domainPack ?? "software-engineering"),
@@ -88,10 +107,18 @@ export async function runSwarm(store: Store, tasks: Task[], signal: AbortSignal,
   const cfg = loadSwarm(store);
   const actual: Task[] = resumeRun ? store.db.prepare("SELECT spec FROM tasks WHERE run=?").all(resumeRun).map(r => JSON.parse(r.spec)) : tasks;
   validateTasks(store.contract(), actual); validateSwarmTasks(cfg.spec, actual);
+  if (cfg.spec.researchProgramme) {
+    const programme = new ResearchProgramme(store, cfg.spec.researchProgramme);
+    for (const task of actual) programme.context(task.knowledge ?? []);
+  }
   const backend = cfg.handsId === remoteWorkerFleetBackend.id ? remoteWorkerFleetBackend : undefined;
   const driver = new SwarmDriver(store, cfg, fetcher, backend);
-  const summary = await runTasks(store, tasks, driver, { signal, resumeRun, onProgress, reportEveryMs: cfg.spec.supervision?.reportEveryMs });
+  const policy = cfg.spec.supervision?.workflowPolicy ? new WorkflowPolicyAgent(store, cfg, fetcher) : undefined;
+  const summary = await runTasks(store, tasks, driver, { signal, resumeRun, onProgress,
+    reportEveryMs: cfg.spec.supervision?.reportEveryMs,
+    ...(policy ? { beforeRefill: (run: string, signal: AbortSignal) => policy.review(run, signal) } : {}) });
   return json({ ...summary, providerUsage: driver.journal.usage(summary.id), productivity: executionProfile(store, summary.id), baseCommit: cfg.baseCommit,
+    ...(policy ? { workflowPolicy: workflowPolicyMetrics(store, summary.id) } : {}),
     note: "Acceptance is per-task. Run integrate for cross-task checks. Monetary cost is unknown without a trusted price meter." });
 }
 export function swarmStatus(store: Store, run?: string, after = ""): Json {
@@ -105,6 +132,7 @@ export function swarmStatus(store: Store, run?: string, after = ""): Json {
     health: runHealth(store, run), fabric: fabricStatus(store, run),
     ...(cfg.spec.coordination ? { coordination: new CohortBoard(store, cfg).status(run) } : {}),
     researchJobs: new ResearchJobs(new SessionJournal(store), cfg).list(run),
+    ...(cfg.spec.supervision?.workflowPolicy ? { workflow: workflowObservation(store, run), workflowPolicy: workflowPolicyMetrics(store, run) } : {}),
     taskPageLimit: 200, integrationReceipt: store.getMeta(`extension.swarm.integration.${run}`) ?? null });
 }
 interface IntegrationReceipt { run: string; base: string; tree: string; commit: string; branch: string; checksHash: string; binding: string }
