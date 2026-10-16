@@ -107,90 +107,7 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
       };
     }
 
-    invariant(Array.isArray(children) && children.length > 0 &&
-      children.length <= policy.maxChildrenPerTask, "spawn child batch exceeds limit");
-    const parentEdge = store.db.prepare("SELECT depth FROM spawn_edges WHERE run=? AND child=?")
-      .get(c.runId, c.task.id);
-    const depth = (parentEdge?.depth ?? 0) + 1;
-    invariant(depth <= policy.maxDepth, "spawn depth exceeds limit");
-
-    const priorEdges = store.db.prepare(
-      "SELECT child FROM spawn_edges WHERE run=? AND parent=? ORDER BY child"
-    ).all(c.runId, c.task.id);
-    invariant(priorEdges.length + children.length <= policy.maxChildrenPerTask,
-      "parent dynamic child limit exceeded");
-    const totalSpawned = store.db.prepare("SELECT COUNT(*) AS n FROM spawn_edges WHERE run=?")
-      .get(c.runId)!.n as number;
-    invariant(totalSpawned + children.length <= policy.maxSpawnedTasks,
-      "run dynamic task limit exceeded");
-    const totalTasks = store.db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE run=?")
-      .get(c.runId)!.n as number;
-    invariant(totalTasks + children.length <= store.contract().limits.tasks,
-      "contract task limit exceeded");
-
-    const readable = [...parent.writeScope, ...(parent.readScope ?? [])];
-    const childIds = new Set<string>();
-    for (const child of children) {
-      identifier(child.id);
-      invariant(child.id.startsWith(`${parent.id}.`) && child.id.length > parent.id.length + 1,
-        "spawned child id must be parent-namespaced");
-      invariant(!childIds.has(child.id), "duplicate spawned child id");
-      childIds.add(child.id);
-      invariant(!store.db.prepare("SELECT 1 FROM tasks WHERE run=? AND id=?")
-        .get(c.runId, child.id), "spawned child id already exists");
-    }
-    for (const child of children) {
-      const inherited = child.dependencies.filter(id => parent.dependencies.includes(id));
-      const siblingDependencies = child.dependencies.filter(id => !parent.dependencies.includes(id));
-      invariant(same(inherited, parent.dependencies),
-        "spawned child must preserve parent dependencies");
-      invariant(siblingDependencies.every(id => childIds.has(id) && id !== child.id),
-        "spawned child dependency must name a sibling in this batch");
-      invariant(same(child.dependencyViews, parent.dependencyViews),
-        "spawned child dependency views must match parent inputs");
-      for (const path of child.writeScope)
-        invariant(within(path, parent.writeScope),
-          "spawned child write scope exceeds parent authority");
-      for (const path of child.readScope ?? [])
-        invariant(within(path, readable),
-          "spawned child read scope exceeds parent authority");
-    }
-
-    const priorTasks = priorEdges.map(edge => {
-      const row = store.db.prepare("SELECT spec FROM tasks WHERE run=? AND id=?")
-        .get(c.runId, edge.child);
-      invariant(row?.spec, "missing prior spawned child");
-      return JSON.parse(row.spec) as Task;
-    });
-    const peers = [...priorTasks, ...children];
-    const peerById = new Map(peers.map(task => [task.id, task]));
-    for (let i = 0; i < peers.length; i++) for (let j = i + 1; j < peers.length; j++) {
-      invariant(!accessConflicts(peers[i], peers[j]) || dependencyOrders(peers[i], peers[j], peerById),
-        "spawned sibling access conflict; order conflicting work with dependsOn or use narrower scopes");
-    }
-
-    const graph: Task[] = store.db.prepare("SELECT spec FROM tasks WHERE run=?")
-      .all(c.runId).map(row => JSON.parse(row.spec));
-    graph.push(...children);
-    validateTasks(store.contract(), graph);
-    compilePlan(graph, store.recipe(c.recipeHash), store.contract().limits.contextBytes);
-
-    const insert = store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')");
-    for (const child of children) insert.run(c.runId, child.id, canonical(child));
-    const ids = children.map(child => child.id);
-    store.db.prepare("INSERT INTO spawn_requests VALUES(?,?,?,?,?,?,?)")
-      .run(c.runId, c.task.id, requestKey, requestHash, canonical(ids), depth, now);
-    const edgeInsert = store.db.prepare("INSERT INTO spawn_edges VALUES(?,?,?,?,?,?)");
-    for (const child of children)
-      edgeInsert.run(c.runId, c.task.id, child.id, requestKey, depth, now);
-    store.db.prepare("UPDATE runs SET graph_version=graph_version+1 WHERE id=?").run(c.runId);
-    // Dynamic expansion is the uncommon structural operation. Pay O(V+E) here
-    // once so subsequent claims remain bounded to ready/running work.
-    rebuildSchedulerIndex(store, c.runId, store.recipe(c.recipeHash), now);
-    registerTaskGoals(store, c.runId, children, c.task.id, undefined, now);
-    refreshRunAllocations(store, c.runId, now);
-    store.event("task.expanded",
-      { parent: c.task.id, requestKey, depth, children: ids }, c.runId, c.task.id);
+    const ids = admitChildren(store, c.runId, parent, c.recipeHash, requestKey, requestHash, children, policy, now);
     const parentDeferred = deferParent();
     return { childIds: ids, complete: false, parentDeferred,
       refs: [] as { id: string; hash: string }[] };
@@ -203,4 +120,109 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
   }));
   return { childIds: state.childIds, complete: state.complete,
     parentDeferred: state.parentDeferred, dependencies };
+}
+
+/** Host policy admission for an untouched task, called only inside its atomic
+ * policy transaction. No worker lease is fabricated, renewed or consumed. */
+export function expandUnstartedTaskInTransaction(store: Store, runId: string, parentId: string,
+  requestKey: string, requestHash: string, children: Task[], policy: SpawnPolicy, now = Date.now()): string[] {
+  validatePolicy(store, policy);
+  const run = store.db.prepare("SELECT status,recipe,contract FROM runs WHERE id=?").get(runId);
+  const row = store.db.prepare("SELECT spec,status,fence FROM tasks WHERE run=? AND id=?").get(runId, parentId);
+  invariant(run?.status === "RUNNING" && run.contract === digest(store.contract()), "inactive policy run");
+  invariant(row?.status === "READY" && row.fence === 0, "policy expansion requires an unstarted READY task");
+  invariant(!store.db.prepare("SELECT 1 FROM spawn_requests WHERE run=? AND parent=? AND request_key=?")
+    .get(runId, parentId, requestKey), "duplicate policy expansion key");
+  return admitChildren(store, runId, JSON.parse(row.spec), String(run.recipe), requestKey, requestHash, children, policy, now);
+}
+
+/** Shared validation and structural writes for worker- and policy-proposed
+ * children. The caller owns the transaction and validates current authority. */
+function admitChildren(store: Store, runId: string, parent: Task, recipeHash: string,
+  requestKey: string, requestHash: string, children: Task[], policy: SpawnPolicy, now: number): string[] {
+  invariant(Array.isArray(children) && children.length > 0 &&
+    children.length <= policy.maxChildrenPerTask, "spawn child batch exceeds limit");
+  const parentEdge = store.db.prepare("SELECT depth FROM spawn_edges WHERE run=? AND child=?")
+    .get(runId, parent.id);
+  const depth = (parentEdge?.depth ?? 0) + 1;
+  invariant(depth <= policy.maxDepth, "spawn depth exceeds limit");
+
+  const priorEdges = store.db.prepare(
+    "SELECT child FROM spawn_edges WHERE run=? AND parent=? ORDER BY child"
+  ).all(runId, parent.id);
+  invariant(priorEdges.length + children.length <= policy.maxChildrenPerTask,
+    "parent dynamic child limit exceeded");
+  const totalSpawned = store.db.prepare("SELECT COUNT(*) AS n FROM spawn_edges WHERE run=?")
+    .get(runId)!.n as number;
+  invariant(totalSpawned + children.length <= policy.maxSpawnedTasks,
+    "run dynamic task limit exceeded");
+  const totalTasks = store.db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE run=?")
+    .get(runId)!.n as number;
+  invariant(totalTasks + children.length <= store.contract().limits.tasks,
+    "contract task limit exceeded");
+
+  const readable = [...parent.writeScope, ...(parent.readScope ?? [])];
+  const childIds = new Set<string>();
+  for (const child of children) {
+    identifier(child.id);
+    invariant(child.id.startsWith(`${parent.id}.`) && child.id.length > parent.id.length + 1,
+      "spawned child id must be parent-namespaced");
+    invariant(!childIds.has(child.id), "duplicate spawned child id");
+    childIds.add(child.id);
+    invariant(!store.db.prepare("SELECT 1 FROM tasks WHERE run=? AND id=?")
+      .get(runId, child.id), "spawned child id already exists");
+  }
+  for (const child of children) {
+    const inherited = child.dependencies.filter(id => parent.dependencies.includes(id));
+    const siblingDependencies = child.dependencies.filter(id => !parent.dependencies.includes(id));
+    invariant(same(inherited, parent.dependencies),
+      "spawned child must preserve parent dependencies");
+    invariant(siblingDependencies.every(id => childIds.has(id) && id !== child.id),
+      "spawned child dependency must name a sibling in this batch");
+    invariant(same(child.dependencyViews, parent.dependencyViews),
+      "spawned child dependency views must match parent inputs");
+    for (const path of child.writeScope)
+      invariant(within(path, parent.writeScope),
+        "spawned child write scope exceeds parent authority");
+    for (const path of child.readScope ?? [])
+      invariant(within(path, readable),
+        "spawned child read scope exceeds parent authority");
+  }
+
+  const priorTasks = priorEdges.map(edge => {
+    const row = store.db.prepare("SELECT spec FROM tasks WHERE run=? AND id=?")
+      .get(runId, edge.child);
+    invariant(row?.spec, "missing prior spawned child");
+    return JSON.parse(row.spec) as Task;
+  });
+  const peers = [...priorTasks, ...children];
+  const peerById = new Map(peers.map(task => [task.id, task]));
+  for (let i = 0; i < peers.length; i++) for (let j = i + 1; j < peers.length; j++) {
+    invariant(!accessConflicts(peers[i], peers[j]) || dependencyOrders(peers[i], peers[j], peerById),
+      "spawned sibling access conflict; order conflicting work with dependsOn or use narrower scopes");
+  }
+
+  const graph: Task[] = store.db.prepare("SELECT spec FROM tasks WHERE run=?")
+    .all(runId).map(row => JSON.parse(row.spec));
+  graph.push(...children);
+  validateTasks(store.contract(), graph);
+  compilePlan(graph, store.recipe(recipeHash), store.contract().limits.contextBytes);
+
+  const insert = store.db.prepare("INSERT INTO tasks(run,id,spec,status) VALUES(?,?,?,'READY')");
+  for (const child of children) insert.run(runId, child.id, canonical(child));
+  const ids = children.map(child => child.id);
+  store.db.prepare("INSERT INTO spawn_requests VALUES(?,?,?,?,?,?,?)")
+    .run(runId, parent.id, requestKey, requestHash, canonical(ids), depth, now);
+  const edgeInsert = store.db.prepare("INSERT INTO spawn_edges VALUES(?,?,?,?,?,?)");
+  for (const child of children)
+    edgeInsert.run(runId, parent.id, child.id, requestKey, depth, now);
+  store.db.prepare("UPDATE runs SET graph_version=graph_version+1 WHERE id=?").run(runId);
+  // Dynamic expansion is the uncommon structural operation. Pay O(V+E) here
+  // once so subsequent claims remain bounded to ready/running work.
+  rebuildSchedulerIndex(store, runId, store.recipe(recipeHash), now);
+  registerTaskGoals(store, runId, children, parent.id, undefined, now);
+  refreshRunAllocations(store, runId, now);
+  store.event("task.expanded",
+    { parent: parent.id, requestKey, depth, children: ids }, runId, parent.id);
+  return ids;
 }

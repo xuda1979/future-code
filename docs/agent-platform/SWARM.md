@@ -16,8 +16,11 @@ and durable model-thread binding remain immutable; spawn edges are stored separa
 `runTasks` and `Scheduler` own dependencies,
 leases, attempts, logical read/write reservations, critical-path ordering and
 acceptance. `SwarmDriver` supplies the missing model/tool loop and an independent
-verifier. Agents do not get Store authority and cannot alter the DAG or spawn
-recursive workers. Different tasks may select different entries in a pinned
+verifier. Agents do not get Store authority. They may propose recursive child
+tasks within the host's depth/count/scope limits. Optional independent
+[workflow policy reviews](WORKFLOW_POLICY.md) can also propose atomic child-DAG,
+future-timeout and run-parallelism adjustments during execution. The runtime
+owns admission and scheduling. Different tasks may select different entries in a pinned
 model/tool/check roster using `task.agent`.
 
 ```

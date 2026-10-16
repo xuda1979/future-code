@@ -18,6 +18,8 @@ import { fabricStatus } from "../evidenceFabric.ts";
 import { claimGate } from "../claims.ts";
 import { git, LocalGitHands, orderedTasks, readPatchArtifact } from "./workspace.ts";
 import { checkPassed } from "./verification.ts";
+import { WorkflowPolicyAgent, workflowPolicyMetrics } from "./workflowPolicy.ts";
+import { workflowObservation } from "../workflow.ts";
 const json = (value: unknown): Json => JSON.parse(canonical(value));
 const KEY = "extension.swarm";
 export async function initializeSwarm(store: Store, input: SwarmSpec, signal: AbortSignal): Promise<PinnedSwarm> {
@@ -90,8 +92,12 @@ export async function runSwarm(store: Store, tasks: Task[], signal: AbortSignal,
   validateTasks(store.contract(), actual); validateSwarmTasks(cfg.spec, actual);
   const backend = cfg.handsId === remoteWorkerFleetBackend.id ? remoteWorkerFleetBackend : undefined;
   const driver = new SwarmDriver(store, cfg, fetcher, backend);
-  const summary = await runTasks(store, tasks, driver, { signal, resumeRun, onProgress, reportEveryMs: cfg.spec.supervision?.reportEveryMs });
+  const policy = cfg.spec.supervision?.workflowPolicy ? new WorkflowPolicyAgent(store, cfg, fetcher) : undefined;
+  const summary = await runTasks(store, tasks, driver, { signal, resumeRun, onProgress,
+    reportEveryMs: cfg.spec.supervision?.reportEveryMs,
+    ...(policy ? { beforeRefill: (run: string, signal: AbortSignal) => policy.review(run, signal) } : {}) });
   return json({ ...summary, providerUsage: driver.journal.usage(summary.id), productivity: executionProfile(store, summary.id), baseCommit: cfg.baseCommit,
+    ...(policy ? { workflowPolicy: workflowPolicyMetrics(store, summary.id) } : {}),
     note: "Acceptance is per-task. Run integrate for cross-task checks. Monetary cost is unknown without a trusted price meter." });
 }
 export function swarmStatus(store: Store, run?: string, after = ""): Json {
@@ -105,6 +111,7 @@ export function swarmStatus(store: Store, run?: string, after = ""): Json {
     health: runHealth(store, run), fabric: fabricStatus(store, run),
     ...(cfg.spec.coordination ? { coordination: new CohortBoard(store, cfg).status(run) } : {}),
     researchJobs: new ResearchJobs(new SessionJournal(store), cfg).list(run),
+    ...(cfg.spec.supervision?.workflowPolicy ? { workflow: workflowObservation(store, run), workflowPolicy: workflowPolicyMetrics(store, run) } : {}),
     taskPageLimit: 200, integrationReceipt: store.getMeta(`extension.swarm.integration.${run}`) ?? null });
 }
 interface IntegrationReceipt { run: string; base: string; tree: string; commit: string; branch: string; checksHash: string; binding: string }

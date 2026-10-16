@@ -1,3 +1,4 @@
+import { decodeSpawnChildren } from "./spawn.ts";
 import { DeferredAttemptError, PersistedDeferredAttemptError } from "../continuation.ts";
 import { ResearchJobs, type JobRPC } from "./jobs.ts";
 import { canSliceExploratoryCheckpoint, checkpointInputKey, evaluationEvidenceKey, shouldRunExploratoryCheckpoint } from "./checkpointPolicy.ts";
@@ -6,8 +7,8 @@ import { schedulerNode } from "../schedulerIndex.ts";
 import { FatalAttemptError } from "../errors.ts";
 import { spawnTasks } from "../dynamicDag.ts";
 import type { Store } from "../store.ts";
-import type { AttemptControl, Capsule, Driver, Json, Task, Verification, WorkerResult, Lease, Measurement } from "../types.ts";
-import { keys, validateSwarmTasks, type PinnedSwarm } from "./config.ts";
+import type { AttemptControl, Capsule, Driver, Json, Verification, WorkerResult, Lease, Measurement } from "../types.ts";
+import { keys, type PinnedSwarm } from "./config.ts";
 import { inlineReceipt, type Call, type ProgressCheckpoint } from "./context.ts";
 import { HttpBrain } from "./model.ts";
 import { MAX_CONSECUTIVE_RESPONSE_REJECTIONS, type Turn } from "./response.ts";
@@ -73,6 +74,9 @@ export class SwarmDriver implements Driver {
     const admittedContext = schedulerNode(this.store, c.runId, c.task.id)?.budget ?? this.store.recipe(c.recipeHash).contextBytes;
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
+      ...(this.cfg.spec.supervision?.workflowPolicy ? { workflowChildren: this.store.db.prepare(`SELECT t.id AS taskId,t.artifact AS artifactHash,t.evidence AS evidenceHash
+        FROM spawn_edges e JOIN tasks t ON t.run=e.run AND t.id=e.child
+        WHERE e.run=? AND e.parent=? AND t.status='PASS' ORDER BY t.id`).all(c.runId, c.task.id) } : {}),
       verification: { checks: profile.checks, finalIntegrationRequired: true },
       ...(profile.diagnostics ? { exploratoryChecks: profile.diagnostics } : {}),
       ...(profile.decisionPolicy ? { decisionPolicy: profile.decisionPolicy } : {}),
@@ -302,37 +306,7 @@ export class SwarmDriver implements Driver {
                 const policy = this.cfg.spec.supervision?.dynamicDAG;
                 invariant(policy, "dynamic DAG spawning is not configured");
                 const a = call.arguments; keys(a, ["children"]);
-                invariant(Array.isArray(a.children) && a.children.length > 0, "spawn_tasks requires children");
-                const rawChildren = (a.children as unknown[]).map(item => {
-                  invariant(item && typeof item === "object" && !Array.isArray(item), "invalid spawned child");
-                  const raw = item as Record<string, any>;
-                  keys(raw, ["id", "goal", "acceptance", "input", "writeScope", "readScope"],
-                    ["dependsOn", "agent", "priority", "estimatedDurationMs", "contextBudget"]);
-                  invariant(typeof raw.id === "string" && raw.id.length > 0, "invalid child id");
-                  return raw;
-                });
-                const localIds = new Set(rawChildren.map(raw => raw.id as string));
-                invariant(localIds.size === rawChildren.length, "duplicate spawned child id");
-                const children: Task[] = rawChildren.map(raw => {
-                  const dependsOn = raw.dependsOn ?? [];
-                  invariant(Array.isArray(dependsOn) && dependsOn.length <= policy.maxChildrenPerTask &&
-                    dependsOn.every((id: unknown) => typeof id === "string") &&
-                    new Set(dependsOn).size === dependsOn.length, "invalid spawned child dependencies");
-                  for (const id of dependsOn as string[]) invariant(localIds.has(id) && id !== raw.id,
-                    "spawned child dependency must name another child in this batch");
-                  const child: Task = { id: `${c.task.id}.${raw.id}`, goal: raw.goal, acceptance: raw.acceptance,
-                    dependencies: [...c.task.dependencies, ...(dependsOn as string[]).map(id => `${c.task.id}.${id}`)],
-                    writeScope: raw.writeScope, readScope: raw.readScope, input: raw.input };
-                  const agent = raw.agent ?? c.task.agent;
-                  if (agent !== undefined) child.agent = agent;
-                  if (raw.priority !== undefined) child.priority = raw.priority;
-                  if (raw.estimatedDurationMs !== undefined) child.estimatedDurationMs = raw.estimatedDurationMs;
-                  if (raw.contextBudget !== undefined) child.contextBudget = raw.contextBudget;
-                  if (c.task.dependencyViews !== undefined)
-                    child.dependencyViews = JSON.parse(canonical(c.task.dependencyViews));
-                  return child;
-                });
-                validateSwarmTasks(this.cfg.spec, children);
+                const children = decodeSpawnChildren(this.cfg.spec, c.task, a.children);
                 const reason = `Spawned ${children.length} child task(s); parent resumes after independent verification`;
                 const spawned = spawnTasks(this.store, c, call.id, digest(call.arguments), children, policy,
                   Date.now(), { reason, wakeAt: Date.now(), measurement: {

@@ -10,6 +10,8 @@ export { Store } from "./store.ts";
 export { Scheduler } from "./scheduler.ts";
 export { runTasks } from "./runtime.ts";
 export { spawnTasks } from "./dynamicDag.ts";
+export { workflowObservation, workflowVersions, applyWorkflowProposal } from "./workflow.ts";
+export type { WorkflowAuthority, WorkflowBounds, WorkflowProposal, WorkflowReceipt, WorkflowOperation } from "./workflow.ts";
 export { evaluate, promote, rollback, suggest, loadEvaluation } from "./evolution.ts";
 export { CommandDriver, pinCommand, commandVerifierId } from "./commands.ts";
 export { canonical, digest, validateContract, validateRecipe, validateTasks, encodeCapsule, progressDensity, allocateContext } from "./kernel.ts";

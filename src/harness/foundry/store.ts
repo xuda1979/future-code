@@ -1,3 +1,4 @@
+import { installWorkflowTables } from "./workflow.ts";
 import { mkdirSync, readFileSync, writeFileSync, openSync, closeSync, fsyncSync, linkSync, unlinkSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
@@ -96,7 +97,7 @@ export class Store {
     if (!metaCols.has("source_version")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_version INTEGER");
     const store = new Store(root, db); installContinuationTables(store); installEvidenceFabricTables(store);
     installSchedulerDispatch(store);
-    installProposalTables(store); installClaimTables(store); installExecutionProfile(store); return store;
+    installProposalTables(store); installWorkflowTables(store); installClaimTables(store); installExecutionProfile(store); return store;
   }
   transaction<T>(fn: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");
