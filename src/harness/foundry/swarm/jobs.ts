@@ -161,7 +161,8 @@ export class ResearchJobs {
       journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN idle_polls INTEGER NOT NULL DEFAULT 0");
     journal.store.db.exec(`CREATE INDEX IF NOT EXISTS research_jobs_run_template ON research_jobs(run,template);
       CREATE INDEX IF NOT EXISTS research_jobs_live_template ON research_jobs(template) WHERE result_hash IS NULL;
-      CREATE INDEX IF NOT EXISTS research_jobs_receipt ON research_jobs(run,task,result_hash);`);
+      CREATE INDEX IF NOT EXISTS research_jobs_receipt ON research_jobs(run,task,result_hash);
+      CREATE INDEX IF NOT EXISTS research_jobs_template_history ON research_jobs(template,updated);`);
   }
   /** Read-only RPC on an existing terminal job. An artifact reference never
    * grants another thread's data, changes acceptance, or calls ensure again. */

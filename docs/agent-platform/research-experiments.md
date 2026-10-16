@@ -1,6 +1,7 @@
 # Executable research contracts
 
 For explicit reuse across runs, see [persistent research programmes](research-programmes.md).
+For bounded workflow advice and matched local evaluation, see [research strategy](research-strategy.md).
 
 Long research projects need refutable hypotheses, reproducible experiments and
 independent checks. More agents alone do not supply those properties. Foundry's

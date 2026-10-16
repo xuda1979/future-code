@@ -1,3 +1,4 @@
+import { researchStrategySnapshot } from "./researchStrategy.ts";
 import { randomUUID } from "node:crypto";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { applyWorkflowProposal, workflowObservation, workflowVersions } from "../workflow.ts";
@@ -73,11 +74,14 @@ export class WorkflowPolicyAgent {
       "Children use local IDs and dependsOn sibling IDs, inherit the parent's verified dependencies and must stay inside parent file scopes.",
       "Child input is explicit JSON; reference the problem in the parent goal when appropriate. Do not fabricate unseen evidence.",
       "Timeouts affect future leases only; parallelism is bounded by the admitted recipe. Ongoing work drains without preemption.",
+      "When researchStrategy is present, use only its frozen scientific templates for research children; consider its measured next experiment and explicit blocked/unknown states. A recommendation is advisory and never scientific acceptance.",
       "Never request changes to checks, scopes, budgets, protocols or task outcomes. Agreement between agents is not proof.",
       "This is a bounded active-work page. Omitted nodes and truncated previews are unknown, not absent. Do not rewrite the whole graph.",
     ].join(" ");
-    const packet = canonical({ observation: workflowObservation(this.store, run,
-      { limit: p.maxSnapshotTasks, maxBytes: p.maxSnapshotBytes }),
+    const observation = workflowObservation(this.store, run, { limit: p.maxSnapshotTasks, maxBytes: p.maxSnapshotBytes });
+    const packet = canonical({
+      ...(this.cfg.spec.researchStrategy ? { researchStrategy: researchStrategySnapshot(this.store, this.cfg, run, (observation as any).tasks.map((t: any) => t.id)) } : {}),
+      observation,
       requestBudget: { maxRequests: this.cfg.spec.budget.maxRequests,
         maxRequestBytes: this.cfg.spec.budget.maxRequestBytes, modelConcurrency: this.cfg.spec.budget.modelConcurrency,
         used: this.journal.usage(run), costUsd: null },

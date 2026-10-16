@@ -83,6 +83,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       const spec = bellExperiment(control), result = simulateQuantum(spec);
       console.log(JSON.stringify({ control, specHash: digest(spec), assessment: assessResearch(spec, result) }));
     }
+  } else if (process.argv.includes("--evaluate")) {
+    const input = JSON.parse(readFileSync(0, "utf8"));
+    invariant(input.schema === 1, "invalid local evaluation request");
+    console.log(JSON.stringify({ result: simulateQuantum(input.spec) }));
   } else {
     const index = process.argv.indexOf("--spec"); invariant(index >= 0 && process.argv[index + 1], "--spec required");
     const spec = JSON.parse(readFileSync(process.argv[index + 1], "utf8"));
