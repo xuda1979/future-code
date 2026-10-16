@@ -68,7 +68,7 @@ export function selectResearchStrategy(s: ResearchStrategy, observations: Strate
     const set = outcomes.get(o.candidate) ?? new Set(); set.add(o.assessment.outcome); outcomes.set(o.candidate, set);
   }
   const blocked = new Set<string>();
-  for (const [id, values] of outcomes) if ((values.has("SUPPORTED") && values.has("REFUTED")) ||
+  for (const [id, values] of outcomes) if (observations.some(o => o.candidate === id && o.assessment.conflicted) || (values.has("SUPPORTED") && values.has("REFUTED")) ||
     (s.stopOnRefutation && values.has("REFUTED"))) blocked.add(byId.get(id)!.line);
   const observed = Object.fromEntries([...outcomes].map(([id, values]) => [id, [...values].sort()]));
   const result = (next: string | null, reason: string) => ({ next, reason, blockedLines: [...blocked].sort(), observed });

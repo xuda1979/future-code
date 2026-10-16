@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { digest, invariant, sha256 } from "../src/harness/foundry/kernel.ts";
-import { assessResearch, validateResearchSpec } from "../src/harness/foundry/research.ts";
+import { assessResearch, validateResearchSpec } from "../adapters/research/legacy.ts";
 
 export function bellExperiment(control = false) {
   const preparation = control ? [] : [["h", 0], ["cx", 0, 1]];

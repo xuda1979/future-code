@@ -67,7 +67,7 @@ def read(path: Path) -> Any:
 
 def template(path: Path) -> dict[str, Any]:
     cfg = read(path)
-    if not isinstance(cfg, dict) or set(cfg) - {"argv", "cwd", "timeoutMs", "envAllow", "resultMaxBytes", "maxLogBytes"}:
+    if not isinstance(cfg, dict) or set(cfg) - {"argv", "cwd", "timeoutMs", "envAllow", "resultMaxBytes", "maxLogBytes", "artifacts"}:
         raise ValueError("invalid trusted job template")
     argv = cfg.get("argv")
     if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a and "\0" not in a for a in argv):
@@ -87,6 +87,19 @@ def template(path: Path) -> dict[str, Any]:
     for name, ceiling in (("resultMaxBytes", 65536), ("maxLogBytes", 268435456)):
         if name in cfg and (type(cfg[name]) is not int or not 1 <= cfg[name] <= ceiling):
             raise ValueError(f"invalid {name}")
+    artifacts = cfg.get("artifacts", {})
+    if not isinstance(artifacts, dict) or len(artifacts) > 32:
+        raise ValueError("invalid declared artifacts")
+    total = 0
+    for name, spec in artifacts.items():
+        if (not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", name)
+                or name in ("stdout", "stderr", "result", "__proto__", "constructor", "prototype")
+                or not isinstance(spec, dict) or set(spec) != {"maxBytes"}
+                or type(spec["maxBytes"]) is not int or not 1 <= spec["maxBytes"] <= 268435456):
+            raise ValueError("invalid declared artifact name or byte limit")
+        total += spec["maxBytes"]
+    if total > 268435456:
+        raise ValueError("declared artifact total exceeds byte limit")
     return cfg
 
 
@@ -135,6 +148,33 @@ def structured_result(directory: Path, limit: int) -> tuple[dict[str, Any], dict
     return data, {"sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}
 
 
+def capture_artifact(directory: Path, output_fd: int, name: str, limit: int) -> dict[str, Any]:
+    """Snapshot an operator-declared flat output through its original directory FD.
+    Renaming/replacing the output directory cannot redirect the capture outside it.
+    An interrupted capture can leave an uncited file, never a successful manifest.
+    """
+    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=output_fd)
+    with os.fdopen(fd, "rb") as source:
+        before = os.fstat(source.fileno())
+        if not stat.S_ISREG(before.st_mode) or before.st_size > limit:
+            raise ValueError("declared artifact is not a bounded regular file")
+        dest = os.open(directory / f"{name}.bin", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        size, checksum = 0, hashlib.sha256()
+        with os.fdopen(dest, "wb") as out:
+            while chunk := source.read(min(65536, limit + 1 - size)):
+                size += len(chunk)
+                if size > limit:
+                    raise ValueError("declared artifact exceeds byte limit")
+                out.write(chunk)
+                checksum.update(chunk)
+            after = os.fstat(source.fileno())
+            if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns) or size != before.st_size:
+                raise ValueError("declared artifact changed while capturing")
+            out.flush()
+            os.fsync(out.fileno())
+    return {"sha256": checksum.hexdigest(), "bytes": size}
+
+
 def artifact_page(directory: Path, key: str, request: dict[str, Any], cfg: dict[str, Any]) -> dict[str, Any]:
     if set(request) - {"schema", "operation", "key", "jobId", "artifact", "offset", "length"}:
         raise ValueError("invalid artifact request")
@@ -144,13 +184,13 @@ def artifact_page(directory: Path, key: str, request: dict[str, Any], cfg: dict[
     if record["status"] not in ("SUCCEEDED", "FAILED", "CANCELLED"):
         raise ValueError("artifact is not terminal evidence")
     name = request.get("artifact")
-    if name not in ("stdout", "stderr", "result"):
+    if not isinstance(name, str) or (name not in ("stdout", "stderr", "result") and name not in cfg.get("artifacts", {})):
         raise ValueError("unknown artifact")
     offset, length = request.get("offset", 0), request.get("length", 4096)
     if type(offset) is not int or offset < 0 or type(length) is not int or not 1 <= length <= 8192:
         raise ValueError("invalid artifact range")
     meta = record.get("result", {}).get("artifacts", {}).get(name)
-    limit = cfg.get("resultMaxBytes" if name == "result" else "maxLogBytes", 0)
+    limit = cfg["artifacts"][name]["maxBytes"] if name in cfg.get("artifacts", {}) else cfg.get("resultMaxBytes" if name == "result" else "maxLogBytes", 0)
     if not isinstance(meta, dict) or type(meta.get("bytes")) is not int or not 0 <= meta["bytes"] <= limit:
         raise ValueError("invalid artifact metadata")
     size, checksum = 0, hashlib.sha256()
@@ -312,6 +352,12 @@ def worker(directory: Path) -> None:
         env.update({k: os.environ[k] for k in cfg.get("envAllow", []) if k in os.environ})
         if "resultMaxBytes" in cfg:
             env["FUTURE_JOB_RESULT_PATH"] = str(directory / "result.json")
+        output_fd = None
+        if cfg.get("artifacts"):
+            outputs = directory / "outputs"
+            outputs.mkdir(mode=0o700)
+            output_fd = os.open(outputs, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            env["FUTURE_JOB_ARTIFACT_DIR"] = str(outputs)
         tails: dict[str, bytes] = {"stdout": b"", "stderr": b""}
         artifacts: dict[str, Any] = {}
         capture_errors: dict[str, str] = {}
@@ -412,6 +458,15 @@ def worker(directory: Path) -> None:
                 artifacts["result"] = meta
             except (OSError, ValueError, RecursionError):
                 reason = reason or "structured result missing, invalid, or exceeds byte budget"
+        if output_fd is not None:
+            try:
+                for name, spec in cfg["artifacts"].items():
+                    try:
+                        artifacts[name] = capture_artifact(directory, output_fd, name, spec["maxBytes"])
+                    except (OSError, ValueError):
+                        reason = reason or "declared artifact missing, invalid, or exceeds byte budget"
+            finally:
+                os.close(output_fd)
         if artifacts:
             result["artifacts"] = artifacts
         if reason:

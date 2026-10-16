@@ -69,6 +69,8 @@ produce an accepted export. Use distinct logical names for a result that builds
 on an earlier finding instead of overwriting its own dependency.
 
 Support and refutation of the same frozen protocol create an explicit conflict.
+Schema-2 findings whose independent validators disagree are also published as
+CONFLICTED immediately, with all validator report references retained.
 Neither result becomes reusable programme context. Further agreeing results do
 not resolve the conflict by voting. Investigate with an independently checked
 discriminator and an explicitly reviewed new protocol/finding name. This version

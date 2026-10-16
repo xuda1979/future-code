@@ -1,7 +1,7 @@
 import { DeferredAttemptError } from "../continuation.ts";
 import { FatalAttemptError } from "../errors.ts";
 import { checkPins } from "../commands.ts";
-import { canonical, digest, invariant } from "../kernel.ts";
+import { canonical, digest, identifier, invariant } from "../kernel.ts";
 import type { Store } from "../store.ts";
 import type { Capsule, Json } from "../types.ts";
 import type { PinnedSwarm, AgentProfile, JobTemplate } from "./config.ts";
@@ -174,7 +174,7 @@ export class ResearchJobs {
     invariant(Number.isSafeInteger(offset) && (offset as number) >= 0 &&
       Number.isSafeInteger(length) && (length as number) > 0 && (length as number) <= 8192, "invalid artifact range");
     invariant(typeof a.receipt === "string" && this.journal.ownsReceipt(c, a.receipt), "job result not owned by this thread");
-    invariant(typeof a.artifact === "string" && ["stdout", "stderr", "result"].includes(a.artifact), "unknown job artifact");
+    invariant(typeof a.artifact === "string", "invalid job artifact name"); identifier(a.artifact);
     const store = this.journal.store;
     const row = store.db.prepare("SELECT * FROM research_jobs WHERE run=? AND task=? AND result_hash=?")
       .get(c.runId, c.task.id, a.receipt);
@@ -186,7 +186,7 @@ export class ResearchJobs {
     const original = store.readArtifact(a.receipt) as any;
     const meta = original?.result?.artifacts?.[a.artifact];
     invariant(original?.key === row.key && original?.jobId === row.job_id && original?.status === row.status &&
-      meta && typeof meta.sha256 === "string" && /^[a-f0-9]{64}$/.test(meta.sha256) &&
+      Object.hasOwn(original?.result?.artifacts ?? {}, a.artifact) && meta && typeof meta.sha256 === "string" && /^[a-f0-9]{64}$/.test(meta.sha256) &&
       Number.isSafeInteger(meta.bytes) && meta.bytes >= 0, "missing or invalid terminal artifact manifest");
     const request = { schema: 1, operation: "read_artifact", key: row.key, jobId: row.job_id,
       artifact: a.artifact, offset, length } as Json;

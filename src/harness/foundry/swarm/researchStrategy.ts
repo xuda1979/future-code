@@ -67,7 +67,7 @@ export function researchStrategySnapshot(store: Store, cfg: PinnedSwarm, run: st
   const snapshot = { schema: 1, authority: "ADVICE_ONLY_RUNTIME_ENFORCES_SAFETY", strategyHash: digest(policy), used,
     decision: unavailable ? { ...decision, next: null, reason: unavailable } : decision,
     candidates: summaries, observations: observations.map(o => ({ key: o.key, candidate: o.candidate,
-      specHash: o.assessment.specHash, resultHash: o.assessment.resultHash, outcome: o.assessment.outcome })),
+      specHash: o.assessment.specHash, resultHash: o.assessment.resultHash, outcome: o.assessment.outcome, ...(o.assessment.conflicted ? { conflicted: true } : {}) })),
     unresolved: [...new Set(unresolved)] };
   invariant(Buffer.byteLength(canonical(snapshot)) <= policy.maxSnapshotBytes, "research strategy snapshot exceeds byte bound");
   return JSON.parse(canonical(snapshot));

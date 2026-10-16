@@ -1,5 +1,9 @@
 # Executable research contracts
 
+New projects should use the [domain-neutral schema-2 framework](SCIENTIFIC_EXPERIMENT_FRAMEWORK.md).
+This page documents the schema-1 compatibility examples. Their scientific methods
+live in the optional `adapters/research/legacy.ts` adapter.
+
 For explicit reuse across runs, see [persistent research programmes](research-programmes.md).
 For bounded workflow advice and matched local evaluation, see [research strategy](research-strategy.md).
 
@@ -16,8 +20,8 @@ set `research: ["template-name"]` on every task that requires its result. Dynami
 children may request authorized template names using the same field. The parent
 retains its original required experiments and acceptance conditions.
 
-`ResearchSpec` is the discriminated union in
-`src/harness/foundry/research.ts`. All variants require:
+The schema-1 compatibility `ResearchSpec` union lives in
+`adapters/research/legacy.ts`. All its variants require:
 
 | Field | Meaning |
 | --- | --- |

@@ -1,6 +1,6 @@
 import { validateResearchStrategy, type ResearchStrategy } from "../researchStrategy.ts";
 import { validateKnowledgeRefs, type ProgrammePolicy } from "../researchProgramme.ts";
-import { validateResearchSpec, type ResearchSpec } from "../research.ts";
+import { validateResearchConfiguration, type ResearchConfiguration, type PinnedScientificValidator } from "../researchValidation.ts";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { identifier, invariant, positive, validateContract, validateRecipe } from "../kernel.ts";
@@ -81,7 +81,7 @@ export interface SwarmBudget {
   maxPatchBytes: number;
 }
 export interface JobTemplate {
-  research?: { spec: ResearchSpec; proofChecker?: CommandSpec; provides?: string };
+  research?: ResearchConfiguration;
   adapter: CommandSpec;
   /** Optional submission gate: exact-source/evidence passing run_check receipts. */
   preflightChecks?: string[];
@@ -181,6 +181,7 @@ export interface PinnedSwarm {
   checks: Record<string, PinnedCommand>;
   jobAdapters?: Record<string, PinnedCommand>;
   researchCheckers?: Record<string, PinnedCommand>;
+  experimentValidators?: Record<string, Record<string, PinnedScientificValidator>>;
   workerAdapters?: Record<string, PinnedCommand>;
 }
 export function keys(value: object, required: string[], optional: string[] = []): void {
@@ -421,8 +422,10 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     for (const [id, job] of Object.entries(s.jobs)) {
       identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs", "preflightChecks", "research"]);
       if (job.research !== undefined) {
-        keys(job.research, ["spec"], ["proofChecker", "provides"]); validateResearchSpec(job.research.spec);
-        invariant((job.research.spec.kind === "formal-proof") === !!job.research.proofChecker, "formal obligations require a separate independent proof checker");
+        validateResearchConfiguration(job.research, job.adapter);
+        const validators = Object.values(job.research.validators ?? {});
+        invariant(validators.reduce((n, v) => n + v.timeoutMs, 0) <= s.budget.toolTimeoutMs &&
+          validators.every(v => v.maxOutputBytes <= s.budget.maxToolOutputBytes), "scientific validation exceeds stage budget");
         if (job.research.provides !== undefined) identifier(job.research.provides);
         if (job.research.proofChecker) keys(job.research.proofChecker, ["argv"], ["envAllow", "files"]);
       }
@@ -455,7 +458,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   const credentialNames = new Set(Object.values(s.agents).map(a => a.keyEnv).filter(Boolean));
   for (const check of [...Object.values(s.checks), ...Object.values(s.jobs ?? {}).map(j => j.adapter),
     ...Object.values(s.workers ?? {}).map(w => w.adapter),
-    ...Object.values(s.jobs ?? {}).flatMap(j => j.research?.proofChecker ? [j.research.proofChecker] : [])]) {
+    ...Object.values(s.jobs ?? {}).flatMap(j => j.research?.proofChecker ? [j.research.proofChecker] : []),
+    ...Object.values(s.jobs ?? {}).flatMap(j => Object.values(j.research?.validators ?? {}).map(v => v.command))]) {
     invariant(!(check.envAllow ?? []).some(name => credentialNames.has(name)),
       "model credentials may not be forwarded to checks/jobs/execution workers");
   }
