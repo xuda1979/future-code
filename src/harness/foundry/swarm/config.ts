@@ -1,3 +1,4 @@
+import { validateResearchStrategy, type ResearchStrategy } from "../researchStrategy.ts";
 import { validateKnowledgeRefs, type ProgrammePolicy } from "../researchProgramme.ts";
 import { validateResearchSpec, type ResearchSpec } from "../research.ts";
 import { existsSync, realpathSync, statSync } from "node:fs";
@@ -152,6 +153,7 @@ export interface SwarmSpec {
   };
   jobs?: Record<string, JobTemplate>;
   researchProgramme?: ProgrammePolicy;
+  researchStrategy?: ResearchStrategy;
   /** Evidence-Fabric semantic contract. Defaults to software-engineering. */
   domainPack?: "software-engineering" | "ml-research" | "scientific-computing";
   /** Optional multi-host execution fleet. The coordinator remains authoritative. */
@@ -198,7 +200,7 @@ function names(names: string[], known: string[], label: string): void {
 }
 export const permittedChecks = (a: AgentProfile): string[] => [...new Set([...a.checks, ...(a.diagnostics ?? [])])];
 export function validateSwarmSpec(s: SwarmSpec): void {
-  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack", "coordination", "verification", "debugging", "researchProgramme"]);
+  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack", "coordination", "verification", "debugging", "researchProgramme", "researchStrategy"]);
   invariant(s.schema === 1 && typeof s.name === "string" && !!s.name.trim(), "invalid swarm identity");
   invariant(typeof s.project === "string" && s.project.length > 0, "missing project");
   invariant(s.domainPack === undefined ||
@@ -208,6 +210,12 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   const c: Contract = { schema: 1, name: s.name, workerId: "swarm", verifierId: "swarm-checker", environmentId: "pinned-project",
     requiredChecks: ["scope", "behavior"], slos: [], limits: s.limits };
   validateContract(c); validateRecipe(c, s.recipe);
+  if (s.researchStrategy !== undefined) {
+    validateResearchStrategy(s.researchStrategy);
+    invariant(s.supervision?.workflowPolicy, "research strategy requires an independent workflow adviser");
+    invariant(s.researchStrategy.maxSnapshotBytes <= s.recipe.contextBytes, "strategy context exceeds admitted context");
+    for (const c of s.researchStrategy.candidates) invariant(Object.hasOwn(s.jobs ?? {}, c.template) && s.jobs![c.template].research, "strategy requires a pinned scientific template");
+  }
   if (s.researchProgramme !== undefined) {
     keys(s.researchProgramme, ["id", "maxFindingsPerTask", "maxContextBytes"]); identifier(s.researchProgramme.id);
     positive(s.researchProgramme.maxFindingsPerTask, 32, "programme findings per task");
