@@ -93,6 +93,7 @@ test("shared lemma bottlenecks outrank unrelated exploration; diamond dependents
   assert.deepEqual(f.batch, ["shared", "unrelated"]); assert.equal(f.unlocks.shared, 3); assert.equal(f.proofStates.goal, "WAITING");
   const reservedGoal = selectResearchFrontier(strategy, [], 1, { theory: graph, pending: ["goal"] });
   assert.deepEqual(reservedGoal.batch, ["shared", "unrelated"]); assert.equal(reservedGoal.activeAssignments, 0);
+  assert.equal(reservedGoal.unlocks.shared, 3);
   f = selectResearchFrontier(strategy, [observed("shared")], 1, { theory: graph, pending: ["unrelated"] });
   assert.deepEqual(f.batch, ["left"]); assert.equal(f.proofStates.shared, "ESTABLISHED");
   f = selectResearchFrontier(strategy, [observed("shared"), observed("left"), observed("right")], 3, { theory: graph });

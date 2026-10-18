@@ -103,7 +103,8 @@ export function selectResearchFrontier(s: ResearchStrategy, observations: Strate
     if (descendants.has(id)) return descendants.get(id)!;
     const ids = new Set<string>();
     for (const child of children.get(id) ?? []) {
-      if (["WAITING", "ELIGIBLE"].includes(states[child])) ids.add(child);
+      if (["WAITING", "ELIGIBLE"].includes(states[child]) ||
+        (states[child] === "ASSIGNED" && theory[child] && !evidenceValid(child))) ids.add(child);
       for (const next of downstream(child)) ids.add(next);
     }
     descendants.set(id, ids); return ids;
