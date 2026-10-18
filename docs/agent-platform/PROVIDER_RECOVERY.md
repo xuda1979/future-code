@@ -27,9 +27,17 @@ not increment the backoff twice.
 
 ## Timing and accounting
 
-Each distinct consecutive failure backs off for 1, 2, 4, 8, 16, 32, then 60
-seconds. A successful current probe resets this counter. Earlier successful
+Each consecutive failed recovery round backs off for 1, 2, 4, 8, 16, 32, then 60
+seconds. Concurrent calls admitted in the same epoch count as one round;
+their individual requests, unknown spend and Retry-After directives are still
+recorded. A successful current probe resets this counter. Earlier successful
 requests do not inflate the delay of the next outage.
+
+If peers waited for an in-flight probe's full deadline, that probe's failure
+shortens those waits to the next retry time. Persistence reconciles the same
+transition if the verdict arrives before a peer writes its continuation. Success
+wakes those peers immediately. Task fences and provider admission are rechecked
+when work resumes; neither transition bypasses concurrency or budget limits.
 
 HTTP `Retry-After` accepts numeric seconds and HTTP dates. Longer valid advice
 wins over local backoff, with a host ceiling of 24 hours. Missing, invalid or
@@ -71,5 +79,39 @@ planning and independently verified work during an outage. They use controlled
 provider faults and actual Git/check execution. They establish host behavior;
 they do not measure live-model productivity or promise that a provider returns.
 
-Runtime scope is Foundry/Swarm. The older terminal QueryEngine uses its existing
-API client and is not migrated by this change.
+## Terminal API client
+
+The terminal QueryEngine retains its own client and permission path. It shares
+transport classification and Retry-After parsing with Swarm. Foreground queries
+retry transient connection, timeout, capacity and gateway faults even after the
+ordinary retry count is exhausted. Availability retries use exponential backoff
+with jitter capped at 60 seconds; valid longer Retry-After/reset advice takes
+precedence (capped at six hours). Raw transport faults produce the same visible
+retry messages as SDK errors, every 30 seconds during long waits. The next
+connection attempt creates a fresh client. A successful request continues the
+existing query; no separate health endpoint or extra model probe is billed.
+The outer model-idle watchdog recognizes these host retry-wait events as
+liveness without counting them as model progress. Ordinary transport pings do
+not extend that deadline, and a retry adapter that stops emitting heartbeats
+still times out.
+When a request never returns, the configured model-idle deadline bounds each
+probe. Persistent foreground mode retries again with backoff capped at 30 seconds,
+instead of stopping after one reconnect. This path runs only before tool
+admission; admitted tools are collected using their actual receipts. The remote
+client also recognizes SDK `api_retry` notices as live waits, preserving its
+reconnect budget and still expiring a turn if those notices disappear.
+
+`FUTURE_CODE_UNATTENDED_RETRY=0` restores bounded retries. Background summaries
+and titles retain bounded retries so a metadata request cannot hold up the main
+task indefinitely. Invalid retry-count settings fall back to the default rather
+than skipping the initial request. Configuration/authentication errors keep
+their existing bounded refresh/failure path; operator cancellation stops waiting.
+
+```sh
+bun test --preload ./tests/api/retry-isolation.ts ./tests/api/retry-resilience.test.ts
+```
+
+The preload isolates terminal/auth/telemetry dependencies and advances sleeps
+logically. It exercises the real retry loop and SDK error classes, not live
+provider availability. Core CI runs it in a separate job with the pinned public
+SDK alias; the dependency-free Node gate checks the shared policy as well.

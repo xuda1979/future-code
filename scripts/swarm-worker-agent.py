@@ -211,11 +211,38 @@ def context(root: Path, workspace: str) -> tuple[Path, dict[str, Any]]:
     return tree, state["request"]
 
 
+def source_context(lines: list[str], index: int, radius: int, excerpt: str, max_bytes: int) -> dict[str, Any]:
+    """Same bounded, contiguous context contract as the local search backend."""
+    desired_start, desired_end = max(0, index - radius), min(len(lines), index + radius + 1)
+    start, end, size = index, index + 1, len(lines[index].encode())
+    if size > max_bytes:
+        return {"startLine": start + 1, "endLine": end,
+                "content": excerpt.encode()[:max_bytes].decode("utf-8", errors="ignore"), "truncated": True}
+    before = after = True
+    for distance in range(1, radius + 1):
+        left, right = index - distance, index + distance
+        if before and left >= desired_start:
+            count = len(lines[left].encode()) + 1
+            if size + count <= max_bytes:
+                start, size = left, size + count
+            else:
+                before = False
+        if after and right < desired_end:
+            count = len(lines[right].encode()) + 1
+            if size + count <= max_bytes:
+                end, size = right + 1, size + count
+            else:
+                after = False
+    return {"startLine": start + 1, "endLine": end, "content": "\n".join(lines[start:end]),
+            "truncated": start > desired_start or end < desired_end}
+
+
 def search_source(tree: Path, prepared: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
     """Read-only literal discovery; cursors assume an unchanged private tree."""
-    if set(args) - {"query", "path", "limit", "cursor"}:
+    if set(args) - {"query", "path", "limit", "cursor", "contextLines"}:
         raise ValueError("unexpected search argument")
     query, prefix, limit, cursor = args.get("query"), args.get("path"), args.get("limit", 20), args.get("cursor")
+    context_lines = args.get("contextLines", 0)
     scopes = [*prepared["task"].get("writeScope", []), *prepared["task"].get("readScope", [])]
 
     def search_path(path: str) -> Path:
@@ -228,6 +255,8 @@ def search_source(tree: Path, prepared: dict[str, Any], args: dict[str, Any]) ->
         raise ValueError("invalid search query (single-line literal, 1..256 UTF-8 bytes)")
     if type(limit) is not int or not 1 <= limit <= 100:
         raise ValueError("invalid search limit")
+    if type(context_lines) is not int or not 0 <= context_lines <= 20:
+        raise ValueError("invalid search contextLines")
     if prefix is not None:
         search_path(prefix)
         if not in_scope(prefix, scopes) and not any(in_scope(scope, [prefix]) for scope in scopes):
@@ -280,14 +309,18 @@ def search_source(tree: Path, prepared: dict[str, Any], args: dict[str, Any]) ->
         except (OSError, ValueError):
             result["skippedFiles"] += 1
             continue
-        for i, line in enumerate(text.split("\n")[start - 1:], start):
+        lines = text.split("\n")
+        for i, line in enumerate(lines[start - 1:], start):
             if time.monotonic() >= deadline:
                 return finish({"path": path, "line": i})
             at = line.find(query)
             if at < 0:
                 continue
             excerpt = line[max(0, at - 40):at] + query + line[at + len(query):at + len(query) + 80]
-            result["matches"].append({"path": path, "line": i, "text": excerpt, "truncated": excerpt != line})
+            match = {"path": path, "line": i, "text": excerpt, "truncated": excerpt != line}
+            if context_lines:
+                match["context"] = source_context(lines, i - 1, context_lines, excerpt, max(0, min(8192, max_out // 2 - 512)))
+            result["matches"].append(match)
             if len(result["matches"]) > limit or len(encoded({**result, "nextCursor": {"path": path, "line": i}})) + 64 > max_out:
                 result["matches"].pop()
                 if not result["matches"]:

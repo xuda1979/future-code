@@ -11,6 +11,7 @@ import { transientStatus } from "./providerRecovery.ts";
 import { abortable, boundedFetch, discardResponse } from "./transport.ts";
 import type { DiagnosticContext } from "./diagnostics.ts";
 import { decodeResponse, type Turn } from "./response.ts";
+import { isProviderTransportError } from "../../../utils/providerRetryPolicy.ts";
 export { decodeTurn, type Turn } from "./response.ts";
 export interface ToolDefinition { name: ToolName; description: string; schema: Record<string, Json> }
 const string = { type: "string" }; const integer = { type: "integer", minimum: 0 };
@@ -44,9 +45,10 @@ export const definitions: ToolDefinition[] = [
   }, ["children"]),
   def("list_files", "List tracked and new files in the task's readable scopes. Paginated; paths only.", { offset: integer, limit: { type: "integer", minimum: 1, maximum: 200 } }, []),
   def("read_file", "Read a bounded line range of a non-symlink UTF-8 file in readable scopes.", { path: string, start: { type: "integer", minimum: 1 }, lines: { type: "integer", minimum: 1, maximum: 300 } }, ["path"]),
-  def("search_files", "Find case-sensitive literal text in scoped Git-tracked and nonignored new UTF-8 files. Returns line locations and bounded excerpts. Narrow with a file/directory path; omit path for all readable scopes. Continue with nextCursor until null; skippedFiles reports unsearched inputs. Restart pagination after edits or worker replacement. This is source discovery, never a check or proof of absence.", {
+  def("search_files", "Find case-sensitive literal text in scoped Git-tracked and nonignored new UTF-8 files. Returns line locations and bounded excerpts. Set contextLines (0..20) to include surrounding code in this same call, avoiding a search/read reasoning round trip; context.truncated marks omitted context. Narrow with a file/directory path; omit path for all readable scopes. Continue with nextCursor until null; skippedFiles reports unsearched inputs. Restart pagination after edits or worker replacement. This is source discovery, never a check or proof of absence.", {
     query: { type: "string", minLength: 1, maxLength: 256 }, path: string,
     limit: { type: "integer", minimum: 1, maximum: 100 },
+    contextLines: { type: "integer", minimum: 0, maximum: 20 },
     cursor: { type: "object", properties: { path: string, line: { type: "integer", minimum: 1 } }, required: ["path", "line"], additionalProperties: false },
   }, ["query"]),
   def("write_file", "Write a UTF-8 file within the task's exclusive write scopes; use edit_file for small changes.", { path: string, content: string }, ["path", "content"]),
@@ -337,12 +339,5 @@ export class HttpBrain {
 
 /** Inspect bounded cause chains; syntax/schema errors are NOT network outages. */
 export function isTransportFailure(error: unknown): boolean {
-  let e = error as any; const seen = new Set<unknown>();
-  for (let n = 0; e && n < 8 && !seen.has(e); n++, e = e.cause) {
-    seen.add(e);
-    if (["TimeoutError", "APIConnectionError"].includes(e.name) ||
-      ["ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "EPIPE", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_SOCKET"].includes(e.code) ||
-      (e instanceof TypeError && /fetch failed|network|connection/i.test(e.message))) return true;
-  }
-  return false;
+  return isProviderTransportError(error);
 }

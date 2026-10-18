@@ -182,12 +182,12 @@ export function useRemoteSession({
           return
         }
 
-        // Only messages that demonstrate foreground answer work refresh the
-        // watchdog. Background task/status chatter is handled separately and
-        // must not keep a silent foreground turn alive forever.
+        // Work resets the reconnect budget; explicit host API retry waits
+        // refresh only the response timer. Generic background/status chatter
+        // cannot keep a silent foreground turn alive.
         if (isRemoteResponseProgress(sdkMessage)) {
           responseWatchdogRef.current?.progress()
-        }
+        } else responseWatchdogRef.current?.retryWait(sdkMessage)
         // Handle init message - extract available slash commands
         if (
           sdkMessage.type === 'system' &&

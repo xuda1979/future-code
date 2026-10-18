@@ -23,6 +23,57 @@ test('control heartbeats cannot mask a stalled model', async () => {
     for await (const _ of watchModelStream(pings, opts())) {}
   }, ModelStreamStalledError)
 })
+test('host API retry waits survive the model idle deadline without counting as model progress', async () => {
+  let observations = 0, progress = 0
+  async function* recovering() {
+    for (let i = 0; i < 8; i++) {
+      await delay(8)
+      yield { type: 'system', subtype: 'api_error', retryInMs: 65000.25 - i * 1000, retryAttempt: 4 }
+    }
+    yield { type: 'assistant' }
+  }
+  for await (const message of watchModelStream(recovering, opts())) {
+    observations++
+    if (isModelProgress(message)) progress++
+  }
+  assert.equal(observations, 9)
+  assert.equal(progress, 1, 'waiting is liveness, never verified/model progress')
+})
+test('a lost retry heartbeat still times out rather than hiding an adapter hang', async () => {
+  async function* lost() {
+    yield { type: 'system', subtype: 'api_error', retryInMs: 65000, retryAttempt: 1 }
+    await new Promise(() => {})
+  }
+  await assert.rejects(async () => { for await (const _ of watchModelStream(lost, opts())) {} }, ModelStreamStalledError)
+})
+test('persistent recovery probes a blackholed model repeatedly and resumes when it returns', async () => {
+  let calls = 0, recoveries = 0, resumed = false
+  for (;;) {
+    try {
+      async function* provider() {
+        if (++calls <= 3) await new Promise(() => {})
+        yield { type: 'assistant' }
+      }
+      for await (const _ of watchModelStream(provider, opts())) resumed = true
+      break
+    } catch (error) {
+      assert.ok(error instanceof ModelStreamStalledError)
+      assert.equal(modelStallAction(0, recoveries++, false, true), 'retry')
+    }
+  }
+  assert.equal(calls, 4); assert.equal(resumed, true)
+  assert.equal(modelStallAction(1, 100, false, true), 'collect', 'admitted tools are never replayed')
+  assert.equal(modelStallAction(0, 100, true, true), 'block', 'operator cancellation wins')
+})
+test('malformed retry-looking messages cannot keep a silent model alive', async () => {
+  async function* malformed() {
+    for (let i = 0; i < 12; i++) {
+      await delay(5)
+      yield { type: 'system', subtype: 'api_error', retryInMs: Infinity, retryAttempt: 0 }
+    }
+  }
+  await assert.rejects(async () => { for await (const _ of watchModelStream(malformed, opts())) {} }, ModelStreamStalledError)
+})
 test('real tokens keep a long request alive beyond a single idle deadline', async () => {
   let count = 0
   async function* tokens() {

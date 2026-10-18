@@ -25,7 +25,8 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/queue-wakeup.test.ts", "tests/correctness/working-context.test.ts",
   "tests/correctness/tool-result-budget.test.ts",
   "tests/correctness/permission-delivery.test.ts",
-  "tests/correctness/token-estimation-anchor.test.ts"], 900000);
+  "tests/correctness/token-estimation-anchor.test.ts",
+  "tests/correctness/provider-retry-policy.test.ts"], 900000);
 const python = process.env.PYTHON ?? "python3";
 gate(python, ["-m", "unittest", "discover", "-s", "tests/correctness", "-p", "test_*.py", "-v"], 60000);
 gate(python, ["-m", "unittest", "discover", "-s", "tests/research-jobs", "-p", "test_*.py", "-v"], 120000);
