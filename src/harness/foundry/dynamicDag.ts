@@ -50,7 +50,8 @@ function validatePolicy(store: Store, policy: SpawnPolicy): void {
  * The parent task specification stays immutable so durable model-thread bindings survive
  * deferral/restart. Runtime edges are host-owned and independently verified. */
 export function spawnTasks(store: Store, c: Capsule, requestKey: string, requestHash: string,
-  children: Task[], policy: SpawnPolicy, now = Date.now(), yieldParent?: SpawnYield): SpawnResult {
+  children: Task[], policy: SpawnPolicy, now = Date.now(), yieldParent?: SpawnYield,
+  assertAdmission?: () => void): SpawnResult {
   validatePolicy(store, policy);
   invariant(typeof requestKey === "string" && requestKey.length > 0 && requestKey.length <= 256,
     "invalid spawn request key");
@@ -107,6 +108,7 @@ export function spawnTasks(store: Store, c: Capsule, requestKey: string, request
       };
     }
 
+    assertAdmission?.();
     const ids = admitChildren(store, c.runId, parent, c.recipeHash, requestKey, requestHash, children, policy, now);
     const parentDeferred = deferParent();
     return { childIds: ids, complete: false, parentDeferred,

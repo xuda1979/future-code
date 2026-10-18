@@ -1,4 +1,4 @@
-import { researchStrategySnapshot } from "./researchStrategy.ts";
+import { assertResearchFrontierExpansion, researchStrategySnapshot } from "./researchStrategy.ts";
 import { randomUUID } from "node:crypto";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { applyWorkflowProposal, workflowObservation, workflowVersions } from "../workflow.ts";
@@ -75,6 +75,7 @@ export class WorkflowPolicyAgent {
       "Child input is explicit JSON; reference the problem in the parent goal when appropriate. Do not fabricate unseen evidence.",
       "Timeouts affect future leases only; parallelism is bounded by the admitted recipe. Ongoing work drains without preemption.",
       "When researchStrategy is present, use only its frozen scientific templates for research children; consider its measured next experiment and explicit blocked/unknown states. A recommendation is advisory and never scientific acceptance.",
+      "When researchStrategy.decision.batch is present, propose independent research children from that batch together. Each candidate reserves one search slot at child admission. The host rejects duplicate, premature or excess reservations. Assign diverse methods to separate agents; consume only the bounded selected summaries.",
       "Never request changes to checks, scopes, budgets, protocols or task outcomes. Agreement between agents is not proof.",
       "This is a bounded active-work page. Omitted nodes and truncated previews are unknown, not absent. Do not rewrite the whole graph.",
     ].join(" ");
@@ -159,7 +160,11 @@ export class WorkflowPolicyAgent {
       receipt = { mode: "observe", requestHash: digest(body), proposal: payload };
     } else receipt = JSON.parse(canonical(applyWorkflowProposal(this.store, run, `review:${round}`, payload,
       { ...p, spawn: this.cfg.spec.supervision!.dynamicDAG },
-      (parent, children) => decodeSpawnChildren(this.cfg.spec, parent, children), Date.now(),
+      (parent, children) => {
+        const decoded = decodeSpawnChildren(this.cfg.spec, parent, children);
+        assertResearchFrontierExpansion(this.store, this.cfg, run, decoded);
+        return decoded;
+      }, Date.now(),
       { observed: JSON.parse((body as any).messages.find((m: any) => m.role === "user").content).observation, assertCurrent })));
     this.store.transaction(() => {
       const hash = this.store.artifact(receipt);

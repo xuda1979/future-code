@@ -14,6 +14,8 @@ export interface ResearchStrategy {
   maxExperiments: number;
   maxSnapshotBytes: number;
   stopOnRefutation: boolean;
+  /** Opt-in parallel hypothesis search. Scores allocate work, never certify truth. */
+  frontier?: { maxParallel: number; explorationWeight: number; maxInconclusivePerLine: number };
 }
 export interface StrategyObservation {
   key: string;
@@ -21,10 +23,18 @@ export interface StrategyObservation {
   assessment: ResearchAssessment;
 }
 export function validateResearchStrategy(s: ResearchStrategy): void {
-  fields(s, ["schema", "candidates", "maxExperiments", "maxSnapshotBytes", "stopOnRefutation"]);
+  fields(s, ["schema", "candidates", "maxExperiments", "maxSnapshotBytes", "stopOnRefutation"], ["frontier"]);
+  if (s.frontier !== undefined) {
+    fields(s.frontier, ["maxParallel", "explorationWeight", "maxInconclusivePerLine"]);
+    invariant(Number.isSafeInteger(s.frontier.maxParallel) && s.frontier.maxParallel > 0 && s.frontier.maxParallel <= 32 &&
+      Number.isFinite(s.frontier.explorationWeight) && s.frontier.explorationWeight >= 0 && s.frontier.explorationWeight <= 8 &&
+      Number.isSafeInteger(s.frontier.maxInconclusivePerLine) && s.frontier.maxInconclusivePerLine > 0 &&
+      s.frontier.maxInconclusivePerLine <= 256, "invalid research frontier bounds");
+  }
+  const ceiling = s.frontier ? 256 : 32;
   invariant(s.schema === 1 && typeof s.stopOnRefutation === "boolean" && Array.isArray(s.candidates) &&
-    s.candidates.length > 0 && s.candidates.length <= 32, "invalid research strategy");
-  invariant(Number.isSafeInteger(s.maxExperiments) && s.maxExperiments > 0 && s.maxExperiments <= 32 &&
+    s.candidates.length > 0 && s.candidates.length <= ceiling, "invalid research strategy");
+  invariant(Number.isSafeInteger(s.maxExperiments) && s.maxExperiments > 0 && s.maxExperiments <= ceiling &&
     Number.isSafeInteger(s.maxSnapshotBytes) && s.maxSnapshotBytes >= 1024 && s.maxSnapshotBytes <= 65536, "unbounded research strategy");
   const candidates = new Map(s.candidates.map(c => [c.id, c]));
   invariant(candidates.size === s.candidates.length && new Set(s.candidates.map(c => c.template)).size === s.candidates.length,

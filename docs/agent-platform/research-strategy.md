@@ -5,6 +5,10 @@ snapshot in addition to task/resource state. It recommends the next experiment
 from operator-pinned protocols, with no model-authored feasibility scores and no
 authority to accept results, change protocols or enlarge budgets.
 
+For parallel, assignment-aware hypothesis search, enable the optional
+[research frontier](research-frontier.md). Existing single-next strategies remain
+supported without the frontier option.
+
 ## Strategy configuration
 
 Configure the existing `supervision.workflowPolicy` role, scientific job templates,

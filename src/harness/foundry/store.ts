@@ -11,6 +11,7 @@ import type { Contract, Json, Recipe, PinnedCommand } from "./types.ts";
 import { attachWakeup, type Wakeup } from "./wakeup.ts";
 import { installExecutionProfile } from "./executionProfile.ts";
 import { installSchedulerDispatch } from "./schedulerDispatch.ts";
+import { installResearchAssignments } from "./researchAssignments.ts";
 
 // Runtime-selected built-ins: Bun has bun:sqlite; Node >=22.13 has node:sqlite.
 // Keep this module free of a new npm dependency and of engine-specific TS types.
@@ -97,7 +98,8 @@ export class Store {
     if (!metaCols.has("source_version")) db.exec("ALTER TABLE scheduler_index_meta ADD COLUMN source_version INTEGER");
     const store = new Store(root, db); installContinuationTables(store); installEvidenceFabricTables(store);
     installSchedulerDispatch(store);
-    installProposalTables(store); installWorkflowTables(store); installClaimTables(store); installExecutionProfile(store); return store;
+    installProposalTables(store); installWorkflowTables(store); installClaimTables(store); installExecutionProfile(store);
+    installResearchAssignments(store); return store;
   }
   transaction<T>(fn: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");

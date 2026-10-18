@@ -5,6 +5,7 @@ import { fields, type ResearchSpec } from "./research.ts";
 import { researchValidatorIds, runPlanValidation, runResearchValidation, supportsResearchComparison, validateResearchConfiguration,
   type ScientificValidator, type PinnedScientificValidator } from "./researchValidation.ts";
 import { selectResearchStrategy, validateResearchStrategy, type ResearchStrategy, type StrategyObservation } from "./researchStrategy.ts";
+import { selectResearchFrontier } from "./researchFrontier.ts";
 import type { CommandSpec, PinnedCommand } from "./types.ts";
 
 export interface ResearchComparisonProtocol {
@@ -57,7 +58,8 @@ export async function compareResearchStrategies(p: ResearchComparisonProtocol, e
       const started = performance.now(); let status = "COMPLETE";
       try {
         while (records.length < c.strategy.maxExperiments) {
-          const id = arm === "adaptive" ? selectResearchStrategy(c.strategy, observations, records.length).next :
+          const id = arm === "adaptive" ? (c.strategy.frontier ? selectResearchFrontier(c.strategy, observations, records.length) :
+            selectResearchStrategy(c.strategy, observations, records.length)).next :
             c.strategy.candidates.find(candidate => !records.some(r => r.candidate === candidate.id))?.id;
           if (!id) break;
           const candidate = c.strategy.candidates.find(candidate => candidate.id === id)!, spec = c.experiments[candidate.template];

@@ -17,6 +17,7 @@ const result = spawnSync(process.execPath, ["--experimental-strip-types", "--tes
   "tests/foundry/evaluation-cadence.test.ts", "tests/foundry/job-preflight.test.ts",
   "tests/foundry/scientific-experiments.test.ts",
   "tests/foundry/research-strategy.test.ts",
+  "tests/foundry/research-frontier.test.ts", "tests/foundry/swarm-research-frontier.test.ts",
   "tests/foundry/research.test.ts", "tests/foundry/research-programme.test.ts",
   "tests/foundry/job-evidence.test.ts", "tests/foundry/episodic-memory.test.ts",
   "tests/foundry/project-knowledge.test.ts"], { cwd, stdio: "inherit" });
