@@ -236,6 +236,10 @@ export class ResearchJobs {
     const binding = digest({ command, template, input, base: this.cfg.baseCommit });
     const key = template.research ? digest({ run: c.runId, task: c.task.id, name, binding }) :
       digest({ run: c.runId, task: c.task.id, call: call.id, name });
+    if (this.cfg.spec.researchStrategy?.frontier && template.research &&
+      !store.db.prepare("SELECT 1 FROM research_jobs WHERE key=?").get(key)) {
+      invariant(c.task.research?.includes(name), "frontier experiment requires an admitted task assignment");
+    }
     const planReceipts: string[] = [];
     // Never gate reconciliation of an already submitted experiment on a new
     // pre-execution decision. Its durable intent was admitted under this binding.

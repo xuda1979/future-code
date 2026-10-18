@@ -219,6 +219,10 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     validateResearchStrategy(s.researchStrategy);
     invariant(s.supervision?.workflowPolicy, "research strategy requires an independent workflow adviser");
     invariant(s.researchStrategy.maxSnapshotBytes <= s.recipe.contextBytes, "strategy context exceeds admitted context");
+    if (s.researchStrategy.frontier) {
+      invariant(s.supervision.dynamicDAG, "research frontier requires bounded delegation");
+      invariant(s.researchStrategy.frontier.maxParallel <= s.recipe.parallelism, "research frontier exceeds admitted parallelism");
+    }
     for (const c of s.researchStrategy.candidates) invariant(Object.hasOwn(s.jobs ?? {}, c.template) && s.jobs![c.template].research, "strategy requires a pinned scientific template");
   }
   if (s.researchProgramme !== undefined) {
@@ -424,7 +428,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     }
   }
   if (s.jobs) {
-    keys(s.jobs, [], Object.keys(s.jobs)); positive(Object.keys(s.jobs).length, 32, "job templates");
+    keys(s.jobs, [], Object.keys(s.jobs));
+    positive(Object.keys(s.jobs).length, s.researchStrategy?.frontier ? 256 : 32, "job templates");
     for (const [id, job] of Object.entries(s.jobs)) {
       identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs", "preflightChecks", "research"]);
       if (job.research !== undefined) {

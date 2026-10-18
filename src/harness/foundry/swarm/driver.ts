@@ -31,6 +31,7 @@ import { checkpointCheck, checkpointReason } from "./evaluation.ts";
 import { DECISION_GUIDANCE } from "../../decisionGuidance.ts";
 import { admitDecisionCall, decisionContext } from "./decisions.ts";
 import { KNOWLEDGE_NOTICE, ProjectKnowledge, type ExperienceInput, type KnowledgeQuery } from "./knowledge.ts";
+import { assertResearchFrontierExpansion } from "./researchStrategy.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -327,7 +328,7 @@ export class SwarmDriver implements Driver {
                 const spawned = spawnTasks(this.store, c, call.id, digest(call.arguments), children, policy,
                   Date.now(), { reason, wakeAt: Date.now(), measurement: {
                     tokens: this.journal.usage(c.runId, c.task.id, c.fence).tokens, costUsd: null,
-                  } });
+                  } }, () => assertResearchFrontierExpansion(this.store, this.cfg, c.runId, children));
                 if (!spawned.complete) {
                   invariant(spawned.parentDeferred, "spawn admission did not durably yield parent");
                   throw new PersistedDeferredAttemptError("spawn", Date.now(), reason);
