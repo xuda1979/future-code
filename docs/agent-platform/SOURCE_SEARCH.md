@@ -32,7 +32,8 @@ error rather than gaining the capability automatically.
 {
   "query": "reserveRequest",
   "path": "src/runtime",
-  "limit": 20
+  "limit": 20,
+  "contextLines": 3
 }
 ```
 
@@ -41,6 +42,16 @@ regex, glob, shell interpolation or external `rg` dependency. `path` optionally
 narrows the search to a literal file/directory prefix; omit it to use all readable
 task scopes. A parent prefix can narrow several readable subdirectories, but
 never grants access to the rest of that parent.
+
+`contextLines` optionally includes up to 20 adjacent lines on each side of a
+match, reusing the file read already performed by discovery. A worker can inspect
+nearby code without another model/search/read round trip. Each match's `context`
+contains `startLine`, `endLine`, `content` and `truncated`; context is bounded to
+8 KiB and the existing page output budget. Oversized matching lines use the hit
+excerpt and explicitly mark truncation. The default zero omits the context field.
+Pagination, scopes, receipt ownership and independent acceptance remain the same.
+This is one finite read operation. Any end-to-end productivity benefit still
+requires measurement on the target workload.
 
 Results contain `matches` with file path, 1-based line, an excerpt around the
 first hit on that line and an excerpt `truncated` flag. `nextCursor` is either

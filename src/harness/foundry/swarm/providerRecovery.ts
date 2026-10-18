@@ -1,16 +1,9 @@
 import { invariant } from "../kernel.ts";
 import type { Store } from "../store.ts";
+import { isTransientProviderStatus, parseProviderRetryAfter } from "../../../utils/providerRetryPolicy.ts";
 
-const MAX_WAIT_MS = 86_400_000;
-export const transientStatus = (status: number): boolean => [408, 425, 429, 500, 502, 503, 504, 529].includes(status);
-/** Bound upstream advice; never parse an error body or persist credentials. */
-export function retryAfterMs(value: string | null, now = Date.now()): number | null {
-  if (!value?.trim()) return null;
-  const text = value.trim();
-  const ms = /^\d+(?:\.\d+)?$/.test(text) ? Number(text) * 1000 :
-    /^[A-Za-z]/.test(text) ? Date.parse(text) - now : NaN;
-  return Number.isFinite(ms) && ms >= 0 ? Math.min(MAX_WAIT_MS, Math.ceil(ms)) : null;
-}
+export const transientStatus = isTransientProviderStatus;
+export const retryAfterMs = parseProviderRetryAfter;
 export interface ProviderCircuit {
   provider: string; state: "OPEN" | "HALF_OPEN"; failures: number;
   retryAt: number; reason: string | null;
@@ -66,7 +59,12 @@ export class ProviderRecovery {
       invariant(admission.outcome === null, "provider outcome already recorded");
       const request = this.store.db.prepare("SELECT run,task FROM agent_requests WHERE id=?").get(id)!;
       const health = this.store.db.prepare("SELECT * FROM agent_provider_health WHERE provider=?").get(admission.provider);
-      const failures = Math.min(64, Number(health?.failures ?? 0) + 1);
+      // Calls admitted together describe one outage, not a sequence of failed
+      // recovery probes. Every verdict still advances the epoch (fencing stale
+      // successes), and every Retry-After is honored, without multiplying the
+      // exponential backoff by the number of concurrent workers.
+      const newRound = !health || Number(admission.epoch) === Number(health.epoch);
+      const failures = Math.min(64, Math.max(1, Number(health?.failures ?? 0) + (newRound ? 1 : 0)));
       const epoch = Number(health?.epoch ?? 0) + 1;
       const backoff = Math.min(60000, 1000 * 2 ** Math.min(failures - 1, 6));
       const previous = Number(this.store.db.prepare("SELECT until_ms FROM agent_cooldowns WHERE provider=?").get(admission.provider)?.until_ms ?? 0);
@@ -78,6 +76,7 @@ export class ProviderRecovery {
       this.store.db.prepare(`INSERT INTO agent_cooldowns VALUES(?,?) ON CONFLICT(provider)
         DO UPDATE SET until_ms=MAX(until_ms,excluded.until_ms)`).run(admission.provider, wake);
       this.store.db.prepare("UPDATE agent_provider_admissions SET outcome='FAILURE',wake=? WHERE request=?").run(wake, id);
+      this.wakeWaiters(String(admission.provider), wake);
       this.store.event("provider.recovery.deferred", { provider: admission.provider, request: id, epoch, failures, retryAt: wake, reason }, request.run, request.task);
       return wake;
     });
@@ -96,26 +95,41 @@ export class ProviderRecovery {
       this.store.db.prepare("UPDATE agent_provider_health SET failures=0,retry_at=0,reason=NULL,updated=? WHERE provider=?").run(now, admission.provider);
       const cooldown = Number(this.store.db.prepare("SELECT until_ms FROM agent_cooldowns WHERE provider=?").get(admission.provider)?.until_ms ?? 0);
       if (cooldown > now) return;
-      this.store.db.prepare(`UPDATE task_waits SET wake=? WHERE kind='provider' AND EXISTS (
-        SELECT 1 FROM agent_provider_waits p JOIN tasks t ON t.run=p.run AND t.id=p.task
-        WHERE p.provider=? AND p.run=task_waits.run AND p.task=task_waits.task
-          AND t.status='READY' AND t.fence=p.fence AND task_waits.wake=p.wake)`)
-        .run(now, admission.provider);
-      // Retain the fenced wait until its next admission. Success can arrive
-      // before the scheduler persists a just-thrown continuation; the scheduler
-      // must still be able to observe that recovery and avoid a lost wakeup.
+      this.wakeWaiters(String(admission.provider), now);
+      // Retain the fenced wait until its next admission. A verdict can arrive
+      // before the scheduler persists a just-thrown continuation; persistence
+      // reconciles the original wait with the current circuit state.
       const request = this.store.db.prepare("SELECT run,task FROM agent_requests WHERE id=?").get(id)!;
       this.store.event("provider.recovery.resumed", { provider: admission.provider, request: id, epoch: admission.epoch }, request.run, request.task);
     });
   }
+  private wakeWaiters(provider: string, wake: number): void {
+    this.store.db.prepare(`UPDATE task_waits SET wake=MIN(wake,?) WHERE kind='provider' AND EXISTS (
+        SELECT 1 FROM agent_provider_waits p JOIN tasks t ON t.run=p.run AND t.id=p.task
+        WHERE p.provider=? AND p.run=task_waits.run AND p.task=task_waits.task
+          AND t.status='READY' AND t.fence=p.fence AND task_waits.wake<=p.wake)`)
+      .run(wake, provider);
+  }
 }
 
-export function providerWaitRecovered(store: Store, run: string, task: string, fence: number, wake: number, now: number): boolean {
-  if (!store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_provider_waits'").get()) return false;
-  return !!store.db.prepare(`SELECT 1 FROM agent_provider_waits p
+/** A probe may finish before its peer persists a wait on the probe's deadline.
+ * Reconcile both success and failure; waiting until that old deadline can leave
+ * ready work idle even though another probe is already due. This projection
+ * only shortens a matching fenced wait. Admission remains authoritative. */
+export function providerWaitDeadline(store: Store, run: string, task: string, fence: number, wake: number, now: number): number | null {
+  if (!store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_provider_waits'").get()) return null;
+  const rows = store.db.prepare(`SELECT p.provider,COALESCE(h.failures,0) AS failures,
+      MAX(COALESCE(h.retry_at,0),COALESCE(c.until_ms,0)) AS cooldown FROM agent_provider_waits p
     LEFT JOIN agent_provider_health h ON h.provider=p.provider LEFT JOIN agent_cooldowns c ON c.provider=p.provider
-    WHERE p.run=? AND p.task=? AND p.fence=? AND p.wake=? AND COALESCE(h.failures,0)=0
-      AND COALESCE(h.retry_at,0)<=? AND COALESCE(c.until_ms,0)<=? LIMIT 1`).get(run, task, fence, wake, now, now);
+    WHERE p.run=? AND p.task=? AND p.fence=? AND p.wake=?`).all(run, task, fence, wake);
+  if (!rows.length) return null;
+  return Math.min(...rows.map(row => {
+    if (Number(row.cooldown) > now) return Number(row.cooldown);
+    if (Number(row.failures) === 0) return now;
+    const active = store.db.prepare(`SELECT MIN(deadline) AS wake FROM agent_requests
+      WHERE provider=? AND status='ACTIVE' AND deadline>?`).get(row.provider, now)?.wake;
+    return active == null ? now : Number(active);
+  }));
 }
 
 export function providerRecoveryStatus(store: Store, run: string, now = Date.now()): {

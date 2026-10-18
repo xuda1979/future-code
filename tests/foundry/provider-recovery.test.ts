@@ -107,6 +107,44 @@ test("probe success before continuation persistence cannot lose a peer's wakeup"
   assert.equal(q.claim(run, "resumed")!.taskId, "b");
 }));
 
+test("one concurrent outage wave advances exponential backoff only once", async () => fixture(async (s, cfg) => {
+  const { capsules } = start(s, ["a", "b", "c", "d"]);
+  const j = new SessionJournal(s), provider = pool(cfg);
+  const ids = await Promise.all(capsules.map(c => j.reserve(c, provider, {}, cfg.spec.budget, signal())));
+  for (const id of ids) {
+    j.complete(id, null, { httpStatus: 503 });
+    const before = Date.now(), wake = j.providerFailure(id, null, 503);
+    assert.ok(wake >= before + 1000 && wake <= Date.now() + 1000, `one outage wave delayed recovery by ${wake - before}ms`);
+  }
+  assert.equal(s.db.prepare("SELECT failures FROM agent_provider_health WHERE provider=?").get(provider)!.failures, 1);
+  expireCooldown(s, provider);
+  const probe = await j.reserve(capsules[0], provider, {}, cfg.spec.budget, signal());
+  j.complete(probe, null, { httpStatus: 503 }); j.providerFailure(probe, null, 503);
+  assert.equal(s.db.prepare("SELECT failures FROM agent_provider_health WHERE provider=?").get(provider)!.failures, 2);
+}));
+
+for (const persistBeforeFailure of [true, false]) {
+  test(`failed recovery probe refreshes peer wakeup ${persistBeforeFailure ? "after" : "before"} continuation persistence`, async () => fixture(async (s, cfg) => {
+    const { q, run, leases, capsules } = start(s, ["a", "b"]);
+    const j = new SessionJournal(s), provider = pool(cfg);
+    const initial = await j.reserve(capsules[0], provider, {}, cfg.spec.budget, signal());
+    j.complete(initial, null, null); j.providerFailure(initial); expireCooldown(s, provider);
+    const probe = await j.reserve(capsules[0], provider, {}, cfg.spec.budget, signal());
+    let waiting: DeferredAttemptError | undefined;
+    await assert.rejects(j.reserve(capsules[1], provider, {}, cfg.spec.budget, signal()), error => {
+      assert.ok(error instanceof DeferredAttemptError); waiting = error; return true;
+    });
+    if (persistBeforeFailure) assert.ok(q.defer(leases[1], waiting!));
+    j.complete(probe, null, { httpStatus: 503 });
+    const wake = j.providerFailure(probe, null, 503);
+    assert.ok(wake < waiting!.wakeAt, "new backoff is shorter than the old probe's full timeout");
+    if (!persistBeforeFailure) assert.ok(q.defer(leases[1], waiting!));
+    assert.equal(s.db.prepare("SELECT wake FROM task_waits WHERE run=? AND task='b'").get(run)!.wake, wake);
+    assert.equal(q.claim(run, "premature"), null);
+    assert.equal(q.claim(run, "resumed", wake)!.taskId, "b");
+  }));
+}
+
 test("an expired crashed probe can be replaced while its spend remains unknown", async () => fixture(async (s, cfg) => {
   const { capsules } = start(s); const j = new SessionJournal(s); const provider = pool(cfg);
   const fail = await j.reserve(capsules[0], provider, {}, cfg.spec.budget, signal());

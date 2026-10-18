@@ -6,6 +6,42 @@ import {
   RemoteResponseWatchdog,
 } from "../../src/remote/responseLiveness.ts";
 
+test("explicit provider retry waits survive long outages, and losing the notices still reconnects/exhausts", t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const events: string[] = [];
+  const watchdog = new RemoteResponseWatchdog({ isCompacting: () => false,
+    onReconnect: attempt => events.push(`reconnect:${attempt}`), onExhausted: () => events.push("exhausted") },
+  { responseTimeoutMs: 30, reconnectGraceMs: 30, maxReconnects: 1 });
+  watchdog.start();
+  const notice = { type: "system", subtype: "api_retry", attempt: 4, retry_delay_ms: 65000.25 } as any;
+  assert.equal(isRemoteResponseProgress(notice), false);
+  for (let i = 0; i < 8; i++) { t.mock.timers.tick(20); watchdog.retryWait(notice); }
+  assert.deepEqual(events, []); assert.equal(watchdog.isWaiting, true);
+  t.mock.timers.tick(30); assert.deepEqual(events, ["reconnect:1"]);
+  // A known wait may keep the turn alive but must not replenish reconnects.
+  watchdog.retryWait(notice);
+  t.mock.timers.tick(30); assert.deepEqual(events, ["reconnect:1", "exhausted"]);
+  assert.equal(watchdog.isWaiting, false);
+});
+
+test("status chatter and malformed retry-looking notices cannot extend the remote deadline", t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const events: string[] = [];
+  const watchdog = new RemoteResponseWatchdog({ isCompacting: () => false,
+    onReconnect: () => events.push("reconnect"), onExhausted: () => events.push("exhausted") },
+  { responseTimeoutMs: 30, reconnectGraceMs: 30, maxReconnects: 1 });
+  watchdog.start();
+  for (let i = 0; i < 6; i++) {
+    t.mock.timers.tick(10);
+    for (const notice of [
+      { type: "system", subtype: "status", attempt: 1, retry_delay_ms: 60000 },
+      { type: "system", subtype: "api_retry", attempt: 0, retry_delay_ms: 60000 },
+      { type: "system", subtype: "api_retry", attempt: 1, retry_delay_ms: Infinity },
+    ]) watchdog.retryWait(notice as any);
+  }
+  assert.deepEqual(events, ["reconnect", "exhausted"]);
+});
+
 test("transport/status/background chatter do not count as foreground response progress", () => {
   assert.equal(isRemoteResponseProgress({
     type: "user",

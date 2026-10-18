@@ -46,6 +46,11 @@ import {
 } from '../rateLimitMocking.js'
 import { REPEATED_529_ERROR_MESSAGE } from './errors.js'
 import { extractConnectionErrorDetails } from './errorUtils.js'
+import {
+  isProviderTransportError,
+  isTransientProviderStatus,
+  parseProviderRetryAfter,
+} from '../../utils/providerRetryPolicy.js'
 
 const abortError = () => new APIUserAbortError()
 
@@ -81,28 +86,28 @@ const FOREGROUND_529_RETRY_SOURCES = new Set<QuerySource>([
   ...(feature('BASH_CLASSIFIER') ? (['bash_classifier'] as const) : []),
 ])
 
-function shouldRetry529(querySource: QuerySource | undefined): boolean {
+export function isForegroundRetrySource(querySource: QuerySource | undefined): boolean {
   // undefined → retry (conservative for untagged call paths)
   return (
     querySource === undefined || FOREGROUND_529_RETRY_SOURCES.has(querySource)
   )
 }
 
-// FUTURE_CODE_UNATTENDED_RETRY: retries 429/529 (and, in persistent mode,
-// connection-level network failures) indefinitely with higher backoff and
+// FUTURE_CODE_UNATTENDED_RETRY: retries transient foreground provider and
+// connection failures indefinitely with bounded probe backoff and
 // periodic keep-alive yields so the host environment does not mark the
 // session idle mid-wait. An agent must keep working toward its objective
 // through API/network outages — it resumes automatically when service is
 // restored. Default ON; set FUTURE_CODE_UNATTENDED_RETRY=0 to opt out.
 // TODO(ANT-344): the keep-alive via SystemAPIErrorMessage yields is a stopgap
 // until there's a dedicated keep-alive channel.
-const PERSISTENT_MAX_BACKOFF_MS = 5 * 60 * 1000
+const PERSISTENT_MAX_BACKOFF_MS = 60_000
 const PERSISTENT_RESET_CAP_MS = 6 * 60 * 60 * 1000
 const HEARTBEAT_INTERVAL_MS = 30_000
 
 /**
  * Persistent (never-give-up) retry mode. Default ON for the future-code
- * build: an agent session must survive API/network outages and resume when
+ * build: a foreground agent must survive API/network outages and resume when
  * service returns, instead of dying after ~10 attempts and waiting for a
  * human to re-prompt. Set FUTURE_CODE_UNATTENDED_RETRY=0 (or false/off) to
  * opt out and restore the old bounded-retry behavior.
@@ -114,9 +119,9 @@ export function isPersistentRetryEnabled(): boolean {
   return isEnvTruthy(v)
 }
 
-function isTransientCapacityError(error: unknown): boolean {
+function isTransientProviderError(error: unknown): boolean {
   return (
-    is529Error(error) || (error instanceof APIError && error.status === 429)
+    is529Error(error) || (error instanceof APIError && isTransientProviderStatus(error.status))
   )
 }
 
@@ -129,28 +134,7 @@ function isTransientCapacityError(error: unknown): boolean {
  * @internal Exported for testing
  */
 export function isConnectionLevelError(error: unknown): boolean {
-  if (error instanceof APIConnectionError) return true
-  // Bun/undici wrap some failures in plain TypeError("fetch failed") with
-  // the real cause nested (ENOTFOUND, ECONNREFUSED, ETIMEDOUT, ...).
-  if (error instanceof Error) {
-    if (error.message === 'fetch failed') return true
-    const cause = (error as { cause?: unknown }).cause
-    if (cause instanceof Error) {
-      const code = (cause as { code?: string }).code
-      if (
-        code === 'ENOTFOUND' ||
-        code === 'ECONNREFUSED' ||
-        code === 'ETIMEDOUT' ||
-        code === 'ECONNRESET' ||
-        code === 'EPIPE' ||
-        code === 'EAI_AGAIN'
-      ) {
-        return true
-      }
-      if (cause.message === 'fetch failed') return true
-    }
-  }
-  return false
+  return error instanceof APIConnectionError || isProviderTransportError(error)
 }
 
 function isStaleConnectionError(error: unknown): boolean {
@@ -279,7 +263,7 @@ export async function* withRetry<T>(
         isOAuthTokenRevokedError(lastError) ||
         isBedrockAuthError(lastError) ||
         isVertexAuthError(lastError) ||
-        isStaleConnection
+        isConnectionLevelError(lastError)
       ) {
         // On 401 "token expired" or 403 "token revoked", force a token refresh
         if (
@@ -296,6 +280,7 @@ export async function* withRetry<T>(
 
       return await operation(client, attempt, retryContext)
     } catch (error) {
+      if (options.signal?.aborted || error instanceof APIUserAbortError) throw new APIUserAbortError()
       lastError = error
       logForDebugging(
         `API error (attempt ${attempt}/${maxRetries + 1}): ${error instanceof APIError ? `${error.status} ${error.message}` : errorMessage(error)}`,
@@ -359,7 +344,7 @@ export async function* withRetry<T>(
 
       // Non-foreground sources bail immediately on 529 — no retry amplification
       // during capacity cascades. User never sees these fail.
-      if (is529Error(error) && !shouldRetry529(options.querySource)) {
+      if (is529Error(error) && !isForegroundRetrySource(options.querySource)) {
         logEvent('tengu_api_529_background_dropped', {
           query_source:
             options.querySource as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -411,7 +396,9 @@ export async function* withRetry<T>(
       // Only retry if the error indicates we should
       const persistent =
         isPersistentRetryEnabled() &&
-        (isTransientCapacityError(error) || isConnectionLevelError(error))
+        isForegroundRetrySource(options.querySource) &&
+        !isMockRateLimitError(error) &&
+        (isTransientProviderError(error) || isConnectionLevelError(error))
       if (attempt > maxRetries && !persistent) {
         throw new CannotRetryError(error, retryContext)
       }
@@ -422,6 +409,7 @@ export async function* withRetry<T>(
       if (
         !handledCloudAuthError &&
         !persistent &&
+        !isConnectionLevelError(error) &&
         (!(error instanceof APIError) || !shouldRetry(error))
       ) {
         throw new CannotRetryError(error, retryContext)
@@ -481,8 +469,8 @@ export async function* withRetry<T>(
         // Window-based limits (e.g. 5hr Max/Pro) include a reset timestamp.
         // Wait until reset rather than polling every 5 min uselessly.
         const resetDelay = getRateLimitResetDelayMs(error)
-        delayMs =
-          resetDelay ??
+        delayMs = Math.max(
+          resetDelay ?? 0,
           Math.min(
             getRetryDelay(
               persistentAttempt,
@@ -490,7 +478,8 @@ export async function* withRetry<T>(
               PERSISTENT_MAX_BACKOFF_MS,
             ),
             PERSISTENT_RESET_CAP_MS,
-          )
+          ),
+        )
       } else if (persistent) {
         persistentAttempt++
         // Retry-After is a server directive and bypasses maxDelayMs inside
@@ -507,6 +496,13 @@ export async function* withRetry<T>(
       } else {
         delayMs = getRetryDelay(attempt, retryAfter)
       }
+      // Raw fetch/errno errors are not SDK APIErrors. Surface them through
+      // the same heartbeat channel so a network outage never looks idle.
+      const reportedError = error instanceof APIError ? error :
+        isConnectionLevelError(error) ? new APIConnectionError({
+          message: 'Provider connection unavailable; automatic retry scheduled.',
+          cause: error instanceof Error ? error : undefined,
+        }) : null
 
       // In persistent mode the for-loop `attempt` is clamped at maxRetries+1;
       // use persistentAttempt for telemetry/yields so they show the true count.
@@ -535,9 +531,9 @@ export async function* withRetry<T>(
         let remaining = delayMs
         while (remaining > 0) {
           if (options.signal?.aborted) throw new APIUserAbortError()
-          if (error instanceof APIError) {
+          if (reportedError) {
             yield createSystemAPIErrorMessage(
-              error,
+              reportedError,
               remaining,
               reportedAttempt,
               maxRetries,
@@ -548,11 +544,11 @@ export async function* withRetry<T>(
           remaining -= chunk
         }
         // Clamp so the for-loop never terminates. Backoff uses the separate
-        // persistentAttempt counter which keeps growing to the 5-min cap.
+        // persistentAttempt counter which keeps growing to the probe cap.
         if (attempt >= maxRetries) attempt = maxRetries
       } else {
-        if (error instanceof APIError) {
-          yield createSystemAPIErrorMessage(error, delayMs, attempt, maxRetries)
+        if (reportedError) {
+          yield createSystemAPIErrorMessage(reportedError, delayMs, attempt, maxRetries)
         }
         await sleep(delayMs, options.signal, { abortError })
       }
@@ -578,19 +574,16 @@ export function getRetryDelay(
   retryAfterHeader?: string | null,
   maxDelayMs = 32000,
 ): number {
-  if (retryAfterHeader) {
-    const seconds = parseInt(retryAfterHeader, 10)
-    if (!isNaN(seconds)) {
-      return seconds * 1000
-    }
-  }
+  const advice = parseProviderRetryAfter(retryAfterHeader ?? null, Date.now(), PERSISTENT_RESET_CAP_MS)
+  // A zero/negative/partially numeric header must not create a hot retry loop.
+  if (advice !== null) return Math.max(BASE_DELAY_MS, advice)
 
   const baseDelay = Math.min(
     BASE_DELAY_MS * Math.pow(2, attempt - 1),
     maxDelayMs,
   )
   const jitter = Math.random() * 0.25 * baseDelay
-  return baseDelay + jitter
+  return Math.min(maxDelayMs, baseDelay + jitter)
 }
 
 export function parseMaxTokensContextOverflowError(error: APIError):
@@ -745,9 +738,9 @@ function shouldRetry(error: APIError): boolean {
     return false
   }
 
-  // Persistent mode: 429/529 always retryable, bypass subscriber gates and
+  // Persistent mode: transient statuses are retryable, bypass subscriber gates and
   // x-should-retry header.
-  if (isPersistentRetryEnabled() && isTransientCapacityError(error)) {
+  if (isPersistentRetryEnabled() && isTransientProviderError(error)) {
     return true
   }
 
@@ -833,13 +826,14 @@ function shouldRetry(error: APIError): boolean {
 }
 
 export function getDefaultMaxRetries(): number {
-  if (process.env.FUTURE_CODE_MAX_RETRIES) {
-    return parseInt(process.env.FUTURE_CODE_MAX_RETRIES, 10)
-  }
-  return DEFAULT_MAX_RETRIES
+  const value = process.env.FUTURE_CODE_MAX_RETRIES
+  if (!value?.trim()) return DEFAULT_MAX_RETRIES
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : DEFAULT_MAX_RETRIES
 }
 function getMaxRetries(options: RetryOptions): number {
-  return options.maxRetries ?? getDefaultMaxRetries()
+  const value = options.maxRetries ?? getDefaultMaxRetries()
+  return Number.isSafeInteger(value) && value >= 0 ? value : DEFAULT_MAX_RETRIES
 }
 
 const DEFAULT_FAST_MODE_FALLBACK_HOLD_MS = 30 * 60 * 1000 // 30 minutes
@@ -847,14 +841,7 @@ const SHORT_RETRY_THRESHOLD_MS = 20 * 1000 // 20 seconds
 const MIN_COOLDOWN_MS = 10 * 60 * 1000 // 10 minutes
 
 function getRetryAfterMs(error: APIError): number | null {
-  const retryAfter = getRetryAfter(error)
-  if (retryAfter) {
-    const seconds = parseInt(retryAfter, 10)
-    if (!isNaN(seconds)) {
-      return seconds * 1000
-    }
-  }
-  return null
+  return parseProviderRetryAfter(getRetryAfter(error), Date.now(), PERSISTENT_RESET_CAP_MS)
 }
 
 function getRateLimitResetDelayMs(error: APIError): number | null {

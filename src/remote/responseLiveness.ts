@@ -74,6 +74,17 @@ export class RemoteResponseWatchdog {
     this.arm(this.currentTimeout())
   }
 
+  /** Explicit host API backoff is a live wait, not semantic progress. Keep
+   * the response timer armed without resetting its reconnect budget. Generic
+   * transport/status chatter and malformed retry notices cannot extend it. */
+  retryWait(message: SDKMessage): void {
+    if (!this.waiting || message.type !== 'system' || message.subtype !== 'api_retry') return
+    const event = message as { attempt?: number; retry_delay_ms?: number }
+    if (!Number.isSafeInteger(event.attempt) || event.attempt! <= 0 ||
+      !Number.isFinite(event.retry_delay_ms) || event.retry_delay_ms! <= 0 || event.retry_delay_ms! > 21_600_000) return
+    this.arm(this.currentTimeout())
+  }
+
   /** Pause while the user is deciding a permission prompt. */
   pause(): void {
     if (!this.waiting) return

@@ -1,5 +1,6 @@
-/** A transport heartbeat is not model progress. Bound a silent external API
- * read even when an adapter ignores AbortSignal. Never restart tool effects. */
+/** Transport pings are not model progress. Explicit host retry-wait messages
+ * keep their bounded wait alive; a lost heartbeat still hits the idle deadline.
+ * Bound silent adapters even when they ignore abort. Never restart tool effects. */
 export class ModelStreamStalledError extends Error {
   readonly timeoutMs: number
   constructor(timeoutMs: number) {
@@ -17,10 +18,18 @@ export function isModelProgress(value: { type: string; event?: { type: string; d
   return value.type === 'stream_event' && value.event?.type === 'content_block_delta' &&
     ['text_delta', 'thinking_delta', 'input_json_delta'].includes(value.event.delta?.type ?? '')
 }
-export function modelStallAction(admittedTools: number, recoveries: number, aborted: boolean): 'collect' | 'retry' | 'block' {
+/** These system events are emitted by withRetry, outside provider/model content.
+ * Recognizing a wait does not mark it as progress or certify any work. */
+function isProviderRetryWait(value: unknown): boolean {
+  const event = value as { type?: string; subtype?: string; retryInMs?: number; retryAttempt?: number } | null
+  return event?.type === 'system' && event.subtype === 'api_error' &&
+    Number.isFinite(event.retryInMs) && event.retryInMs! > 0 && event.retryInMs! <= 21_600_000 &&
+    Number.isSafeInteger(event.retryAttempt) && event.retryAttempt! > 0
+}
+export function modelStallAction(admittedTools: number, recoveries: number, aborted: boolean, persistent = false): 'collect' | 'retry' | 'block' {
   if (aborted) return 'block'
   if (admittedTools > 0) return 'collect'
-  return recoveries === 0 ? 'retry' : 'block'
+  return persistent || recoveries === 0 ? 'retry' : 'block'
 }
 export async function* watchModelStream<T>(create: (signal: AbortSignal) => AsyncIterable<T>, options: {
   signal: AbortSignal; timeoutMs: number; isProgress: (value: T) => boolean
@@ -30,14 +39,14 @@ export async function* watchModelStream<T>(create: (signal: AbortSignal) => Asyn
   options.signal.addEventListener('abort', abort, { once: true })
   if (options.signal.aborted) abort()
   let iterator: AsyncIterator<T> | undefined
-  let lastProgress = Date.now()
+  let lastLiveness = Date.now()
   let finished = false
   try {
     if (options.signal.aborted) return
     iterator = create(controller.signal)[Symbol.asyncIterator]()
     while (true) {
       if (controller.signal.aborted) throw controller.signal.reason
-      const remaining = options.timeoutMs - (Date.now() - lastProgress)
+      const remaining = options.timeoutMs - (Date.now() - lastLiveness)
       if (remaining <= 0) throw new ModelStreamStalledError(options.timeoutMs)
       let timer: ReturnType<typeof setTimeout> | undefined
       let rejectAbort: () => void = () => {}
@@ -51,7 +60,7 @@ export async function* watchModelStream<T>(create: (signal: AbortSignal) => Asyn
       catch (error) { if (options.signal.aborted) return; throw error }
       finally { clearTimeout(timer); controller.signal.removeEventListener('abort', rejectAbort) }
       if (next.done) { finished = true; return }
-      if (options.isProgress(next.value)) lastProgress = Date.now()
+      if (options.isProgress(next.value) || isProviderRetryWait(next.value)) lastLiveness = Date.now()
       yield next.value
     }
   } finally {

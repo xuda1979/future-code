@@ -4,7 +4,15 @@ import type {
   ToolUseBlock,
 } from '@future/sdk/resources/index.mjs'
 import type { CanUseToolFn } from './hooks/useCanUseTool.js'
-import { FallbackTriggeredError } from './services/api/withRetry.js'
+import {
+  FallbackTriggeredError,
+  isPersistentRetryEnabled,
+  isForegroundRetrySource,
+  getRetryDelay,
+  getDefaultMaxRetries,
+} from './services/api/withRetry.js'
+import { APIConnectionError } from '@future/sdk'
+import { sleep } from './utils/sleep.js'
 import {
   calculateTokenWarningState,
   isAutoCompactEnabled,
@@ -48,6 +56,7 @@ import {
   createUserInterruptionMessage,
   normalizeMessagesForAPI,
   createSystemMessage,
+  createSystemAPIErrorMessage,
   createAssistantAPIErrorMessage,
   getMessagesAfterCompactBoundary,
   createToolUseSummaryMessage,
@@ -933,7 +942,8 @@ async function* queryLoop(
             }
           }
         } catch (innerError) {
-          const stallAction = modelStallAction(toolUseBlocks.length, modelStallRecoveries, toolUseContext.abortController.signal.aborted)
+          const persistentModelRetry = isPersistentRetryEnabled() && isForegroundRetrySource(querySource)
+          const stallAction = modelStallAction(toolUseBlocks.length, modelStallRecoveries, toolUseContext.abortController.signal.aborted, persistentModelRetry)
           if (innerError instanceof ModelStreamStalledError && stallAction === 'collect') {
             // Complete already-admitted tools and use their actual results in
             // the next model request. Replaying this request could duplicate
@@ -941,8 +951,9 @@ async function* queryLoop(
             yield createSystemMessage(innerError.message + '; collecting admitted tool results before continuing.', 'warning')
             break
           }
-          // Reconnect a silent model read once, only before any tool has been
-          // admitted. A reconnect cannot replay an external job or file edit.
+          // A blackholed request may never reach the SDK's own timeout. Keep
+          // probing in persistent mode, only before any tools were admitted.
+          // Opt-out/background queries retain their single reconnect budget.
           if (innerError instanceof ModelStreamStalledError && stallAction === 'retry') {
             modelStallRecoveries++
             for (const message of assistantMessages) yield { type: 'tombstone' as const, message }
@@ -952,7 +963,12 @@ async function* queryLoop(
             streamingToolExecutor?.discard()
             streamingToolExecutor = useStreamingToolExecution
               ? new StreamingToolExecutor(toolUseContext.options.tools, canUseTool, toolUseContext) : null
-            yield createSystemMessage(innerError.message + '; reconnecting once before tool execution.', 'warning')
+            if (persistentModelRetry) {
+              const delay = getRetryDelay(modelStallRecoveries, null, 30_000)
+              yield createSystemAPIErrorMessage(new APIConnectionError({ message: innerError.message }),
+                delay, modelStallRecoveries, getDefaultMaxRetries())
+              await sleep(delay, toolUseContext.abortController.signal)
+            } else yield createSystemMessage(innerError.message + '; reconnecting once before tool execution.', 'warning')
             attemptWithFallback = true
             continue
           }

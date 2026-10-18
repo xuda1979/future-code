@@ -1,7 +1,7 @@
 import { invariant } from "./kernel.ts";
 import type { Store } from "./store.ts";
 import type { Lease, Measurement } from "./types.ts";
-import { providerWaitRecovered } from "./swarm/providerRecovery.ts";
+import { providerWaitDeadline } from "./swarm/providerRecovery.ts";
 
 /** Yield a durable continuation, not a failed implementation attempt.
  * A deadline only bounds the current episode; it never cancels a remote job. */
@@ -39,7 +39,8 @@ export function installContinuationTables(store: Store): void {
 
 /** Caller owns the transaction and has already checked the current lease. */
 export function persistContinuation(store: Store, lease: Lease, error: DeferredAttemptError, measurement: Measurement, now: number): void {
-  let recovered = error.kind === "provider" && providerWaitRecovered(store, lease.runId, lease.taskId, lease.fence, error.wakeAt, now);
+  const providerWake = error.kind === "provider" ? providerWaitDeadline(store, lease.runId, lease.taskId, lease.fence, error.wakeAt, now) : null;
+  let recovered = false;
   if (["remote-job", "remote-stalled"].includes(error.kind) &&
       store.db.prepare("SELECT 1 FROM sqlite_master WHERE name='research_jobs' AND type='table'").get()) {
     // Completion can commit after the adapter decided to wait, but BEFORE this
@@ -51,7 +52,7 @@ export function persistContinuation(store: Store, lease: Lease, error: DeferredA
       !!store.db.prepare("SELECT 1 FROM research_jobs WHERE run=? AND task=? AND result_hash IS NOT NULL LIMIT 1").get(lease.runId, lease.taskId) &&
       !store.db.prepare("SELECT 1 FROM research_jobs WHERE run=? AND task=? AND result_hash IS NULL LIMIT 1").get(lease.runId, lease.taskId);
   }
-  const wake = recovered ? now : Math.max(now, error.wakeAt);
+  const wake = recovered ? now : Math.max(now, Math.min(error.wakeAt, providerWake ?? error.wakeAt));
   const a = store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(lease.runId, lease.taskId, lease.fence)!;
   store.db.prepare("UPDATE attempts SET status='DEFERRED',ended=?,duration=?,tokens=?,cost=? WHERE run=? AND task=? AND fence=?")
     .run(now, Math.max(0, now - a.started), measurement.tokens, measurement.costUsd, lease.runId, lease.taskId, lease.fence);

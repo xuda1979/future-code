@@ -35,6 +35,42 @@ function configure(s: SwarmSpec, remote: boolean): void {
 
 for (const remote of [false, true]) {
   const backend = remote ? remoteWorkerFleetBackend : localGitBackend, label = remote ? "remote" : "local";
+  test(`${label} source search returns bounded surrounding code in the discovery call`, async () => fixture(async (s, cfg) => {
+    const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "worker")!);
+    const hands = backend.open(s, cfg, c, cfg.spec.agents.coder, signal(), null);
+    try {
+      const call = search("needle", { path: "src/context.txt", contextLines: 1, limit: 1 });
+      validateToolProposal(c, cfg, cfg.spec.agents.coder, call);
+      const r: any = await hands.tool(call);
+      assert.ok(!r.error, JSON.stringify(r));
+      assert.deepEqual(r.matches[0].context, { startLine: 2, endLine: 4,
+        content: "function example() {\n  return 'needle 量子';\n}", truncated: false });
+      const plain: any = await hands.tool(search("needle", { path: "src/context.txt" }));
+      assert.equal(plain.matches[0].context, undefined, "default compact response stays unchanged");
+      const huge: any = await hands.tool(search("needle", { path: "src/long.txt", contextLines: 20 }));
+      assert.equal(huge.matches[0].context.truncated, true);
+      assert.ok(huge.matches[0].context.content.includes("needle"));
+      assert.ok(!huge.matches[0].context.content.includes("\ufffd"));
+      assert.ok(Buffer.byteLength(JSON.stringify(huge)) <= cfg.spec.budget.maxToolOutputBytes);
+      const pages: number[] = []; let cursor: any;
+      do {
+        const page: any = await hands.tool(search("needle", { path: "src/context.txt", contextLines: 1, limit: 1,
+          ...(cursor ? { cursor } : {}) }));
+        pages.push(...page.matches.map((m: any) => m.line)); cursor = page.nextCursor;
+      } while (cursor);
+      assert.deepEqual(pages, [3, 6]);
+      for (const contextLines of [-1, 21, 1.5, true, "2"]) {
+        assert.throws(() => validateToolProposal(c, cfg, cfg.spec.agents.coder, search("needle", { contextLines })), /tool number|out of bounds/);
+        if (remote) assert.match((await hands.tool(search("needle", { contextLines })) as any).error, /invalid search contextLines/);
+        else await assert.rejects(hands.tool(search("needle", { contextLines })), /invalid search contextLines/);
+      }
+    } finally { await hands.dispose(); }
+  }, s => {
+    writeFileSync(join(s.project, "src/context.txt"), "header\nfunction example() {\n  return 'needle 量子';\n}\nfooter\nneedle\n");
+    writeFileSync(join(s.project, "src/long.txt"), "🙂".repeat(3000) + "needle" + "文".repeat(3000));
+    commit(s.project); configure(s, remote);
+  }));
+
   test(`${label} source search finds literal UTF-8 lines, pages without gaps, and respects read scopes`, async () => fixture(async (s, cfg) => {
     const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "worker")!);
     const hands = backend.open(s, cfg, c, cfg.spec.agents.coder, signal(), null);

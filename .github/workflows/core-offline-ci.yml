@@ -36,7 +36,20 @@ jobs:
         run: node scripts/test-swarm.mjs
       - name: Command regression suite
         run: node scripts/test-commands.mjs
-      # tests/api/retry-resilience.test.ts imports @future/sdk, which is not
-      # available in this dependency-free source-snapshot CI. Keep that suite
-      # for dependency-complete build environments rather than treating a
-      # missing private/internal package as a product regression.
+  api-retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - name: Install only the public SDK used by the retry boundary
+        run: |
+          npm install --prefix "$RUNNER_TEMP/api-retry" --no-audit --no-fund --ignore-scripts '@future/sdk@npm:@anthropic-ai/sdk@0.116.0'
+          ln -s "$RUNNER_TEMP/api-retry/node_modules" node_modules
+      - name: Terminal API retry regression
+        run: bun test --preload ./tests/api/retry-isolation.ts ./tests/api/retry-resilience.test.ts
