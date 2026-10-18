@@ -13,6 +13,7 @@ import type { DiagnosticMemory } from "./diagnostics.ts";
 import type { DebuggingState } from "./debugging.ts";
 import { installMemoryTables, indexMemory } from "./memory.ts";
 import type { DecisionState } from "./decisions.ts";
+import type { ProjectKnowledge } from "./knowledge.ts";
 
 export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
 export interface ThreadState {
@@ -93,8 +94,10 @@ function objectiveRequestBudget(store: Store, run: string, incomingBytes: number
 export class SessionJournal {
   readonly store: Store;
   readonly providerRecovery: ProviderRecovery;
-  constructor(store: Store) {
+  readonly knowledge?: ProjectKnowledge;
+  constructor(store: Store, knowledge?: ProjectKnowledge) {
     this.store = store;
+    this.knowledge = knowledge;
     store.db.exec(`
       CREATE TABLE IF NOT EXISTS agent_threads(run TEXT NOT NULL, task TEXT NOT NULL, binding TEXT NOT NULL,
         fence INTEGER NOT NULL, seq INTEGER NOT NULL, state TEXT NOT NULL, PRIMARY KEY(run,task));
@@ -174,6 +177,7 @@ export class SessionJournal {
       invariant(row?.seq === t.seq && row?.fence === c.fence, "stale thread checkpoint");
       this.store.db.prepare("INSERT INTO agent_events VALUES(?,?,?,?,?,?)").run(c.runId, c.task.id, t.seq + 1, Date.now(), kind, data);
       indexMemory(this.store, c.runId, c.task.id, t.seq + 1, payload);
+      this.knowledge?.observe(c, t.seq + 1, (payload as any)?.memory ?? []);
       if (t.state.debugging) {
         if (t.state.debugging.card)
           this.store.db.prepare("INSERT INTO agent_triage VALUES(?,?,?) ON CONFLICT(run,task) DO UPDATE SET card=excluded.card")

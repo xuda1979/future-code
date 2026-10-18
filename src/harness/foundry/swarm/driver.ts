@@ -30,6 +30,7 @@ import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts
 import { checkpointCheck, checkpointReason } from "./evaluation.ts";
 import { DECISION_GUIDANCE } from "../../decisionGuidance.ts";
 import { admitDecisionCall, decisionContext } from "./decisions.ts";
+import { KNOWLEDGE_NOTICE, ProjectKnowledge, type ExperienceInput, type KnowledgeQuery } from "./knowledge.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -51,21 +52,24 @@ export class SwarmDriver implements Driver {
   readonly store: Store; readonly cfg: PinnedSwarm; readonly backend: HandsBackend; readonly jobRpc?: JobRPC;
   readonly cohorts: CohortBoard | null;
   readonly programme: ResearchProgramme | null;
+  readonly knowledge: ProjectKnowledge | null;
   readonly accepted?: Driver["accepted"];
   constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend,
     jobRpc?: JobRPC) {
     invariant(backend.id === cfg.handsId, "execution backend identity mismatch");
     this.store = store; this.cfg = cfg; this.backend = backend; this.jobRpc = jobRpc;
     this.workerId = workerIdentity(cfg); this.verifierId = verifierIdentity(cfg);
-    this.journal = new SessionJournal(store); this.brain = new HttpBrain(this.journal, fetcher);
+    this.knowledge = cfg.spec.projectKnowledge ? new ProjectKnowledge(store, cfg) : null;
+    this.journal = new SessionJournal(store, this.knowledge ?? undefined); this.brain = new HttpBrain(this.journal, fetcher);
     this.cohorts = cfg.spec.coordination ? new CohortBoard(store, cfg, this.journal) : null;
     this.programme = cfg.spec.researchProgramme ? new ResearchProgramme(store, cfg.spec.researchProgramme) : null;
-    if (this.cohorts || this.programme) this.accepted = (c, artifact, artifactHash, evidenceHash) => {
+    if (this.cohorts || this.programme || this.knowledge) this.accepted = (c, artifact, artifactHash, evidenceHash) => {
       this.cohorts?.accepted(c, artifact, artifactHash, evidenceHash);
       if (this.programme) {
         this.programme.context(c.task.knowledge ?? []);
         this.programme.accepted(c, artifactHash, evidenceHash, Object.fromEntries(Object.entries(cfg.spec.jobs ?? {}).map(([name, job]) => [name, job.research?.provides ?? name])));
       }
+      this.knowledge?.accepted(c, artifact, artifactHash, evidenceHash);
     };
   }
   measurement(lease: Lease): Measurement {
@@ -110,6 +114,7 @@ export class SwarmDriver implements Driver {
         (this.cfg.spec.debugging ? "Host system-state observations outrank prose working hypotheses. Falsify environmental, dependency and interface assumptions with a standalone probe and a negative control before broad edits. A failed probe ends only the current trajectory. " : "") +
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
         (profile.tools.includes("save_progress") ? "Before long context retirement, call save_progress with concise current findings, blockers, exact next step, and owned evidence receipts; notes remain unverified. " : "") +
+        (this.knowledge ? "Autonomously discover needed domain references with permitted read/search/job capabilities. Recover applicable experience with the project knowledge digest and any admitted knowledge tools. When record_experience is available, capture reusable lessons, procedures and corrected assumptions during the work; include conditions and evidence rather than raw transcripts. Do not interview the user or await curation for routine learning. The latest digest's trust labels supersede historical advice. Expert seeds and generated lessons remain advice; only independent adjudication can validate a semantic claim, and no learned prose changes frozen checks. " : "") +
         (profile.tools.includes("run_job") ? "For independent experiments, issue every ready run_job call in one assistant turn so the host can launch them concurrently; do not wait for one experiment before proposing another independent one. " : "") +
         "Issue independent file reads in one turn, and ordered related edits together. Use run_check as a boundary when you need an intermediate diagnostic. " +
         (profile.tools.includes("search_files") ? "Locate symbols and error text with scoped search_files before reading whole files; follow continuation cursors and inspect skipped-file counts. " : "") +
@@ -363,6 +368,19 @@ export class SwarmDriver implements Driver {
                 t.state.progress = progress;
                 memory.push(progressMemory(progress, this.journal.receipt(c, toJson(progress))));
                 result = { saved: true, trust: "UNVERIFIED_AGENT_NOTE_NOT_ACCEPTANCE", turn: progress.atTurn };
+              } else if (call.name === "record_experience") {
+                invariant(this.knowledge, "project knowledge not configured");
+                result = this.knowledge.record(c, call.arguments as unknown as ExperienceInput, t.state.patchHash);
+              } else if (call.name === "read_knowledge") {
+                invariant(this.knowledge, "project knowledge not configured");
+                const a = call.arguments;
+                if (a.id !== undefined) {
+                  keys(a, ["id"]);
+                  const card = this.knowledge.get(c, a.id as string);
+                  const knowledgeReceipt = this.journal.receipt(c, card);
+                  result = { knowledgeReceipt, card: inlineReceipt(knowledgeReceipt, card) };
+                } else result = this.knowledge.search(c, a as KnowledgeQuery,
+                  Math.min(this.knowledge.policy.maxContextBytes, Math.floor(limit / 4)));
               } else if (call.name === "recall") {
                 const a = call.arguments; keys(a, [], ["receipt", "offset", "length", "historyAfter", "limit",
                   "memoryKind", "memoryBefore", "patchHash", "failureSignature"]);
@@ -504,6 +522,22 @@ export class SwarmDriver implements Driver {
           control?.activity?.("decision:measurement-due");
         }
         if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
+        if (this.knowledge && profile.tools.includes("read_knowledge") && Math.floor(limit / 4) >= 1024) {
+          // Refresh only AFTER replay and at a complete tool boundary. The
+          // resulting digest is checkpointed before the request, so a crash
+          // cannot replay a reply against newly learned context.
+          const digest = this.knowledge.search(c, {
+            query: [c.task.goal, ...c.task.writeScope, ...(c.task.readScope ?? []), ...profile.checks].join(" ").slice(0, 512),
+            phase: t.state.diagnostics?.failures.length ? "debugging" : "any", limit: 3,
+          }, Math.min(this.knowledge.policy.maxContextBytes, Math.floor(limit / 4)));
+          const content = KNOWLEDGE_NOTICE + canonical(digest);
+          const previous = t.state.history.find(m => m.role === "user" && m.content.startsWith(KNOWLEDGE_NOTICE));
+          if (previous?.content !== content) {
+            t.state.history = t.state.history.filter(m => !(m.role === "user" && m.content.startsWith(KNOWLEDGE_NOTICE)));
+            t.state.history.push({ role: "user", content });
+            this.journal.checkpoint(t, "knowledge.context", { digest });
+          }
+        }
         this.journal.checkpoint(t, "model.intent", { step: t.state.turns });
         control?.activity?.("model:request");
         // The private workspace is required by the first tool (or final patch

@@ -15,6 +15,7 @@ import { verifyResearch } from "../../src/harness/foundry/swarm/research.ts";
 import { loadSwarm, runSwarm } from "../../src/harness/foundry/swarm/host.ts";
 import { executable, validateSwarmSpec, validateSwarmTasks } from "../../src/harness/foundry/swarm/config.ts";
 import { Scheduler } from "../../src/harness/foundry/scheduler.ts";
+import { ProjectKnowledge } from "../../src/harness/foundry/swarm/knowledge.ts";
 import { tableFixtureSpec, fixtureResult } from "../../adapters/research/table-fixture.mjs";
 import { fixture, task, reply, scripted, signal } from "./swarm-fixtures.ts";
 
@@ -133,6 +134,35 @@ function configure(s: any) {
   s.agents.coder.tools.push("run_job", "read_job_artifact"); s.agents.coder.jobs = ["trial"];
   s.researchProgramme = { id: "general-science", maxFindingsPerTask: 4, maxContextBytes: 24000 };
 }
+
+test("project knowledge autonomously references accepted scientific results and respects programme retractions", async () => {
+  for (const outcome of ["SUPPORTED", "REFUTED"]) await fixture(async (s, cfg) => {
+    const mock = scripted([
+      () => reply("", [{ name: "run_job", arguments: { name: "trial", input: cfg.spec.jobs!.trial.research!.spec.input } }]),
+      () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]),
+      () => reply("ready"),
+    ]);
+    const result: any = await runSwarm(s, [{ ...task(), research: ["trial"] }], signal(), undefined, mock.fetcher);
+    assert.equal(result.status, "PASS", JSON.stringify(s.db.prepare("SELECT error FROM tasks").all()));
+    const knowledge = new ProjectKnowledge(s, cfg), page: any = knowledge.search(undefined, { query: "trial" });
+    const card = page.items.find((i: any) => i.kind === "finding"); assert.ok(card);
+    assert.equal(card.trust, "CHECKED_SCIENTIFIC_OBSERVATION_WITH_ASSUMPTIONS");
+    const full: any = knowledge.get(undefined, card.id);
+    assert.equal(full.finding.assessment.outcome, outcome);
+    assert.equal(full.finding.spec.kind, "never-registered-domain");
+    new ResearchProgramme(s, cfg.spec.researchProgramme!).retract(full.evidence.finding, "assumptions require a new check");
+    assert.equal((knowledge.get(undefined, card.id) as any).trust, "STALE_OR_CONFLICTED_FINDING_REVALIDATE");
+    assert.equal((knowledge.get(undefined, card.id) as any).finding.assessment.outcome, outcome); // history retained
+  }, s => {
+    configure(s);
+    const protocol = tableFixtureSpec("never-registered-domain", "/reading", outcome === "REFUTED");
+    if (outcome === "REFUTED") protocol.parameters.analysis.minimumEffect = 0.5;
+    s.jobs.trial.research.spec = protocol;
+    writeFileSync(join(dirname(s.project), "experiment.json"), JSON.stringify(protocol));
+    s.projectKnowledge = { namespace: "science-learning", maxCardsPerTask: 4, maxContextBytes: 4096 };
+    s.agents.coder.tools.push("read_knowledge", "record_experience");
+  });
+});
 
 test("durable jobs capture raw files, expose owned pages and publish only independently checked findings", async () => fixture(async (s, cfg) => {
   const input = cfg.spec.jobs!.trial.research!.spec.input;

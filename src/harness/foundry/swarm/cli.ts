@@ -20,6 +20,7 @@ import { adjudicateClaim, claimsForGoals, claimRevalidationTask, retractClaim } 
 import { readMemory, rebuildMemoryPage, type MemoryQuery } from "./memory.ts";
 import type { ThreadState } from "./session.ts";
 import { workflowObservation } from "../workflow.ts";
+import { ProjectKnowledge, type KnowledgePack, type KnowledgePhase } from "./knowledge.ts";
 export const help = `Foundry Swarm: durable coding agents on the existing Foundry kernel
   init --spec FILE --allow-exec
   run --tasks FILE --allow-exec
@@ -31,6 +32,10 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   research-compare --spec FILE --allow-exec (matched local experiments with configured validators)
   knowledge [--finding ID --version HASH] [--task-after ID] [--limit N]
   knowledge-retract --finding ID --version HASH --reason TEXT --allow-exec
+  experience [--hash CARD_ID] [--query TEXT --phase PHASE --after CURSOR --limit N]
+  experience-import --spec PACK_JSON --allow-exec
+  experience-export --finding PACK_ID --hash CARD_ID
+  experience-retire --hash CARD_ID --reason TEXT --allow-exec
   reflection --objective ID
   claims --run ID --task ID [--after CLAIM_ID]
   claim-revalidation-task --run ID --claim ID
@@ -63,15 +68,15 @@ export function tokenize(text: string): string[] {
 function file(path: string): any { invariant(statSync(path).size <= 32 * 1024 * 1024, "JSON input exceeds 32 MiB"); return JSON.parse(readFileSync(path, "utf8")); }
 export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal, onProgress: HealthObserver = r => console.error(formatHealth(r))): Promise<Json> {
   const cmd = argv[0] ?? "help"; if (cmd === "help") return { help };
-  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence", "--finding", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit"]);
+  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence", "--finding", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit", "--query", "--phase"]);
   for (let i = 1; i < argv.length; i++) {
     const k = argv[i]; invariant(allowed.has(k) && !opts.has(k), `unknown/duplicate option ${k}`);
     if (k === "--allow-exec") opts.set(k, "true");
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "workflow", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate", "knowledge", "knowledge-retract", "research-strategy", "research-compare"].includes(cmd), "unknown swarm command");
-  if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate", "knowledge-retract", "research-compare"].includes(cmd)) need("--allow-exec");
+  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "workflow", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate", "knowledge", "knowledge-retract", "research-strategy", "research-compare", "experience", "experience-import", "experience-export", "experience-retire"].includes(cmd), "unknown swarm command");
+  if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate", "knowledge-retract", "research-compare", "experience-import", "experience-retire"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
     switch (cmd) {
@@ -107,6 +112,18 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
         }
         return opts.has("--finding") ? JSON.parse(canonical(programme.read({ id: need("--finding"), version: need("--version") }, true))) :
           programme.list(opts.get("--task-after"), Number(opts.get("--limit") ?? 20));
+      }
+      case "experience": case "experience-import": case "experience-export": case "experience-retire": {
+        const knowledge = new ProjectKnowledge(store, loadSwarm(store));
+        if (cmd === "experience-import") return knowledge.importPack(file(need("--spec")) as KnowledgePack);
+        if (cmd === "experience-export") return JSON.parse(canonical(knowledge.exportPack(need("--finding"), [need("--hash")])));
+        if (cmd === "experience-retire") { knowledge.retire(need("--hash"), need("--reason")); return { retired: true }; }
+        if (opts.has("--hash")) return knowledge.get(undefined, need("--hash"));
+        return knowledge.search(undefined, {
+          ...(opts.has("--query") ? { query: need("--query") } : {}),
+          ...(opts.has("--phase") ? { phase: need("--phase") as KnowledgePhase } : {}),
+          after: Number(opts.get("--after") ?? 0), limit: Number(opts.get("--limit") ?? 5),
+        });
       }
       case "recommend": {
         const tasks = file(need("--tasks")) as Task[];
