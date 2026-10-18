@@ -42,6 +42,8 @@ host-owned. Policy recommendations cannot bypass admission or verification.
 - External job identity, reconciliation and cumulative objective budgets.
 - Content-addressed artifacts and immutable event/evidence histories.
 - Versioned hypotheses with retraction, dependency invalidation and explicit conflicts.
+- Optional autonomous project knowledge: expert packs, observed failures, reusable
+  experience cards, checked scientific findings and bounded cross-run retrieval.
 - Contextual recovery recommendations with sample counts, uncertainty and abstention.
 - Paired real-project evaluation with wall time, model requests, quality gates and nullable cost.
 
@@ -100,6 +102,7 @@ Missing token or dollar measurements remain unknown.
 |---|---|
 | Architectural principles and trust boundaries | [Sovereign kernel](docs/agent-platform/SOVEREIGN_KERNEL.md) |
 | Claims, evidence, conflicts and adjudication | [Knowledge protocol](docs/agent-platform/KNOWLEDGE_PROTOCOL.md) |
+| Expert seeds and autonomous experience accumulation | [Project knowledge](docs/agent-platform/PROJECT_KNOWLEDGE.md) |
 | Frozen contracts and recipe experiments | [Foundry](docs/agent-platform/FOUNDRY.md) |
 | External-API agents and durable sessions | [Swarm](docs/agent-platform/SWARM.md) |
 | Independent policy proposals during execution | [Workflow policy](docs/agent-platform/WORKFLOW_POLICY.md) |

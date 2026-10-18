@@ -12,12 +12,28 @@ import { abortable, boundedFetch, discardResponse } from "./transport.ts";
 import type { DiagnosticContext } from "./diagnostics.ts";
 import { decodeResponse, type Turn } from "./response.ts";
 import { isProviderTransportError } from "../../../utils/providerRetryPolicy.ts";
+import { KNOWLEDGE_PHASES } from "./knowledge.ts";
 export { decodeTurn, type Turn } from "./response.ts";
 export interface ToolDefinition { name: ToolName; description: string; schema: Record<string, Json> }
 const string = { type: "string" }; const integer = { type: "integer", minimum: 0 };
 const def = (name: ToolName, description: string, properties: Record<string, Json>, required: string[]): ToolDefinition =>
   ({ name, description, schema: { type: "object", properties, required, additionalProperties: false } });
 export const definitions: ToolDefinition[] = [
+  def("record_experience", "Autonomously retain an atomic reusable lesson or procedure from project references and R&D. Record exact applicability conditions and owned evidence receipts. Remains a hypothesis even after its source task passes; semantic promotion requires an independently adjudicated claim whose statement is canonical JSON {conditions,lesson}. Use contradicts to flag a corrected seed/lesson without overwriting it. New evidence requires a new id.", {
+    id: { type: "string", minLength: 1, maxLength: 128 },
+    kind: { type: "string", enum: ["hypothesis", "procedure", "constraint"] },
+    trigger: { type: "string", minLength: 1, maxLength: 512 },
+    lesson: { type: "string", minLength: 1, maxLength: 2048 },
+    conditions: { type: "string", minLength: 1, maxLength: 512 },
+    phase: { type: "string", enum: [...KNOWLEDGE_PHASES] },
+    tags: { type: "array", minItems: 1, maxItems: 12, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 64 } },
+    receipts: { type: "array", maxItems: 8, uniqueItems: true, items: string },
+    claimId: string, contradicts: { type: "array", maxItems: 4, uniqueItems: true, items: string },
+  }, ["id", "kind", "trigger", "lesson", "conditions", "phase", "tags", "receipts"]),
+  def("read_knowledge", "Retrieve bounded project-shared seeds, failures and experiences across tasks/runs. Search uses literal tags/trigger terms and workflow phase, newest first. Follow nextAfter when hasMore. Or supply only id to read a complete card into an owned recall receipt. All knowledge is advice under stated conditions; source pointers grant no private receipt access. Missing results do not prove absence.", {
+    query: { type: "string", maxLength: 2048 }, phase: { type: "string", enum: [...KNOWLEDGE_PHASES] },
+    after: integer, limit: { type: "integer", minimum: 1, maximum: 10 }, id: string,
+  }, []),
   def("publish_finding", "Publish one concise UNVERIFIED finding. Cohort notes are visible within your assigned group. Shared notes become visible across groups only after the source task passes independent checks and its accepted patch matches this checkpoint. Receipt references must belong to this thread. Reuse the same id only for identical content.", {
     id: { type: "string", minLength: 1, maxLength: 128 },
     audience: { type: "string", enum: ["cohort", "shared"] },

@@ -22,6 +22,7 @@ import { git, LocalGitHands, orderedTasks, readPatchArtifact } from "./workspace
 import { checkPassed } from "./verification.ts";
 import { WorkflowPolicyAgent, workflowPolicyMetrics } from "./workflowPolicy.ts";
 import { workflowObservation } from "../workflow.ts";
+import { ProjectKnowledge } from "./knowledge.ts";
 const json = (value: unknown): Json => JSON.parse(canonical(value));
 const KEY = "extension.swarm";
 export async function initializeSwarm(store: Store, input: SwarmSpec, signal: AbortSignal): Promise<PinnedSwarm> {
@@ -84,6 +85,10 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
   });
   if (Object.values(spec.jobs ?? {}).some(j => j.research)) installResearch(store);
   if (spec.researchProgramme) new ResearchProgramme(store, spec.researchProgramme);
+  if (spec.projectKnowledge) {
+    const knowledge = new ProjectKnowledge(store, cfg);
+    for (const pack of spec.projectKnowledge.packs ?? []) knowledge.importPack(pack);
+  }
   new SessionJournal(store); return cfg;
 }
 export function loadSwarm(store: Store): PinnedSwarm {

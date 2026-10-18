@@ -15,6 +15,10 @@ export interface ToolEffectContract {
 }
 
 const fixed: Partial<Record<ToolName, ToolEffectContract>> = {
+  read_knowledge: { tool: "read_knowledge", effect: "read", replay: "safe", idempotency: "none",
+    compensation: "none", risk: "low", rationale: "bounded project-shared cards, never source receipt authority or acceptance" },
+  record_experience: { tool: "record_experience", effect: "control-plane", replay: "state-bound", idempotency: "call-id",
+    compensation: "none", risk: "low", rationale: "immutable task-owned experience id and input binding; source acceptance cannot verify prose" },
   read_findings: { tool: "read_findings", effect: "read", replay: "safe", idempotency: "none",
     compensation: "none", risk: "low", rationale: "bounded cohort notes or accepted cross-cohort references; no private history access" },
   publish_finding: { tool: "publish_finding", effect: "control-plane", replay: "state-bound", idempotency: "call-id",
@@ -77,5 +81,7 @@ export function toolEffectContract(cfg: PinnedSwarm, tool: ToolName, args: Json)
     invariant(cfg.spec.supervision?.dynamicDAG, "spawn_tasks requires host dynamic-DAG policy");
   if (tool === "publish_finding" || tool === "read_findings")
     invariant(cfg.spec.coordination, "finding tools require host coordination policy");
+  if (tool === "record_experience" || tool === "read_knowledge")
+    invariant(cfg.spec.projectKnowledge, "knowledge tools require project knowledge policy");
   return contract;
 }

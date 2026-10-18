@@ -1,4 +1,5 @@
 import { validateResearchStrategy, type ResearchStrategy } from "../researchStrategy.ts";
+import { validateKnowledgePolicy, type KnowledgePolicy } from "./knowledge.ts";
 import { validateKnowledgeRefs, type ProgrammePolicy } from "../researchProgramme.ts";
 import { validateResearchConfiguration, type ResearchConfiguration, type PinnedScientificValidator } from "../researchValidation.ts";
 import { existsSync, realpathSync, statSync } from "node:fs";
@@ -7,7 +8,7 @@ import { identifier, invariant, positive, validateContract, validateRecipe } fro
 import type { CommandSpec, Contract, PinnedCommand, Recipe, SpawnPolicy, Task } from "../types.ts";
 import { WORKFLOW_OPERATIONS, type WorkflowBounds } from "../workflow.ts";
 
-export const TOOLS = ["list_files", "read_file", "search_files", "write_file", "edit_file", "delete_file", "run_check", "run_probe", "recall", "run_job", "read_job_artifact", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict", "publish_finding", "read_findings"] as const;
+export const TOOLS = ["list_files", "read_file", "search_files", "write_file", "edit_file", "delete_file", "run_check", "run_probe", "recall", "run_job", "read_job_artifact", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict", "publish_finding", "read_findings", "record_experience", "read_knowledge"] as const;
 export type ToolName = typeof TOOLS[number];
 export type Protocol = "anthropic" | "chat-completions";
 export interface ProviderRoute {
@@ -154,6 +155,8 @@ export interface SwarmSpec {
   jobs?: Record<string, JobTemplate>;
   researchProgramme?: ProgrammePolicy;
   researchStrategy?: ResearchStrategy;
+  /** Explicit project sharing of bounded cards, never private source logs. */
+  projectKnowledge?: KnowledgePolicy;
   /** Evidence-Fabric semantic contract. Defaults to software-engineering. */
   domainPack?: "software-engineering" | "ml-research" | "scientific-computing";
   /** Optional multi-host execution fleet. The coordinator remains authoritative. */
@@ -201,7 +204,7 @@ function names(names: string[], known: string[], label: string): void {
 }
 export const permittedChecks = (a: AgentProfile): string[] => [...new Set([...a.checks, ...(a.diagnostics ?? [])])];
 export function validateSwarmSpec(s: SwarmSpec): void {
-  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack", "coordination", "verification", "debugging", "researchProgramme", "researchStrategy"]);
+  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack", "coordination", "verification", "debugging", "researchProgramme", "researchStrategy", "projectKnowledge"]);
   invariant(s.schema === 1 && typeof s.name === "string" && !!s.name.trim(), "invalid swarm identity");
   invariant(typeof s.project === "string" && s.project.length > 0, "missing project");
   invariant(s.domainPack === undefined ||
@@ -211,6 +214,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   const c: Contract = { schema: 1, name: s.name, workerId: "swarm", verifierId: "swarm-checker", environmentId: "pinned-project",
     requiredChecks: ["scope", "behavior"], slos: [], limits: s.limits };
   validateContract(c); validateRecipe(c, s.recipe);
+  if (s.projectKnowledge !== undefined) validateKnowledgePolicy(s.projectKnowledge, s.recipe.contextBytes);
   if (s.researchStrategy !== undefined) {
     validateResearchStrategy(s.researchStrategy);
     invariant(s.supervision?.workflowPolicy, "research strategy requires an independent workflow adviser");
@@ -267,6 +271,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     }
     if (a.tools.some(tool => ["publish_finding", "read_findings"].includes(tool)))
       invariant(s.coordination && a.cohort, "finding tools require an assigned cohort");
+    if (a.tools.some(tool => ["record_experience", "read_knowledge"].includes(tool)))
+      invariant(s.projectKnowledge && a.tools.includes("recall"), "knowledge tools require project knowledge policy and recall");
     invariant(["anthropic", "chat-completions"].includes(a.protocol), "unsupported provider protocol");
     const validateRoute = (route: ProviderRoute, label: string, strictShape = true) => {
       if (strictShape) keys(route, ["url", "model"], ["keyEnv", "allowHttp", "quotaPool"]);
