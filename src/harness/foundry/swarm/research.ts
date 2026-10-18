@@ -4,13 +4,15 @@ import { runResearchValidation } from "../researchValidation.ts";
 import type { Store } from "../store.ts";
 import type { Capsule, Check } from "../types.ts";
 import type { PinnedSwarm } from "./config.ts";
+import { theoryPremises } from "./theory.ts";
 
 export function installResearch(store: Store): void {
   store.db.exec(`CREATE TABLE IF NOT EXISTS research_assessments(
     run TEXT NOT NULL, task TEXT NOT NULL, template TEXT NOT NULL, job_key TEXT NOT NULL,
     spec_hash TEXT NOT NULL, receipt_hash TEXT NOT NULL, assessment_hash TEXT NOT NULL,
     outcome TEXT NOT NULL, PRIMARY KEY(run,task,template,job_key));
-    CREATE INDEX IF NOT EXISTS research_assessments_task ON research_assessments(run,task);`);
+    CREATE INDEX IF NOT EXISTS research_assessments_task ON research_assessments(run,task);
+    CREATE INDEX IF NOT EXISTS research_assessments_protocol ON research_assessments(run,template,spec_hash,task);`);
 }
 
 /** Independent final gate. Reconciled job receipts are observations, not scientific acceptance.
@@ -33,11 +35,13 @@ export async function verifyResearch(store: Store, cfg: PinnedSwarm, c: Capsule,
       invariant(receipt.key === row.key && receipt.jobId === row.job_id && receipt.status === row.status &&
         receipt.result?.exitCode === 0 && receipt.result.data, "research result receipt mismatch");
       const spec = config.spec;
+      const premises = spec.schema === 2 && spec.theory ? theoryPremises(store, cfg, c.runId, c.task, spec) : [];
       const previous = store.db.prepare(`SELECT assessment_hash FROM research_assessments WHERE run=? AND task=? AND template=? AND job_key=?`)
         .get(c.runId, c.task.id, row.template, row.key);
       const old: any = previous ? store.readArtifact(String(previous.assessment_hash)) : undefined;
       const context = { key: String(row.key), jobId: String(row.job_id),
-        adapterHash: digest(cfg.jobAdapters![String(row.template)]), artifacts: receipt.result.artifacts ?? {} };
+        adapterHash: digest(cfg.jobAdapters![String(row.template)]), artifacts: receipt.result.artifacts ?? {},
+        ...(premises.length ? { theoryPremises: premises } : {}) };
       const validation = await runResearchValidation(spec, receipt.result.data, context,
         cfg.experimentValidators?.[String(row.template)] ?? {}, signal, {
           legacyChecker: cfg.researchCheckers?.[String(row.template)], legacyTimeoutMs: cfg.spec.budget.toolTimeoutMs,

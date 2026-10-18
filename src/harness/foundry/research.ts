@@ -1,5 +1,7 @@
 import { canonical, digest, identifier, invariant } from "./kernel.ts";
 import type { Json } from "./types.ts";
+import { assessTheory, validateTheoryContract, validateTheoryContext, validateTheoryEvidence, type TheoryAssessment,
+  type TheoryContract, type TheoryEvidence, type CheckedTheoryPremise } from "./theory.ts";
 
 export type ResearchOutcome = "SUPPORTED" | "REFUTED" | "INCONCLUSIVE";
 interface ResearchBase {
@@ -26,6 +28,8 @@ export interface ExperimentSpec extends ResearchBase {
   validation: { id: string; checks: string[] }[];
   /** Optional, frozen checks required before any experiment submission. */
   planValidation?: { id: string; checks: string[] }[];
+  /** Opt-in deductive research; semantics belong to the project's pinned oracle. */
+  theory?: TheoryContract;
 }
 export type ResearchSpec = ExperimentSpec | LegacyResearchSpec;
 export interface ExperimentContext {
@@ -33,6 +37,8 @@ export interface ExperimentContext {
   jobId: string;
   adapterHash: string;
   artifacts: Json;
+  /** Host-resolved, independently accepted exact deductions for the oracle. */
+  theoryPremises?: CheckedTheoryPremise[];
 }
 export interface ExperimentPlanContext { key: string; adapterHash: string; inputHash: string }
 export interface PlanValidatorReport {
@@ -50,6 +56,7 @@ export interface ValidatorReport {
   checks: { id: string; verdict: "PASS" | "FAIL" | "UNKNOWN"; detail?: string }[];
   outcome: ResearchOutcome;
   measurements?: Json;
+  theory?: TheoryEvidence;
 }
 export interface ResearchAssessment {
   schema: 1;
@@ -61,6 +68,7 @@ export interface ResearchAssessment {
   contextHash?: string;
   conflicted?: boolean;
   validation?: { id: string; implementationHash: string; reportHash: string }[];
+  theory?: TheoryAssessment;
 }
 export function fields(value: any, required: string[], optional: string[] = []): void {
   invariant(value && typeof value === "object" && !Array.isArray(value), "expected research object");
@@ -75,7 +83,7 @@ function ids(v: unknown, max: number): asserts v is string[] {
 const base = ["schema", "kind", "question", "hypothesis", "assumptions", "refutation", "protocol", "identity", "input", "acceptance"];
 export function validateResearchSpec(s: ResearchSpec): void {
   invariant(s && (s.schema === 1 || s.schema === 2), "unknown research schema");
-  if (s.schema === 2) fields(s, [...base, "parameters", "execution", "units", "artifacts", "validation"], ["planValidation"]);
+  if (s.schema === 2) fields(s, [...base, "parameters", "execution", "units", "artifacts", "validation"], ["planValidation", "theory"]);
   else invariant(base.every(k => Object.hasOwn(s, k)), "incomplete legacy research specification");
   identifier(s.kind); [s.question, s.hypothesis, s.refutation, s.protocol].forEach(x => text(x));
   invariant(Array.isArray(s.assumptions) && s.assumptions.length <= 64 && new Set(s.assumptions).size === s.assumptions.length, "invalid assumptions");
@@ -84,6 +92,7 @@ export function validateResearchSpec(s: ResearchSpec): void {
   invariant(["valid-result", "supported-hypothesis"].includes(s.acceptance), "invalid research acceptance");
   invariant(Buffer.byteLength(canonical(s)) <= 65536, "research specification too large");
   if (s.schema === 1) return;
+  validateTheoryContract(s);
   fields(s.execution, ["mode", "backend", "configurationHash"]);
   invariant(["computational", "simulation", "physical"].includes(s.execution.mode), "invalid execution mode");
   text(s.execution.backend, 512); hash(s.execution.configurationHash);
@@ -110,7 +119,8 @@ export function validateResearchSpec(s: ResearchSpec): void {
  * independently pinned validators, never to a model or the scheduler. */
 export function validateExperimentResult(s: ExperimentSpec, raw: unknown, context: ExperimentContext): void {
   validateResearchSpec(s);
-  fields(context, ["key", "jobId", "adapterHash", "artifacts"]); hash(context.key); hash(context.adapterHash); text(context.jobId, 1024);
+  fields(context, ["key", "jobId", "adapterHash", "artifacts"], ["theoryPremises"]); hash(context.key); hash(context.adapterHash); text(context.jobId, 1024);
+  validateTheoryContext(s, context);
   const r = raw as any; fields(r, ["schema", "specHash", "identity", "execution", "observations"]);
   canonical(r); canonical(context);
   invariant(r.schema === 2 && r.specHash === digest(s) && digest(r.identity) === digest(s.identity), "experiment provenance mismatch");
@@ -142,7 +152,7 @@ export function assessResearch(s: ExperimentSpec, raw: unknown, context: Experim
     hash(result.implementationHash);
     const required = s.validation.find(v => v.id === result.id); invariant(required, "undeclared experiment validator");
     const report = result.report as ValidatorReport;
-    fields(report, ["schema", "validator", "implementationHash", "specHash", "resultHash", "contextHash", "checks", "outcome"], ["measurements"]);
+    fields(report, ["schema", "validator", "implementationHash", "specHash", "resultHash", "contextHash", "checks", "outcome"], ["measurements", "theory"]);
     invariant(Buffer.byteLength(canonical(report)) <= 65536, "validator report too large");
     invariant(report.schema === 1 && report.validator === result.id && report.implementationHash === result.implementationHash &&
       report.specHash === digest(s) && report.resultHash === digest(raw) && report.contextHash === digest(context), "independent validator binding mismatch");
@@ -153,13 +163,15 @@ export function assessResearch(s: ExperimentSpec, raw: unknown, context: Experim
       if (check.detail !== undefined) text(check.detail, 2048);
     }
     invariant(["SUPPORTED", "REFUTED", "INCONCLUSIVE"].includes(report.outcome), "invalid scientific outcome"); outcomes.add(report.outcome);
+    validateTheoryEvidence(s, report, context);
     validation.push({ id: result.id, implementationHash: result.implementationHash, reportHash: digest(report) });
   }
   const conflicted = outcomes.has("SUPPORTED") && outcomes.has("REFUTED");
   const outcome: ResearchOutcome = conflicted ? "INCONCLUSIVE" : outcomes.has("REFUTED") ? "REFUTED" :
     outcomes.size === 1 && outcomes.has("SUPPORTED") ? "SUPPORTED" : "INCONCLUSIVE";
   return { schema: 1, specHash: digest(s), resultHash: digest(raw), outcome, estimates: [], assumptions: s.assumptions,
-    contextHash: digest(context), conflicted, validation: validation.sort((a, b) => a.id.localeCompare(b.id)) };
+    contextHash: digest(context), conflicted, validation: validation.sort((a, b) => a.id.localeCompare(b.id)),
+    ...(s.theory ? { theory: assessTheory(s, reports.map(r => r.report as ValidatorReport), outcome, conflicted) } : {}) };
 }
 
 /** A plan receipt permits submission only; it is never evidence of an outcome. */

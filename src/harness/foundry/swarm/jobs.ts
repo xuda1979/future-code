@@ -15,6 +15,7 @@ import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts
 import { abortable } from "./transport.ts";
 import { performance } from "node:perf_hooks";
 import { createHash } from "node:crypto";
+import { theoryPremises } from "./theory.ts";
 
 /** Host-only polling advice. No effect on remote identity or acceptance. */
 export function nextRemotePollMs(template: Pick<JobTemplate, "pollMs" | "maxPollMs">, idlePolls: number): number {
@@ -241,6 +242,9 @@ export class ResearchJobs {
       invariant(c.task.research?.includes(name), "frontier experiment requires an admitted task assignment");
     }
     const planReceipts: string[] = [];
+    if (template.research?.spec.schema === 2 && template.research.spec.theory &&
+      !store.db.prepare("SELECT 1 FROM research_jobs WHERE key=?").get(key))
+      theoryPremises(store, this.cfg, c.runId, c.task, template.research.spec);
     // Never gate reconciliation of an already submitted experiment on a new
     // pre-execution decision. Its durable intent was admitted under this binding.
     if (template.research?.spec.schema === 2 && template.research.spec.planValidation &&
@@ -273,6 +277,8 @@ export class ResearchJobs {
       this.journal.assertLease(c);
       const old = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key);
       if (old) { invariant(old.input_hash === binding, "job replay input drift"); return old; }
+      if (template.research?.spec.schema === 2 && template.research.spec.theory)
+        theoryPremises(store, this.cfg, c.runId, c.task, template.research.spec);
       for (const requirement of template.research?.spec.schema === 2 ? template.research.spec.planValidation ?? [] : [])
         checkPins(this.cfg.experimentValidators![name][requirement.id].command);
       let preflight: Json | null = null;
