@@ -60,6 +60,24 @@ existing paid customers can still receive their keys.
 
 ## Payment and license reliability
 
+The published Sites page works in a browser. An automated request from the
+build environment received Cloudflare HTTP 403 / error 1010. Do not use that
+origin for desktop activation or register it as the live Stripe webhook until
+machine ingress has been verified from the actual clients and Stripe.
+
+An alternative host is included: `node users/commerce/server.mjs` (Node 24), or
+`docker build -f users/commerce/Dockerfile -t future-code-commerce .` from the
+repository root. Run it behind HTTPS with a persistent, backed-up `/data` volume
+and the same server environment values. It initializes its versioned SQLite
+schema at startup. It never changes existing schema during payment requests.
+For an external service, set the Site's `COMMERCE_ORIGIN` to that HTTPS API host,
+rebuild the desktop public `LICENSE_ORIGIN`, and register the Stripe webhook
+directly on that host. Verify the full purchase path before enabling sales.
+The built-in standalone rate limit uses the socket peer address, so behind a
+proxy it conservatively shares a bucket; add a trusted ingress rate limiter
+before expanding volume. Do not evade a provider's bot controls or put a shared
+private Site bypass token into a distributed client.
+
 Webhook HMAC verification uses the original body and a 5-minute timestamp bound.
 Fulfillment retrieves the paid session from Stripe, checks live/test mode, price,
 currency, quantity and amount, and records one order per Checkout session.
