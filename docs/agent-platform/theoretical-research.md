@@ -145,6 +145,12 @@ identity and terminal receipts remain inspectable after restart; the invalid
 deduction fails acceptance. Historical proofs retain their original assumptions
 and provenance. Nothing in this extension clears conflicts by voting.
 
+Final integration (including cached receipts) and objective completion also
+recheck exact imports, prerequisite closure and programme revocations. The
+supervisor preserves the initial scientific target task IDs and requirements
+across recovery; helpers and methods can change around those anchors. A saved
+PASS is historical evidence, and a later revocation blocks new acceptance.
+
 ## Run the offline example
 
 ```sh

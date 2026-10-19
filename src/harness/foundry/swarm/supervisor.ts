@@ -7,7 +7,7 @@ import { Scheduler } from "../scheduler.ts";
 import type { Store } from "../store.ts";
 import type { Json, Task } from "../types.ts";
 import { integrateSwarm, loadSwarm, runSwarm } from "./host.ts";
-import { inScope, keys, validateSwarmTasks } from "./config.ts";
+import { inScope, keys, validateSwarmTasks, type PinnedSwarm } from "./config.ts";
 import { createApiRecoveryPlanner } from "./recovery.ts";
 import { externalEffectSnapshot, objectiveJobUsage } from "./jobs.ts";
 import { buildObjectiveEpisode, installRndEpisodeTables, objectiveEpisodeStatus, persistObjectiveEpisode } from "../rndEpisodes.ts";
@@ -19,11 +19,14 @@ import { contextualInterventionPolicy, recoveryFeatures } from "../contextualPol
 import { objectiveRequestTotals } from "./requestAccounting.ts";
 import { SessionJournal } from "./session.ts";
 import { diagnosticContext, type DiagnosticContext } from "./diagnostics.ts";
+import { assertRunScientificAcceptance, assertScientificObligations, objectiveScientificObligations,
+  type ScientificObligation } from "./scientificAcceptance.ts";
 
 export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
 export interface RecoveryContext {
   objectiveId: string; goal: string; runId: string; reason: string; revision: number;
   tasks: Task[]; failures: { id: string; status: string; error: string | null; diagnostics?: DiagnosticContext }[];
+  scientificObligations?: ScientificObligation[];
   reflectionHash?: string;
   reflection?: Json;
   interventionMemory?: Json;
@@ -44,6 +47,7 @@ export interface ObjectiveEvidenceGate {
   externalJobs: number;
   unresolvedExternalJobs: number;
   externalJobsByTemplate: Record<string, number>;
+  scientificBlocker: string | null;
 }
 
 /** Host-owned completion gate. External models may propose work, but they never
@@ -65,9 +69,16 @@ export function objectiveEvidenceGate(store: Store, run: string, objective?: str
   ).get(run)?.n ?? 0);
   const externalEffects = externalEffectSnapshot(store, run, objective);
   const claims = claimGate(store, run);
+  let scientificBlocker: string | null = null;
+  const cfg = store.getMeta<PinnedSwarm>("extension.swarm");
+  if (cfg) {
+    try { assertRunScientificAcceptance(store, cfg, run, objective); }
+    catch (error) { scientificBlocker = String(error).slice(0, 1024); }
+  }
   return {
     status: Number(counts.verified) === Number(counts.total) && openConflicts === 0 &&
-      externalEffects.unresolved === 0 && claims.openClaimConflicts === 0 && claims.staleClaims === 0 ? "PASS" : "BLOCKED",
+      externalEffects.unresolved === 0 && claims.openClaimConflicts === 0 && claims.staleClaims === 0 &&
+      scientificBlocker === null ? "PASS" : "BLOCKED",
     taskCount: Number(counts.total),
     verifiedTasks: Number(counts.verified),
     missingTaskEvidence,
@@ -77,6 +88,7 @@ export function objectiveEvidenceGate(store: Store, run: string, objective?: str
     externalJobs: externalEffects.count,
     unresolvedExternalJobs: externalEffects.unresolved,
     externalJobsByTemplate: externalEffects.byTemplate,
+    scientificBlocker,
   };
 }
 export function recoveryStrategySignature(tasks: Task[], defaultAgent?: string): string {
@@ -99,6 +111,8 @@ export function recoveryStrategySignature(tasks: Task[], defaultAgent?: string):
         readScope: [...(task.readScope ?? [])].sort(),
         dependencies: dependencyLabels,
         dependencyViews: views,
+        research: [...(task.research ?? [])].sort(),
+        knowledge: [...(task.knowledge ?? [])].sort((a, b) => a.id.localeCompare(b.id)),
         priority: task.priority ?? null,
         estimatedDurationMs: task.estimatedDurationMs ?? null,
         contextBudget: task.contextBudget ?? null,
@@ -222,6 +236,8 @@ function recordObjectiveCompletion(store: Store, objective: string, row: any,
   })) as Json;
   const hash = store.artifact(attestation);
   store.transaction(() => {
+    const currentGate = objectiveEvidenceGate(store, String(row.run), objective);
+    invariant(currentGate.status === "PASS", "objective scientific/evidence gate changed before completion");
     const current = store.db.prepare(
       "SELECT run,attestation FROM swarm_objective_completions WHERE objective=?"
     ).get(objective);
@@ -314,6 +330,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     invariant(revision && revision.run === recovery.new_run, "prepared recovery revision missing or drifted");
     const tasks = store.readArtifact(revision.plan) as unknown as Task[];
     validateTasks(store.contract(), tasks); validateSwarmTasks(cfg.spec, tasks);
+    assertScientificObligations(objectiveScientificObligations(store, cfg, input.id), tasks, cfg.spec);
     const source = store.db.prepare("SELECT recipe FROM runs WHERE id=?").get(row.run);
     invariant(source?.recipe, "recovery source run missing");
     // The run identity is durable before creation. Repeating start after a crash
@@ -343,6 +360,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     if (!existing && maxReplans !== undefined && used >= maxReplans) return false;
     const revision = existing ? existing.revision : used + 1;
     const tasks = store.readArtifact(row.plan) as unknown as Task[];
+    const scientificObligations = objectiveScientificObligations(store, cfg, input.id);
     const reflected = existing?.reflection_hash
       ? { hash: String(existing.reflection_hash), reflection: store.readArtifact(String(existing.reflection_hash)) as Json }
       : reflectRun(store, input.id, String(row.run), reason);
@@ -387,7 +405,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       // STARTED is deliberately replayable: the planner has no execution authority
       // and no replacement run has been admitted yet. A controller crash can safely
       // repeat planning under the same bounded revision.
-      proposal = await planner({ objectiveId: input.id, goal: row.goal, runId: row.run, reason, revision, tasks, failures,
+      proposal = await planner({ objectiveId: input.id, goal: row.goal, runId: row.run, reason, revision, tasks, failures, scientificObligations,
         reflectionHash: reflected.hash, reflection: reflected.reflection, interventionMemory, interventionPolicy }, controller.signal);
       controller.signal.throwIfAborted();
       if (!proposal) {
@@ -401,6 +419,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         const current = assertOwner(); invariant(current.run === row.run, "objective changed during recovery planning");
         invariant(typeof proposal.reason === "string" && proposal.reason.trim().length > 0 && Buffer.byteLength(proposal.reason) <= 4096, "invalid recovery reason");
         validateTasks(store.contract(), proposal.tasks); validateSwarmTasks(cfg.spec, proposal.tasks);
+        assertScientificObligations(scientificObligations, proposal.tasks, cfg.spec);
         const writeAuthority = tasks.flatMap(task => task.writeScope);
         const readAuthority = [...writeAuthority, ...tasks.flatMap(task => task.readScope ?? [])];
         for (const task of proposal.tasks) {
@@ -502,7 +521,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         } else {
           const preGate = objectiveEvidenceGate(store, row.run, input.id);
           if (preGate.status !== "PASS") {
-            const reason = `Objective evidence gate blocked: ${preGate.verifiedTasks}/${preGate.taskCount} tasks have durable accepted evidence; ${preGate.openConflicts + preGate.openClaimConflicts} unresolved conflict(s); ${preGate.staleClaims} stale claim(s); ${preGate.unresolvedExternalJobs} unresolved external job(s). Resolve/adjudicate evidence and reconcile external effects before completion.`;
+            const reason = `Objective evidence gate blocked: ${preGate.verifiedTasks}/${preGate.taskCount} tasks have durable accepted evidence; ${preGate.openConflicts + preGate.openClaimConflicts} unresolved conflict(s); ${preGate.staleClaims} stale claim(s); ${preGate.unresolvedExternalJobs} unresolved external job(s).${preGate.scientificBlocker ? ` Scientific acceptance: ${preGate.scientificBlocker}.` : ""} Resolve/adjudicate evidence and reconcile external effects before completion.`;
             transition("NEEDS_ATTENTION", reason);
           } else {
             transition("VERIFYING"); report();
@@ -513,7 +532,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
               // were running cannot be bypassed by an earlier PASS snapshot.
               const finalGate = objectiveEvidenceGate(store, row.run, input.id);
               if (finalGate.status !== "PASS") {
-                const reason = `Objective evidence gate blocked: ${finalGate.verifiedTasks}/${finalGate.taskCount} tasks have durable accepted evidence; ${finalGate.openConflicts + finalGate.openClaimConflicts} unresolved conflict(s); ${finalGate.staleClaims} stale claim(s); ${finalGate.unresolvedExternalJobs} unresolved external job(s). Resolve/adjudicate evidence and reconcile external effects before completion.`;
+                const reason = `Objective evidence gate blocked: ${finalGate.verifiedTasks}/${finalGate.taskCount} tasks have durable accepted evidence; ${finalGate.openConflicts + finalGate.openClaimConflicts} unresolved conflict(s); ${finalGate.staleClaims} stale claim(s); ${finalGate.unresolvedExternalJobs} unresolved external job(s).${finalGate.scientificBlocker ? ` Scientific acceptance: ${finalGate.scientificBlocker}.` : ""} Resolve/adjudicate evidence and reconcile external effects before completion.`;
                 transition("NEEDS_ATTENTION", reason);
               } else {
                 const integration = JSON.parse(canonical(receipt)) as Json;

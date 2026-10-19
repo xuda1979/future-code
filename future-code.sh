@@ -85,7 +85,11 @@ PROXY_PID=""
 PROXY_PORT=""
 
 cleanup_proxy() {
-  [[ -n "$PROXY_PID" ]] && kill "$PROXY_PID" >/dev/null 2>&1 || true
+  if [[ -n "$PROXY_PID" ]]; then
+    kill "$PROXY_PID" >/dev/null 2>&1 || true
+    wait "$PROXY_PID" >/dev/null 2>&1 || true
+    PROXY_PID=""
+  fi
 }
 trap cleanup_proxy EXIT INT TERM
 
@@ -188,4 +192,34 @@ export FUTURE_CODE_SUBAGENT_MODEL="$SUBAGENT_MODEL"
 # Durable Foundry/Swarm objectives have their own replay-safe provider recovery.
 export FUTURE_CODE_UNATTENDED_RETRY="${FUTURE_CODE_UNATTENDED_RETRY:-0}"
 export FUTURE_CODE_EFFORT_LEVEL="$EFFORT"
-exec "$BIN" --model "$MODEL" --effort "$EFFORT" "$@"
+if [[ -z "$PROXY_PID" ]]; then
+  exec "$BIN" --model "$MODEL" --effort "$EFFORT" "$@"
+fi
+
+# Keep the proxy's owner alive until the binary exits. Replacing this shell
+# with exec would discard its EXIT trap and leave the proxy running forever.
+BIN_PID=""
+PENDING_SIGNAL=""
+forward_signal() {
+  PENDING_SIGNAL="$1"
+  [[ -n "$BIN_PID" ]] && kill -s "$1" "$BIN_PID" >/dev/null 2>&1 || true
+}
+trap 'forward_signal INT' INT
+trap 'forward_signal TERM' TERM
+(
+  # Async shell commands otherwise inherit SIGINT ignored. Preserve normal
+  # terminal signals and explicitly retain stdin for the interactive REPL.
+  trap - INT TERM
+  exec "$BIN" --model "$MODEL" --effort "$EFFORT" "$@"
+) <&0 &
+BIN_PID=$!
+[[ -n "$PENDING_SIGNAL" ]] && forward_signal "$PENDING_SIGNAL"
+while :; do
+  wait "$BIN_PID"
+  BIN_STATUS=$?
+  # A trap can interrupt wait before the child handles the forwarded signal.
+  # Drain it before EXIT cleanup, preserving its actual exit status.
+  kill -0 "$BIN_PID" >/dev/null 2>&1 || break
+done
+BIN_PID=""
+exit "$BIN_STATUS"

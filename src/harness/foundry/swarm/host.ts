@@ -23,6 +23,7 @@ import { checkPassed } from "./verification.ts";
 import { WorkflowPolicyAgent, workflowPolicyMetrics } from "./workflowPolicy.ts";
 import { workflowObservation } from "../workflow.ts";
 import { ProjectKnowledge } from "./knowledge.ts";
+import { assertRunScientificAcceptance } from "./scientificAcceptance.ts";
 const json = (value: unknown): Json => JSON.parse(canonical(value));
 const KEY = "extension.swarm";
 export async function initializeSwarm(store: Store, input: SwarmSpec, signal: AbortSignal): Promise<PinnedSwarm> {
@@ -151,6 +152,7 @@ export async function integrateSwarm(store: Store, run: string, signal: AbortSig
     const open = Number(store.db.prepare("SELECT COUNT(*) AS n FROM fabric_conflicts WHERE run=? AND status='OPEN'").get(run)?.n ?? 0);
     invariant(open === 0 && claims.openClaimConflicts === 0 && claims.staleClaims === 0,
       "integration blocked by unresolved conflicts or stale claims");
+    assertRunScientificAcceptance(store, cfg, run);
   };
   assertKnowledgeGate();
   const ordered = orderedTasks(store, run);
