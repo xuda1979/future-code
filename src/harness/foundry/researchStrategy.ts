@@ -1,5 +1,6 @@
 import { fields, type ResearchAssessment, type ResearchOutcome } from "./research.ts";
 import { identifier, invariant } from "./kernel.ts";
+import { validateExperimentDesign, type ExperimentDesign } from "./experimentDesign.ts";
 
 export interface ResearchCandidate {
   id: string;
@@ -16,6 +17,7 @@ export interface ResearchStrategy {
   stopOnRefutation: boolean;
   /** Opt-in parallel hypothesis search. Scores allocate work, never certify truth. */
   frontier?: { maxParallel: number; explorationWeight: number; maxInconclusivePerLine: number };
+  design?: ExperimentDesign;
 }
 export interface StrategyObservation {
   key: string;
@@ -23,7 +25,7 @@ export interface StrategyObservation {
   assessment: ResearchAssessment;
 }
 export function validateResearchStrategy(s: ResearchStrategy): void {
-  fields(s, ["schema", "candidates", "maxExperiments", "maxSnapshotBytes", "stopOnRefutation"], ["frontier"]);
+  fields(s, ["schema", "candidates", "maxExperiments", "maxSnapshotBytes", "stopOnRefutation"], ["frontier", "design"]);
   if (s.frontier !== undefined) {
     fields(s.frontier, ["maxParallel", "explorationWeight", "maxInconclusivePerLine"]);
     invariant(Number.isSafeInteger(s.frontier.maxParallel) && s.frontier.maxParallel > 0 && s.frontier.maxParallel <= 32 &&
@@ -58,6 +60,7 @@ export function validateResearchStrategy(s: ResearchStrategy): void {
     visiting.delete(id); seen.add(id);
   };
   s.candidates.forEach(c => visit(c.id));
+  validateExperimentDesign(s);
 }
 
 /** Advice from measured observations, not model-authored feasibility scores.

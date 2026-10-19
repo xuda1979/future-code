@@ -34,6 +34,7 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   research-compare --spec FILE --allow-exec (matched local experiments with configured validators)
   knowledge [--finding ID --version HASH] [--task-after ID] [--limit N]
   knowledge-retract --finding ID --version HASH --reason TEXT --allow-exec
+  knowledge-certificate --finding ID --version HASH [--limit N]
   experience [--hash CARD_ID] [--query TEXT --phase PHASE --after CURSOR --limit N]
   experience-import --spec PACK_JSON --allow-exec
   experience-export --finding PACK_ID --hash CARD_ID
@@ -77,7 +78,7 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "workflow", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate", "knowledge", "knowledge-retract", "research-strategy", "research-strategy-rebuild", "research-compare", "experience", "experience-import", "experience-export", "experience-retire"].includes(cmd), "unknown swarm command");
+  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "workflow", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate", "knowledge", "knowledge-retract", "knowledge-certificate", "research-strategy", "research-strategy-rebuild", "research-compare", "experience", "experience-import", "experience-export", "experience-retire"].includes(cmd), "unknown swarm command");
   if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate", "knowledge-retract", "research-strategy-rebuild", "research-compare", "experience-import", "experience-retire"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
@@ -111,9 +112,11 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
         const reportHash = store.artifact(JSON.parse(canonical(report))); store.event("research.strategy.compared", { reportHash, protocolHash: report.protocolHash });
         return JSON.parse(canonical({ ...report, reportHash }));
       }
-      case "knowledge": case "knowledge-retract": {
+      case "knowledge": case "knowledge-retract": case "knowledge-certificate": {
         const cfg = loadSwarm(store); invariant(cfg.spec.researchProgramme, "research programme not configured");
         const programme = new ResearchProgramme(store, cfg.spec.researchProgramme);
+        if (cmd === "knowledge-certificate") return programme.certificate(
+          [{ id: need("--finding"), version: need("--version") }], Number(opts.get("--limit") ?? 128));
         if (cmd === "knowledge-retract") {
           programme.retract({ id: need("--finding"), version: need("--version") }, need("--reason")); return { retracted: true };
         }

@@ -8,6 +8,7 @@ import { validateSwarmSpec } from "../../src/harness/foundry/swarm/config.ts";
 import { decodeSpawnChildren } from "../../src/harness/foundry/swarm/spawn.ts";
 import { Scheduler } from "../../src/harness/foundry/scheduler.ts";
 import { digest } from "../../src/harness/foundry/kernel.ts";
+import { handleSwarm } from "../../src/harness/foundry/swarm/cli.ts";
 import { bellExperiment, simulateQuantum } from "../../scripts/quantum-experiment.mjs";
 import { fixture, task, signal, scripted, reply, spec } from "./swarm-fixtures.ts";
 
@@ -134,3 +135,59 @@ test("publication failure rolls back task acceptance and exports together", asyn
   assert.equal(s.db.prepare("SELECT COUNT(*) n FROM tasks WHERE status='PASS'").get()!.n, 0);
   assert.equal(s.db.prepare("SELECT COUNT(*) n FROM events WHERE kind='research.knowledge.published'").get()!.n, 0);
 }, s => { configure(s); s.researchProgramme!.maxFindingsPerTask = 1; s.recipe.attempts = 1; }));
+
+test("content-bound closure blocks stale reuse even when a reverse invalidation edge is missing", async () => fixture(async (s, cfg) => {
+  const p = programme(s, cfg);
+  await run(s, cfg, "bell"); const parent = current(p, "bell");
+  await run(s, cfg, "followup", [parent]); const child = current(p, "followup");
+  await run(s, cfg, "leaf", [child]); const leaf = current(p, "leaf");
+  // Model an incomplete derived SQL index. Immutable finding contents still
+  // contain the exact parent reference, so they must control reuse.
+  s.db.prepare("DELETE FROM research_knowledge_dependencies WHERE programme=? AND parent=?").run("physics", parent.version);
+  p.retract(parent, "Upstream premise was falsified");
+  assert.equal((p.list() as any).findings.find((f: any) => f.id === child.id).state, "ACTIVE");
+  assert.throws(() => p.read(child), /retracted/);
+  assert.throws(() => p.read(leaf), /retracted/);
+  assert.throws(() => p.context([leaf]), /retracted/);
+  assert.throws(() => p.certificate([leaf]), /retracted/);
+  assert.equal(p.read(leaf, true).version, leaf.version);
+  let modelCalls = 0;
+  const driver = new SwarmDriver(s, cfg, (async () => { modelCalls++; throw new Error("invalid import reached provider"); }) as typeof fetch);
+  const result = await runTasks(s, [{ ...task(), knowledge: [leaf] }], driver, { signal: signal() });
+  assert.equal(result.status, "FAIL"); assert.equal(result.accepted, 0); assert.equal(modelCalls, 0);
+}, configure));
+
+test("dependency certificates deduplicate shared ancestors, bind exact evidence and survive restart", async () => fixture(async (s, cfg) => {
+  const p = programme(s, cfg);
+  await run(s, cfg, "bell"); const first = current(p, "bell");
+  await run(s, cfg, "followup", [first]); const second = current(p, "followup");
+  await run(s, cfg, "leaf", [first, second]); const third = current(p, "leaf");
+  const certificate: any = p.certificate([third, first]);
+  assert.equal(certificate.nodes.length, 3); assert.equal(new Set(certificate.nodes.map((n: any) => n.version)).size, 3);
+  assert.deepEqual(certificate, p.certificate([first, third]));
+  const { certificateHash, ...body } = certificate; assert.equal(digest(body), certificateHash);
+  for (const node of certificate.nodes) {
+    const record = p.read({ id: node.id, version: node.version });
+    assert.equal(node.recordHash, digest(record)); assert.equal(node.assessmentHash, record.assessmentHash);
+    assert.deepEqual(node.origin, record.origin);
+  }
+  assert.throws(() => p.certificate([third], 2), /closure exceeds bound/);
+  for (const limit of [0, 257, Infinity]) assert.throws(() => p.certificate([third], limit), /bound/);
+  const reopened = await Store.open(s.root);
+  try { assert.deepEqual(new ResearchProgramme(reopened, cfg.spec.researchProgramme!).certificate([third, first]), certificate); }
+  finally { reopened.close(); }
+  const viaCLI = await handleSwarm(["knowledge-certificate", "--root", s.root, "--finding", third.id, "--version", third.version, "--limit", "3"]);
+  assert.deepEqual(viaCLI, p.certificate([third]));
+  await assert.rejects(handleSwarm(["knowledge-certificate", "--root", s.root, "--finding", third.id, "--version", third.version, "--limit", "2"]), /bound/);
+}, configure));
+
+test("a dependency losing source acceptance invalidates active descendants at read time", async () => fixture(async (s, cfg) => {
+  const p = programme(s, cfg);
+  await run(s, cfg, "bell"); const parent = current(p, "bell");
+  await run(s, cfg, "followup", [parent]); const child = current(p, "followup"), source = p.read(parent).origin;
+  s.db.prepare("UPDATE tasks SET status='FAIL' WHERE run=? AND id=?").run(source.run, source.task);
+  assert.throws(() => p.read(child), /source acceptance changed/);
+  assert.throws(() => p.context([child]), /source acceptance changed/);
+  // Historical inspection of the child retains its original accepted receipt.
+  assert.equal(p.read(child, true).dependencies[0].version, parent.version);
+}, configure));

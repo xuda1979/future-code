@@ -2,6 +2,7 @@ import { digest, invariant } from "./kernel.ts";
 import { hash, type ResearchOutcome } from "./research.ts";
 import { validateResearchStrategy, type ResearchStrategy, type StrategyObservation } from "./researchStrategy.ts";
 import { validateTheoryGraph, type TheoryGraph } from "./theory.ts";
+import { experimentalDesign } from "./experimentDesign.ts";
 
 export type FrontierState = "ELIGIBLE" | "ASSIGNED" | "FAILED" | "OBSERVED" | "WAITING" |
   "INVALIDATED" | "REFUTED" | "CONFLICTED" | "STALLED";
@@ -127,17 +128,23 @@ export function selectResearchFrontier(s: ResearchStrategy, observations: Strate
       s.frontier.explorationWeight * Math.sqrt(Math.log(total + 2) / (line.visits + 1));
   }
   const order = new Map(s.candidates.map((c, i) => [c.id, i]));
-  candidates.sort((a, b) => purpose[a.purpose] - purpose[b.purpose] || unlocks[b.id] - unlocks[a.id] || scores[b.id] - scores[a.id] ||
+  const designObservations = s.design ? [...unique.values()].filter(o => evidenceValid(o.candidate)) : [];
+  const design = s.design ? { ...experimentalDesign(s, designObservations, input.costs, conflictedLines.size > 0),
+    excludedObservations: unique.size - designObservations.length } : undefined;
+  candidates.sort((a, b) => purpose[a.purpose] - purpose[b.purpose] || unlocks[b.id] - unlocks[a.id] ||
+    (design ? (design.candidates[b.id].bitsPerMs ?? 0) - (design.candidates[a.id].bitsPerMs ?? 0) : 0) || scores[b.id] - scores[a.id] ||
     cost(a.id) - cost(b.id) || order.get(a.id)! - order.get(b.id)!);
   for (const c of candidates) {
+    if (design && design.status !== "READY") break;
     if (batch.length >= room) break;
     if (occupied.has(c.line)) continue;
     occupied.add(c.line); batch.push(c.id);
   }
   return { next: batch[0] ?? null, batch, reason: committed >= s.maxExperiments ? "EXPERIMENT_BUDGET_EXHAUSTED" :
-    room === 0 ? "FRONTIER_AT_CAPACITY" : batch.length ? "EVIDENCE_DRIVEN_PARALLEL_FRONTIER" : "NO_ELIGIBLE_EXPERIMENT",
+    room === 0 ? "FRONTIER_AT_CAPACITY" : design && design.status !== "READY" ? `EXPERIMENT_DESIGN_${design.status}` :
+    batch.length ? "EVIDENCE_DRIVEN_PARALLEL_FRONTIER" : "NO_ELIGIBLE_EXPERIMENT",
     states, lines, scores, unlocks, activeAssignments, proofStates: Object.fromEntries(Object.keys(theory).map(id => [id,
       states[id] === "OBSERVED" ? (outcomes.get(id)?.has("REFUTED") ? "REFUTED" :
         outcomes.get(id)?.has("SUPPORTED") ? "ESTABLISHED" : "OPEN") : states[id]])),
-    evidenceHash: digest([...unique.keys()].sort()) };
+    evidenceHash: digest([...unique.keys()].sort()), ...(design ? { design } : {}) };
 }

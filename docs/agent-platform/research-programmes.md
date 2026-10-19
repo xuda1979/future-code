@@ -60,6 +60,31 @@ inside atomic acceptance. If a dependency changes during execution, the task
 cannot commit a result using stale knowledge. Replan with explicit current
 references rather than silently substituting a newer result.
 
+Every active read checks the complete dependency closure using immutable finding
+contents, including each ancestor's current exact head and accepted source.
+Shared ancestors are checked once per read/context; the traversal has a
+4096-node ceiling and visits only reachable findings. The reverse SQL index
+continues to accelerate invalidation. A missing index edge or changed upstream
+source cannot authorize reuse of an invalid descendant, even if its cached list
+state still says ACTIVE. Historical reads retain the original record without
+claiming its dependencies are currently usable.
+
+Inspect a compact, content-addressed provenance certificate:
+
+```sh
+node --experimental-strip-types src/harness/foundry/swarm/cli.ts knowledge-certificate \
+  --root STATE --finding theorem --version HASH --limit 128
+```
+
+The certificate deduplicates shared ancestors and binds every exact version,
+record hash, protocol hash, assessment hash, dependency edge and source receipt.
+The node limit defaults to 128 and may be set to 1..256; an oversized or invalid
+closure fails without emitting a partial certificate. `certificateHash` is the
+canonical SHA-256 digest of all other fields, and remains reproducible after
+restart. The certificate is an integrity/provenance snapshot, not a signature,
+a new kernel proof, or an implementation of the paper's HACT algorithms. Live
+reuse always checks current acceptance and dependencies again.
+
 ## Invalidation and contradictions
 
 Superseding a head invalidates all transitive dependents of that exact version.

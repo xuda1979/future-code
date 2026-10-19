@@ -88,7 +88,12 @@ export function researchStrategySnapshot(store: Store, cfg: PinnedSwarm, run: st
     const snapshot = { schema: 1, authority: "ADVICE_ONLY_RUNTIME_ENFORCES_SAFETY", strategyHash: digest(policy), used, reserved,
       committed: used + reserved, decision,
       frontier: { considered: policy.candidates.length, assigned: new Set(unresolved).size,
-        maxParallel: policy.frontier.maxParallel, scoring: "UCB_INFORMATION_ALLOCATION_NOT_TRUTH_PROBABILITY",
+        maxParallel: policy.frontier.maxParallel, scoring: result.design ? "EXPECTED_INFORMATION_BITS_PER_JOB_MS" : "UCB_INFORMATION_ALLOCATION_NOT_TRUTH_PROBABILITY",
+        ...(result.design ? { design: { status: result.design.status, modelHash: result.design.modelHash,
+          evidenceHash: result.design.evidenceHash, observations: result.design.observations,
+          excludedObservations: result.design.excludedObservations,
+          posterior: result.design.posterior, entropyBits: result.design.entropyBits,
+          trust: "CONDITIONAL_ON_OPERATOR_MODEL_NOT_ACCEPTANCE" } } : {}),
         evidenceHash: result.evidenceHash, acceptedObservations: observations.length,
         ...(Object.keys(theory).length ? { theory: { obligations: Object.keys(theory).length,
           activeAssignments: result.activeAssignments,
@@ -104,7 +109,9 @@ export function researchStrategySnapshot(store: Store, cfg: PinnedSwarm, run: st
         return { id, template: c.template, line: c.line, purpose: c.purpose, specHash: c.specHash,
           question: c.question, hypothesis: c.hypothesis, hostObservedJobMs: c.hostObservedJobMs,
           ...(theory[id] ? { theory: { ...theory[id], unlocks: result.unlocks[id] } } : {}),
-          checkedPrerequisites: c.after?.length ?? 0, lineEvidence: result.lines[c.line], allocationScore: result.scores[id] };
+          ...(result.design ? { design: result.design.candidates[id] } : {}),
+          checkedPrerequisites: c.after?.length ?? 0, lineEvidence: result.lines[c.line],
+          allocationScore: result.design ? result.design.candidates[id].bitsPerMs : result.scores[id] };
       }) };
     invariant(Buffer.byteLength(canonical(snapshot)) <= policy.maxSnapshotBytes, "research frontier snapshot exceeds byte bound");
     return JSON.parse(canonical(snapshot));
