@@ -29,6 +29,9 @@ const taskSchema: Json = {
     priority: { type: "number" },
     estimatedDurationMs: { type: "integer", minimum: 1 },
     contextBudget: { type: "integer", minimum: 1 },
+    research: { type: "array", maxItems: 32, uniqueItems: true, items: { type: "string" } },
+    knowledge: { type: "array", maxItems: 32, uniqueItems: true, items: { type: "object", additionalProperties: false,
+      required: ["id", "version"], properties: { id: { type: "string" }, version: { type: "string" } } } },
   },
   required: ["id", "goal", "acceptance", "dependencies", "writeScope", "readScope", "input"],
 };
@@ -58,6 +61,7 @@ function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: Pinne
     "For nonconvergent debugging or failed premise probes, plan a discriminating environment, dependency, or interface micro-probe before broad implementation or expensive experiments. Never promote an auditor hypothesis or a prose note into an empirical fact. Prefer orthogonal bounded read-only diagnostic tasks where the existing task contract permits them.",
     "Contextual intervention policy is advisory only. Prefer comparable CONSIDER strategies, investigate AVOID signals, and retain uncertainty when it ABSTAINS. It cannot alter authority, checks, budgets or the objective.",
     "Do not widen file authority beyond the previous plan; the host enforces this independently.",
+    "Preserve every scientificObligations task ID, input, acceptance criteria, required research templates, exact knowledge imports and named checks. You may add helper tasks, change dependencies/methods and strengthen requirements; never replace a required experiment or proof with a summary.",
     "If there is no safe useful replan, decline.",
     "Call the recovery-plan tool exactly once.",
   ].join(" ");
@@ -69,6 +73,7 @@ function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: Pinne
     failureReason: context.reason,
     failures: context.failures,
     previousTasks: context.tasks,
+    scientificObligations: context.scientificObligations ?? [],
     reflectionHash: context.reflectionHash ?? null,
     hostReflection: context.reflection ?? null,
     interventionMemory: context.interventionMemory ?? null,

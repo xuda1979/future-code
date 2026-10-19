@@ -103,7 +103,7 @@ export function theoryTaskContext(store: Store, cfg: PinnedSwarm, c: Capsule, ma
   return context;
 }
 
-export function assertTheoryAcceptance(store: Store, cfg: PinnedSwarm, c: Capsule): void {
+export function assertTheoryAcceptance(store: Store, cfg: PinnedSwarm, c: Pick<Capsule, "runId" | "task">): void {
   const installed = store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='research_assessments'").get();
   if (!installed) return;
   for (const row of store.db.prepare("SELECT DISTINCT template FROM research_assessments WHERE run=? AND task=?").all(c.runId, c.task.id)) {

@@ -163,11 +163,21 @@ plan/run stays in `swarm_objective_revisions`; `objective` status reports the
 latest revision and recovery state. Acceptance checks, protected paths and provider configuration
 are not writable through the planner interface.
 
-This mechanism is deliberately opt-in: without both a planner and
-`maxReplans > 0`, the prior operator-driven `NEEDS_ATTENTION` behavior remains.
-Each new run has its own per-run attempt/request ledger, so `maxReplans` is also
-a hard multiplier on possible recovery spend rather than permission to retry
-forever. Credential/configuration failures should normally return no recovery
+Scientific tasks in the initial plan are immutable acceptance anchors. Recovery
+preserves their task IDs, inputs, required `research` templates, exact `knowledge`
+versions, acceptance criteria and named checks. It may change their method or
+dependencies, add helper tasks and strengthen requirements. The planner receives
+these `scientificObligations` separately from the current graph, and its task
+schema supports both scientific fields. Admission and prepared-plan adoption
+rederive obligations from revision zero after restart. Old replacement runs that
+lost an obligation cannot pass integration or completion. This check applies to
+tasks with declared research requirements or knowledge imports; ordinary software
+tasks retain their existing replanning behavior.
+
+Setting `maxReplans: 0` disables autonomous recovery and retains the
+operator-driven `NEEDS_ATTENTION` behavior. Each new run has its own per-run
+attempt/request ledger, while objective budgets bound cumulative spend.
+Credential/configuration failures should normally return no recovery
 plan and wait for operator repair. Explicitly running a successful `integrate`
 can still resolve the final integration gate; the supervisor revalidates the
 resulting receipt before accepting completion.
@@ -423,12 +433,20 @@ task scheduler reports `PASS` and again after final integration:
 
 - every admitted task must have durable accepted artifact and verifier evidence;
 - unresolved strong contradictions in Evidence Fabric block objective completion;
+- original scientific obligations, current exact knowledge imports and checked
+  theoretical premises are revalidated at integration, cached receipt reuse and
+  completion; revoked/conflicted results and stale current conclusions block
+  acceptance without erasing historical task evidence;
 - final integration checks remain mandatory and immutable;
 - a successful objective writes a content-addressed completion attestation binding the
   objective goal, pinned configuration, current plan, full recovery lineage, evidence
   gate result, and integration receipt;
 - provider text, an agent's self-report, a session ending, or a planner decision can
   never create that attestation.
+
+`objective.evidenceGate.scientificBlocker` exposes the first scientific acceptance
+failure. The completion transaction checks the gate again before committing an
+attestation, so a revocation after integration cannot become a new completion.
 
 This boundary is intentionally model-agnostic. Future-Code may route work to better
 external models as they appear, but it continues to own persistence, budgets, external
