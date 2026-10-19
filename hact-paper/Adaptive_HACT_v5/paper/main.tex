@@ -15,21 +15,45 @@
 \def\UrlBreaks{\do\.\do\@\do\\\\\do\/\do\_\do\|\do\-\do\+\do\=\do\#\do\$\do\%\do\^\do\&\do\*\do\~\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z\do\A\do\B\do\C\do\D\do\E\do\F\do\G\do\H\do\I\do\J\do\K\do\L\do\M\do\N\do\O\do\P\do\Q\do\R\do\S\do\T\do\U\do\V\do\W\do\X\do\Y\do\Z}
 \makeatother
 \usepackage{fancyhdr}
-\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Journal manuscript v8.0}\fancyfoot[C]{\thepage}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Journal manuscript v9.0}\fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}\setlength{\parskip}{3pt}\setlength{\emergencystretch}{2em}
 \newtheorem{theorem}{Theorem}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{lemma}[theorem]{Lemma}
 \theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
 \newcommand{\PASS}{\mathsf{PASS}}\newcommand{\FAIL}{\mathsf{FAIL}}\newcommand{\UNKNOWN}{\mathsf{UNKNOWN}}
 \newcommand{\E}{\mathbb E}\newcommand{\Prb}{\mathbb P}\newcommand{\ind}{\mathbf 1}\newcommand{\R}{\mathcal R}
 \DeclareMathOperator*{\argmin}{arg\,min}
-\hypersetup{pdftitle={Adaptive HACT for Cost-Aware Delivery of Verification Evidence},pdfauthor={Anonymous for review}}
-\title{\vspace{-9mm}\textbf{Adaptive HACT for Cost-Aware Delivery of Verification Evidence}}
+\hypersetup{pdftitle={Adaptive HACT: Semantics-Preserving Layouts for Verification Evidence},pdfauthor={Anonymous for review}}
+\title{\vspace{-9mm}\textbf{Adaptive HACT: Semantics-Preserving Layouts for Verification Evidence}}
 \author{Anonymous for review}
-\date{October 2026 \quad | \quad Journal manuscript v8.0 \quad | \quad Empirical artifact v5.0 + v8 service-equal study}
+\date{October 2026 \quad | \quad Manuscript v9.0\\ \small Empirical artifact v5.0; corrected v9 query study}
+\input{generated_v9/macros.tex}
 \begin{document}
 \maketitle
 \begin{abstract}
-Long-horizon software agents can generate candidate changes faster than humans can audit the evidence required to accept them. The resulting bottleneck is increasingly a systems problem: tests, policy checks, environment probes, remote-job receipts, and integration gates produce large, repeated evidence streams, yet changing how that evidence is organized must never change acceptance semantics. We introduce \emph{verification-evidence virtualization}, a separation between a protected semantic plane (candidate identity, required checks, checker/environment bindings, and canonical outcomes) and an adaptive layout plane that only reorganizes trusted evidence for bounded delivery and diagnosis. Adaptive HACT realizes this abstraction with identity-stable certificate trees, generation-fenced migration, and a higher-order completion-hyperedge objective. We prove that valid layout permutations cannot authorize a candidate unless the protected acceptance predicate holds. We also prove by construction that singleton and pairwise co-activity statistics are insufficient to determine hierarchical activation cost, motivating direct scoring of observed completion sets rather than pairwise affinity alone. A practical compiler learns only an order, instantiates a balanced eight-ary tree, and uses held-out validation to retain the incumbent when structure is absent; exact alphabetic dynamic programming remains an offline reference. Across 27 frozen workloads, learned layouts reduce held-out padded evidence by 23.43\%, 10.75\%, and 5.56\% at 128, 512, and 1,024 checks for clustered completion structure, while independent/global controls show essentially no benefit. Re-aggregation of 12 archived source candidates reduces whole-epoch compressed evidence by 4.36--41.84\% and exhaustive diagnostic pages from 148 to 95, while root-status text remains identical across all layout triples. Additional retrospective controls confirm that learned ordering outperforms marginal-frequency and random orderings under clustered completion. A new service-equal comparison against a strong indexed flat ledger (on-demand aggregation, compression, cache, with build and maintenance costs counted on both sides) answers 168 semantic-equivalence checks identically on both representations, yet finds the hierarchy \emph{not beneficial} for any of six frozen query families at these corpus sizes: complete-answer bytes and arrival time favor the indexed flat ledger once its maintenance is included. These results support a conditional representation benefit only where bounded hierarchical evidence is itself a required service; a compressed flat event ledger is smaller, and its impact on complete diagnostic services and live software agents remains to be evaluated. The claims are deliberately scoped: HACT is not a claim of improved model reasoning, universal agent speedup, provider token reduction, or physical-WAN latency reduction.
+Long-running software agents accumulate verification records whose delivery
+structure may change while their acceptance contract must remain fixed.
+Adaptive HACT separates a protected semantic registry and canonical checker
+outcomes from an adaptive certificate-tree layout. Stable identities and
+local generation fencing preserve authorization through permutation and
+migration under explicit trust assumptions. Completion sets determine
+ancestor-packet refresh costs; a fixed-order dynamic program optimizes the
+additive packet model, while a practical compiler uses pairwise seriation,
+balanced trees, and independent validation. On the frozen clustered workloads,
+learned layouts reduce held-out padded evidence by 23.43\%, 10.75\%, and 5.56\%
+at the three tested sizes; independent and global controls show essentially
+no benefit. Re-encoding twelve archived source candidates reduces compressed
+hierarchical streams by 4.36--41.84\% and exhaustive diagnostic pages from 148
+to 95. These are within-format representation results. A corrected query
+study compares independently maintained tree and indexed-ledger services
+against an archived-record oracle: all \VnineOracleMatches{} comparisons agree.
+Across \VnineStudyRows{} cold/warm query rows, the two services transmit equal
+answer bytes under common framing and compression; tree setup and storage
+costs remain additional resources. No family meets the strict byte-and-time
+improvement rule. The archived ablation also provides no demonstrated
+beyond-pairwise gain, and its earlier near-optimality interpretation is
+withdrawn. The supported contribution is a semantics-preserving evidence
+layout mechanism and a scoped representation-cost model. General diagnostic
+or agent-productivity advantages require independent deployment evidence.
 \end{abstract}
 \noindent\textbf{Keywords:} agentic software engineering; verification evidence; runtime assurance; completion hyperedges; adaptive data structures; evidence virtualization; long-horizon agents.
 
@@ -39,16 +63,18 @@ Software-engineering agents have progressed from single-shot code generation to 
 Verification-first approaches are therefore becoming central to agentic software engineering. Recent work treats verifiability as a first-class system property and instruments agent traces with contracts, replay, fault injection, and governance~\cite{verificationdriven,aiware,traceassurance}. These directions address what should be verified and how an agent should be constrained. This paper asks a complementary systems question:
 
 \begin{quote}
+\begin{minipage}{\linewidth}
 \emph{Once a verification contract exists, how can a long-running agent system reorganize, migrate, and deliver the resulting evidence efficiently without giving the adaptive representation any authority to weaken that contract?}
+\end{minipage}
 \end{quote}
 
-A final decision may be one bit, but operators and downstream agents often need bounded diagnostic slices, replayable proof of which obligations completed, and a way to identify the first failed region. A flat ledger is excellent for final per-check state, yet repeated delivery of hierarchical diagnostic context can be substantially larger. A learned hierarchy can reduce that cost, but only if the learned layout is prevented from redefining what counts as complete.
+A final decision may be one bit, but operators and downstream agents may also need bounded diagnostic slices, explicit coverage of declared obligations, and replayable records. Either an indexed ledger or a hierarchy can supply such queries. Learning a cheaper hierarchy is a representation problem; demonstrating that a hierarchy is preferable to an indexed ledger is a separate service-comparison problem.
 
 We call the required separation \textbf{verification-evidence virtualization}. Stable semantic identities, candidate/checker/environment bindings, and canonical outcomes form a protected plane. An adaptive layout is a replaceable view over those identities. Migration changes a generation number and invalidates layout-specific publication tickets; the acceptance predicate is computed from canonical records, never from tree shape.
 
 Adaptive HACT (Hyperedge-Aware Certificate Trees) is one realization of this architecture. Its second key idea is that evidence cost is driven by \emph{sets} of checks that become final together. Pairwise similarity is easy to estimate, but it can lose exactly the higher-order structure that determines whether a subtree must be refreshed. HACT therefore treats observed completion waves as hyperedges and scores candidate layouts against those sets directly. Pairwise affinity is only a proposal mechanism.
 
-The third idea is deployment discipline. HACT should not be sold as "compression makes agents faster." If a consumer needs only a verdict, a root projection is better. If it needs only final statuses, a flat ledger may be better. HACT targets systems that already need bounded hierarchical evidence for remote supervision, diagnosis, audit, or retrieval. We therefore separate representation savings from the independent cost of running stronger verification and report explicit break-even accounting.
+The third idea is deployment discipline. HACT should not be sold as "compression makes agents faster." If a consumer needs only a verdict, a root projection is better. If it needs only final statuses, a flat ledger may be better. HACT provides an optimization candidate for an explicitly required hierarchical packet format. The current diagnostic query study does not establish that this format is preferable to an indexed ledger. We therefore separate representation savings from the independent cost of running stronger verification and report explicit break-even accounting.
 
 \begin{figure}[t]
 \centering
@@ -76,13 +102,13 @@ The third idea is deployment discipline. HACT should not be sold as "compression
   \draw[arr,dashed] (kernel) -- node[right,font=\scriptsize]{authorization must imply $A(e)$} (accept);
 
   \node[svc,below=9mm of history] (root) {Root status\\layout-invariant};
-  \node[svc,right=of root] (flat) {Flat ledger\\final per-check states};
-  \node[svc,right=of flat] (diag) {Hierarchical diagnostics\\HACT optimization target};
-  \draw[arr] (kernel) |- (root);
-  \draw[arr] (kernel) -- (flat);
-  \draw[arr] (kernel) -- (diag);
+  \node[svc,right=of root] (flat) {Indexed flat ledger\\status and diagnostic queries};
+  \node[svc,right=of flat] (diag) {Hierarchical packets\\HACT optimization target};
+  \draw[arr] (kernel.south) -- ++(0,-4mm) -| (root.north);
+  \draw[arr] (kernel.south) -- ++(0,-4mm) -| (flat.north);
+  \draw[arr] (kernel.south) -- ++(0,-4mm) -| (diag.north);
 \end{tikzpicture}}
-\caption{Adaptive HACT factors verification semantics from evidence representation. A valid layout may change aggregation cost and diagnostic hierarchy, but it cannot change the approved check set or the acceptance predicate. Root status and flat final ledgers are simpler services; HACT targets deployments that actually require hierarchical diagnostic evidence.}\label{fig:architecture}
+\caption{Adaptive HACT factors verification semantics from evidence representation. A valid layout may change aggregation cost and diagnostic hierarchy, but it cannot change the approved check set or the acceptance predicate. Root status and indexed-ledger queries need less structure; hierarchical packet generation is an additional format requirement.}\label{fig:architecture}
 \end{figure}
 
 \paragraph{Evidence-layout independence.}
@@ -92,24 +118,31 @@ The paper formalizes the invariant sketched in Figure~\ref{fig:architecture}. A 
 Evidence cost is driven by refresh events: when a set of checks becomes final, every ancestor packet intersecting that set may need to be re-emitted. Marginal activation rates lose joint structure, and pairwise co-activity can still miss the probability that a larger subtree is touched. We therefore treat each completion wave as a hyperedge and score candidate layouts on the observed sets directly. Pairwise affinity is used only to propose an order; it is not substituted for the actual full-wave objective.
 
 \paragraph{Where HACT is useful.}
-There are three distinct services. A consumer needing only a trusted final verdict should use a root-status projection. A consumer needing final per-check states can often use a flat ledger. HACT addresses the third case: a system that already needs bounded hierarchical evidence for diagnostics, audit, or constrained delivery. This service distinction prevents a common accounting error---crediting evidence compression with the unrelated cost of introducing a stricter verifier.
+Consumers may require a verdict, per-check state, or complete diagnostics. A root-status projection supplies the verdict; an indexed flat ledger can supply both state and diagnostic queries. HACT optimizes the third format when that format is externally required; diagnostic service requirements alone do not establish that a hierarchy is needed. This service distinction prevents a common accounting error---crediting evidence compression with the unrelated cost of introducing a stricter verifier.
 
 \paragraph{Contributions.}
-This journal revision makes five contributions:
+The paper makes three scoped contributions:
 \begin{enumerate}[leftmargin=1.6em,itemsep=1pt,topsep=2pt]
-\item \textbf{Verification-evidence virtualization.} We formalize a two-plane architecture in which semantic obligations are protected and representation is adaptive. Layout learning may change bytes, pages, and retrieval structure, but never the required evidence.
-\item \textbf{Layout-invariant authorization.} We give an identity-stable, generation-fenced construction and prove that valid layouts cannot authorize a candidate unless the protected acceptance predicate holds.
-\item \textbf{A higher-order cost model with a falsifiable algorithmic claim.} Completion waves are modeled as hyperedges. Proposition~\ref{prop:pairwise} constructs two workloads with identical singleton and pairwise statistics but different subtree-activation probabilities, showing that pairwise co-activity cannot in general determine the objective. A pre-specified ablation ladder then tests whether the deployed algorithm extracts a beyond-pairwise advantage; the frozen outcome is negative, and the algorithmic claim is narrowed accordingly to pairwise seriation plus complete-wave selection.
-\item \textbf{A practical compiler with safe abstention.} The default path learns an order, builds a compact balanced tree, and selects on held-out validation against the incumbent. Exact alphabetic DP is an offline reference rather than hidden runtime work.
-\item \textbf{Evidence-bounded evaluation and deployment accounting.} Frozen workloads, source-evidence replays, semantic-invariance checks, negative controls, independent numerical reconstruction, service-matched break-even analysis, and a new service-equal comparison against a strong indexed flat ledger (with a pre-frozen decision rule and maintenance costs on both sides) identify both the useful regime and the regimes where HACT should not be used --- including the reported negative outcome at these corpus sizes.
+\item A semantic/layout contract and identity-stable, generation-fenced local
+construction, with a conditional authorization invariant through migration.
+\item A completion-set packet-cost model, a fixed-order exact reference,
+and a practical pairwise-seriation compiler with validation against the incumbent.
+The parity construction separates pairwise statistics from full-set cost;
+it does not establish a beyond-pairwise algorithmic advantage.
+\item An auditable evaluation separating within-format byte savings from
+query-service costs, with independent reference answers, actual cache queries,
+strict paging, and explicit negative results against an indexed flat ledger.
 \end{enumerate}
-Clustering, balanced trees, alphabetic DP, compression, and break-even arithmetic are established ingredients. The novel systems contribution is their composition under a protected semantic/layout boundary and a completion-hyperedge objective, together with migration fencing and evidence that distinguishes structured from null regimes.
+The ingredients include established clustering, tree optimization, caching and
+compression. The systems contribution is their explicit composition under
+an immutable acceptance contract and a joint-completion cost model, rather
+than a new general-purpose authenticated data structure or learning rate.
 
 \paragraph{Scope.}
 The experiments measure verification-evidence representation and local integration. They do not measure live-LLM coding quality, physical-WAN performance, or provider token billing. Those boundaries are collected in Section~\ref{sec:threats} instead of being repeatedly mixed into each positive result.
 
 \paragraph{Roadmap.}
-Section~\ref{sec:model} defines semantics and the cost model. Section~\ref{sec:compiler} develops the practical and exact-reference compilers; Section~\ref{sec:online} prices migration; Section~\ref{sec:safety} proves layout-independent local publication soundness. Sections~\ref{sec:implementation} and~\ref{sec:delivery} describe the implementation and service-matched accounting. Section~\ref{sec:v5evaluation} reports the frozen v5/v7 studies and Section~\ref{sec:v8evaluation} answers the five evaluation questions, including the new service-equal study; Section~\ref{sec:conclusion} states the deployment implication.
+Section~\ref{sec:model} defines semantics and the cost model. Section~\ref{sec:compiler} develops the practical and exact-reference compilers; Section~\ref{sec:online} prices migration; Section~\ref{sec:safety} proves layout-independent local publication soundness. Sections~\ref{sec:implementation} and~\ref{sec:delivery} describe the implementation and service-matched accounting. Section~\ref{sec:evaluation} maps the research questions. Section~\ref{sec:v5evaluation} and the strong-baseline audit report the frozen representation studies; Section~\ref{sec:v8evaluation} reports the corrected query study and ablation interpretation; Section~\ref{sec:conclusion} states the deployment implication.
 
 \section{Related Work and Positioning}
 \paragraph{Agentic software engineering and long-horizon verification.}
@@ -120,6 +153,19 @@ Test prioritization seeks earlier fault exposure~\cite{rothermel}; regression-te
 
 \paragraph{Seriation and authenticated layouts.}
 Spectral seriation orders items using an affinity matrix~\cite{atkins}. Average-linkage clustering likewise provides an established proximity-based ordering. Generalized alphabetic-tree optimization supplies the subtree/forest recurrence used here~\cite{alphabetic}. Workload-adaptive authenticated structures, including Huffman--Merkle Trees~\cite{hmt}, already optimize layouts under access patterns. Our price counts repeated completion-frontier updates, including strict-epoch construction, under a fixed packet cap. Pairwise affinity proposes an order; full hyperedge observations score it. No global optimality or unproved NP-hardness result is claimed for unrestricted joint ordering and tree synthesis.
+
+\begin{table}[t]\centering\small
+\caption{Mechanism comparison with Huffman--Merkle Trees (HMT)~\cite{hmt}.
+The security and query services differ; no direct performance superiority is claimed.}
+\begin{tabularx}{\linewidth}{@{}p{.19\linewidth}XX@{}}\toprule
+Aspect & HMT & Adaptive HACT\\\midrule
+Authoritative content & Committed mutable state; membership proofs & Declared checks and trusted local outcomes\\
+Workload signal & Item access frequencies and their changes & Sets of checks completed between refreshes\\
+Priced work & Hashing and access-weighted proof size & Ancestor-packet updates, cold builds and layout installation\\
+Adaptation & Batched updates and tier migration & Permutation/tree changes with local epoch and generation fences\\
+Evidence boundary & Authenticated data structure & Local record binding; no attestation or membership-proof service\\\bottomrule
+\end{tabularx}
+\end{table}
 
 \paragraph{Online decisions with switching costs.}
 Fixed-share learning tracks changing experts~\cite{herbster}; dependent sampling reduces switches compared with independent weighted-majority draws~\cite{geulen}. Full-information and bandit switching-cost settings have different achievable regret guarantees~\cite{cesa}. We use the full-information setting because one recorded completion wave can be scored against every frozen certificate layout without reexecuting the tests. This is not full counterfactual feedback for arbitrary agent strategies: if a layout changes the tests' execution schedule or model behavior, our exogenous-cost assumption may fail. Our bound specializes established tools to measured layout-installation costs; it is not a new minimax online-learning result.
@@ -304,6 +350,7 @@ Hosted token usage and API billing & No provider inference was run & Unknown, ne
 A different scalar objective could combine these quantities only with declared unit conversions and observable counterfactual costs. This implementation does not optimize unknown model latency or billing. The exact-byte claim also depends on the stated padded format; compression defines a different, potentially nonseparable objective for which this DP is not claimed exact.
 
 \input{delivery.tex}
+\input{evaluation_questions.tex}
 \input{evaluation_v5.tex}
 \input{v7_comparison.tex}
 \input{evaluation_v8.tex}

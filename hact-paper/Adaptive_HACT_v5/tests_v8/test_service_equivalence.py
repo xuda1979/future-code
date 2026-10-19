@@ -144,7 +144,7 @@ def test_epoch_is_carried_and_mixed_waves_are_impossible():
     a_full = hact.query("Q1", full, "all", "status")
     assert a_early.epoch == 3
     assert a_full.epoch == 22
-    # The early answer is computed only from the first 4 waves.
+    # Epoch is a completed-wave count: exactly the first 3 waves.
     assert a_early.semantic["counts"]["PASS"] + \
         a_early.semantic["counts"]["FAIL"] + \
         a_early.semantic["counts"]["UNKNOWN"] == len(trajectory.registry)
@@ -271,13 +271,12 @@ def test_flat_ledger_index_and_ledger_are_distinct_costs():
     trajectory, hact, flat = _services(*PARTIAL)
     snapshot = trajectory.snapshot()
     flat.query("Q1", snapshot, "all", "status")
-    assert flat.costs.index_build_bytes == sum(
-        len(cid.encode("ascii")) + 8 for cid in trajectory.registry)
+    encode = lambda value: json.dumps(value, sort_keys=True, separators=(",", ":"),
+                                      ensure_ascii=True).encode("ascii")
+    assert flat.costs.index_build_bytes == len(encode(
+        {cid: None for cid in trajectory.registry}))
     assert flat.costs.index_maintenance_bytes == sum(
-        len(json.dumps({"id": ev["id"], "status": ev["status"],
-                        "phases": ev["phases"], "wave": ev["wave"]},
-                       sort_keys=True, separators=(",", ":"),
-                       ensure_ascii=True).encode("ascii"))
+        len(encode(ev))
         for ev in flat._ledger)
 
 
@@ -370,7 +369,7 @@ def test_oracle_artifact_is_current(tmp_path):
     """The committed artifact must match a fresh oracle run byte-for-byte."""
     report = oracle.oracle_report()
     committed = json.loads(
-        (ROOT / "results" / "v8" / "service_equivalence.json").read_text())
+        (ROOT / "results" / "v9" / "service_equivalence.json").read_text())
     assert committed["summary"]["all_equal"] is True
     assert committed["summary"] == report["summary"]
     assert committed["comparisons"] == report["comparisons"]

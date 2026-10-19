@@ -1,18 +1,5 @@
-\section{Evaluation}\label{sec:v5evaluation}
-\subsection{Questions, data, and provenance}
-The evaluation is organized around five questions rather than around successive artifact revisions:
-\begin{table}[H]\centering\small
-\caption{Research questions and the evidence used to answer them.}\label{tab:rqs}
-\begin{tabularx}{\linewidth}{@{}p{.06\linewidth}>{\raggedright\arraybackslash}p{.27\linewidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{.26\linewidth}@{}}\toprule
-RQ & Question & Evidence & Main observation\\\midrule
-RQ1 & When does learned ordering reduce evidence cost? & 27 frozen synthetic workloads; separate train, validation, and held-out epochs & Benefit appears on clustered completion structure, not on independent/global controls.\\
-RQ2 & What is traded for the practical no-DP compiler? & 36 replays of 12 archived source candidates under fixed8, learned balanced, and learned exact & Balanced is simpler and smaller than fixed8; exact retains a 1.52--11.68\% compressed-byte advantage.\\
-RQ3 & Does changing layout change semantic output? & Verdict/count comparisons, authorization checks, and root-status equality across all replay triples & Semantic results agree; root status is byte-identical in 12/12 triples.\\
-RQ4 & When can evidence savings repay extra work? & Codec-matched bytes plus 27 declared sensitivity scenarios & Break-even depends on goodput, repetition, and extra cost; no universal latency claim follows.\\
-RQ5 & Does HACT beat simpler services delivering the same evidence at equal semantics? & Service-equal cost study on 12 archived trajectories (Section~\ref{sec:v8evaluation}) & Zero of six frozen families benefit; maintenance and storage dominate the total.\\\bottomrule
-\end{tabularx}
-\end{table}
-
+\section{Representation-Cost Evaluation}\label{sec:v5evaluation}
+\subsection{Data and provenance}
 The frozen v5 contract fixes three registry sizes (128, 512, 1,024), three completion families (clustered, independent, global), and three seeds (55011--55013). Each of the 27 workloads contains 128 training epochs, 128 validation epochs, and 256 held-out epochs. Random draws are sequential disjoint samples; deterministic global observations naturally coincide. The catalogue is fit only on training data, selected on validation, and reported on held-out data. Cold strict-epoch construction is included in every objective. The nine size/family summaries report seed means and observed ranges; with three seeds per cell we do not turn episode counts into pseudo-replicated confidence claims.
 
 The source study re-aggregates twelve archived candidates, four each from NetworkX, Toolz, and Future Code, under three layouts. All three representations consume the same trusted check records, execution sequence, and batches of eight. The 36 outputs are layout replays, not fresh checker executions or new autonomous repairs. Historical v3/v4 records remain in the artifact under their original versioned provenance; they are not merged into the v5 empirical counts.
@@ -37,7 +24,7 @@ The practical path invokes no tree DP. At 1,024 checks, catalogue fitting still 
 
 The first synthetic execution exceeded its tool time limit after persisting 26 complete records. No worker remained; explicit resume skipped those immutable records and completed the final frozen case without changing inputs, selection, or seeds. The interruption record remains part of the artifact provenance.
 
-\subsection{RQ2--RQ3: simplicity, remaining headroom, and semantic invariance}
+\subsection{RQ2: compilation tradeoffs and semantic invariance}
 \begin{table}[H]\centering\small
 \caption{Re-serialization of twelve archived source candidates. The first three columns compare learned balanced8 with original-order fixed8. The last column is the learned-balanced penalty relative to learned exact after whole-epoch compression.}\label{tab:v5replay}
 \begin{tabular}{@{}lrrrr@{}}\toprule
@@ -47,7 +34,7 @@ Project & Padded saving & Canonical saving & Epoch saving & vs. exact\\
 \bottomrule\end{tabular}
 \end{table}
 
-Learned balanced layouts reduce whole-epoch compressed bytes by 41.84\% for NetworkX~\cite{networkx}, 4.36\% for Toolz~\cite{toolz}, and 18.53\% for Future Code. Across all twelve candidates, batch-compressed application bytes fall from 416,046 for fixed8 to 299,081 for learned balanced. Learned exact uses 278,831 bytes, leaving 11.68\%, 1.52\%, and 6.67\% project-level headroom relative to balanced. The practical compiler is therefore a Pareto choice: it removes cubic tree synthesis from the default path while deliberately giving up some byte optimality available to the fixed-order exact reference.
+Learned balanced layouts reduce whole-epoch compressed bytes by 41.84\% for NetworkX~\cite{networkx}, 4.36\% for Toolz~\cite{toolz}, and 18.53\% for Future Code. Across all twelve candidates, batch-compressed application bytes fall from 416,046 for fixed8 to 299,081 for learned balanced. Learned exact uses 278,831 bytes. The balanced streams are 11.68\%, 1.52\%, and 6.67\% larger than exact, respectively, with exact as the denominator. Practical compilation removes cubic tree synthesis from the default path at this observed representation-cost tradeoff. The DP is exact for its additive padded objective; these compressed sizes do not establish compressed-byte optimality.
 
 Semantic counts, verdicts, and local authorization agree across all 36 replays. Root-status text is byte-identical in every layout triple and occupies 593--594 UTF-8 bytes, directly validating the negative control in Equation~\eqref{eq:rootcontext}. Exhaustive diagnostic pages total 148 for fixed8, 95 for learned balanced, and 87 for learned exact, so the practical layout uses 35.81\% fewer pages than fixed8. The largest page is 16,364 bytes under a 16,384-byte cap. These page counts describe an exhaustive diagnostic service; they do not imply that a model will request every page.
 

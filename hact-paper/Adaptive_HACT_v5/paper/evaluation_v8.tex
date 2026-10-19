@@ -1,60 +1,98 @@
-\section{Service-Equal Evaluation}\label{sec:v8evaluation}
-\subsection{Questions, data, and provenance}
-The evaluation is organized around five questions. RQ1--RQ4 are answered on the frozen v5/v7 artifacts; RQ5 is the new service-equal study demanded by the review, run under the frozen \texttt{V8\_SERVICE\_CONTRACT}:
+\section{Diagnostic-Service Evaluation and Ablations}\label{sec:v8evaluation}
+\subsection{RQ5: corrected service-equal protocol}\label{sec:v8service}
+The diagnostic contract fixes semantic selections and answers independently
+of tree positions. Q1 reports full status, Q2 localizes failures, Q3 lists
+unfinished obligations, Q4 discloses coverage, Q5 replays a completed wave,
+and Q6a/Q6b restrict status to the frozen unit/integration predicates. Failure
+groups use stable test-file paths; these predicates and groupings do not
+assert a classification of test adequacy. Coverage includes the actual
+declared, executed and missing ID sets. Epoch is a completed-wave count;
+foreign snapshots are rejected and older snapshots are rebuilt consistently.
+
+The tree service applies the learned permutation to kernel positions and
+uses maintained subtree capsules for status aggregation. The indexed ledger
+reads per-check events through its persistent index. Neither service calls
+the archived-record reference answer implementation. A separate oracle
+compares both answers to that reference; equality between the services alone
+is insufficient. All \VnineOracleMatches{} comparisons and
+\VnineInvariantChecks{} layout-invariance checks agree. New regressions
+include a deliberately shared query error, which the independent oracle
+rejects, and older-snapshot queries after full completion.
+
+Both services use bounded FIFO query caches, identical JSON-lines answer
+framing and DEFLATE level six. Every page descriptor counts inside its byte
+cap. Indivisible oversized fields are rejected; decoding verifies complete
+reconstruction. The query workload includes Q3, seeded additional replay
+waves, both original and learned layouts, and actual cold/warm query pairs.
+It comprises \VnineStudyRows{} paired query rows across \VnineSetups{} matched
+trajectory/layout traces. Each arm records \VnineCacheHits{} actual cache hits.
+Arm order is seeded separately. This is a single local timing campaign over
+the archived candidates, not evidence about independently selected live tasks.
+
+\subsection{Wire bytes, storage and time are separate ledgers}
+Table~\ref{tab:v9queries} reports only compressed complete-answer bytes.
+Each arm totals \VnineWireBytes{} bytes. Equality follows from identical
+semantic answers and the common encoding policy; it is a property of this
+service contract, not a newly discovered compression bound. No query family
+meets the strict requirement of both fewer wire bytes and lower modeled
+arrival time. A different service or codec requires a separate comparison.
+
 \begin{table}[H]\centering\small
-\caption{Research questions and the evidence used to answer them.}\label{tab:v8rqs}
-\begin{tabularx}{\linewidth}{@{}p{.06\linewidth}>{\raggedright\arraybackslash}p{.27\linewidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{.30\linewidth}@{}}\toprule
-RQ & Question & Evidence & Main observation\\\midrule
-RQ1 & When does learned ordering reduce evidence cost? & 27 frozen synthetic workloads; separate train, validation, and held-out epochs & Benefit appears on clustered completion structure, not on independent/global controls.\\
-RQ2 & What is traded for the practical compiler's simplicity relative to exact, and does semantics survive layout change? & Re-serialization of 12 archived candidates; fixed, learned, and exact & Balanced is simpler and smaller than fixed8; exact retains a 1.52--11.68\% compressed-byte advantage. Semantics agree; root status is byte-identical in 12/12 triples.\\
-RQ3 & Does the deployed algorithm's gain come from beyond-pairwise structure? & Frozen ablation ladder on the 27 workloads (Section~\ref{sec:v8hoa}) & Not demonstrated: rung-3 does not beat rung-2 on clustered held-out cost; the algorithm claim narrows to pairwise seriation plus complete-wave selection.\\
-RQ4 & When can evidence savings repay extra work? & Codec-matched bytes plus 27 declared sensitivity scenarios & Break-even depends on goodput, repetition, and extra cost; no universal latency claim follows.\\
-RQ5 & At equal diagnostic service, does the hierarchical representation beat a strong indexed flat ledger? & Frozen query set Q1--Q6 on the 12 archived trajectories; indexed ledger with on-demand aggregation, compression, and cache; maintenance counted on both sides & No. At equal semantics (168/168 comparisons), the indexed flat ledger uses fewer bytes with maintenance in every query family (Section~\ref{sec:v8service}).\\\bottomrule
-\end{tabularx}
-\end{table}
-
-The frozen v5 contract fixes three registry sizes (128, 512, 1,024), three completion families (clustered, independent, global), and three seeds (55011--55013). Each of the 27 workloads contains 128 training epochs, 128 validation epochs, and 256 held-out epochs. Random draws are sequential disjoint samples; detailed accounting of bytes, calls, and pages follows the implementation section. RQ1--RQ4 numbers are unchanged from the previous revision and are regenerated end-to-end by the independent-arithmetic audit path described in Section~\ref{sec:v8audit}; the same audit now also covers every RQ5 number.
-
-\subsection{RQ5: the service-equal question}\label{sec:v8service}
-\paragraph{The equal service.}
-RQ5 is the review's central demand: compare the hierarchical representation against a strong flat baseline \emph{on the same diagnostic service}, not on serialization alone. The frozen \texttt{V8\_SERVICE\_CONTRACT} defines seven layout-independent queries against a trajectory: Q1 full status rollup, Q2 failing checks with localized context, Q3 unfinished obligations, Q4 coverage proof, Q5 wave replay, and Q6a/Q6b semantic-subtree status restricted by predicate-defined member sets (unit and integration). Both representations must answer every query with field-identical semantic content, identical UNKNOWN disclosures, and identical epoch/freshness reporting.
-
-The baseline is an indexed flat ledger: a semantic-ID event log with a persistent index supporting on-demand aggregation, DEF late compression, and a query cache. It is not a strawman serialization; it answers the same queries, and its index build, index maintenance, and aggregation costs are all counted. HACT's certificate-tree maintenance is counted identically. The pre-specified decision rule, frozen before any run: \emph{HACT beneficial per family iff complete-answer bytes AND arrival time improve vs.\ indexed flat ledger, maintenance included, at equal semantics}.
-
-\paragraph{Semantic equivalence holds.}
-Across the 12 archived trajectories and the seven query families, all 168 pairwise comparisons return field-identical answers, and all 84 layout-invariance checks pass: the same query on the original-order and learned layouts produces the same answer on both representations. Layout change does not change the delivered service.
-
-\paragraph{The flat ledger wins on delivered bytes.}
-Table~\ref{tab:v8families} reports complete-answer bytes with all maintenance included, per query family. Under the frozen rule, HACT is beneficial in zero of six families. Totals across the study are 1,504,133 bytes for HACT against 836,690 for the indexed flat ledger, a 1.80$\times$ ratio; the gap is dominated by maintenance (1,150,767 vs.\ 483,324 bytes) and by HACT's larger persistent structures (816,128 vs.\ 152,184 bytes of storage). Complete-answer bytes are identical (353,366) on both sides because the answers are semantically identical; the difference is entirely in what must be built, maintained, and shipped to deliver them.
-
-\begin{table}[H]\centering\small
-\caption{Complete-answer bytes with all maintenance included, per frozen query family (12 archived trajectories; 79 query rows). The pre-specified rule declares HACT beneficial per family iff bytes and arrival time both improve at equal semantics. No family satisfies it.}\label{tab:v8families}
+\caption{Corrected query study. Original/learned layouts and cold/warm cache
+requests are included. Logical storage and update bytes are excluded from
+wire totals. ``Benefit'' requires strictly fewer bytes and lower modeled time.}
+\label{tab:v9queries}
 \begin{tabular}{@{}lrrrr@{}}\toprule
-Family & $n$ & HACT (B) & Flat (B) & Beneficial\\\midrule
-Q1 status rollup & 12 & 1,254,865 & 587,422 & no\\
-Q2 failure localization & 9 & 11,209 & 11,209 & no\\
-Q4 coverage proof & 12 & 105,016 & 105,016 & no\\
-Q5 wave replay & 22 & 22,459 & 22,459 & no\\
-Q6a unit subtree & 12 & 104,110 & 104,110 & no\\
-Q6b integration subtree & 12 & 6,474 & 6,474 & no\\\midrule
-Total & 79 & 1,504,133 & 836,690 & no\\\bottomrule
-\end{tabular}
+Family & Rows & HACT wire (B) & Flat wire (B) & Benefit\\\midrule
+\csname @@input\endcsname generated_v9/query_rows.tex
+\bottomrule\end{tabular}
 \end{table}
 
-Arrival time under the declared 1 MiB/s link model also favors the flat ledger in every family, though narrowly: summed arrival totals are 2.8167 vs.\ 2.7859 seconds for Q1 and within 0.003 seconds elsewhere. The measured Amdahl decomposition explains why no representation can win much time here: the flat side spends only a fraction $f=0.0018$ of total arrival time in aggregation CPU, so even the unbounded-speedup ceiling over flat aggregation CPU is a 0.31\% improvement. Hierarchical aggregation cannot buy back delivery time when aggregation is not on the critical path at these corpus sizes.
+Canonical serialized persistent-state totals are \VnineHactStorage{} bytes
+for HACT and \VnineFlatStorage{} for flat across the matched traces. These
+exclude duplicate query-cache objects and describe neither resident RAM nor
+traffic. Local setup/maintenance elapsed totals are \VnineHactSetupSeconds{}
+and \VnineFlatSetupSeconds{} seconds, respectively. Setup is recorded once
+per trace, then allocated uniformly across that trace only for the arrival
+model; it is not assigned solely to Q1. Logical update bytes remain a separate
+resource measure. These local timings support descriptive accounting rather
+than statistical claims about deployment latency.
 
-\paragraph{What the negative result means.}
-This is a pre-specified retrospective analysis on the 12 archived trajectories, and the negative outcome is published as specified before the run. It sharpens, rather than removes, the applicability claim of Section~\ref{sec:v7baseline}: at these corpus sizes and query mixes, a deployment that needs exactly the Q1--Q6 diagnostic service should start with the indexed flat ledger. HACT's hierarchical packets are justified only when the consumer additionally requires intermediate bounded hierarchical diagnostics --- certificate-bounded pages, per-subtree verification proofs, migration-stable tickets --- that the flat ledger's answers do not carry. The study does not measure whether such consumers exist at scale, nor live-agent effects; the prospective protocol of Section~\ref{sec:v7baseline} remains the required next step for those claims.
+Modeled arrival adds archived serial completion time, allocated setup,
+measured query aggregation/encoding/decoding, and compressed bytes divided
+by declared goodput. It excludes no setup stage and adds no storage footprint
+to wire bytes. All entries are marked arithmetic. Under this particular
+critical-path model, eliminating flat aggregation entirely could reduce
+arrival time by at most \VnineAggregationMaxReduction\%. The observed-ratio
+estimate is reported separately from this infinite-acceleration ceiling.
+The common archived-checker term is relevant to arrival from candidate start;
+it must be removed when studying response latency for a query issued after
+checking has finished. Physical transfer, concurrency and production demand
+remain unmeasured.
 
-\subsection{RQ3: the higher-order ablation ladder}\label{sec:v8hoa}
-The review asked whether the deployed algorithm's benefit actually comes from beyond-pairwise completion structure. We implemented the requested ablation ladder on the same 27 frozen workloads: (1) frequency order; (2) the deployed pairwise co-activity cluster order; (3) direct completion-wave improvement --- budgeted local swaps and block moves scored on training waves, adoption decided on validation, held-out only for reporting; (4) fixed-order exact tree DP; and (5) a small-scale exhaustive reference at $n{=}9$.
+\subsection{RQ3: corrected interpretation of the frozen ablation}\label{sec:v8hoa}
+The archived ladder compares frequency order, pairwise cluster order,
+budgeted direct-wave refinement, original-order exact tree DP, and a small
+fixed-topology permutation reference. It is re-analyzed here without
+relabeling its rows as new experiments.
+\input{generated_v9/ablation.tex}
+The direct-wave refinement is a time-budgeted heuristic, so its negative
+outcome does not prove that no higher-order optimizer can improve the layout.
+A proper tree-shape ablation must hold the learned order fixed. Fixed-order
+training optimality also does not imply held-out optimality. Proposition~\ref{prop:pairwise}
+retains its information-separation meaning without an empirical claim that
+the deployed compiler exploits beyond-pairwise structure.
 
-Under the frozen rule --- rung 3 supported iff it beats rung 2 on clustered held-out cost --- the outcome is negative: rung 3 beats rung 2 in zero of nine clustered workloads (mean delta $+0.004\%$), one of nine independent workloads, and zero of nine global workloads. Rung 1 (frequency) loses to rung 2 by 2.53\% mean on clustered cost, confirming that pairwise co-activity seriation contributes beyond simple frequency; rung 4 (exact DP under the additive packet-cost model) improves on rung 2 by 5.12\% mean, bounding remaining headroom for tree-shape optimization. At the exhaustive $n{=}9$ reference, the deployed rung-2 order is within 0.06\% of the best feasible layout in all five seeds.
-
-We therefore narrow the algorithmic claim as pre-specified: the demonstrated mechanism is \emph{pairwise seriation plus complete-wave selection}, and gains are not yet shown to come from beyond-pairwise structure. Proposition~\ref{prop:pairwise} keeps its scoped reading: it proves pairwise statistics do not determine subtree refresh cost; it does not prove that any deployed algorithm extracts a beyond-pairwise advantage, and the ladder shows the present one does not on frozen data.
-
-\subsection{RQ1--RQ4 on frozen artifacts}\label{sec:v8frozen}
-RQ1 and RQ2 are unchanged from the previous revision and are reported in Sections~\ref{sec:v5evaluation} and~\ref{sec:v7baseline}: clustered synthetic completions yield held-out padded-evidence reductions of 23.43\%, 10.75\%, and 5.56\% at 128, 512, and 1,024 checks with every clustered seed positive, while independent and global controls show no systematic benefit; re-encoding the 12 archived candidates shows 4.36--41.84\% whole-epoch compressed savings for the learned-balanced layout against original-order fixed8, with root-status text byte-identical across all layout triples. RQ4's break-even accounting (Table~\ref{tab:payback}) is likewise unchanged: savings repay extra work only under high repetition, favorable goodput, and low extra cost.
-
-\subsection{Independent-arithmetic reconstruction and audit}\label{sec:v8audit}
-A separate audit path imports no producer optimizer, selector, or codec, and regenerates every manuscript number --- 70 entries spanning the practical/replay tables, the strong-baseline table, the v8 equivalence, cost-study, and ablation artifacts --- from the frozen JSON records through a second implementation. All 70 entries regenerate exactly; the audit fails closed on any drift. This is independent arithmetic and provenance reconstruction on frozen data, not third-party certification. The v8 prototype passes 82 new tests covering service equivalence, the cost study, the ablation ladder, and the audit itself; the unchanged earlier suites remain green separately.
+\subsection{Audit scope and correction record}\label{sec:v8audit}
+The historical audit's seventy consistency entries passed despite errors in
+v8's prose. The revised independent path imports no service, optimizer or
+codec implementation; it verifies input digests and regenerates the current
+result macros, query table and signed ablation paragraph from committed JSON.
+Tests corrupt generated percentages, interpretation text and study rows to
+ensure rejection. The artifact retains the original v8 JSON and documents
+its withdrawn service-cost interpretation. In particular, the old optimum-gap
+percentage and DP-improvement interpretation are not used as current evidence.
+The original Amdahl arithmetic yields only \VnineOldAmdahlCeiling\% maximum
+speedup, with its own historical denominator. It is not combined with the
+corrected timing campaign. Functional query/codec tests complement this
+arithmetic audit; passing either is not third-party certification.

@@ -24,6 +24,7 @@ Run as a script: ``python3 -m experiments_v8.service_oracle [output.json]``.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -75,13 +76,14 @@ class QueryComparison:
     hact_digest: str
     flat_digest: str
     kernel_verdict_agrees: bool
+    reference_equal: bool
     detail: dict
 
     @property
     def equal(self) -> bool:
         return (self.semantic_equal and self.unknown_disclosure_equal
                 and self.epoch_equal and self.total_waves_equal
-                and self.kernel_verdict_agrees)
+                and self.kernel_verdict_agrees and self.reference_equal)
 
     def as_dict(self) -> dict:
         return {
@@ -93,6 +95,7 @@ class QueryComparison:
             "epoch_equal": self.epoch_equal,
             "total_waves_equal": self.total_waves_equal,
             "kernel_verdict_agrees": self.kernel_verdict_agrees,
+            "reference_equal": self.reference_equal,
             "equal": self.equal,
             "hact_digest": self.hact_digest,
             "flat_digest": self.flat_digest,
@@ -138,7 +141,7 @@ def _kernel_agrees(semantic: dict, kernel_extras: dict) -> bool:
 
 
 def compare_query(hact_answer: core.Answer, flat_answer: core.Answer,
-                  kernel_extras: dict | None) -> QueryComparison:
+                  kernel_extras: dict | None, reference: dict | None = None) -> QueryComparison:
     """Field-by-field comparison of two answers to the same frozen query."""
     s_hact = core.strip_run_specific(hact_answer.semantic)
     s_flat = core.strip_run_specific(flat_answer.semantic)
@@ -157,6 +160,9 @@ def compare_query(hact_answer: core.Answer, flat_answer: core.Answer,
         hact_digest=core.semantic_digest(s_hact),
         flat_digest=core.semantic_digest(s_flat),
         kernel_verdict_agrees=_kernel_agrees(s_hact, kernel_extras),
+        reference_equal=(reference is None or
+                         s_hact == core.strip_run_specific(reference)
+                         == s_flat),
         detail=detail,
     )
 
@@ -191,7 +197,15 @@ def run_corpus(corpus: Sequence[tuple[str, str]] | None = None,
                                     wave=q.get("wave"))
                 a_flat = flat.query(q["query_id"], snapshot, q["s"], q["mode"],
                                     wave=q.get("wave"))
-                cmp = compare_query(a_hact, a_flat, a_hact.extras)
+                selected = core.select_members(snapshot, q["s"])
+                if q["mode"] == "replay":
+                    reference = core.answer_replay(snapshot, q["wave"])
+                else:
+                    compute = {"status": core.answer_status,
+                               "failure_localization": core.answer_failure_localization,
+                               "coverage_proof": core.answer_coverage_proof}[q["mode"]]
+                    reference = compute(snapshot, selected)
+                cmp = compare_query(a_hact, a_flat, a_hact.extras, reference)
                 cmp.project, cmp.case = project, case
                 cmp.layout = arm
                 results.append(cmp)
@@ -228,8 +242,9 @@ def oracle_report(corpus: Sequence[tuple[str, str]] | None = None,
     invariance = layout_invariance(results, corpus)
     n_equal = sum(1 for r in results if r.equal)
     report = {
-        "schema": "v8-service-equivalence-1",
-        "contract": "docs/V8_SERVICE_CONTRACT.md#8",
+        "schema": "v9-service-equivalence-1",
+        "contract": "docs/V9_CORRECTION_CONTRACT.md",
+        "inputs": core.corpus_provenance(corpus),
         "corpus": [list(c) for c in (corpus or core.CORPUS)],
         "queries": [q["query_id"] for q in (queries or sb.frozen_queries())],
         "comparisons": [r.as_dict() for r in results],
@@ -246,8 +261,10 @@ def oracle_report(corpus: Sequence[tuple[str, str]] | None = None,
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    argv = list(argv or [])
-    out = Path(argv[0]) if argv else ROOT / "results" / "v8" / "service_equivalence.json"
+    argv = list(sys.argv[1:] if argv is None else argv)
+    out = Path(argv[0]) if argv else ROOT / "results" / "v9" / "service_equivalence.json"
+    if out.exists():
+        raise FileExistsError("refuse to overwrite recorded evidence; choose a new output path")
     report = oracle_report()
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")

@@ -1,26 +1,8 @@
-"""Equal-service implementations for the V8 study (contract sections 3, 6, 7).
+"""V9 correction: independent queries over maintained tree and ledger state.
 
-Two representations of the SAME frozen trajectory answer the SAME frozen
-queries with identical answer semantics (service_core):
-
-1. ``HactService`` — the hierarchical certificate tree. Layout-parameterized
-   (original-order balanced and learned layouts must give identical answers).
-   Uses the trusted ``hact.certificates.Kernel`` for aggregation.
-
-2. ``IndexedFlatLedger`` — the strong flat baseline demanded by review section 3
-   and contract section 6: a per-check index over a leaf-event ledger with
-   on-demand aggregation for Q1-Q6, declared cache with eviction, DEFLATE
-   (per-answer and whole-ledger), and paging under budget, with index build +
-   maintenance costs counted. A leaf-only ledger without these capabilities is
-   NOT this baseline.
-
-Cost accounting (contract section 7) is identical across arms and measures
-bytes touched to answer a query, cache hits, pages, and index/maintenance work.
-
-No new checker, live LLM, WAN, tokenizer, or project run is claimed. This is a
-new analysis of frozen archived records; arrival-time fields derived from
-archived per-phase timings are clearly marked and never presented as
-measured-latency claims.
+Only framing, predicates and schema are shared with the reference oracle.
+Timings are local host measurements; logical storage/update bytes are not
+network traffic. Results/v8 remains the unmodified historical study.
 """
 from __future__ import annotations
 
@@ -28,26 +10,17 @@ import json
 import time
 import zlib
 from dataclasses import dataclass, field
-from typing import Sequence
 
 from experiments_v8 import service_core as core
-from hact.certificates import (CostModel, Evidence, Gate, Kernel, canonical,
-                               digest)
-from hact.tree import Node
-from ichact.exposure import compact_packet
+from hact.certificates import CostModel, Evidence, Gate, Kernel, canonical, digest
 from ichact.layout import Layout
 
 
-# --------------------------------------------------------------------------
-# Cost accounting (contract section 7) — identical rules for both services
-# --------------------------------------------------------------------------
-
 @dataclass
 class ServiceCosts:
-    """Bytes and operation counts, measured per query (not assumed)."""
     index_build_bytes: int = 0
     index_maintenance_bytes: int = 0
-    storage_bytes: int = 0
+    storage_bytes: int = 0  # current canonical serialized state, not resident RAM
     aggregation_bytes_scanned: int = 0
     aggregation_cpu_calls: int = 0
     cache_hits: int = 0
@@ -55,315 +28,319 @@ class ServiceCosts:
     encode_bytes: int = 0
     decode_bytes: int = 0
     pages: int = 0
-    round_trips: int = 0            # complete messages to first full answer
+    round_trips: int = 0  # logical messages; no transport RTT claim
     failure_disclosures: int = 0
     index_build_seconds: float = 0.0
     index_maintenance_seconds: float = 0.0
     aggregation_seconds: float = 0.0
+    encode_seconds: float = 0.0
+    decode_seconds: float = 0.0
 
-    def merge(self, other: "ServiceCosts") -> "ServiceCosts":
-        out = ServiceCosts()
-        for k in out.__dict__:
-            setattr(out, k, getattr(self, k) + getattr(other, k))
-        return out
-
-    def as_dict(self) -> dict:
+    def as_dict(self):
         return dict(self.__dict__)
 
 
-def _now() -> float:
+def _now():
     return time.perf_counter()
 
 
-# --------------------------------------------------------------------------
-# HACT tree service
-# --------------------------------------------------------------------------
-
-@dataclass
-class HactService:
-    """Hierarchical certificate tree service over one frozen trajectory.
-
-    ``layout`` must be a Layout over the trajectory's registry (any order);
-    answers are layout-independent by construction because they are computed
-    from semantic IDs through service_core, while aggregation uses the Kernel
-    over the layout's display tree.
-    """
-    trajectory: core.Trajectory
-    layout: Layout
-    budget: int = core.DEFAULT_BUDGET
-    cache_max_entries: int = 128
-
-    costs: ServiceCosts = field(default_factory=ServiceCosts, init=False)
-    _kernel: Kernel = field(default=None, init=False, repr=False)
-    _cache: dict = field(default_factory=dict, init=False, repr=False)
-    _submitted: set = field(default_factory=set, init=False, repr=False)
-
-    def __post_init__(self):
-        registry = self.trajectory.registry
-        if tuple(self.layout.registry) != tuple(registry):
-            raise ValueError("layout registry must match the trajectory registry")
-        self._build()
-
-    # -- index construction -------------------------------------------------
-
-    def _build(self) -> None:
-        """Build the kernel (trusted aggregator) and count build costs."""
-        started = _now()
-        registry = self.trajectory.registry
-        artifacts = {"registry.json": digest(list(registry))}
-        gates = tuple(Gate(id=cid, dependencies=("registry.json",)) for cid in registry)
-        kernel = Kernel(gates, artifacts, self.layout.model)
-        self.costs.index_build_bytes += sum(
-            len(canonical({"gate": g.id, "checker": g.checker,
-                           "dependencies": list(g.dependencies)}))
-            for g in gates)
-        self.costs.storage_bytes += sum(
-            self.layout.model.packet_bytes(len(v.children))
-            for v in self.layout.tree.walk() if not v.leaf)
-        self._kernel = kernel
-        self.costs.index_build_seconds += _now() - started
-
-    def _order_pos(self, check_id: str) -> int:
-        return self.layout.order.index(self.trajectory.registry.index(check_id))
-
-    def _submit_upto(self, snapshot: core.TrajectorySnapshot) -> None:
-        """Trusted-side ingestion of completions in the snapshot (maintenance)."""
-        started = _now()
-        registry = self.trajectory.registry
-        have = self._submitted
-        for cid in snapshot.executed:
-            if cid in have:
-                continue
-            i = registry.index(cid)
-            rec = snapshot.records[cid]
-            evidence = Evidence(binding=self._kernel.gate_binding(i),
-                                status=rec["status"],
-                                trace_hash=digest({"id": cid, "status": rec["status"],
-                                                   "phases": rec.get("phases", {})}))
-            self._kernel.submit_trusted(i, evidence)
-            self._submitted.add(cid)
-            self.costs.index_maintenance_bytes += len(canonical(
-                {"id": cid, "status": rec["status"]}))
-        self.costs.index_maintenance_seconds += _now() - started
-
-    # -- queries ------------------------------------------------------------
+class _QueryService:
+    """Common admission/framing; record access and status aggregation differ."""
+    def _total_waves(self):
+        return (len(self.trajectory.evidence['executed']) + core.DEFAULT_WAVE_SIZE - 1) // core.DEFAULT_WAVE_SIZE
 
     def _cached(self, key, produce):
         if key in self._cache:
             self.costs.cache_hits += 1
-            return self._cache[key]
+            return json.loads(json.dumps(self._cache[key]))
         self.costs.cache_misses += 1
-        value = produce()
+        result = produce()
         if len(self._cache) >= self.cache_max_entries:
-            # declared eviction: FIFO, reported, never silent
-            self._cache.pop(next(iter(self._cache)))
-        self._cache[key] = value
-        return value
+            self._cache.pop(next(iter(self._cache)))  # declared FIFO
+        self._cache[key] = json.loads(json.dumps(result))
+        return result
 
-    def query(self, query_id: str, snapshot: core.TrajectorySnapshot,
-              s, mode: str, *, wave: int | None = None) -> core.Answer:
-        """Answer one frozen query. `wave` applies to Q5 replay only."""
-        started = _now()
-        self._submit_upto(snapshot)
-        selected = core.select_members(snapshot, s)
-        self.costs.aggregation_cpu_calls += len(selected)
-        self.costs.aggregation_bytes_scanned += sum(
-            len(canonical({"id": cid})) for cid in selected)
+    def _sync(self, snapshot):
+        if (snapshot.trajectory.identity != self.trajectory.identity
+                or snapshot.registry != self.trajectory.registry):
+            raise ValueError('foreign candidate snapshot')
+        expected = tuple(self.trajectory.evidence['executed'][:snapshot.epoch * core.DEFAULT_WAVE_SIZE])
+        if snapshot.executed != expected:
+            raise ValueError('foreign completion prefix in snapshot')
+        if snapshot.epoch < self._epoch:
+            self._build()  # old snapshots are rebuilt, never mixed with new state
+            self._epoch = -1
+        if snapshot.epoch != self._epoch:
+            self._cache.clear()
+            self._ingest(snapshot)
+            self._epoch = snapshot.epoch
 
-        if mode == "status":
-            semantic = core.answer_status(snapshot, selected)
-        elif mode == "failure_localization":
-            semantic = core.answer_failure_localization(snapshot, selected)
-        elif mode == "coverage_proof":
-            semantic = core.answer_coverage_proof(snapshot, selected)
-        elif mode == "replay":
-            if wave is None:
-                raise ValueError("replay mode requires an explicit wave")
-            semantic = core.answer_replay(snapshot, wave)
-            if semantic.get("refused"):
+    def _select(self, selection):
+        registry = self.trajectory.registry
+        if isinstance(selection, str):
+            if selection == 'all':
+                return list(registry)
+            if selection in ('failing', 'unfinished'):
+                return [cid for cid in registry if
+                        (self.record_of(cid) is None if selection == 'unfinished'
+                         else self._status_of(cid) == 'FAIL')]
+            if selection in ('unit', 'integration'):
+                predicate = core.predicate_unit if selection == 'unit' else core.predicate_integration
+                return [cid for cid in registry if predicate(cid)]
+            if selection in registry:
+                return [selection]
+            raise ValueError('unknown semantic set or member: %r' % selection)
+        selected = list(selection)
+        if any(cid not in registry for cid in selected):
+            raise ValueError('unknown semantic member')
+        if len(set(selected)) != len(selected):
+            raise ValueError('duplicate semantic members in S')
+        return selected
+
+    def _status_of(self, cid):
+        record = self.record_of(cid)
+        return record['status'] if record is not None else 'UNKNOWN'
+
+    def _answer(self, selected, mode, wave):
+        """Schema construction over this service's records, never raw snapshots."""
+        if mode == 'status':
+            counts = self._counts(selected)
+            return {'required': len(selected), 'counts': counts,
+                    'verdict': 'FAIL' if counts['FAIL'] else 'UNKNOWN' if counts['UNKNOWN'] else 'PASS',
+                    'unfinished': [cid for cid in selected if self.record_of(cid) is None]}
+        if mode == 'failure_localization':
+            failing, groups = [], {}
+            for cid in selected:
+                rec = self.record_of(cid)
+                if rec is None or rec['status'] != 'FAIL':
+                    continue
+                phases = {name: {'outcome': phase.get('outcome')}
+                          for name, phase in (rec.get('phases') or {}).items() if phase}
+                failing.append({'id': cid, 'phase_outcomes': phases,
+                                'context': rec.get('failure') or '',
+                                'wall_seconds': rec.get('wall_seconds')})
+                groups.setdefault(cid.split('::', 1)[0], []).append(cid)
+            return {'failing_count': len(failing), 'failing': failing,
+                    'groups': {key: sorted(value) for key, value in sorted(groups.items())}}
+        if mode == 'coverage_proof':
+            executed = [cid for cid in selected if self.record_of(cid) is not None]
+            missing = [cid for cid in selected if self.record_of(cid) is None]
+            counts = self._counts(selected)
+            passed = counts['PASS'] == len(selected)
+            return {'declared': len(selected), 'declared_ids': list(selected),
+                    'executed': len(executed), 'executed_ids': executed, 'missing': missing,
+                    'all_declared_passed': passed,
+                    'eligible_authorization': bool(self.trajectory.report.get('locally_authorized')) and passed,
+                    'scope': 'All declared checks passed for the declared contract; this is '
+                             'not a claim that the check set suffices for arbitrary '
+                             'program correctness.'}
+        if mode == 'replay':
+            if type(wave) is not int or wave < 0 or wave >= self._total_waves():
+                raise ValueError('unknown wave %r for replay' % wave)
+            if wave >= self._epoch:
                 self.costs.failure_disclosures += 1
-        else:
-            raise ValueError("unknown mode %r" % (mode,))
+                return {'refused': True, 'reason': 'wave beyond stated epoch',
+                        'wave': wave, 'epoch': self._epoch}
+            members = self._executed[wave * core.DEFAULT_WAVE_SIZE:(wave + 1) * core.DEFAULT_WAVE_SIZE]
+            return {'refused': False, 'wave': wave, 'members': list(members),
+                    'counts': self._counts(members),
+                    'wall_seconds_total': sum(self.record_of(cid).get('wall_seconds', 0.0) for cid in members)}
+        raise ValueError('unknown mode %r' % mode)
 
-        # Aggregation through the Kernel tree (the tree's actual rollups must
-        # agree with the semantic answer; verified by the oracle).
-        root, packets = self._kernel.refresh(self.layout.tree)
-        self.costs.aggregation_cpu_calls += 1
-        self.costs.aggregation_bytes_scanned += len(root.to_bytes())
-
-        pages = core.pack_answers(semantic, snapshot.trajectory.identity,
-                                  query_id, snapshot.epoch,
-                                  self._total_waves(), budget=self.budget)
+    def query(self, query_id, snapshot, s, mode, *, wave=None):
+        self._sync(snapshot)
+        if mode == 'replay' and wave is None:
+            raise ValueError('replay mode requires an explicit wave')
+        started = _now()
+        key = (query_id, self._epoch, canonical(s), mode, wave)
+        semantic = self._cached(key, lambda: self._answer(self._select(s), mode, wave))
+        self.costs.aggregation_seconds += _now() - started
+        started = _now()
+        pages = core.pack_answers(semantic, self.trajectory.identity, query_id,
+                                  self._epoch, self._total_waves(), budget=self.budget)
+        wire = zlib.compress(b''.join(pages), 6)
+        compressed = {'raw_bytes': sum(map(len, pages)), 'answer_zlib_bytes': len(wire)}
+        self.costs.encode_seconds += _now() - started
+        self.costs.encode_bytes += compressed['answer_zlib_bytes']
         self.costs.pages += len(pages)
         self.costs.round_trips += len(pages)
-        compressed = core.deflate_answer(pages)
-        self.costs.encode_bytes += compressed["answer_zlib_bytes"]
-        self.costs.aggregation_seconds += _now() - started
-        return core.Answer(query_id=query_id, mode=mode,
-                           identity=dict(snapshot.trajectory.identity),
-                           epoch=snapshot.epoch, total_waves=self._total_waves(),
-                           semantic=semantic, total_pages=len(pages),
-                           extras={"compressed": compressed,
-                                   "kernel_counts": list(root.counts),
-                                   "kernel_gates": len(self._kernel.gates),
-                                   "kernel_verdict": root.verdict,
-                                   "packet_count": len(packets)})
+        # The consumer verifies an actual codec round trip and complete pages.
+        started = _now()
+        decoded = zlib.decompress(wire)
+        if decoded != b''.join(pages) or core.unpack_answers(pages, self.budget) != semantic:
+            raise ValueError('answer codec/reconstruction mismatch')
+        self.costs.decode_seconds += _now() - started
+        self.costs.decode_bytes += len(decoded)
+        return core.Answer(query_id, mode, dict(self.trajectory.identity), self._epoch,
+                           self._total_waves(), semantic, total_pages=len(pages),
+                           extras={'compressed': compressed, **self._extras()})
 
-    def _total_waves(self) -> int:
-        executed = self.trajectory.evidence["executed"]
-        w = self.trajectory.wave_size()
-        return (len(executed) + w - 1) // w if executed else 0
+    def _extras(self):
+        return {}
 
-
-# --------------------------------------------------------------------------
-# Indexed flat ledger (the strong baseline; contract section 6)
-# --------------------------------------------------------------------------
 
 @dataclass
-class IndexedFlatLedger:
-    """Per-check indexed leaf-event ledger with on-demand aggregation.
-
-    Capabilities (all with counted costs, contract 6/7):
-      1. per-check index over the ledger (build + maintenance counted);
-      2. on-demand aggregation for the frozen queries (CPU measured);
-      3. DEFLATE per-answer and whole-ledger (same codec settings);
-      4. declared cache with FIFO eviction, hits reported;
-      5. paging under the same budget and page-descriptor semantics;
-      6. identical failure disclosure and UNKNOWN handling.
-    """
-
+class IndexedFlatLedger(_QueryService):
     trajectory: core.Trajectory
     budget: int = core.DEFAULT_BUDGET
     cache_max_entries: int = 128
-    ledger_batch_size: int = 8  # archived completion-wave boundary
-
     costs: ServiceCosts = field(default_factory=ServiceCosts, init=False)
     _index: dict = field(default_factory=dict, init=False, repr=False)
     _ledger: list = field(default_factory=list, init=False, repr=False)
     _cache: dict = field(default_factory=dict, init=False, repr=False)
+    _epoch: int = field(default=-1, init=False)
 
     def __post_init__(self):
+        self._build()
+
+    def _build(self):
         started = _now()
-        registry = self.trajectory.registry
-        # Per-check index: semantic ID -> ledger position range, built once.
-        # The ledger itself is appended per completion wave (leaf events).
-        self._index = {cid: i for i, cid in enumerate(registry)}
-        self.costs.index_build_bytes += sum(len(cid.encode("ascii")) + 8
-                                            for cid in registry)
-        self.costs.storage_bytes += sum(
-            len(canonical({"id": cid})) for cid in registry)
+        self._index = {cid: None for cid in self.trajectory.registry}
+        self._ledger = []
+        self._executed = []
+        self._cache.clear()
+        self.costs.index_build_bytes += len(canonical(self._index))
+        self.costs.storage_bytes = len(canonical({'index': self._index, 'ledger': self._ledger}))
         self.costs.index_build_seconds += _now() - started
 
-    def _ingest_upto(self, snapshot: core.TrajectorySnapshot) -> None:
-        """Append completion events for checks not yet in the ledger."""
+    def _ingest(self, snapshot):
         started = _now()
-        have = {ev["id"] for ev in self._ledger}
-        for cid in snapshot.executed:
-            if cid in have:
-                continue
-            rec = snapshot.records[cid]
-            event = {"id": cid, "status": rec["status"],
-                     "phases": rec.get("phases", {}),
-                     "wave": snapshot.wave_index_of(cid)}
+        for cid in snapshot.executed[len(self._ledger):]:
+            rec = json.loads(json.dumps(snapshot.records[cid]))
+            event = {'id': cid, **rec, 'wave': len(self._ledger) // core.DEFAULT_WAVE_SIZE}
+            self._index[cid] = len(self._ledger)
             self._ledger.append(event)
+            self._executed.append(cid)
             self.costs.index_maintenance_bytes += len(canonical(event))
+        self.costs.storage_bytes = len(canonical({'index': self._index, 'ledger': self._ledger}))
         self.costs.index_maintenance_seconds += _now() - started
 
-    def record_of(self, check_id: str):
-        for ev in reversed(self._ledger):
-            if ev["id"] == check_id:
-                return ev
-        return None
+    def record_of(self, check_id):
+        if check_id not in self._index:
+            raise ValueError('missing semantic index entry')
+        position = self._index[check_id]
+        if position is None:
+            return None
+        if not 0 <= position < len(self._ledger) or self._ledger[position]['id'] != check_id:
+            raise ValueError('corrupt ledger index')
+        row = self._ledger[position]
+        self.costs.aggregation_bytes_scanned += len(canonical(row))
+        self.costs.aggregation_cpu_calls += 1
+        return row
 
-    def _cached(self, key, produce):
-        if key in self._cache:
-            self.costs.cache_hits += 1
-            return self._cache[key]
-        self.costs.cache_misses += 1
-        value = produce()
-        if len(self._cache) >= self.cache_max_entries:
-            self._cache.pop(next(iter(self._cache)))  # declared FIFO eviction
-        self._cache[key] = value
-        return value
+    def _counts(self, selected):
+        counts = dict.fromkeys(core.STATUS_ORDER, 0)
+        for cid in selected:
+            counts[self._status_of(cid)] += 1
+        return counts
 
-    def whole_ledger_zlib_bytes(self) -> int:
-        batch = b"".join(canonical(ev) + b"\n" for ev in self._ledger)
-        return len(zlib.compress(batch, 6))
+    def whole_ledger_zlib_bytes(self):
+        return len(zlib.compress(canonical(self._ledger), 6))
 
-    def query(self, query_id: str, snapshot: core.TrajectorySnapshot,
-              s, mode: str, *, wave: int | None = None) -> core.Answer:
+
+@dataclass
+class HactService(_QueryService):
+    trajectory: core.Trajectory
+    layout: Layout
+    budget: int = core.DEFAULT_BUDGET
+    cache_max_entries: int = 128
+    costs: ServiceCosts = field(default_factory=ServiceCosts, init=False)
+    _kernel: Kernel = field(default=None, init=False, repr=False)
+    _cache: dict = field(default_factory=dict, init=False, repr=False)
+    _epoch: int = field(default=-1, init=False)
+
+    def __post_init__(self):
+        if tuple(self.layout.registry) != self.trajectory.registry:
+            raise ValueError('layout registry must match the trajectory registry')
+        self._build()
+
+    def _build(self):
         started = _now()
-        self._ingest_upto(snapshot)
-        selected = core.select_members(snapshot, s)
-        self.costs.aggregation_cpu_calls += len(selected)
-        self.costs.aggregation_bytes_scanned += sum(
-            len(canonical({"id": cid})) for cid in selected)
+        ordered = [self.trajectory.registry[i] for i in self.layout.order]
+        self._positions = {cid: i for i, cid in enumerate(ordered)}
+        self._kernel = Kernel([Gate(cid, ('identity',)) for cid in ordered],
+                              {'identity': digest(self.trajectory.identity)}, self.layout.model)
+        self._records = {}
+        self._executed = []
+        self._capsules = {}
+        self._cache.clear()
+        self._root = None
+        self._packet_count = 0
+        self._tree_id = digest(self.layout.tree.to_dict())
+        self.costs.index_build_bytes += len(canonical(self._positions)) + len(self.layout.manifest_bytes())
+        self.costs.index_build_seconds += _now() - started
 
-        if mode == "status":
-            semantic = core.answer_status(snapshot, selected)
-        elif mode == "failure_localization":
-            semantic = core.answer_failure_localization(snapshot, selected)
-        elif mode == "coverage_proof":
-            semantic = core.answer_coverage_proof(snapshot, selected)
-        elif mode == "replay":
-            if wave is None:
-                raise ValueError("replay mode requires an explicit wave")
-            semantic = core.answer_replay(snapshot, wave)
-            if semantic.get("refused"):
-                self.costs.failure_disclosures += 1
-        else:
-            raise ValueError("unknown mode %r" % (mode,))
+    def _ingest(self, snapshot):
+        started = _now()
+        for cid in snapshot.executed[len(self._executed):]:
+            rec = json.loads(json.dumps(snapshot.records[cid]))
+            position = self._positions[cid]
+            evidence = Evidence(self._kernel.gate_binding(position), rec['status'], digest(rec))
+            self._kernel.submit_trusted(position, evidence)
+            self._records[cid] = rec
+            self._executed.append(cid)
+            self.costs.index_maintenance_bytes += len(canonical({'id': cid, **rec}))
+        self._root, packets = self._kernel.refresh(self.layout.tree)
+        self._packet_count = len(packets)
+        self._capsules = {(node.lo, node.hi): self._kernel._cache[
+            (self._tree_id, node.lo, node.hi)][1] for node in self.layout.tree.walk()}
+        self.costs.index_maintenance_bytes += sum(map(len, packets))
+        self.costs.storage_bytes = len(canonical({
+            'records': self._records, 'positions': self._positions,
+            'layout': self.layout.to_dict(),
+            'capsules': [c.as_dict() for c in self._capsules.values()]}))
+        self.costs.index_maintenance_seconds += _now() - started
 
-        pages = core.pack_answers(semantic, snapshot.trajectory.identity,
-                                  query_id, snapshot.epoch,
-                                  self._total_waves(), budget=self.budget)
-        self.costs.pages += len(pages)
-        self.costs.round_trips += len(pages)
-        compressed = core.deflate_answer(pages)
-        self.costs.encode_bytes += compressed["answer_zlib_bytes"]
-        self.costs.aggregation_seconds += _now() - started
-        return core.Answer(query_id=query_id, mode=mode,
-                           identity=dict(snapshot.trajectory.identity),
-                           epoch=snapshot.epoch, total_waves=self._total_waves(),
-                           semantic=semantic, total_pages=len(pages),
-                           extras={"compressed": compressed,
-                                   "ledger_events": len(self._ledger),
-                                   "whole_ledger_zlib_bytes": self.whole_ledger_zlib_bytes()})
+    def record_of(self, check_id):
+        if check_id not in self._positions:
+            raise ValueError('missing semantic index entry')
+        record = self._records.get(check_id)
+        if record is not None:
+            self.costs.aggregation_bytes_scanned += len(canonical(record))
+            self.costs.aggregation_cpu_calls += 1
+        return record
 
-    def _total_waves(self) -> int:
-        executed = self.trajectory.evidence["executed"]
-        w = self.trajectory.wave_size()
-        return (len(executed) + w - 1) // w if executed else 0
+    def _counts(self, selected):
+        wanted = {self._positions[cid] for cid in selected}
+        prefix = [0]
+        for position in range(len(self.trajectory.registry)):
+            prefix.append(prefix[-1] + int(position in wanted))
+        counts = [0, 0, 0]
+        def visit(node):
+            number = prefix[node.hi + 1] - prefix[node.lo]
+            if not number:
+                return
+            if number == node.hi - node.lo + 1:
+                capsule = self._capsules[(node.lo, node.hi)]
+                for i, value in enumerate(capsule.counts):
+                    counts[i] += value
+                self.costs.aggregation_cpu_calls += 1
+                self.costs.aggregation_bytes_scanned += len(capsule.to_bytes())
+            else:
+                for child in node.children:
+                    visit(child)
+        visit(self.layout.tree)
+        return dict(zip(core.STATUS_ORDER, counts))
+
+    def _extras(self):
+        return {'kernel_counts': list(self._root.counts),
+                'kernel_gates': len(self._kernel.gates),
+                'kernel_verdict': self._root.verdict, 'packet_count': self._packet_count}
 
 
-# --------------------------------------------------------------------------
-# Query plan (frozen): the six queries over the 12 trajectories
-# --------------------------------------------------------------------------
-
-def frozen_queries() -> list[dict]:
-    """The frozen query plan: Q1-Q6 with their S/mode parameters."""
+def frozen_queries():
     return [
-        {"query_id": "Q1", "s": "all", "mode": "status",
-         "note": "full candidate status rollup"},
-        {"query_id": "Q2", "s": "failing", "mode": "failure_localization",
-         "note": "failing checks with localized context"},
-        {"query_id": "Q3", "s": "unfinished", "mode": "status",
-         "note": "unfinished obligations"},
-        {"query_id": "Q4", "s": "all", "mode": "coverage_proof",
-         "note": "coverage proof for the declared contract"},
-        {"query_id": "Q5", "s": "all", "mode": "replay", "wave": 0,
-         "note": "replay of completed wave 0"},
-        {"query_id": "Q6a", "s": "unit", "mode": "status",
-         "note": "status restricted to the frozen 'unit' predicate"},
-        {"query_id": "Q6b", "s": "integration", "mode": "status",
-         "note": "status restricted to the frozen 'integration' predicate"},
+        {'query_id': 'Q1', 's': 'all', 'mode': 'status'},
+        {'query_id': 'Q2', 's': 'failing', 'mode': 'failure_localization'},
+        {'query_id': 'Q3', 's': 'unfinished', 'mode': 'status'},
+        {'query_id': 'Q4', 's': 'all', 'mode': 'coverage_proof'},
+        {'query_id': 'Q5', 's': 'all', 'mode': 'replay', 'wave': 0},
+        {'query_id': 'Q6a', 's': 'unit', 'mode': 'status'},
+        {'query_id': 'Q6b', 's': 'integration', 'mode': 'status'},
     ]
 
 
-def build_layout(trajectory: core.Trajectory, order: Sequence[int] | None = None,
-                 model: CostModel | None = None) -> Layout:
-    """Layout over the trajectory registry; identity order by default."""
+def build_layout(trajectory, order=None, model=None):
     from ichact.practical import balanced_layout
-    return balanced_layout(trajectory.registry,
-                           order=None if order is None else tuple(order),
+    return balanced_layout(trajectory.registry, order=None if order is None else tuple(order),
                            model=model or CostModel())

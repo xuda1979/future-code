@@ -1,14 +1,10 @@
-# Adaptive HACT empirical artifact v5.0 + v8 service-equal study / journal manuscript v8.0
+# Adaptive HACT: manuscript v9 and corrected query study
 
-**Journal framing:** Adaptive HACT for Cost-Aware Delivery of Verification Evidence
-
-Start with `paper/main.pdf`, `paper/SUBMISSION_NOTES_V7.md`, `docs/V8_MAJOR_REVISION_PLAN.md`, `docs/V8_SERVICE_CONTRACT.md`, and `docs/V5_OPERATING_GUIDE.md`. The empirical records remain the frozen v5 artifact; manuscript v8 adds the service-equal study, strong indexed-flat baseline, higher-order ablation ladder, and a full numbers audit on those frozen records without relabeling old evidence as new trials. This is a research artifact, not a production security service or an accepted paper.
-
-## New v7 strong-baseline audit
-
-The v7 journal manuscript includes train-fitted marginal-frequency and seeded random-order controls plus an explicitly non-equivalent compressed flat event ledger. The flat ledger is much smaller but does not supply HACT's intermediate hierarchical certificates; this is a negative control against overclaiming universal compression or speedup. The CI job `HACT journal evidence audit` produces a machine-readable retrospective result artifact. No live-agent or physical-WAN evidence is claimed.
-
-See `docs/V7_EVIDENCE_CONTRACT.md`, `docs/V7_LIVE_EVALUATION_PROTOCOL.md`, and `paper/SUBMISSION_NOTES_V7.md`.
+Start with `paper/main.pdf` and `docs/V9_CORRECTION_CONTRACT.md`. The empirical
+v5 artifact and archived v7/v8 records retain their original provenance.
+Manuscript v9 corrects the 2026-10-19 review findings in the service code,
+resource accounting, numerical prose and claim scope. It is a research artifact,
+not an accepted paper or a production security service.
 
 ## Practical recommendation
 
@@ -44,26 +40,27 @@ the runtime is not silently converted into a live self-retuning LLM service.
 | Actual public-vocabulary BPE | UNKNOWN; no installed tokenizer or downloaded vocabulary; no byte-ratio proxy |
 | Physical WAN / live LLM | NOT RUN; local TLS protocol tests are neither |
 
-## Measured v8 service-equal evidence
+## Corrected v9 service-equal evidence
 
 | Item | Result and boundary |
 |---|---|
-| Semantic equivalence (Q1--Q6 on 12 archived trajectories) | 168/168 checks identical on hierarchy and indexed flat ledger; layout-invariance holds on all arms |
-| Service-equal cost decision | Hierarchy **not beneficial** in 6/6 frozen query families under the pre-frozen rule (complete-answer bytes and arrival time, maintenance counted on both sides) |
-| Higher-order ablation ladder | Rung-3 (direct completion-wave search) beats rung-2 (pairwise seriation) in 0/9 clustered workloads; rung-1 (frequency) loses by 2.53% mean; rung-4 (exact DP reference) bounds headroom at 5.12% mean |
-| Exhaustive n=9 reference | Deployed rung-2 order within 0.06% of best feasible layout in all five seeds |
-| Numbers audit | 70/70 manuscript entries regenerate exactly from frozen JSON via a second implementation; fails closed on drift |
-| v8 prototype tests | 82 passed (service equivalence, cost study, ablation ladder, audit); earlier suites remain green separately |
+| Independent semantic oracle | 168/168 comparisons agree with archived-record reference answers; 84 layout-invariance checks |
+| Query study | 364 paired rows over 24 trajectory/layout traces; includes Q3, both layouts and real cold/warm cache queries |
+| Compressed answer bytes | 422,976 per arm; equality follows from common semantics and codec, with no storage bytes counted as traffic |
+| Query cache | 182 actual hits per arm; epoch changes invalidate cached answers |
+| Bounded delivery | All descriptors count inside the cap; oversized atomic items reject; complete decoding is checked |
+| Frozen ablation correction | Original-order DP costs 5.12% more across all workloads (15.17% on clustered); frequency costs 7.56% more on clustered |
+| Small reference correction | Maximum observed gap is 5.93%, only over permutations of one balanced topology |
+| Generated manuscript evidence | Independent audit regenerates signed result prose, macros and query table and rejects tampering |
 
-The v8 study is a pre-specified retrospective analysis on frozen v5/v7 records
-under `docs/V8_SERVICE_CONTRACT.md` and the decision rule frozen in
-`docs/V8_MAJOR_REVISION_PLAN.md` before any run. Negative outcomes are
-published as specified. No new checker executions, LLM trials, WAN transfers,
-or BPE measurements were run.
-
-Historical v3/v4 observations are preserved separately. In particular, the older
-288 loopback transfers, exact-layout savings, and strict-wrapper timing are not
-new v5 tests or measurements of the new balanced default.
+`results/v8` is retained unchanged. Its earlier service implementations bypassed
+maintained query state, failed to apply the learned leaf order, left caches
+unused, and could overshoot the page cap. Its storage-plus-network cost metric
+and several manuscript interpretations are withdrawn. Do not cite those records
+as current comparative service evidence. `results/v9` contains the corrected
+retrospective execution and numerical re-analysis, not new checker or LLM trials.
+The corrected study shows no family meeting the strict byte-and-time rule.
+General diagnostic and agent-productivity benefits remain unestablished.
 
 ## Install and run
 
@@ -76,6 +73,8 @@ python -m pip install -r requirements-test.txt
 python -m pip install --no-deps --no-build-isolation .
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q -p pytest_asyncio.plugin
 python -m audit.check_v5
+python -m audit.numbers_audit
+python -m audit.check_v9
 python tools/verify_manifest.py
 ```
 
