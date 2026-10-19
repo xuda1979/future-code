@@ -4,6 +4,7 @@ import { canonical, digest, invariant } from "../kernel.ts";
 import { ResearchProgramme } from "../researchProgramme.ts";
 import { selectResearchStrategy, type StrategyObservation } from "../researchStrategy.ts";
 import { selectResearchFrontier } from "../researchFrontier.ts";
+import { theoryGraph } from "../theory.ts";
 import type { Store } from "../store.ts";
 import type { Json, Task } from "../types.ts";
 import type { PinnedSwarm } from "./config.ts";
@@ -79,8 +80,9 @@ export function researchStrategySnapshot(store: Store, cfg: PinnedSwarm, run: st
     }
   }
   if (policy.frontier) {
+    const theory = theoryGraph(policy, Object.fromEntries(Object.entries(cfg.spec.jobs ?? {}).filter(([, j]) => j.research).map(([name, j]) => [name, j.research!.spec])));
     const result = selectResearchFrontier(policy, observations, used + reserved, {
-      pending: [...new Set(unresolved)], failed: [...failed], costs });
+      pending: [...new Set(unresolved)], failed: [...failed], costs, theory });
     const batch = unavailable ? [] : result.batch;
     const decision = { next: batch[0] ?? null, batch, reason: unavailable ?? result.reason };
     const snapshot = { schema: 1, authority: "ADVICE_ONLY_RUNTIME_ENFORCES_SAFETY", strategyHash: digest(policy), used, reserved,
@@ -88,6 +90,10 @@ export function researchStrategySnapshot(store: Store, cfg: PinnedSwarm, run: st
       frontier: { considered: policy.candidates.length, assigned: new Set(unresolved).size,
         maxParallel: policy.frontier.maxParallel, scoring: "UCB_INFORMATION_ALLOCATION_NOT_TRUTH_PROBABILITY",
         evidenceHash: result.evidenceHash, acceptedObservations: observations.length,
+        ...(Object.keys(theory).length ? { theory: { obligations: Object.keys(theory).length,
+          activeAssignments: result.activeAssignments,
+          stateCounts: Object.fromEntries([...new Set(Object.values(result.proofStates))].sort().map(state =>
+            [state, Object.values(result.proofStates).filter(value => value === state).length])) } } : {}),
         stateCounts: Object.fromEntries([...new Set(Object.values(result.states))].sort().map(state =>
           [state, Object.values(result.states).filter(value => value === state).length])),
         summariesOnly: true },
@@ -97,6 +103,7 @@ export function researchStrategySnapshot(store: Store, cfg: PinnedSwarm, run: st
         const c = summaries.find(c => c.id === id)!;
         return { id, template: c.template, line: c.line, purpose: c.purpose, specHash: c.specHash,
           question: c.question, hypothesis: c.hypothesis, hostObservedJobMs: c.hostObservedJobMs,
+          ...(theory[id] ? { theory: { ...theory[id], unlocks: result.unlocks[id] } } : {}),
           checkedPrerequisites: c.after?.length ?? 0, lineEvidence: result.lines[c.line], allocationScore: result.scores[id] };
       }) };
     invariant(Buffer.byteLength(canonical(snapshot)) <= policy.maxSnapshotBytes, "research frontier snapshot exceeds byte bound");

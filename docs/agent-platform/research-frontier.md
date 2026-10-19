@@ -108,6 +108,11 @@ of a universal conjecture. The frontier introduces no blanket trust in a compile
 Autonomously generated tools and validators still need the existing immutable
 acceptance boundary; a worker cannot install an easier oracle to approve itself.
 
+The opt-in [theory contract](theoretical-research.md) enforces exact deductive
+prerequisites, distinguishes exploratory evidence from checked deductions, and
+prioritizes shared missing lemmas. Mandatory parent targets retain their budget
+reservations while dormant proof slots make room for prerequisite work.
+
 Hypothesis methods and their outcome conditions are currently configured and
 finite. Agents can generate exploratory proposals in ordinary bounded tasks, but
 this change does not automatically admit new scientific protocols, synthesize

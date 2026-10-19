@@ -40,6 +40,8 @@ host-owned. Policy recommendations cannot bypass admission or verification.
   child-DAG/timeout/parallelism proposals and durable audit receipts.
 - Optional evidence-driven research frontiers: parallel hypothesis lines, early
   falsification, atomic work reservations and bounded search allocation.
+- Optional theoretical research contracts: exact proof targets, checked lemma
+  dependencies, shared-premise prioritization and revocable deductive knowledge.
 - Scoped worktrees, pinned checks, final integration and resumable agent journals.
 - External job identity, reconciliation and cumulative objective budgets.
 - Content-addressed artifacts and immutable event/evidence histories.
@@ -109,6 +111,7 @@ Missing token or dollar measurements remain unknown.
 | External-API agents and durable sessions | [Swarm](docs/agent-platform/SWARM.md) |
 | Independent policy proposals during execution | [Workflow policy](docs/agent-platform/WORKFLOW_POLICY.md) |
 | Parallel hypothesis search and evidence-gated delegation | [Research frontiers](docs/agent-platform/research-frontier.md) |
+| Theoretical science, proof obligations and lemma teams | [Theoretical research](docs/agent-platform/theoretical-research.md) |
 | Recovery and remote compute | [Resilient R&D](docs/agent-platform/RESILIENT_RND.md) |
 | Provider cooldowns, recovery probes and bounded transport | [External API recovery](docs/agent-platform/PROVIDER_RECOVERY.md) |
 | Bounded correction of malformed or empty worker replies | [Model-response repair](docs/agent-platform/MODEL_RESPONSE_REPAIR.md) |

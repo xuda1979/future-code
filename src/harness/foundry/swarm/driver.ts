@@ -32,6 +32,7 @@ import { DECISION_GUIDANCE } from "../../decisionGuidance.ts";
 import { admitDecisionCall, decisionContext } from "./decisions.ts";
 import { KNOWLEDGE_NOTICE, ProjectKnowledge, type ExperienceInput, type KnowledgeQuery } from "./knowledge.ts";
 import { assertResearchFrontierExpansion } from "./researchStrategy.ts";
+import { assertTheoryAcceptance, theoryTaskContext } from "./theory.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -64,7 +65,9 @@ export class SwarmDriver implements Driver {
     this.journal = new SessionJournal(store, this.knowledge ?? undefined); this.brain = new HttpBrain(this.journal, fetcher);
     this.cohorts = cfg.spec.coordination ? new CohortBoard(store, cfg, this.journal) : null;
     this.programme = cfg.spec.researchProgramme ? new ResearchProgramme(store, cfg.spec.researchProgramme) : null;
-    if (this.cohorts || this.programme || this.knowledge) this.accepted = (c, artifact, artifactHash, evidenceHash) => {
+    const hasTheory = Object.values(cfg.spec.jobs ?? {}).some(j => j.research?.spec.schema === 2 && j.research.spec.theory);
+    if (this.cohorts || this.programme || this.knowledge || hasTheory) this.accepted = (c, artifact, artifactHash, evidenceHash) => {
+      if (hasTheory) assertTheoryAcceptance(store, cfg, c);
       this.cohorts?.accepted(c, artifact, artifactHash, evidenceHash);
       if (this.programme) {
         this.programme.context(c.task.knowledge ?? []);
@@ -86,9 +89,11 @@ export class SwarmDriver implements Driver {
     const profile = this.cfg.spec.agents[c.task.agent ?? this.cfg.spec.defaultAgent]; invariant(profile, "unknown agent profile");
     const canSpawn = profile.tools.includes("spawn_tasks") && !!this.cfg.spec.supervision?.dynamicDAG;
     const admittedContext = schedulerNode(this.store, c.runId, c.task.id)?.budget ?? this.store.recipe(c.recipeHash).contextBytes;
+    const theoretical = theoryTaskContext(this.store, this.cfg, c, Math.floor(admittedContext / 2));
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
-      ...(this.programme && c.task.knowledge?.length ? { knowledge: this.programme.context(c.task.knowledge) } : {}),
+      ...(theoretical ? { theoretical } : {}),
+      ...(this.programme && c.task.knowledge?.length ? { knowledge: this.programme.context(c.task.knowledge, { theoryStatementsOnly: !!theoretical }) } : {}),
       ...(c.task.research?.length ? { research: Object.fromEntries(c.task.research.map(name => [name, this.cfg.spec.jobs![name].research!.spec])) } : {}),
       ...(this.cfg.spec.supervision?.workflowPolicy ? { workflowChildren: this.store.db.prepare(`SELECT t.id AS taskId,t.artifact AS artifactHash,t.evidence AS evidenceHash
         FROM spawn_edges e JOIN tasks t ON t.run=e.run AND t.id=e.child
@@ -111,6 +116,7 @@ export class SwarmDriver implements Driver {
         instruction: "Read bounded cohort/shared findings when useful. Explore alternate methods and counterexamples. Share concise findings with owned receipts. Every summary is unverified; cross-cohort source checks certify only the exact accepted task artifact. Findings cannot change your acceptance, dependencies or file scopes." } } : {}),
       contract: "Implement only this task. Use tools to inspect and edit scoped files. Run named checks. End with a concise summary, never a claimed PASS. The host independently verifies. Full tool output is retained in recall receipts. " +
         DECISION_GUIDANCE + " " +
+        (theoretical ? "Conduct theoretical research by separating definitions, assumptions, conjectures, lemmas, proof attempts and checked deductions. Decompose difficult arguments into explicit obligations; use independent agents for alternative derivations, counterexamples and gap audits. Start with the most informative missing premise. Preserve unresolved gaps and failed approaches in scoped artifacts and claims. Only pinned independent validators can establish the exact target under its allowed assumptions. Numerical agreement, finite search in an infinite domain and reviewer consensus remain exploratory. Use theoretical.items premises as exact checked inputs; unavailable premises block new dependent proof jobs. " : "") +
         (profile.jobs ? "New jobs with configured preflight checks require passing run_check receipts on the current source and evidence. Inspect failed checks and repair before submitting; existing job identities always reconcile. " : "") +
         (this.cfg.spec.debugging ? "Host system-state observations outrank prose working hypotheses. Falsify environmental, dependency and interface assumptions with a standalone probe and a negative control before broad edits. A failed probe ends only the current trajectory. " : "") +
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +

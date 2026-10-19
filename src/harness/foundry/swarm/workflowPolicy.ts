@@ -76,6 +76,7 @@ export class WorkflowPolicyAgent {
       "Timeouts affect future leases only; parallelism is bounded by the admitted recipe. Ongoing work drains without preemption.",
       "When researchStrategy is present, use only its frozen scientific templates for research children; consider its measured next experiment and explicit blocked/unknown states. A recommendation is advisory and never scientific acceptance.",
       "When researchStrategy.decision.batch is present, propose independent research children from that batch together. Each candidate reserves one search slot at child admission. The host rejects duplicate, premature or excess reservations. Assign diverse methods to separate agents; consume only the bounded selected summaries.",
+      "For theoretical research, candidate.theory binds the exact target and prerequisite deductions. Prioritize shared missing lemmas using the host's unlock counts. Delegate constructive derivations, independent gap audits and counterexample searches as separate bounded tasks. Preserve open obligations; exploratory agreement cannot establish a theorem or satisfy a proof prerequisite.",
       "Never request changes to checks, scopes, budgets, protocols or task outcomes. Agreement between agents is not proof.",
       "This is a bounded active-work page. Omitted nodes and truncated previews are unknown, not absent. Do not rewrite the whole graph.",
     ].join(" ");

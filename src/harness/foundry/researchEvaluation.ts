@@ -6,6 +6,7 @@ import { researchValidatorIds, runPlanValidation, runResearchValidation, support
   type ScientificValidator, type PinnedScientificValidator } from "./researchValidation.ts";
 import { selectResearchStrategy, validateResearchStrategy, type ResearchStrategy, type StrategyObservation } from "./researchStrategy.ts";
 import { selectResearchFrontier } from "./researchFrontier.ts";
+import { theoryGraph } from "./theory.ts";
 import type { CommandSpec, PinnedCommand } from "./types.ts";
 
 export interface ResearchComparisonProtocol {
@@ -28,6 +29,7 @@ export function validateResearchComparison(p: ResearchComparisonProtocol): void 
     fields(c, ["id", "strategy", "experiments"]); identifier(c.id); validateResearchStrategy(c.strategy);
     const templates = c.strategy.candidates.map(c => c.template);
     fields(c.experiments, templates);
+    theoryGraph(c.strategy, c.experiments);
     for (const s of Object.values(c.experiments)) {
       if (s.schema === 2) researchValidatorIds(s).forEach(id => requiredValidators.add(id));
       const validators = s.schema === 2 ? Object.fromEntries(researchValidatorIds(s).map(id => [id, p.validators?.[id]])) : undefined;
@@ -50,6 +52,7 @@ export async function compareResearchStrategies(p: ResearchComparisonProtocol, e
   const results: any[] = [];
   for (let i = 0; i < p.cases.length; i++) {
     const c = p.cases[i]; const arms: Record<string, any> = {};
+    const theory = theoryGraph(c.strategy, c.experiments);
     for (const arm of i % 2 ? ["adaptive", "static-all"] : ["static-all", "adaptive"]) {
       signal.throwIfAborted();
       const deadline = new AbortController(), timer = setTimeout(() => deadline.abort(), p.maxArmMs);
@@ -58,7 +61,7 @@ export async function compareResearchStrategies(p: ResearchComparisonProtocol, e
       const started = performance.now(); let status = "COMPLETE";
       try {
         while (records.length < c.strategy.maxExperiments) {
-          const id = arm === "adaptive" ? (c.strategy.frontier ? selectResearchFrontier(c.strategy, observations, records.length) :
+          const id = arm === "adaptive" ? (c.strategy.frontier ? selectResearchFrontier(c.strategy, observations, records.length, { theory }) :
             selectResearchStrategy(c.strategy, observations, records.length)).next :
             c.strategy.candidates.find(candidate => !records.some(r => r.candidate === candidate.id))?.id;
           if (!id) break;
@@ -66,6 +69,9 @@ export async function compareResearchStrategies(p: ResearchComparisonProtocol, e
           const jobStarted = performance.now();
           const record: any = { candidate: id, line: candidate.line, specHash: digest(spec), status: "INVALID" }; records.push(record);
           try {
+            for (const premise of theory[id]?.premises ?? []) invariant(observations.some(o => o.candidate === premise &&
+              o.assessment.specHash === theory[premise].specHash && o.assessment.theory?.status === "ESTABLISHED" &&
+              o.assessment.outcome === "SUPPORTED" && !o.assessment.conflicted), "comparison theoretical premise is not established");
             const key = digest({ protocol: digest(p), case: c.id, arm, candidate: id });
             const selected = spec.schema === 2 ? Object.fromEntries(researchValidatorIds(spec).map(id => [id, validators[id]])) : {};
             if (spec.schema === 2) await runPlanValidation(spec, { key, adapterHash: digest(executor), inputHash: digest(spec.input) }, selected, bounded, {
@@ -77,7 +83,14 @@ export async function compareResearchStrategies(p: ResearchComparisonProtocol, e
             bounded.throwIfAborted();
             record.resultHash = digest(raw.result);
             const validation = await runResearchValidation(spec, raw.result, { key, jobId: key, adapterHash: digest(executor),
-              artifacts: raw.artifacts ?? {} }, selected, bounded, { legacyTimeoutMs: p.maxArmMs, maxOutputBytes: p.maxOutputBytes,
+              artifacts: raw.artifacts ?? {}, ...(theory[id]?.premises.length ? { theoryPremises: theory[id].premises.map(p => {
+                const candidate = c.strategy.candidates.find(candidate => candidate.id === p)!;
+                const premise = c.experiments[candidate.template] as import("./research.ts").ExperimentSpec;
+                const assessment = observations.find(o => o.candidate === p)!.assessment;
+                return { template: candidate.template, specHash: theory[p].specHash, targetHash: theory[p].targetHash,
+                  statement: premise.theory!.statement, assumptions: premise.assumptions,
+                  source: { assessmentHash: digest(assessment) } };
+              }) } : {}) }, selected, bounded, { legacyTimeoutMs: p.maxArmMs, maxOutputBytes: p.maxOutputBytes,
                 onReport: (_id, _implementationHash, _requestHash, report) => (record.validationEvidence ??= []).push(report) });
             const assessment = validation.assessment;
             Object.assign(record, { status: "VALID", resultHash: digest(raw.result), assessment });

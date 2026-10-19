@@ -1,4 +1,5 @@
 import { validateResearchStrategy, type ResearchStrategy } from "../researchStrategy.ts";
+import { theoryGraph, validateTheoryTemplates } from "../theory.ts";
 import { validateKnowledgePolicy, type KnowledgePolicy } from "./knowledge.ts";
 import { validateKnowledgeRefs, type ProgrammePolicy } from "../researchProgramme.ts";
 import { validateResearchConfiguration, type ResearchConfiguration, type PinnedScientificValidator } from "../researchValidation.ts";
@@ -469,6 +470,9 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       positive(job.maxConcurrent, Math.min(256, job.maxJobs), "remote concurrency");
     }
   }
+  const researchSpecs = Object.fromEntries(Object.entries(s.jobs ?? {}).filter(([, j]) => j.research).map(([name, j]) => [name, j.research!.spec]));
+  validateTheoryTemplates(researchSpecs);
+  if (s.researchStrategy) theoryGraph(s.researchStrategy, researchSpecs);
   const credentialNames = new Set(Object.values(s.agents).map(a => a.keyEnv).filter(Boolean));
   for (const check of [...Object.values(s.checks), ...Object.values(s.jobs ?? {}).map(j => j.adapter),
     ...Object.values(s.workers ?? {}).map(w => w.adapter),

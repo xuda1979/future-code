@@ -68,11 +68,20 @@ export class ResearchProgramme {
     this.store.readArtifact(record.origin.evidenceHash); this.store.readArtifact(record.origin.artifactHash);
     return record;
   }
-  context(refs: KnowledgeRef[]): Json {
+  context(refs: KnowledgeRef[], options: { theoryStatementsOnly?: boolean } = {}): Json {
     validateKnowledgeRefs(refs);
     invariant(refs.length <= this.policy.maxFindingsPerTask, "knowledge import count exceeds policy");
-    const findings = refs.map(ref => this.read(ref));
-    const result = json({ programme: this.policy.id, trust: "VERIFIED_OBSERVATIONS_WITH_ASSUMPTIONS", findings });
+    const assumptionSets: Record<string, string[]> = {};
+    const findings = refs.map(ref => this.read(ref)).map(f => {
+      if (!options.theoryStatementsOnly || f.spec.schema !== 2 || !f.spec.theory) return f;
+      const assumptionsHash = digest(f.spec.assumptions); assumptionSets[assumptionsHash] = f.spec.assumptions;
+      return { id: f.id, version: f.version, projection: "EXACT_CHECKED_THEORETICAL_STATEMENT", recordHash: digest(f),
+        statement: f.spec.theory.statement, assumptionsHash, specHash: f.assessment.specHash,
+        assessmentHash: f.assessmentHash, theory: { status: f.assessment.theory!.status, targetHash: f.assessment.theory!.targetHash },
+        dependencies: f.dependencies, origin: f.origin };
+    });
+    const result = json({ programme: this.policy.id, trust: "VERIFIED_OBSERVATIONS_WITH_ASSUMPTIONS", findings,
+      ...(Object.keys(assumptionSets).length ? { assumptionSets } : {}) });
     invariant(Buffer.byteLength(canonical(result)) <= this.policy.maxContextBytes, "knowledge context exceeds policy; use narrower findings");
     return result;
   }
@@ -96,7 +105,21 @@ export class ResearchProgramme {
       invariant(authorized.includes(String(row.assessment_hash)), "assessment not bound to accepted verification");
       const config: any = this.store.getMeta<any>("extension.swarm").spec.jobs[String(row.template)].research;
       const id = names[String(row.template)] ?? String(row.template); identifier(id);
-      const dependencies = c.task.knowledge ?? []; validateKnowledgeRefs(dependencies);
+      const dependencies = [...(c.task.knowledge ?? [])];
+      // A theorem exported from same-run deductions must carry their exact
+      // programme versions too, so later retraction invalidates its dependents.
+      if (config.spec.schema === 2 && config.spec.theory) for (const premise of config.spec.theory.premises) {
+        const name = names[premise.template] ?? premise.template;
+        const head = this.store.db.prepare("SELECT version FROM research_knowledge_heads WHERE programme=? AND id=?").get(this.policy.id, name);
+        invariant(head, "theoretical premise has no programme finding");
+        const ref = { id: name, version: String(head.version) }, finding = this.read(ref);
+        invariant(finding.assessment.specHash === premise.specHash && finding.assessment.theory?.status === "ESTABLISHED" &&
+          finding.assessment.outcome === "SUPPORTED", "theoretical programme premise is not an exact checked deduction");
+        const existing = dependencies.find(d => d.id === name);
+        invariant(!existing || existing.version === ref.version, "theoretical programme premise version drift");
+        if (!existing) dependencies.push(ref);
+      }
+      validateKnowledgeRefs(dependencies);
       invariant(!dependencies.some(ref => ref.id === id), "finding cannot replace its own imported dependency");
       const sourceKey = digest({ run: c.runId, task: c.task.id, template: row.template, job: row.job_key });
       const previous = this.store.db.prepare("SELECT version FROM research_knowledge WHERE programme=? AND source_key=?").get(this.policy.id, sourceKey);
