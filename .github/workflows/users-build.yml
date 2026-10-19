@@ -1,0 +1,46 @@
+name: Users commercial candidates
+on:
+  push:
+    branches: [users]
+    paths: ['users/**', '.github/workflows/users-build.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  commerce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test users/tests/*.test.mjs
+  candidates:
+    needs: commerce
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, platform: ubuntu-x64}
+          - {os: windows-latest, platform: windows-x64}
+          - {os: macos-15, platform: macos-arm64}
+          - {os: macos-15-intel, platform: macos-x64}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun install --frozen-lockfile
+      - run: node users/scripts/build.mjs ${{ matrix.platform }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: future-code-${{ matrix.platform }}-candidate
+          path: dist/users/${{ matrix.platform }}/
+          retention-days: 14
+# CI artifacts are candidates. Public downloads additionally require retained
+# notices, rights evidence, platform end-to-end checks and publisher signatures.

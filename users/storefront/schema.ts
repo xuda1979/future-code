@@ -1,0 +1,6 @@
+import { sqliteTable, text, integer, index, primaryKey } from 'drizzle-orm/sqlite-core';
+export const orders = sqliteTable('orders', { id: text('id').primaryKey(), keyHash: text('key_hash').notNull().unique(), keyCipher: text('key_cipher').notNull(), email: text('email').notNull(), plan: text('plan').notNull(), paymentIntent: text('payment_intent').notNull(), created: integer('created').notNull(), expires: integer('expires').notNull() }, t => [index('orders_payment').on(t.paymentIntent)]);
+export const deliveries = sqliteTable('deliveries', { orderId: text('order_id').primaryKey().references(() => orders.id), sent: integer('sent').notNull().default(0), leaseUntil: integer('lease_until').notNull().default(0), leaseToken: text('lease_token') });
+export const activations = sqliteTable('activations', { orderId: text('order_id').notNull().references(() => orders.id), deviceHash: text('device_hash').notNull(), lastSeen: integer('last_seen').notNull() }, t => [primaryKey({ columns: [t.orderId, t.deviceHash] })]);
+export const revocations = sqliteTable('revocations', { paymentIntent: text('payment_intent').primaryKey(), created: integer('created').notNull() });
+export const rateLimits = sqliteTable('rate_limits', { bucket: text('bucket').primaryKey(), hits: integer('hits').notNull(), expires: integer('expires').notNull() });
