@@ -55,6 +55,15 @@ test('checkout uses only server prices and stable idempotency, refuses cross-ori
   const call = f.calls[0]; assert.equal(call.options.body.get('line_items[0][price]'), 'price_solo');
   assert.equal(call.options.headers['Idempotency-Key'], 'future-code/solo/' + id);
   assert.equal((await f.call('/api/checkout', { plan: 'solo', requestId: id }, { origin: 'https://evil.example' })).status, 403);
+  assert.equal((await f.call('/api/checkout', { plan: '__proto__', requestId: id }, { origin: f.env.PUBLIC_ORIGIN })).status, 400);
+});
+test('success-page status reveals no email or license and never trusts a redirect as payment proof', async () => {
+  const f = fixture();
+  assert.deepEqual(await (await f.call('/api/order/status', { sessionId: f.session.id })).json(), { state: 'processing' });
+  await f.webhook();
+  assert.deepEqual(await (await f.call('/api/order/status', { sessionId: f.session.id })).json(), { state: 'delivered' });
+  await f.webhook(f.event('charge.refunded', { payment_intent: 'pi_fixture', refunded: true }));
+  assert.deepEqual(await (await f.call('/api/order/status', { sessionId: f.session.id })).json(), { state: 'reversed' });
 });
 test('tampered or stale webhook never fulfills an order', async () => {
   const f = fixture();

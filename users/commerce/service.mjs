@@ -144,7 +144,7 @@ export async function handleRequest(request, env, manifest, { fetcher = fetch, n
       if (!salesReady(env, manifest)) throw new HttpError(503, 'Commercial checkout is not open yet. No payment has been taken.');
       if (request.headers.get('origin') !== new URL(env.PUBLIC_ORIGIN).origin) throw new HttpError(403, 'Unexpected checkout origin.');
       await rateLimit(env, request, 'checkout', 10, now);
-      const input = await readJson(request); const plan = PLANS[input.plan];
+      const input = await readJson(request); const plan = Object.hasOwn(PLANS, input.plan) ? PLANS[input.plan] : null;
       if (!plan || !/^[a-f\d-]{36}$/.test(input.requestId || '')) throw new HttpError(400, 'Invalid plan or request.');
       const form = new URLSearchParams({ mode: 'payment', 'line_items[0][price]': env[plan.priceEnv], 'line_items[0][quantity]': '1', 'metadata[product]': PRODUCT, 'metadata[plan]': input.plan, success_url: env.PUBLIC_ORIGIN + '/success?session_id={CHECKOUT_SESSION_ID}', cancel_url: env.PUBLIC_ORIGIN + '/#pricing', 'billing_address_collection': 'auto', 'customer_creation': 'always' });
       if (env.STRIPE_AUTOMATIC_TAX === '1') form.set('automatic_tax[enabled]', 'true');
@@ -152,6 +152,15 @@ export async function handleRequest(request, env, manifest, { fetcher = fetch, n
       const destination = new URL(result.url);
       if (destination.protocol !== 'https:' || destination.hostname !== 'checkout.stripe.com') throw new HttpError(502, 'Invalid checkout response.');
       return json({ url: destination.href });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/order/status') {
+      await rateLimit(env, request, 'order-status', 30, now);
+      const input = await readJson(request);
+      if (!idPattern.test(input.sessionId || '')) throw new HttpError(400, 'Invalid order reference.');
+      const order = await env.DB.prepare('SELECT orders.payment_intent,deliveries.sent FROM orders JOIN deliveries ON orders.id=deliveries.order_id WHERE orders.id=?').bind(input.sessionId).first();
+      if (!order) return json({ state: 'processing' });
+      const revoked = await env.DB.prepare('SELECT 1 FROM revocations WHERE payment_intent=?').bind(order.payment_intent).first();
+      return json({ state: revoked ? 'reversed' : order.sent ? 'delivered' : 'processing' });
     }
     if (request.method === 'POST' && url.pathname === '/api/license/activate') return await activate(env, request, fetcher, now);
     if (request.method === 'POST' && url.pathname === '/api/license/deactivate') {
