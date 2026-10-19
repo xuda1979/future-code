@@ -51,7 +51,7 @@ export class ResearchProgramme {
     invariant(row, "unknown programme finding/version"); return row;
   }
   /** Historical records are inspectable, but only an active exact head can enter a new task. */
-  read(ref: KnowledgeRef, historical = false): ResearchFinding {
+  private readRecord(ref: KnowledgeRef, historical = false): ResearchFinding {
     const row = this.row(ref);
     if (!historical) {
       const head = this.store.db.prepare("SELECT version FROM research_knowledge_heads WHERE programme=? AND id=?").get(this.policy.id, ref.id);
@@ -61,6 +61,8 @@ export class ResearchProgramme {
     const { version, ...body } = record;
     invariant(version === ref.version && digest(body) === version && record.id === ref.id && record.programme === this.policy.id,
       "knowledge content binding mismatch");
+    validateKnowledgeRefs(record.dependencies);
+    invariant(record.assessment.specHash === digest(record.spec), "knowledge specification binding mismatch");
     const source = this.store.db.prepare("SELECT status,artifact,evidence FROM tasks WHERE run=? AND id=?").get(record.origin.run, record.origin.task);
     invariant(source?.status === "PASS" && source.artifact === record.origin.artifactHash && source.evidence === record.origin.evidenceHash &&
       record.origin.contractHash === digest(this.store.contract()), "knowledge source acceptance changed");
@@ -68,11 +70,49 @@ export class ResearchProgramme {
     this.store.readArtifact(record.origin.evidenceHash); this.store.readArtifact(record.origin.artifactHash);
     return record;
   }
+  /** Check the authoritative, content-bound dependency records. The reverse SQL
+   * index accelerates invalidation but cannot authorize reuse after index loss
+   * or an upstream source losing acceptance. Memoize only within this read. */
+  private closure(refs: KnowledgeRef[], limit = 4096): Map<string, ResearchFinding> {
+    validateKnowledgeRefs(refs);
+    const records = new Map<string, ResearchFinding>(), visiting = new Set<string>();
+    const stack = refs.map(ref => ({ ref, leave: false }));
+    while (stack.length) {
+      const { ref, leave } = stack.pop()!, key = `${ref.id}:${ref.version}`;
+      if (leave) { visiting.delete(key); continue; }
+      invariant(!visiting.has(key), "cyclic knowledge dependencies");
+      if (records.has(key)) continue;
+      invariant(records.size < limit, "knowledge dependency closure exceeds bound");
+      const record = this.readRecord(ref); records.set(key, record); visiting.add(key);
+      stack.push({ ref, leave: true });
+      for (const dependency of record.dependencies) stack.push({ ref: dependency, leave: false });
+    }
+    return records;
+  }
+  read(ref: KnowledgeRef, historical = false): ResearchFinding {
+    return historical ? this.readRecord(ref, true) : this.closure([ref]).get(`${ref.id}:${ref.version}`)!;
+  }
+  /** Compact, reproducible provenance snapshot, not a new semantic proof or a
+   * signature. Any subsequent reuse must recheck live acceptance and closure. */
+  certificate(refs: KnowledgeRef[], maxNodes = 128): Json {
+    invariant(Number.isSafeInteger(maxNodes) && maxNodes > 0 && maxNodes <= 256, "invalid knowledge certificate bound");
+    const records = this.closure(refs, maxNodes);
+    const order = (a: KnowledgeRef, b: KnowledgeRef) => a.id < b.id ? -1 : a.id > b.id ? 1 :
+      a.version < b.version ? -1 : a.version > b.version ? 1 : 0;
+    const body = { schema: 1, programme: this.policy.id, trust: "ACTIVE_EXACT_DEPENDENCY_SNAPSHOT",
+      roots: [...refs].sort(order), nodes: [...records.values()].sort(order).map(f => ({
+        id: f.id, version: f.version, recordHash: digest(f), specHash: f.assessment.specHash, assessmentHash: f.assessmentHash,
+        dependencies: [...f.dependencies].sort(order), origin: f.origin,
+        ...(f.assessment.theory ? { theory: f.assessment.theory } : {}),
+      })) };
+    return json({ ...body, certificateHash: digest(body) });
+  }
   context(refs: KnowledgeRef[], options: { theoryStatementsOnly?: boolean } = {}): Json {
     validateKnowledgeRefs(refs);
     invariant(refs.length <= this.policy.maxFindingsPerTask, "knowledge import count exceeds policy");
     const assumptionSets: Record<string, string[]> = {};
-    const findings = refs.map(ref => this.read(ref)).map(f => {
+    const records = this.closure(refs);
+    const findings = refs.map(ref => records.get(`${ref.id}:${ref.version}`)!).map(f => {
       if (!options.theoryStatementsOnly || f.spec.schema !== 2 || !f.spec.theory) return f;
       const assumptionsHash = digest(f.spec.assumptions); assumptionSets[assumptionsHash] = f.spec.assumptions;
       return { id: f.id, version: f.version, projection: "EXACT_CHECKED_THEORETICAL_STATEMENT", recordHash: digest(f),
@@ -124,7 +164,7 @@ export class ResearchProgramme {
       const sourceKey = digest({ run: c.runId, task: c.task.id, template: row.template, job: row.job_key });
       const previous = this.store.db.prepare("SELECT version FROM research_knowledge WHERE programme=? AND source_key=?").get(this.policy.id, sourceKey);
       if (previous) continue;
-      dependencies.forEach(ref => this.read(ref));
+      this.closure(dependencies);
       const assessment = this.store.readArtifact(String(row.assessment_hash)) as unknown as ResearchAssessment;
       invariant(assessment.specHash === digest(config.spec), "finding specification changed");
       const body = { schema: 1 as const, programme: this.policy.id, id, spec: config.spec as ResearchSpec,
@@ -148,7 +188,7 @@ export class ResearchProgramme {
         if (head.state === "RETRACTED" && old.assessment.specHash === assessment.specHash) state = "RETRACTED";
       }
       // Superseding a head can invalidate transitive dependencies of this proposal.
-      dependencies.forEach(ref => this.read(ref));
+      this.closure(dependencies);
       const recordHash = this.store.artifact(json(record));
       this.store.db.prepare("INSERT INTO research_knowledge VALUES(?,?,?,?,?,?)").run(this.policy.id, id, version, recordHash, state, sourceKey);
       this.store.db.prepare("INSERT INTO research_knowledge_heads VALUES(?,?,?) ON CONFLICT(programme,id) DO UPDATE SET version=excluded.version")

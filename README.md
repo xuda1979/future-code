@@ -111,6 +111,7 @@ Missing token or dollar measurements remain unknown.
 | External-API agents and durable sessions | [Swarm](docs/agent-platform/SWARM.md) |
 | Independent policy proposals during execution | [Workflow policy](docs/agent-platform/WORKFLOW_POLICY.md) |
 | Parallel hypothesis search and evidence-gated delegation | [Research frontiers](docs/agent-platform/research-frontier.md) |
+| Expected information gain and cost-aware experiment selection | [Active experimental design](docs/agent-platform/experimental-design.md) |
 | Theoretical science, proof obligations and lemma teams | [Theoretical research](docs/agent-platform/theoretical-research.md) |
 | Recovery and remote compute | [Resilient R&D](docs/agent-platform/RESILIENT_RND.md) |
 | Provider cooldowns, recovery probes and bounded transport | [External API recovery](docs/agent-platform/PROVIDER_RECOVERY.md) |
