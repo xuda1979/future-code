@@ -1,4 +1,10 @@
-# Current release: Adaptive HACT v5
+# Current manuscript: v9 corrections
+
+Start with `V9_CORRECTION_CONTRACT.md` and `../paper/SUBMISSION_NOTES_V9.md`.
+The v5 empirical artifact and v7/v8 records retain their original provenance.
+The sections below are historical version-specific documentation.
+
+# Historical empirical release: Adaptive HACT v5
 
 Read `V5_OPERATING_GUIDE.md`, `V5_REVISION_AND_TEST_REPORT.md`, `RESPONSE_TO_REVIEWERS.md`, and `PHYSICAL_WAN_PROTOCOL.md`. Earlier version-labeled guides and contracts are historical; their counts and recommendations must not be relabeled as v5.
 

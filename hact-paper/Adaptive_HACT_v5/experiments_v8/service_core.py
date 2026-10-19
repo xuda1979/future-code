@@ -1,12 +1,11 @@
-"""Shared semantic answer layer for the V8 equal-service study.
+"""Independent semantic oracle and wire format for the corrected V9 study.
 
 Everything in this module is representation-independent: it defines the frozen
 query semantics Q(e, S, mode, budget) of docs/V8_SERVICE_CONTRACT.md in terms
-of a *record store* abstraction. Both the hierarchical HACT service and the
-indexed flat-ledger service must produce answers whose semantic content is
-computed through these functions, so the equivalence oracle compares like with
-like and any difference is attributable to the representation, not to drifting
-answer semantics.
+of archived records. Service implementations must NOT call answer_* here:
+they query their own maintained representations. Only the equivalence oracle
+uses these reference computations. Identity, predicates and wire framing are
+shared specifications, not shared query implementations.
 
 No new checker, live LLM, WAN, tokenizer, or project run is claimed. This is a
 new analysis of frozen archived records.
@@ -34,10 +33,24 @@ CORPUS = tuple(
 )
 
 STATUS_ORDER = ("PASS", "FAIL", "UNKNOWN")
-SCHEMA = "v8-service-answers-1"
+SCHEMA = "v9-service-answers-1"
 
 DEFAULT_BUDGET = 16384
 DEFAULT_WAVE_SIZE = 8  # archived completion-wave size (v3/v5 replay batches)
+
+
+def corpus_provenance(corpus=None):
+    """Bind each archived input file; hashes establish identity, not truth."""
+    entries = []
+    for project, case in (CORPUS if corpus is None else corpus):
+        paths = [CORPUS_ROOT / project / (case + '-fixed8') / name
+                 for name in ('pytest_evidence.json', 'report.json')]
+        paths.append(ROOT / 'results/v5/source_replay' / (case + '-learned_exact') / 'report.json')
+        for path in paths:
+            raw = path.read_bytes()
+            entries.append({'path': str(path.relative_to(ROOT)), 'bytes': len(raw),
+                            'sha256': hashlib.sha256(raw).hexdigest()})
+    return entries
 
 
 # --------------------------------------------------------------------------
@@ -134,7 +147,7 @@ class Trajectory:
         return DEFAULT_WAVE_SIZE
 
     def snapshot(self, upto_wave: int | None = None) -> "TrajectorySnapshot":
-        """Immutable snapshot of the trajectory up to a stated wave (inclusive)."""
+        """Snapshot after `upto_wave` completed waves (exclusive upper bound)."""
         return TrajectorySnapshot.of(self, upto_wave)
 
 
@@ -142,7 +155,7 @@ class Trajectory:
 class TrajectorySnapshot:
     """Answers are computed against this; it carries the epoch (contract 4)."""
     trajectory: Trajectory
-    upto_wave: int            # inclusive; None means 'through the final wave'
+    upto_wave: int            # completed-wave count; wave indices are zero-based
     executed: tuple           # ordered completions in the snapshot
     records: Mapping          # check_id -> archived record (statuses/phases)
 
@@ -158,7 +171,8 @@ class TrajectorySnapshot:
                 raise ValueError("wave index must be a non-negative integer")
             upto = min(upto_wave, total_waves)
         executed = tuple(executed_all[: upto * w])
-        records = {k: trajectory.evidence["records"][k] for k in executed}
+        records = {k: json.loads(json.dumps(trajectory.evidence["records"][k]))
+                   for k in executed}
         return cls(trajectory=trajectory, upto_wave=upto, executed=executed, records=records)
 
     @property
@@ -258,6 +272,7 @@ def answer_failure_localization(snapshot: TrajectorySnapshot,
             "id": cid,
             "phase_outcomes": _phase_outcome(rec),
             "context": _localized_context(rec),
+            "wall_seconds": rec.get("wall_seconds"),
         })
         groups.setdefault(_file_part(cid), []).append(cid)
     return {
@@ -277,7 +292,9 @@ def answer_coverage_proof(snapshot: TrajectorySnapshot,
     authorized = bool(snapshot.trajectory.report.get("locally_authorized")) and all_passed
     return {
         "declared": len(declared),
+        "declared_ids": declared,
         "executed": len(executed),
+        "executed_ids": executed,
         "missing": missing,
         "all_declared_passed": all_passed,
         "eligible_authorization": authorized,
@@ -293,7 +310,7 @@ def answer_replay(snapshot: TrajectorySnapshot, wave: int) -> dict:
     executed_all = list(snapshot.trajectory.evidence["executed"])
     if not isinstance(wave, int) or wave < 0 or wave * w >= len(executed_all):
         raise ValueError("unknown wave %r for replay" % (wave,))
-    if wave > snapshot.epoch:
+    if wave >= snapshot.epoch:
         # Asking to replay a wave beyond the stated epoch is a stale/foreign
         # request: refused with an explicit disclosure (contract 4), never
         # silently upgraded to a newer snapshot.
@@ -351,71 +368,80 @@ def page_descriptor(answer: Answer) -> dict:
 def pack_answers(semantic: dict, identity: dict, query_id: str, epoch: int,
                  total_waves: int, budget: int = DEFAULT_BUDGET,
                  extra_pages: Sequence[dict] | None = None) -> list[bytes]:
-    """Serialize one complete answer into budget-bounded pages.
+    """Complete JSON-lines frames; every page descriptor is inside the cap.
 
-    The first page carries the full answer header; continuation pages carry
-    the page descriptor and a slice of the paged payload. Never truncates
-    silently: the final page count reflects the complete answer.
+    Lists and dictionaries are fragmented without dropping members. An atomic
+    item or required header that cannot fit is rejected, never oversize-emitted.
+    Reserve the largest possible descriptor before packing, so decimal digit
+    growth in the final page count cannot invalidate an earlier size decision.
     """
-    if not isinstance(budget, int) or budget < 1:
+    if type(budget) is not int or budget < 1:
         raise ValueError("budget must be a positive integer")
+    if extra_pages:
+        raise ValueError("extra pages must be part of the semantic answer")
 
-    def frame(payload: dict) -> bytes:
-        return json.dumps(payload, sort_keys=True, separators=(",", ":"),
+    def frame(value):
+        return json.dumps(value, sort_keys=True, separators=(",", ":"),
                           ensure_ascii=True).encode("ascii") + b"\n"
 
-    header = {"schema": SCHEMA, "query": query_id, "epoch": epoch,
-              "total_waves": total_waves, "identity": identity}
-    body_keys = [k for k in sorted(semantic)]
-    pages: list[bytes] = []
-
-    def emit(payloads: Sequence[dict]) -> None:
-        """Emit payload pages under budget, with page descriptors.
-
-        The header page (page 1) is emitted by the caller before this runs;
-        payload pages are numbered from 2. A payload frame that alone exceeds
-        the budget still gets its own page (never silently truncated); that
-        page then exceeds the budget as a declared oversize frame.
-        """
-        packed = [frame(payload) for payload in payloads]
-
-        def plan(frames: Sequence[bytes]) -> list[list[bytes]]:
-            """Greedy packing: start a new page when the budget is exceeded."""
-            out: list[list[bytes]] = []
-            current: list[bytes] = []
-            size = 0
-            for raw in frames:
-                if current and size + len(raw) > budget:
-                    out.append(current)
-                    current, size = [], 0
-                current.append(raw)
-                size += len(raw)
-            if current:
-                out.append(current)
-            return out or [[]]
-
-        body_pages = plan(packed)
-        total = 1 + len(body_pages)  # page 1 is the header page
-        for page_no, chunk in enumerate(body_pages, start=2):
-            desc = frame({"page": page_no, "total_pages": total})
-            pages.append(desc + b"".join(chunk))
-
-    # Split large list-valued fields into per-item payloads (deterministic).
-    payloads: list[dict] = []
-    for key in body_keys:
-        value = semantic[key]
-        if isinstance(value, list) and len(frame({key: value})) > budget:
-            # page this list item-by-item
-            for item in value:
-                payloads.append({key: [item]})
+    payloads = []
+    for key, value in sorted(semantic.items()):
+        if isinstance(value, list) and value:
+            payloads.extend({key: [item]} for item in value)
+        elif isinstance(value, dict) and value:
+            payloads.extend({key: {k: v}} for k, v in sorted(value.items()))
         else:
             payloads.append({key: value})
-    header_frame = frame({"header": header})
-    if len(header_frame) > budget:
-        raise ValueError("mandatory answer header exceeds budget; never truncate")
-    pages.append(header_frame)
-    emit(payloads)
+    raw = [frame(v) for v in payloads]
+    maximum_pages = len(raw) + 1
+    reserve = len(frame({"page": maximum_pages, "total_pages": maximum_pages}))
+    groups = []
+    current, size = [], 0
+    for item in raw:
+        if len(item) + reserve > budget:
+            raise ValueError("mandatory answer item exceeds page budget; never truncate")
+        if current and size + len(item) + reserve > budget:
+            groups.append(current)
+            current, size = [], 0
+        current.append(item)
+        size += len(item)
+    if current:
+        groups.append(current)
+    total = 1 + len(groups)
+    header = {"schema": SCHEMA, "query": query_id, "epoch": epoch,
+              "total_waves": total_waves, "identity": identity}
+    first = frame({"page": 1, "total_pages": total, "header": header})
+    if len(first) > budget:
+        raise ValueError("mandatory answer header exceeds page budget; never truncate")
+    pages = [first]
+    for number, group in enumerate(groups, 2):
+        pages.append(frame({"page": number, "total_pages": total}) + b"".join(group))
+    assert all(len(page) <= budget for page in pages)
     return pages
+
+
+def unpack_answers(pages: Sequence[bytes], budget: int = DEFAULT_BUDGET) -> dict:
+    """Verify descriptors, cap and complete reconstruction after decoding."""
+    answer = {}
+    for number, page in enumerate(pages, 1):
+        if len(page) > budget:
+            raise ValueError("page exceeds budget")
+        rows = [json.loads(line) for line in page.splitlines()]
+        if not rows or rows[0].get("page") != number or rows[0].get("total_pages") != len(pages):
+            raise ValueError("incomplete or reordered answer pages")
+        for fragment in rows[1:]:
+            for key, value in fragment.items():
+                if key not in answer:
+                    answer[key] = value
+                elif isinstance(value, list) and isinstance(answer[key], list):
+                    answer[key].extend(value)
+                elif isinstance(value, dict) and isinstance(answer[key], dict):
+                    if answer[key].keys() & value.keys():
+                        raise ValueError("duplicate answer field")
+                    answer[key].update(value)
+                else:
+                    raise ValueError("duplicate answer field")
+    return answer
 
 
 def deflate_answer(pages: Sequence[bytes]) -> dict:
@@ -439,12 +465,9 @@ def semantic_digest(semantic: dict) -> str:
 
 
 def strip_run_specific(semantic: dict) -> dict:
-    """Project out run-specific timing noise for cross-run comparisons.
+    """Compatibility name: v9 compares ALL fields from the same archived run.
 
-    Wall-clock and phase seconds are properties of the recorded execution,
-    not of the representation or the layout; the equivalence oracle compares
-    them only within the same evidence run.
+    Wall seconds are part of the replay service. Stripping them would let two
+    representations disagree while the equivalence oracle still reported PASS.
     """
-    out = json.loads(json.dumps(semantic))  # deep copy
-    out.pop("wall_seconds_total", None)
-    return out
+    return json.loads(json.dumps(semantic))
