@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createServer as httpsServer, request as httpsRequest } from 'node:https';
 import { spawn, spawnSync } from 'node:child_process';
 import { generateKeyPairSync, createHmac, randomBytes, createHash } from 'node:crypto';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { once } from 'node:events';
@@ -15,7 +15,10 @@ const target = process.argv[2];
 assert.ok(PLATFORMS.includes(target), 'Pass a supported native platform');
 const binaryName = process.platform === 'win32' ? 'future-code.exe' : 'future-code';
 const production = resolve('dist/users', target, binaryName);
-const scratch = mkdtempSync(join(tmpdir(), 'future-code-native-'));
+// Windows may spell os.tmpdir() with an 8.3 short name (RUNNER~1). The
+// filesystem permission layer intentionally requires approval for such paths.
+// Use the runner's canonical temp directory; keep that security check intact.
+const scratch = realpathSync(mkdtempSync(join(process.env.RUNNER_TEMP || tmpdir(), 'future-code-native-')));
 const project = join(scratch, 'project'); mkdirSync(project);
 writeFileSync(join(project, 'fixture.txt'), 'native-file-evidence\n');
 const cert = readFileSync(new URL('../tests/fixtures/localhost-cert.pem', import.meta.url));
