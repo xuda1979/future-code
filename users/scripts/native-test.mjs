@@ -46,7 +46,7 @@ const env = { DB, PUBLIC_ORIGIN: '', SALES_ENABLED: '1', STRIPE_SECRET_KEY: 'sk_
 const manifest = { version: 'fixture', status: 'released', sourceRights: { status: 'reviewed', evidence: 'TEST FIXTURE ONLY' }, assets: Object.fromEntries(PLATFORMS.map(p => [p, { url: 'https://example.com/' + p, sha256: 'a'.repeat(64), tested: true }])) };
 const session = { id: 'cs_test_nativeabcdefgh1234', mode: 'payment', status: 'complete', payment_status: 'unpaid', livemode: false, created: Math.floor(Date.now() / 1000), customer_details: { email: 'fixture@example.com' }, payment_intent: 'pi_fixture', amount_subtotal: 2900, currency: 'usd', line_items: { has_more: false, data: [{ quantity: 1, price: { id: env.STRIPE_PRICE_SOLO, unit_amount: 2900, currency: 'usd' } }] } };
 const emails = []; let refunded = false, badIngress = false;
-const provider = { requests: 0, transientFailures: 0, readEvidence: false };
+const provider = { requests: 0, transientFailures: 0, readEvidence: false, toolResults: [] };
 const fetcher = async (url, options) => {
   if (url.includes('/checkout/sessions/')) return Response.json(session);
   if (url.endsWith('/checkout/sessions')) return Response.json({ url: 'https://checkout.stripe.com/c/pay/fixture' });
@@ -64,7 +64,8 @@ const server = httpsServer({ cert, key: readFileSync(new URL('../tests/fixtures/
     if (req.url.includes('count_tokens')) return res.end('{"input_tokens":10}');
     provider.requests++;
     if (provider.transientFailures === 0) { provider.transientFailures++; res.writeHead(503, { 'Retry-After': '0' }); return res.end('{"type":"error","error":{"type":"overloaded_error","message":"Fixture transient failure"}}'); }
-    provider.readEvidence ||= (body.messages || []).some(m => (Array.isArray(m.content) ? m.content : []).some(c => c.type === 'tool_result' && !c.is_error && JSON.stringify(c.content).includes('native-file-evidence')));
+    provider.toolResults = (body.messages || []).flatMap(m => (Array.isArray(m.content) ? m.content : []).filter(c => c.type === 'tool_result').map(c => ({ error: c.is_error || false, content: JSON.stringify(c.content).slice(0, 1500) })));
+    provider.readEvidence ||= provider.toolResults.some(c => !c.error && c.content.includes('native-file-evidence'));
     const tool = (body.tools || []).find(t => t.name === 'Read');
     const content = provider.readEvidence ? [{ type: 'text', text: 'FUTURE_CODE_E2E_OK' }] : tool ? [{ type: 'tool_use', id: 'toolu_fixture_read', name: tool.name, input: { file_path: join(project, 'fixture.txt') } }] : [{ type: 'text', text: 'Expected Read tool was not available' }];
     const reason = content[0].type === 'tool_use' ? 'tool_use' : 'end_turn';
@@ -132,7 +133,7 @@ try {
   });
   await check('fixtureChecks', 'headless model request, transient recovery and actual Read tool round trip', async () => {
     const r = await run(fixtureBinary, ['--bare', '-p', '--model', 'claude-sonnet-4-6', '--tools', 'Read', '--permission-mode', 'dontAsk', '--max-turns', '3', '--system-prompt', 'Read fixture.txt and report its contents.', 'Read fixture.txt then reply FUTURE_CODE_E2E_OK.'], '', { FUTURE_BASE_URL: env.PUBLIC_ORIGIN, FUTURE_API_KEY: 'fixture-provider-key', FUTURE_MODEL: 'claude-sonnet-4-6', FUTURE_CODE_EFFORT_LEVEL: 'low' });
-    assert.equal(r.code, 0, r.stderr + '\n' + r.stdout); assert.match(r.stdout, /FUTURE_CODE_E2E_OK/); assert.equal(provider.readEvidence, true); assert.ok(provider.requests >= 3); assert.equal(provider.transientFailures, 1);
+    assert.equal(r.code, 0, r.stderr + '\n' + r.stdout + '\nFixture provider: ' + JSON.stringify(provider)); assert.match(r.stdout, /FUTURE_CODE_E2E_OK/); assert.equal(provider.readEvidence, true); assert.ok(provider.requests >= 3); assert.equal(provider.transientFailures, 1);
   });
   await check('fixtureChecks', 'tampered receipt rejected and service HTML failure remains actionable', async () => {
     const file = join(baseEnv.FUTURE_LICENSE_STATE_DIR, 'receipt.json'); const original = readFileSync(file, 'utf8'); const data = JSON.parse(original); data.token += 'x'; writeFileSync(file, JSON.stringify(data));
