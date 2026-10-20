@@ -31,11 +31,13 @@ the archived candidates, not evidence about independently selected live tasks.
 
 \subsection{Wire bytes, storage and time are separate ledgers}
 Table~\ref{tab:v9queries} reports only compressed complete-answer bytes.
-Each arm totals \VnineWireBytes{} bytes. Equality follows from identical
-semantic answers and the common encoding policy; it is a property of this
-service contract, not a newly discovered compression bound. No query family
-meets the strict requirement of both fewer wire bytes and lower modeled
-arrival time. A different service or codec requires a separate comparison.
+Each arm totals \VnineWireBytes{} bytes. Proposition~\ref{prop:codec-equality}
+implies this equality before measurement. It is a conformance result, rather
+than evidence for or against a bandwidth advantage of hierarchical indexes.
+The previously declared strict requirement of both fewer bytes and lower
+modeled arrival time cannot be met under this common-codec protocol.
+A different wire protocol requires a separate comparison; index-maintenance
+and aggregation benefits require repeated measurements of those resources.
 
 \begin{table}[H]\centering\small
 \caption{Corrected query study. Original/learned layouts and cold/warm cache
@@ -82,6 +84,9 @@ A proper tree-shape ablation must hold the learned order fixed. Fixed-order
 training optimality also does not imply held-out optimality. Proposition~\ref{prop:pairwise}
 retains its information-separation meaning without an empirical claim that
 the deployed compiler exploits beyond-pairwise structure.
+Theorem~\ref{thm:pairwise-optimum} strengthens that analytical distinction to
+disjoint global optimum sets on a constructed instance. It does not alter
+the frozen ablation's empirical outcome.
 
 \subsection{Audit scope and correction record}\label{sec:v8audit}
 The historical audit's seventy consistency entries passed despite errors in

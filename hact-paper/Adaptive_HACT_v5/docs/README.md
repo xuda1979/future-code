@@ -1,8 +1,11 @@
-# Current manuscript: v9 corrections
+# Current manuscript: v10 theory and submission-readiness review
 
-Start with `V9_CORRECTION_CONTRACT.md` and `../paper/SUBMISSION_NOTES_V9.md`.
-The v5 empirical artifact and v7/v8 records retain their original provenance.
-The sections below are historical version-specific documentation.
+Start with `V10_SUBMISSION_READINESS.md`, `V10_CONFIRMATORY_PROTOCOL.md`,
+`V10_REFERENCE_REVIEW.md` and `../paper/SUBMISSION_NOTES_V10.md`.
+The paper is held for further scientific evidence, not submitted.
+`V9_CORRECTION_CONTRACT.md` remains the corrected implementation contract.
+The v5-v9 empirical records and the sections below retain their original,
+version-specific provenance.
 
 # Historical empirical release: Adaptive HACT v5
 

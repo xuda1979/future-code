@@ -22,7 +22,7 @@ def main():
         raise ValueError('tracked source missing; refuse incomplete manifest')
     (ROOT / 'RELEASE_FILES.txt').write_text('\n'.join(files) + '\n')
     manifest = {'schema': 'hact-release-manifest-1', 'release': '5.0.0',
-                'manuscript': '9.0',
+                'manuscript': '10.0',
                 'boundary': 'current source/PDF byte integrity; empirical records retain original versions; no digital signature',
                 'files': {}}
     for name in files:
