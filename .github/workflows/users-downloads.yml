@@ -45,7 +45,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh release create "$RELEASE_TAG" dist/downloads/*
-          --target "$SOURCE_SHA" --prerelease --latest=false
+          --target "$GITHUB_SHA" --prerelease --latest=false
           --title "Future Code 0.1.0 preview 2"
           --notes-file dist/release-notes.md
       - name: Verify published assets
