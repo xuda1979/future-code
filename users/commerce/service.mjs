@@ -1,5 +1,6 @@
 import { PLANS, PLATFORMS, PRODUCT } from '../catalog.mjs';
 import { availableDownloads } from '../downloads.mjs';
+import { assessMerchant, stripeLiveMode } from './merchant.mjs';
 import { digest, randomKey, seal, open, signClaims, verifyStripe } from './crypto.mjs';
 
 export class HttpError extends Error {
@@ -84,7 +85,7 @@ export async function fulfill(env, sessionId, fetcher = fetch, now = Date.now())
   if (!idPattern.test(sessionId)) throw new HttpError(400, 'Invalid checkout session.');
   const session = await stripe(env, fetcher, 'checkout/sessions/' + encodeURIComponent(sessionId) + '?expand[]=line_items');
   if (session.id !== sessionId || session.payment_status !== 'paid' || session.status !== 'complete' || session.mode !== 'payment') return { fulfilled: false };
-  const live = env.STRIPE_SECRET_KEY.startsWith('sk_live_');
+  const live = stripeLiveMode(env.STRIPE_SECRET_KEY);
   if (session.livemode !== live) throw new HttpError(400, 'Payment environment mismatch.');
   const items = session.line_items?.data;
   const entry = Object.entries(PLANS).find(([, p]) => items?.[0]?.price?.id === env[p.priceEnv]);
@@ -135,7 +136,7 @@ export async function handleRequest(request, env, manifest, { fetcher = fetch, n
       const raw = await body(request, 524288);
       if (!await verifyStripe(raw, request.headers.get('stripe-signature'), env.STRIPE_WEBHOOK_SECRET, now)) throw new HttpError(400, 'Invalid payment signature.');
       let event; try { event = JSON.parse(raw); } catch { throw new HttpError(400, 'Invalid payment event.'); }
-      if (event.livemode !== env.STRIPE_SECRET_KEY.startsWith('sk_live_')) throw new HttpError(400, 'Payment environment mismatch.');
+      if (event.livemode !== stripeLiveMode(env.STRIPE_SECRET_KEY)) throw new HttpError(400, 'Payment environment mismatch.');
       if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)) {
         if (event.data?.object?.metadata?.product === PRODUCT) await fulfill(env, event.data.object.id, fetcher, now);
       } else if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
@@ -150,6 +151,10 @@ export async function handleRequest(request, env, manifest, { fetcher = fetch, n
       await rateLimit(env, request, 'checkout', 10, now);
       const input = await readJson(request); const plan = Object.hasOwn(PLANS, input.plan) ? PLANS[input.plan] : null;
       if (!plan || !/^[a-f\d-]{36}$/.test(input.requestId || '')) throw new HttpError(400, 'Invalid plan or request.');
+      if (stripeLiveMode(env.STRIPE_SECRET_KEY)) {
+        const readiness = assessMerchant(await stripe(env, fetcher, 'account'));
+        if (!readiness.ready) throw new HttpError(503, 'Purchasing is paused while merchant payment and bank payout settings are verified. No payment has been taken.');
+      }
       const form = new URLSearchParams({ mode: 'payment', 'line_items[0][price]': env[plan.priceEnv], 'line_items[0][quantity]': '1', 'metadata[product]': PRODUCT, 'metadata[plan]': input.plan, success_url: env.PUBLIC_ORIGIN + '/success?session_id={CHECKOUT_SESSION_ID}', cancel_url: env.PUBLIC_ORIGIN + '/#pricing', 'billing_address_collection': 'auto', 'customer_creation': 'always' });
       if (env.STRIPE_AUTOMATIC_TAX === '1') form.set('automatic_tax[enabled]', 'true');
       const result = await stripe(env, fetcher, 'checkout/sessions', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Idempotency-Key': 'future-code/' + input.plan + '/' + input.requestId }, body: form });

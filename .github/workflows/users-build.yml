@@ -2,7 +2,7 @@ name: Users commercial candidates
 on:
   push:
     branches: [users]
-    paths: ['users/**', '.github/workflows/users-build.yml']
+    paths: ['users/**', 'src/main.tsx', '.github/workflows/users-build.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -37,11 +37,19 @@ jobs:
           bun-version: '1.4.3'
       - run: bun install --frozen-lockfile
       - run: node users/scripts/build.mjs ${{ matrix.platform }}
+      - name: Test native executable, payment fulfillment, license and AI tool loop
+        run: node users/scripts/native-test.mjs ${{ matrix.platform }}
       - uses: actions/upload-artifact@v4
         with:
           name: future-code-${{ matrix.platform }}-candidate
           path: dist/users/${{ matrix.platform }}/
           retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: future-code-${{ matrix.platform }}-verification
+          path: dist/verification/${{ matrix.platform }}.json
+          if-no-files-found: ignore
 # CI artifacts are temporary candidates. users-downloads.yml promotes a pinned
 # successful run into permanent, explicitly labeled preview downloads. Commercial
 # sales still require rights evidence and end-to-end launch validation.

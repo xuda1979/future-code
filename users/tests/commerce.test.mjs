@@ -22,6 +22,7 @@ function fixture() {
   const emails = []; const calls = []; let failEmail = false;
   const fetcher = async (url, options) => {
     calls.push({ url, options });
+    if (url.endsWith('/account')) return Response.json({ id: 'acct_1Npcs6EVgpqy45wF', charges_enabled: true, payouts_enabled: false, external_accounts: { data: [] } });
     if (url.includes('checkout/sessions/')) return Response.json(session);
     if (url.endsWith('/checkout/sessions')) return Response.json({ url: 'https://checkout.stripe.com/c/pay/test-session' });
     if (url.includes('payment_intents/')) return Response.json({ status: 'succeeded', latest_charge: { paid: true, created: Math.floor(now / 1000), refunded: false, disputed: false } });
@@ -69,6 +70,12 @@ test('checkout uses only server prices and stable idempotency, refuses cross-ori
   assert.equal(call.options.headers['Idempotency-Key'], 'future-code/solo/' + id);
   assert.equal((await f.call('/api/checkout', { plan: 'solo', requestId: id }, { origin: 'https://evil.example' })).status, 403);
   assert.equal((await f.call('/api/checkout', { plan: '__proto__', requestId: id }, { origin: f.env.PUBLIC_ORIGIN })).status, 400);
+});
+test('live checkout stops before charging if the merchant cannot receive bank payouts', async () => {
+  const f = fixture(); f.env.STRIPE_SECRET_KEY = 'sk_live_fixture';
+  const result = await f.call('/api/checkout', { plan: 'solo', requestId: crypto.randomUUID() }, { origin: f.env.PUBLIC_ORIGIN });
+  assert.equal(result.status, 503); assert.match((await result.json()).error, /bank payout/);
+  assert.equal(f.calls.filter(c => c.url.endsWith('/checkout/sessions')).length, 0);
 });
 test('success-page status reveals no email or license and never trusts a redirect as payment proof', async () => {
   const f = fixture();

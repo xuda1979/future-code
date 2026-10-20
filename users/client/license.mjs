@@ -19,7 +19,7 @@ export function verifyToken(token, publicKey, device, now = Date.now()) {
 }
 function directory() {
   const root = platform() === 'win32' ? process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local') : join(homedir(), '.config');
-  const path = join(root, 'future-code', 'license');
+  const path = process.env.FUTURE_LICENSE_STATE_DIR || join(root, 'future-code', 'license');
   mkdirSync(path, { recursive: true, mode: 0o700 });
   return path;
 }
@@ -39,7 +39,9 @@ function saveState(state) {
 async function post(path, data) {
   if (!LICENSE_ORIGIN.startsWith('https://')) throw new Error('Invalid licensing service configuration.');
   const response = await fetch(LICENSE_ORIGIN + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), signal: AbortSignal.timeout(15000), redirect: 'error' });
-  const result = await response.json();
+  let result;
+  try { result = await response.json(); }
+  catch { throw new Error('License service unavailable (HTTP ' + response.status + '). Please retry later or contact exutechnology@gmail.com.'); }
   if (!response.ok) throw new Error(result.error || 'License service unavailable.');
   return result;
 }

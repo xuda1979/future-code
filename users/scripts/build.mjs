@@ -19,7 +19,7 @@ function run(command, args) {
   if (result.error || result.status !== 0) throw new Error('Build/check failed: ' + (result.error?.message || result.status));
 }
 run(bun, ['build', 'users/entrypoint.ts', '--compile', '--minify', '--bytecode', '--format=cjs', '--outfile=' + binary]);
-run(binary, ['--version']); run(binary, ['license', 'status']);
+run(binary, ['--version']); run(binary, ['--help']); run(binary, ['license', 'status']);
 // Distribute only compiled output, not the repository or source maps.
 writeFileSync(join(outputDir, 'README.txt'), 'Future Code commercial build\nActivate: future-code license activate\nModel API usage is billed separately.\nSupport: exutechnology@gmail.com\n');
 writeFileSync(join(outputDir, 'SHA256SUMS'), createHash('sha256').update(readFileSync(binary)).digest('hex') + '  ' + binary.split(/[\\/]/).pop() + '\n');

@@ -131,3 +131,23 @@ The company website is currently served by Squarespace (GoDaddy may manage the
 domain). Add a **Future Code** navigation link to the deployed catalog. Avoid
 replacing the website or changing DNS. Outreach must say prelaunch until real
 downloads and checkout are verified; never advertise unbuilt OS versions as ready.
+
+## Native release verification
+
+Every candidate now runs the real CLI help parser and an isolated native
+integration suite on Windows x64, macOS arm64, macOS x64 and Ubuntu x64. The
+suite builds the same entrypoint with an ephemeral test verification key and
+localhost TLS service, then tests checkout, unpaid refusal, paid webhook replay,
+one email/key, native activation, device caps, durable task state, a headless
+model request with a real file-read tool round trip, transient API recovery,
+tampered receipt rejection, deactivation and refund refusal. It never charges
+a card or sends a real email. Reports separate checks on the production binary
+from the test-configured binary. Fixture success does not verify live Stripe,
+Resend deliverability, the production activation endpoint, or a bank deposit.
+
+Run `node users/scripts/verify-launch.mjs` in the configured deployment
+environment before a live purchase test. It checks merchant charges/payouts,
+the default USD payout account, prices, webhook registration, sender domain,
+client/server verification-key agreement and machine API access. It never
+changes bank information or moves money. A live card payment confirmed by
+Stripe triggers fulfillment immediately; bank payout settlement is separate.
