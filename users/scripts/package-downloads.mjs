@@ -1,0 +1,50 @@
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { resolve, join } from 'node:path';
+
+// Promote already-tested native artifacts; never pretend cross-compilation is a native test.
+const platforms = ['windows-x64', 'macos-arm64', 'macos-x64', 'ubuntu-x64'];
+const version = '0.1.0-preview.1';
+const tag = process.env.RELEASE_TAG;
+const sourceCommit = process.env.SOURCE_SHA;
+const repository = process.env.GITHUB_REPOSITORY;
+if (tag !== 'users-v' + version || !/^[a-f0-9]{40}$/.test(sourceCommit || '') || repository !== 'xuda1979/future-code') throw Error('Unexpected release identity');
+const output = resolve('dist/downloads'); mkdirSync(output, { recursive: true });
+const hash = data => createHash('sha256').update(data).digest('hex');
+const manifest = { version, status: 'preview', sourceCommit, sourceRun: Number(process.env.SOURCE_RUN_ID), sourceRights: { status: 'unverified', evidence: null }, assets: {} };
+const checksums = [];
+for (const platform of platforms) {
+  const candidate = resolve('dist/download-candidates', 'future-code-' + platform + '-candidate');
+  const binaryName = platform.startsWith('windows') ? 'future-code.exe' : 'future-code';
+  const bytes = readFileSync(join(candidate, binaryName));
+  const digest = hash(bytes);
+  const expected = readFileSync(join(candidate, 'SHA256SUMS'), 'utf8').trim().split(/\s+/);
+  if (expected.length !== 2 || expected[0] !== digest || expected[1] !== binaryName || bytes.length < 1_000_000) throw Error('Invalid binary checksum: ' + platform);
+  const magic = bytes.subarray(0, 4).toString('hex');
+  if (platform.startsWith('windows') && (bytes.subarray(0, 2).toString() !== 'MZ' || bytes.subarray(bytes.readUInt32LE(60), bytes.readUInt32LE(60) + 4).toString('hex') !== '50450000')) throw Error('Expected Windows executable');
+  if (platform.startsWith('ubuntu') && (magic !== '7f454c46' || bytes.readUInt16LE(18) !== 62)) throw Error('Expected x64 ELF executable');
+  if (platform.startsWith('macos') && (magic !== 'cffaedfe' || bytes.readUInt32LE(4) !== (platform.endsWith('arm64') ? 0x100000c : 0x1000007))) throw Error('Expected native Mach-O executable');
+  const folderName = `future-code-${version}-${platform}`;
+  const folder = resolve('dist/download-packages', folderName); mkdirSync(folder, { recursive: true });
+  copyFileSync(join(candidate, binaryName), join(folder, binaryName));
+  if (!platform.startsWith('windows')) chmodSync(join(folder, binaryName), 0o755);
+  writeFileSync(join(folder, 'SHA256SUMS'), digest + '  ' + binaryName + '\n');
+  copyFileSync('docs/SOURCE_PROVENANCE.md', join(folder, 'SOURCE_PROVENANCE.md'));
+  const command = platform.startsWith('windows') ? '.\\future-code.exe' : './future-code';
+  writeFileSync(join(folder, 'README.txt'), `Future Code ${version} — ${platform}\n\nThis archive contains the compiled command-line executable. No Bun or Node installation is needed for the executable itself. Extract the archive before running it.\n\nStartup checks:\n  ${command} --version\n  ${command} --help\n  ${command} license status\n\nPreview limitations:\nThe native build and startup commands were tested on this platform. Full provider/tool workflows and purchase-to-activation are not yet validated. Running the AI workspace requires a license; activation and checkout are not open in this preview. Downloading is free and no payment is collected. Model API usage is separate.\n\nPublisher code signing/notarization is not configured. This preview does not establish new distribution terms for imported code; see SOURCE_PROVENANCE.md.\n\nSource commit: ${sourceCommit}\nNative build: https://github.com/${repository}/actions/runs/${process.env.SOURCE_RUN_ID}\nDownloads: https://future-code-downloads.david-hsu-8840.chatgpt.site/#downloads\nSupport: exutechnology@gmail.com\n`);
+  const filename = folderName + (platform.startsWith('windows') ? '.zip' : '.tar.gz');
+  const archive = join(output, filename);
+  const commandName = platform.startsWith('windows') ? 'zip' : 'tar';
+  const args = platform.startsWith('windows') ? ['-X', '-q', '-r', archive, folderName] : ['--sort=name', '--mtime=2026-10-20 00:00:00Z', '--owner=0', '--group=0', '--numeric-owner', '-czf', archive, folderName];
+  const packed = spawnSync(commandName, args, { cwd: resolve('dist/download-packages'), stdio: 'inherit' });
+  if (packed.error || packed.status !== 0) throw packed.error || Error('Archive failed: ' + platform);
+  const archiveBytes = readFileSync(archive);
+  const archiveDigest = hash(archiveBytes);
+  checksums.push(archiveDigest + '  ' + filename);
+  manifest.assets[platform] = { url: `https://github.com/${repository}/releases/download/${tag}/${filename}`, filename, bytes: archiveBytes.length, sha256: archiveDigest, binarySha256: digest, tested: true, validation: 'native-build-and-startup', codeSigned: false };
+  console.log(`${platform}: ${filename} (${archiveBytes.length} bytes), SHA-256 ${archiveDigest}`);
+}
+writeFileSync(join(output, 'SHA256SUMS'), checksums.join('\n') + '\n');
+writeFileSync(join(output, 'download-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+writeFileSync('dist/release-notes.md', `Real compiled CLI binaries for Windows x64, macOS Apple silicon, macOS Intel, and Ubuntu x64. Download the platform archive below and extract it. Node/Bun is not required to start the executable.\n\n**Preview:** native compilation, --version, and license status passed on each native runner. Full AI workflows still require a license; activation and checkout are not open. These are portable CLI archives, not GUI installers. Publisher signing/notarization and commercial source-rights review are pending. No payment is being collected.\n\nEach archive includes the executable, startup instructions, a binary checksum, and the source provenance notice. SHA256SUMS verifies the archive downloads.\n\nBuilt from ${sourceCommit} in [native build run ${process.env.SOURCE_RUN_ID}](https://github.com/${repository}/actions/runs/${process.env.SOURCE_RUN_ID}).\n\n[Download page](https://future-code-downloads.david-hsu-8840.chatgpt.site/#downloads)\n`);

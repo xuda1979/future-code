@@ -1,0 +1,57 @@
+name: Publish users preview downloads
+on:
+  push:
+    branches: [users]
+    paths: ['.github/workflows/users-downloads.yml', 'users/scripts/package-downloads.mjs']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: users-preview-downloads
+  cancel-in-progress: false
+env:
+  SOURCE_RUN_ID: '39233458592'
+  SOURCE_SHA: 6ee9161f043b00049fdb078f4c8a5324f9f735de
+  RELEASE_TAG: users-v0.1.0-preview.1
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify the native build run
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data: run} = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: Number(process.env.SOURCE_RUN_ID) });
+            if (run.conclusion !== 'success' || run.head_sha !== process.env.SOURCE_SHA || run.head_branch !== 'users' || run.event !== 'push' || run.path !== '.github/workflows/users-build.yml') throw new Error('Unexpected source build');
+            const {data} = await github.rest.actions.listWorkflowRunArtifacts({ ...context.repo, run_id: run.id });
+            const expected = ['windows-x64', 'ubuntu-x64', 'macos-arm64', 'macos-x64'].map(p => `future-code-${p}-candidate`);
+            if (data.artifacts.length !== 4 || expected.some(n => !data.artifacts.some(a => a.name === n && !a.expired && a.workflow_run.head_sha === process.env.SOURCE_SHA))) throw new Error('Missing or expired native artifact');
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          pattern: future-code-*-candidate
+          path: dist/download-candidates
+      - name: Verify binaries and package executable archives
+        run: node users/scripts/package-downloads.mjs
+      - name: Publish permanent download assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$RELEASE_TAG" dist/downloads/*
+          --target "$SOURCE_SHA" --prerelease --latest=false
+          --title "Future Code 0.1.0 preview 1"
+          --notes-file dist/release-notes.md
+      - name: Verify published assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$RELEASE_TAG" --dir dist/published
+          cd dist/published
+          sha256sum --check SHA256SUMS
