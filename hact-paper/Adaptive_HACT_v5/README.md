@@ -1,10 +1,32 @@
-# Adaptive HACT: manuscript v9 and corrected query study
+# Adaptive HACT: manuscript v10 and submission-readiness review
 
-Start with `paper/main.pdf` and `docs/V9_CORRECTION_CONTRACT.md`. The empirical
-v5 artifact and archived v7/v8 records retain their original provenance.
-Manuscript v9 corrects the 2026-10-19 review findings in the service code,
-resource accounting, numerical prose and claim scope. It is a research artifact,
-not an accepted paper or a production security service.
+Start with `paper/main.pdf` and `docs/V10_SUBMISSION_READINESS.md`. The authors
+are **Da Xu and Fei Wang**, **China Mobile Research Institute**; corresponding
+author: **xudayj@chinamobile.com**. V10 adds a proved all-topology separation,
+an independent exact reference, corrected bibliography metadata and a precise
+interpretation of common-codec byte equality. The v5-v9 empirical records
+retain their original provenance. **No journal submission has been made**:
+independent service-utility evidence and final author/venue checks remain open.
+
+`docs/V10_CONFIRMATORY_PROTOCOL.md` proposes the next study; it is neither
+preregistered nor executed. The analytical witness is not another repair,
+checker trial or agent run. `docs/V9_CORRECTION_CONTRACT.md` remains the detailed
+contract for the corrected service code, resource accounting and numerical audit.
+
+## V10 analytical result
+
+Two nine-check completion distributions have identical singleton and pairwise
+probabilities but disjoint globally optimal tree sets under the implemented
+packet prices. The exact reference allows every tree shape and permutation;
+it considers 115,462 feasible root partitions over 511 nonempty subsets per
+case. The refresh optima are 3,856 and 3,936 bytes; their shared 4,224-byte
+construction cost preserves the separation. Eight tests include independently
+implemented literal-tree enumeration on smaller cases. This demonstrates an
+information limit of pairwise summaries, without claiming an empirical
+beyond-pairwise compiler advantage.
+
+Current local validation: **533 tests passed**, plus the independent v5/v9
+audits, historical 70-entry arithmetic audit and exact v10 witness check.
 
 ## Practical recommendation
 
@@ -59,8 +81,10 @@ unused, and could overshoot the page cap. Its storage-plus-network cost metric
 and several manuscript interpretations are withdrawn. Do not cite those records
 as current comparative service evidence. `results/v9` contains the corrected
 retrospective execution and numerical re-analysis, not new checker or LLM trials.
-The corrected study shows no family meeting the strict byte-and-time rule.
-General diagnostic and agent-productivity benefits remain unestablished.
+The strict byte-and-time rule cannot be met under the common deterministic
+codec: equal answers must produce equal wire bytes. This is a conformance
+check, not a bandwidth-superiority experiment. General diagnostic and
+agent-productivity benefits remain unestablished.
 
 ## Install and run
 
@@ -75,6 +99,7 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q -p pytest_asyncio.plugin
 python -m audit.check_v5
 python -m audit.numbers_audit
 python -m audit.check_v9
+python -m experiments_v10.exact_separation
 python tools/verify_manifest.py
 ```
 

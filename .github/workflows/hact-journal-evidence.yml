@@ -23,11 +23,12 @@ jobs:
           python -m pip install numpy==2.3.5 pytest==9.0.2 pytest-asyncio==1.3.0
       - name: Historical and corrected service regression gates
         run: |
-          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=. python -m pytest -q tests_v7 tests_v8
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=. python -m pytest -q tests_v7 tests_v8 tests_v10
       - name: Historical arithmetic and current manuscript audit
         run: |
           PYTHONPATH=. python -m audit.numbers_audit
           PYTHONPATH=. python -m audit.check_v9
+          PYTHONPATH=. python -m experiments_v10.exact_separation
           python tools/verify_manifest.py
       - name: Recompute service oracle and measured query trace
         run: |

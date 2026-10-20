@@ -6,6 +6,24 @@ The local aggregator receives bounded packets; a logging collector may receive t
 \end{equation}
 Its byte length and token count under any fixed deterministic tokenizer are therefore identical. This is a useful negative control: layout optimization cannot shrink a layout-independent root input. An indexed flat ledger can provide final per-check state and diagnostic queries without preserving the complete intermediate hierarchy. HACT's layout objective applies when the hierarchical diagnostic stream itself is part of the required service.
 
+\begin{proposition}[Common encoding fixes answer bytes]\label{prop:codec-equality}
+If two services produce the same canonically ordered semantic answer and
+apply the same deterministic paging, framing and compression with identical
+parameters and reset boundaries, their complete application byte streams
+are identical, regardless of their internal indexes.
+\end{proposition}
+\begin{proof}
+Each stage is the same deterministic function of identical input. Equality
+therefore propagates through every stage to the transmitted bytes.
+\end{proof}
+The corrected query protocol has these conditions. Its equal-byte result
+checks conformance; it cannot test a bandwidth superiority hypothesis.
+Internal indexing can still change setup, update and aggregation costs.
+Testing a bandwidth advantage requires a different declared wire protocol,
+such as client-held state with delta delivery, while preserving identical
+client-visible answers and charging both clients' state and update traffic.
+Such a protocol is not evaluated here.
+
 Diagnostics preserve full header/card records and page whole packets under a 16,384-byte limit. A packet that cannot fit is rejected rather than truncated. For a real supplied tokenizer $\tau$ and explicitly reserved framing budget $r$, token-aware admission additionally requires
 \begin{equation}
  |p|_{\mathrm{UTF8}}\le C_{\mathrm{bytes}},\qquad
@@ -30,6 +48,15 @@ A strictly profitable integer copy count exists only when $d>0$, and then
 A zero gain retains the baseline. The implementation uses decimal arithmetic at equality, rejects mismatched service IDs, and returns \texttt{UNKNOWN} when required measurements are absent. An explicit zero is accepted only as a declared assumption or observation.
 
 When both variants use the same protected gate, $C$ represents extra layout work rather than the entire gate cost. Repeating delivery can amortize preparation of the same candidate; it cannot amortize preparation of future candidates as though they were the same workload. Parallel links, computation overlap, cached diagnostics, queueing, and connection setup require direct critical-path measurement. RTT alone does not increase the byte-dependent term when both alternatives pay the same setup and request count.
+
+For the common-codec query comparison, the byte term cancels. If incremental
+tree setup costs $C$ seconds and the tree saves $s$ measured seconds per query
+after matched update and codec work, break-even instead requires $qs>C$ with
+$s>0$. These quantities must be measured over independent traces; the single
+local campaign does not estimate a deployment-wide $s$. A query issued after
+verification completes must exclude the archived checker time from its
+response-latency denominator. A candidate-start latency question includes
+that common work. The two estimands answer different operational questions.
 
 \subsection{Remote-measurement boundary}
 The artifact includes an opt-in TLS measurement kit with certificate validation, hostname checking, bounded frames, validated decompression, and acknowledgments that bind received length and digest. Local tests exercise cold and reused sessions, rejected hostnames, untrusted roots, malformed acknowledgments, and truncated records. These tests validate the measurement path; they are not WAN performance measurements.

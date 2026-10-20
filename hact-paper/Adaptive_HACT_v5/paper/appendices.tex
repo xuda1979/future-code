@@ -86,6 +86,7 @@ The fixture performs real disk and loopback I/O but is intentionally controlled.
 
 \section{Artifact Usage and Integration Contract}
 A reviewed operator baseline is initialized outside candidate write scopes:
+\begin{samepage}
 \begin{verbatim}
 python -m ichact init --project /work/trusted-baseline \
   --contract /work/contracts/approved.json \
@@ -96,15 +97,18 @@ python -m ichact verify --project /work/candidate \
   --output /work/reports/candidate-001 \
   --layout /work/contracts/layout.json
 \end{verbatim}
+\end{samepage}
 A layout must match the full semantic registry. The optional execution-order file is separate and must also be an exact permutation, never a subset. Legacy schema-1 contracts must be reviewed and reinitialized; the software does not silently reinterpret them.
 
 The Future Code gate invokes the installed module or a pinned absolute bridge path outside the candidate:
+\begin{samepage}
 \begin{verbatim}
 python -m ichact.future_bridge \
   --contract /work/contracts/approved.json \
   --reports /work/verification-reports \
   --layout /work/contracts/layout.json
 \end{verbatim}
+\end{samepage}
 The working directory is the candidate snapshot. Exit 0 means complete current pass; nonzero means rejection or unknown. This CLI does not itself deploy or merge. The original harness performs its own staged-source fingerprint and integration checks. For hostile code, use an outer container/VM and do not give it access to secrets or trusted contract storage.
 
 The artifact contains an actual scripted harness campaign, a separate live-endpoint configuration guide, deterministic tests, an independent audit, and an isolated reproduction launcher. The live guide is a deployment recipe, not evidence that paid inference or hosted evaluation was performed.

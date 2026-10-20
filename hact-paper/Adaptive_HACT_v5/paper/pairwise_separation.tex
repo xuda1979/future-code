@@ -1,0 +1,62 @@
+\begin{theorem}[Pairwise summaries do not identify an optimal tree]\label{thm:pairwise-optimum}
+For $H=512$, $S=320$ and maximum arity eight, there are two completion-set
+distributions on nine checks with identical singleton and pairwise
+probabilities but disjoint globally optimal tree sets. This holds over all
+valid leaf permutations and tree shapes for the persistent refresh cost,
+with any nonnegative multiple of full construction cost added.
+\end{theorem}
+\begin{proof}
+Use the parity distributions $P,Q$ in Proposition~\ref{prop:pairwise} on
+$\{0,1,2\}$ and include six additional checks in every completion set.
+All nine singleton probabilities and all pairwise joint probabilities agree.
+Every subtree containing an additional check is hit with probability one.
+An internal subtree containing only parity checks is hit with probability
+at least $3/4$.
+
+Let $I$ be the number of internal nodes. Since the sum of internal arities
+is $9+I-1$, its full construction cost is
+\[
+ W(T)=512I+320(9+I-1)=832I+2560.
+\]
+The arity cap requires $I\ge2$. At most two internal nodes can contain only
+the three parity checks; their combined packet cost is at most $2304$
+(two binary nodes). Consequently expected refresh cost is at least
+$W(T)-2304/4$. For $I\ge3$ this is at least $4480$ bytes, and construction
+cost is at least $5056$ bytes.
+
+With $I=2$, the tree consists of the root and a single internal child, and
+$W(T)=4224$. A child containing an additional check gives expected refresh
+cost $4224$. A two-check parity child gives $4224-1152/4=3936$ under either
+distribution. A three-check parity child gives $4224-1472/4=3856$ under $P$
+and $4224$ under $Q$. Thus $P$ uniquely groups the triple, whereas $Q$ groups
+one of its three pairs. No other shape improves these values. Their
+construction costs agree and are smaller than those of all $I\ge3$ trees,
+so adding any nonnegative construction multiplier preserves the separation.
+\end{proof}
+
+\begin{table}[H]\centering\small
+\caption{Analytical witness, expected refresh bytes. The all-topology optima
+are bold. Construction adds the same 4,224 bytes to both displayed shapes.}
+\label{tab:pairwise-witness}
+\begin{tabular}{@{}lrr@{}}\toprule
+Only internal child & $P$ & $Q$\\\midrule
+Parity triple $\{0,1,2\}$ & \textbf{3,856} & 4,224\\
+Any parity pair & 3,936 & \textbf{3,936}\\\bottomrule
+\end{tabular}
+\end{table}
+
+A rule that sees only these pairwise probabilities receives identical
+input under $P$ and $Q$ and therefore cannot always identify an optimum.
+This is an identifiability result, not a claim about a particular clustering
+implementation or about typical software workloads. It uses persistent
+refresh events; it does not assert that a partially observed event is a
+complete strict verification epoch.
+
+The independent reference in \texttt{experiments\_v10/exact\_separation.py}
+uses integer probability numerators and a subset recurrence over all root
+set partitions. It solves 511 nonempty subsets and considers 115,462 feasible
+root partitions per distribution and construction case. It finds one
+unordered optimum under $P$ and three under $Q$. These counts treat sibling
+orders as equivalent. Separate literal tree enumeration checks the reference
+on smaller instances. This analytical witness is distinct from the frozen
+nine-check experiment, which enumerates permutations of one balanced shape.
