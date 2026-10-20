@@ -1,4 +1,5 @@
 import { PLANS, PLATFORMS, PRODUCT } from '../catalog.mjs';
+import { availableDownloads } from '../downloads.mjs';
 import { digest, randomKey, seal, open, signClaims, verifyStripe } from './crypto.mjs';
 
 export class HttpError extends Error {
@@ -125,7 +126,10 @@ async function activate(env, request, fetcher, now) {
 export async function handleRequest(request, env, manifest, { fetcher = fetch, now = Date.now() } = {}) {
   try {
     const url = new URL(request.url);
-    if (request.method === 'GET' && url.pathname === '/api/catalog') return json({ product: PRODUCT, plans: PLANS, version: manifest.version, salesEnabled: salesReady(env, manifest), downloads: releaseReady(manifest) ? manifest.assets : {}, status: releaseReady(manifest) ? 'released' : 'prelaunch' });
+    if (request.method === 'GET' && url.pathname === '/api/catalog') {
+      const downloads = availableDownloads(manifest);
+      return json({ product: PRODUCT, plans: PLANS, version: manifest.version, salesEnabled: salesReady(env, manifest), downloads, status: releaseReady(manifest) ? 'released' : Object.keys(downloads).length ? 'preview' : 'prelaunch' });
+    }
     if (request.method === 'POST' && url.pathname === '/api/stripe/webhook') {
       if (!env.STRIPE_WEBHOOK_SECRET || !env.STRIPE_SECRET_KEY || !env.DB) throw new HttpError(503, 'Payments are not configured.');
       const raw = await body(request, 524288);

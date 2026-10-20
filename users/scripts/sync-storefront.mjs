@@ -9,6 +9,6 @@ for (const name of ['page.tsx', 'layout.tsx', 'globals.css']) copyFileSync(join(
 copyFileSync(join(users, 'storefront/route.ts'), join(dest, 'app/api/[...path]/route.ts'));
 copyFileSync(join(users, 'storefront/schema.ts'), join(dest, 'db/schema.ts'));
 copyFileSync(join(users, 'storefront/success.tsx'), join(dest, 'app/success/page.tsx'));
-for (const name of ['catalog.mjs', 'releases.json']) copyFileSync(join(users, name), join(dest, 'lib/users', name));
+for (const name of ['catalog.mjs', 'downloads.mjs', 'releases.json']) copyFileSync(join(users, name), join(dest, 'lib/users', name));
 cpSync(join(users, 'commerce'), join(dest, 'lib/users/commerce'), { recursive: true });
 console.log('Updated storefront source; Site identity, credentials and deployment state preserved.');

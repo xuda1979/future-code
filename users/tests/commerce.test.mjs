@@ -49,6 +49,19 @@ test('incomplete platform evidence and missing secrets prevent selling', () => {
   delete f.manifest.assets['windows-x64']; assert.equal(salesReady(f.env, f.manifest), false);
   f.manifest.assets['windows-x64'] = { url: 'http://example.com/file', sha256: 'a'.repeat(64), tested: true }; assert.equal(releaseReady(f.manifest), false);
 });
+test('preview downloads remain available without enabling payment or activation claims', async () => {
+  const f = fixture(); f.manifest.status = 'preview'; f.manifest.sourceRights = { status: 'unverified', evidence: null };
+  const c = await (await handleRequest(new Request('https://product.example/api/catalog'), f.env, f.manifest)).json();
+  assert.equal(c.status, 'preview'); assert.equal(c.salesEnabled, false);
+  assert.deepEqual(Object.keys(c.downloads).sort(), [...PLATFORMS].sort());
+  assert.equal((await f.call('/api/checkout', { plan: 'solo', requestId: crypto.randomUUID() }, { origin: f.env.PUBLIC_ORIGIN })).status, 503);
+  assert.equal(f.calls.length, 0);
+  f.manifest.assets['windows-x64'].url = 'http://example.com/file';
+  f.manifest.assets['macos-x64'].sha256 = 'invalid';
+  f.manifest.assets['macos-arm64'].tested = false;
+  const invalid = await (await handleRequest(new Request('https://product.example/api/catalog'), f.env, f.manifest)).json();
+  assert.deepEqual(Object.keys(invalid.downloads), ['ubuntu-x64']);
+});
 test('checkout uses only server prices and stable idempotency, refuses cross-origin requests', async () => {
   const f = fixture(); const id = crypto.randomUUID();
   assert.equal((await f.call('/api/checkout', { plan: 'solo', requestId: id, price: 1 }, { origin: f.env.PUBLIC_ORIGIN })).status, 200);

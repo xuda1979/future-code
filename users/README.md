@@ -53,8 +53,21 @@ belong in source, installers, email templates or browser code.
    only after Stripe Tax is configured. Verify displayed totals and published
    terms/privacy/refund information. Finally set `SALES_ENABLED=1`.
 
-Until the artifacts and payment setup are ready, the public page displays
-prelaunch status, hides download links and declines checkout without charging.
+Preview archives are published separately from commercial sales. The public page
+shows verified preview downloads with checksums while declining checkout without
+charging. `availableDownloads` does not depend on the payment configuration;
+`releaseReady` and `salesReady` still enforce the commercial launch requirements.
+The preview packages contain compiled CLI executables, not GUI installers. Full
+AI workflows require activation, which is not yet open. Native startup checks
+do not establish end-to-end workflow readiness.
+
+`users-downloads.yml` promotes the four native artifacts from the pinned successful
+build into a permanent GitHub prerelease. It verifies the source run, binary
+checksums and executable formats, restores Unix executable permissions, packages
+startup instructions and provenance, and re-downloads the published archives to
+verify SHA-256. For a new preview, update its source run/commit and version/tag;
+never replace the bytes of an existing published version. Copy the published
+`download-manifest.json` to `users/releases.json` before updating the storefront.
 Webhook processing remains available if sales are subsequently paused so
 existing paid customers can still receive their keys.
 
