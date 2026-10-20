@@ -11,9 +11,9 @@ concurrency:
   group: users-preview-downloads
   cancel-in-progress: false
 env:
-  SOURCE_RUN_ID: '39233458592'
-  SOURCE_SHA: 6ee9161f043b00049fdb078f4c8a5324f9f735de
-  RELEASE_TAG: users-v0.1.0-preview.1
+  SOURCE_RUN_ID: '39366456438'
+  SOURCE_SHA: 025afdfd9afc99d08ce8a7eab00086a9b8e3e314
+  RELEASE_TAG: users-v0.1.0-preview.2
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -30,13 +30,13 @@ jobs:
             const {data: run} = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: Number(process.env.SOURCE_RUN_ID) });
             if (run.conclusion !== 'success' || run.head_sha !== process.env.SOURCE_SHA || run.head_branch !== 'users' || run.event !== 'push' || run.path !== '.github/workflows/users-build.yml') throw new Error('Unexpected source build');
             const {data} = await github.rest.actions.listWorkflowRunArtifacts({ ...context.repo, run_id: run.id });
-            const expected = ['windows-x64', 'ubuntu-x64', 'macos-arm64', 'macos-x64'].map(p => `future-code-${p}-candidate`);
-            if (data.artifacts.length !== 4 || expected.some(n => !data.artifacts.some(a => a.name === n && !a.expired && a.workflow_run.head_sha === process.env.SOURCE_SHA))) throw new Error('Missing or expired native artifact');
+            const expected = ['windows-x64', 'ubuntu-x64', 'macos-arm64', 'macos-x64'].flatMap(p => [`future-code-${p}-candidate`, `future-code-${p}-verification`]);
+            if (data.artifacts.length !== 8 || expected.some(n => !data.artifacts.some(a => a.name === n && !a.expired && a.workflow_run.head_sha === process.env.SOURCE_SHA))) throw new Error('Missing or expired native artifact');
       - uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
           run-id: ${{ env.SOURCE_RUN_ID }}
-          pattern: future-code-*-candidate
+          pattern: future-code-*
           path: dist/download-candidates
       - name: Verify binaries and package executable archives
         run: node users/scripts/package-downloads.mjs
@@ -46,7 +46,7 @@ jobs:
         run: >-
           gh release create "$RELEASE_TAG" dist/downloads/*
           --target "$SOURCE_SHA" --prerelease --latest=false
-          --title "Future Code 0.1.0 preview 1"
+          --title "Future Code 0.1.0 preview 2"
           --notes-file dist/release-notes.md
       - name: Verify published assets
         env:
