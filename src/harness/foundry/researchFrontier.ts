@@ -3,6 +3,7 @@ import { hash, type ResearchOutcome } from "./research.ts";
 import { validateResearchStrategy, type ResearchStrategy, type StrategyObservation } from "./researchStrategy.ts";
 import { validateTheoryGraph, type TheoryGraph } from "./theory.ts";
 import { experimentalDesign } from "./experimentDesign.ts";
+import { selectExperimentBatch } from "./experimentBatch.ts";
 
 export type FrontierState = "ELIGIBLE" | "ASSIGNED" | "FAILED" | "OBSERVED" | "WAITING" |
   "INVALIDATED" | "REFUTED" | "CONFLICTED" | "STALLED";
@@ -134,17 +135,30 @@ export function selectResearchFrontier(s: ResearchStrategy, observations: Strate
   candidates.sort((a, b) => purpose[a.purpose] - purpose[b.purpose] || unlocks[b.id] - unlocks[a.id] ||
     (design ? (design.candidates[b.id].bitsPerMs ?? 0) - (design.candidates[a.id].bitsPerMs ?? 0) : 0) || scores[b.id] - scores[a.id] ||
     cost(a.id) - cost(b.id) || order.get(a.id)! - order.get(b.id)!);
-  for (const c of candidates) {
-    if (design && design.status !== "READY") break;
+  let batchDesign: ReturnType<typeof selectExperimentBatch> | undefined;
+  if (design?.status === "READY") {
+    let priority = 0;
+    const ranked = candidates.map((c, i) => {
+      const previous = candidates[i - 1];
+      if (previous && (previous.purpose !== c.purpose || unlocks[previous.id] !== unlocks[c.id])) priority++;
+      return { id: c.id, line: c.line, priority, costMs: design.candidates[c.id].costMs };
+    });
+    // Only unobserved, live assignments contribute expected future evidence.
+    // Dormant proofs, invalidated work and known results cannot reserve information.
+    const conditioning = [...pending].filter(id => states[id] === "ASSIGNED" && !outcomes.has(id));
+    batchDesign = selectExperimentBatch(s, design.posterior!, ranked, room, conditioning);
+    batch.push(...batchDesign.batch);
+  } else if (!design) for (const c of candidates) {
     if (batch.length >= room) break;
     if (occupied.has(c.line)) continue;
     occupied.add(c.line); batch.push(c.id);
   }
   return { next: batch[0] ?? null, batch, reason: committed >= s.maxExperiments ? "EXPERIMENT_BUDGET_EXHAUSTED" :
     room === 0 ? "FRONTIER_AT_CAPACITY" : design && design.status !== "READY" ? `EXPERIMENT_DESIGN_${design.status}` :
-    batch.length ? "EVIDENCE_DRIVEN_PARALLEL_FRONTIER" : "NO_ELIGIBLE_EXPERIMENT",
+    batch.length ? "EVIDENCE_DRIVEN_PARALLEL_FRONTIER" : batchDesign &&
+      ["STATE_LIMIT", "LIKELIHOOD_TERM_LIMIT"].includes(batchDesign.stopReason) ? `EXPERIMENT_DESIGN_BATCH_${batchDesign.stopReason}` : "NO_ELIGIBLE_EXPERIMENT",
     states, lines, scores, unlocks, activeAssignments, proofStates: Object.fromEntries(Object.keys(theory).map(id => [id,
       states[id] === "OBSERVED" ? (outcomes.get(id)?.has("REFUTED") ? "REFUTED" :
         outcomes.get(id)?.has("SUPPORTED") ? "ESTABLISHED" : "OPEN") : states[id]])),
-    evidenceHash: digest([...unique.keys()].sort()), ...(design ? { design } : {}) };
+    evidenceHash: digest([...unique.keys()].sort()), ...(design ? { design: { ...design, ...(batchDesign ? { batch: batchDesign } : {}) } } : {}) };
 }
