@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "kind": "offline-computational-experiment-allocation",
+  "runtime": "v24.19.0",
+  "baseCommit": "44f34538b5b6358a5d6f6055d97857c318edbba7",
+  "sourceHashes": {
+    "src/harness/foundry/swarm/experimentPipeline.ts": "924d9d9749898616ebf238a44682e4ab34cdc61323ac5a045fe68a24ab373959",
+    "src/harness/foundry/swarm/jobs.ts": "1e85a5a4d6d5865712fa9661225c29339db65b99ddd4aa0cc7394c8d724358fa",
+    "src/harness/foundry/swarm/config.ts": "e87f3defa1736a255526d3a40b52e7bd50fcf424ab26bd1807f34debde075ca0",
+    "src/harness/foundry/swarm/driver.ts": "82d546b49568b1b88aae6810749ec4816f430635fe3f56a9539f86255ad9cfe0",
+    "src/harness/decisionGuidance.ts": "11c0c92a8963dd92f0d65ce3a0c33ee1a9c468bd028fdb02957d345e1f27661a",
+    "scripts/research-job-agent.py": "e181ce10cc1a55b8a6a77ea583aef444bead5fa30364ac261d37ef281e3819dd",
+    "scripts/bench-experiment-pipeline.mjs": "938af48fd6f0bdf47cac36c09407dfd523072e303e050c5ddccf02e2bd39690b"
+  },
+  "workload": "Three fixed coefficients for y=2x; pilot evaluates 16 points, full evaluates 4096; min MSE <= 0.01 promotes; same proposed calls in both policies, including one duplicate full run.",
+  "limitation": "Scripted provider and a small deterministic numerical workload; no live-LLM, GPU/NPU training, or quantum-gpt productivity measurement.",
+  "samples": [
+    {
+      "policy": "call-id-baseline",
+      "pilotExecutions": 3,
+      "fullExecutions": 4,
+      "totalExternalExecutions": 7,
+      "bestFullMse": 0,
+      "acceptedTasks": 1,
+      "independentlyIntegrated": true,
+      "scriptedProviderRequests": 5,
+      "liveModelCalls": 0,
+      "tokens": null,
+      "costUsd": null
+    },
+    {
+      "policy": "reuse-and-promotion",
+      "pilotExecutions": 3,
+      "fullExecutions": 1,
+      "totalExternalExecutions": 4,
+      "bestFullMse": 0,
+      "acceptedTasks": 1,
+      "independentlyIntegrated": true,
+      "scriptedProviderRequests": 5,
+      "liveModelCalls": 0,
+      "tokens": null,
+      "costUsd": null
+    }
+  ]
+}

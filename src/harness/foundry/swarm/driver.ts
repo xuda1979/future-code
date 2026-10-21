@@ -3,6 +3,7 @@ import { verifyResearch } from "./research.ts";
 import { decodeSpawnChildren } from "./spawn.ts";
 import { DeferredAttemptError, PersistedDeferredAttemptError } from "../continuation.ts";
 import { ResearchJobs, type JobRPC } from "./jobs.ts";
+import { experimentPipelineContext } from "./experimentPipeline.ts";
 import { canSliceExploratoryCheckpoint, checkpointInputKey, evaluationEvidenceKey, shouldRunExploratoryCheckpoint } from "./checkpointPolicy.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { schedulerNode } from "../schedulerIndex.ts";
@@ -118,6 +119,9 @@ export class SwarmDriver implements Driver {
         DECISION_GUIDANCE + " " +
         (theoretical ? "Conduct theoretical research by separating definitions, assumptions, conjectures, lemmas, proof attempts and checked deductions. Decompose difficult arguments into explicit obligations; use independent agents for alternative derivations, counterexamples and gap audits. Start with the most informative missing premise. Preserve unresolved gaps and failed approaches in scoped artifacts and claims. Only pinned independent validators can establish the exact target under its allowed assumptions. Numerical agreement, finite search in an infinite domain and reviewer consensus remain exploratory. Use theoretical.items premises as exact checked inputs; unavailable premises block new dependent proof jobs. " : "") +
         (profile.jobs ? "New jobs with configured preflight checks require passing run_check receipts on the current source and evidence. Inspect failed checks and repair before submitting; existing job identities always reconcile. " : "") +
+        (profile.jobs?.some(name => this.cfg.spec.jobs?.[name]?.experiment) ?
+          "Follow the configured experiment pipeline: run the cheap predecessor, inspect its measured outcome, then promote only eligible candidates. Identical source and input reuse the existing job when configured. Include immutable candidate/data/evaluation identities and a distinct seed or replicate ID in input for intended replications. Pipeline rules: " +
+          canonical(experimentPipelineContext(this.cfg, profile.jobs)) + ". " : "") +
         (this.cfg.spec.debugging ? "Host system-state observations outrank prose working hypotheses. Falsify environmental, dependency and interface assumptions with a standalone probe and a negative control before broad edits. A failed probe ends only the current trajectory. " : "") +
         (canSpawn ? "You may use spawn_tasks to divide genuinely independent work; the host owns scheduling, scope, budgets and child acceptance. " : "Do not delegate. ") +
         (profile.tools.includes("save_progress") ? "Before long context retirement, call save_progress with concise current findings, blockers, exact next step, and owned evidence receipts; notes remain unverified. " : "") +
