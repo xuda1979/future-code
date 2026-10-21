@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "name": "finite-program-discovery",
+  "task": {
+    "specification": "Find a compact JavaScript function computing n*n+n for every integer n from 0 through 100 inclusive.",
+    "interface": { "representation": "JSON object with source: a JavaScript arrow function taking n and returning a number" },
+    "checks": ["finite-domain", "repeatability"],
+    "objective": { "metric": "sourceBytes", "direction": "min" },
+    "axes": [{ "metric": "sourceBytes", "boundaries": [16, 32, 64] }]
+  },
+  "search": {
+    "families": 2, "rounds": 3, "migrationInterval": 2, "contextCandidates": 4,
+    "contextBytes": 32768, "candidateBytes": 4096, "outputBytes": 16384,
+    "parallelism": 2, "timeoutMs": 10000
+  },
+  "proposer": { "argv": ["$RUNTIME", "./examples/discovery-search/scripted-proposer.mjs"] },
+  "evaluator": { "argv": ["$RUNTIME", "./examples/discovery-search/evaluator.mjs"] }
+}
