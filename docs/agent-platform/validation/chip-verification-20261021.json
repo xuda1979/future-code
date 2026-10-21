@@ -1,0 +1,530 @@
+{
+  "schema": 1,
+  "date": "2026-10-21",
+  "baseCommit": "53bdf54",
+  "execution": "Actual Icarus RTL simulation and Verilator lint; no model API",
+  "environment": {
+    "python": "3.12.14",
+    "node": "24.19.0",
+    "iverilog": "12.0 (Ubuntu 12.0-2build2)",
+    "verilator": "5.020 (Debian 5.020-1)"
+  },
+  "regressions": {
+    "correctness": {
+      "command": "node scripts/test-correctness.mjs",
+      "status": "PASS",
+      "summary": [
+        "\u2139 tests 71",
+        "\u2139 pass 71",
+        "\u2139 fail 0",
+        "\u2139 skipped 0"
+      ]
+    },
+    "resilience": {
+      "command": "node scripts/test-resilience.mjs",
+      "status": "PASS",
+      "summary": [
+        "\u2139 tests 158",
+        "\u2139 pass 158",
+        "\u2139 fail 0",
+        "\u2139 skipped 0"
+      ]
+    },
+    "foundry": {
+      "command": "node scripts/test-foundry.mjs",
+      "status": "PASS",
+      "summary": [
+        "\u2139 tests 723",
+        "\u2139 pass 723",
+        "\u2139 fail 0",
+        "\u2139 skipped 0"
+      ]
+    },
+    "swarm": {
+      "command": "node scripts/test-swarm.mjs",
+      "status": "PASS",
+      "summary": [
+        "\u2139 tests 425",
+        "\u2139 pass 425",
+        "\u2139 fail 0",
+        "\u2139 skipped 0"
+      ]
+    },
+    "commands": {
+      "command": "node scripts/test-commands.mjs",
+      "status": "PASS",
+      "summary": [
+        "\u2139 tests 100",
+        "\u2139 pass 100",
+        "\u2139 fail 0",
+        "\u2139 skipped 0"
+      ]
+    }
+  },
+  "chipProtocolTests": {
+    "count": 17,
+    "status": "PASS",
+    "realRtlSkipped": false
+  },
+  "independentVerifier": "Rejects failing UVM evidence despite zero-exit wrapper and worker success claim",
+  "limits": [
+    "Named functional bins only; no full-chip signoff claim",
+    "UVM/JUnit/SBY parser tests use fixtures; no live commercial UVM or formal-solver results",
+    "No live-LLM chip productivity measurement"
+  ],
+  "archive": {
+    "path": "examples/chip-verification/evidence/rtl-20261021.tar.gz",
+    "bytes": 82127,
+    "sha256": "a7f13fa0694fc6ec0c395b18291d1d722da181a2aba2245d6e3d61ec625193fb"
+  },
+  "results": {
+    "correctRtl": {
+      "schema": 1,
+      "name": "fifo-regression",
+      "planHash": "ddd30fcddcfda4d83b5facbf0036dc2b8439310ffcbed3cf3d973d8f03a719cf",
+      "inputs": {
+        "examples/chip-verification/rtl/fifo.sv": {
+          "sha256": "2058c4c81e5d6395858260ed672a7c9a22818f11480148ecb05c854374fdf281",
+          "bytes": 848
+        },
+        "examples/chip-verification/tb.sv": {
+          "sha256": "1d6ec5a02105379632e3195270a13963ee3a72d878ad2021a32fcee26281b6df",
+          "bytes": 3278
+        }
+      },
+      "tools": {
+        "/workspace/scratch/83829a2602b9/tools/eda/usr/bin/iverilog": {
+          "sha256": "a6071e4b4a68feafca0c8ee0e6aa275eee9a43a108c62801cfd1eca6eab6d8a3",
+          "bytes": 51640
+        },
+        "/workspace/scratch/83829a2602b9/tools/eda/usr/bin/vvp": {
+          "sha256": "a10bd7d4a0850308ac8c2c98115b6a3084f9be978307610f2a521190c28f4023",
+          "bytes": 1354376
+        },
+        "/workspace/scratch/83829a2602b9/tools/eda/usr/bin/verilator_bin": {
+          "sha256": "25f33046f0055a6982c67cdc55081685a844abb50d044cfda087bd418db9be6c",
+          "bytes": 10993608
+        }
+      },
+      "implementation": {
+        "verify.py": {
+          "sha256": "89c5a8fd82cd41b48699afa73b83a49d7904233ee86d1e0afadcbcf518b85219",
+          "bytes": 1787
+        },
+        "runner.py": {
+          "sha256": "777c28b3a4f63d32a6f293303a59daa5ac5c66d235bbc98a6ec6cb00f0e9cace",
+          "bytes": 10743
+        },
+        "plan.py": {
+          "sha256": "2c2a4b0ba1d62a4bceee513be255d8f7ade232a4e4e64406265d392c05df735f",
+          "bytes": 9130
+        },
+        "evidence.py": {
+          "sha256": "b4f0b0feb61bb8ab74d0e8c063d665a9dfebf73ce2ff64c16d2374d443d52175",
+          "bytes": 4397
+        }
+      },
+      "verdict": "PASS",
+      "inputsChanged": false,
+      "runs": [
+        {
+          "case": "fifo",
+          "seed": 1,
+          "kind": "simulation",
+          "verdict": "PASS",
+          "steps": [
+            {
+              "code": 0,
+              "reason": null,
+              "elapsedMs": 9,
+              "log": "step-0.log",
+              "truncated": false
+            },
+            {
+              "code": 0,
+              "reason": null,
+              "elapsedMs": 11,
+              "log": "step-1.log",
+              "truncated": false
+            }
+          ],
+          "artifacts": {
+            "step-0.log": {
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "bytes": 0
+            },
+            "step-1.log": {
+              "sha256": "30cf32e488bc412ef6293e458fe038ee37d750de79bfce31c1025372a7363159",
+              "bytes": 161
+            },
+            "results.json": {
+              "sha256": "69d84a0a1a4e8a5cba03390ebbe9e89cda07dbf15c70c6055800e5b30d9f9d37",
+              "bytes": 183
+            },
+            "trace.vcd": {
+              "sha256": "662848e0cce843b028f310326f8ea32240cc31327845967e36183899c8fb96ac",
+              "bytes": 87905
+            }
+          },
+          "bins": {
+            "empty": 43,
+            "full": 79,
+            "simultaneous": 117,
+            "overflow": 37,
+            "underflow": 22,
+            "reset": 2
+          },
+          "directory": "/workspace/scratch/83829a2602b9/chip-final-evidence/chip-verification-13cmj4sq/fifo-1",
+          "failed": [],
+          "tests": 2
+        },
+        {
+          "case": "fifo",
+          "seed": 17,
+          "kind": "simulation",
+          "verdict": "PASS",
+          "steps": [
+            {
+              "code": 0,
+              "reason": null,
+              "elapsedMs": 9,
+              "log": "step-0.log",
+              "truncated": false
+            },
+            {
+              "code": 0,
+              "reason": null,
+              "elapsedMs": 10,
+              "log": "step-1.log",
+              "truncated": false
+            }
+          ],
+          "artifacts": {
+            "step-0.log": {
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "bytes": 0
+            },
+            "step-1.log": {
+              "sha256": "faaf3a7e96e830c3cee45d712558fbdf02bc030487ec9c1c03ea0709840fa330",
+              "bytes": 161
+            },
+            "results.json": {
+              "sha256": "4d08da3d095e9e75f45399eb17b50bfc4ee563cd1a39dbe7a53d170b77a886a8",
+              "bytes": 184
+            },
+            "trace.vcd": {
+              "sha256": "0b0080dcbac040e7fc4a5ae4eb7ac00ba866b551de1a33e7416ef3006f65412a",
+              "bytes": 86134
+            }
+          },
+          "bins": {
+            "empty": 76,
+            "full": 58,
+            "simultaneous": 109,
+            "overflow": 24,
+            "underflow": 35,
+            "reset": 2
+          },
+          "directory": "/workspace/scratch/83829a2602b9/chip-final-evidence/chip-verification-13cmj4sq/fifo-17",
+          "failed": [],
+          "tests": 2
+        },
+        {
+          "case": "fifo",
+          "seed": 101,
+          "kind": "simulation",
+          "verdict": "PASS",
+          "steps": [
+            {
+              "code": 0,
+              "reason": null,
+              "elapsedMs": 9,
+              "log": "step-0.log",
+              "truncated": false
+            },
+            {
+              "code": 0,
+              "reason": null,
+              "elapsedMs": 11,
+              "log": "step-1.log",
+              "truncated": false
+            }
+          ],
+          "artifacts": {
+            "step-0.log": {
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "bytes": 0
+            },
+            "step-1.log": {
+              "sha256": "30cf32e488bc412ef6293e458fe038ee37d750de79bfce31c1025372a7363159",
+              "bytes": 161
+            },
+            "results.json": {
+              "sha256": "0490ee4597764502418027a4e2d94ac73981344418c51bdbf146234726909f0a",
+              "bytes": 185
+            },
+            "trace.vcd": {
+              "sha256": "b37531cc9818e5bc1152c4d5865e8617300aa9ca5f0af78c33095591d870ee86",
+              "bytes": 87790
+            }
+          },
+          "bins": {
+            "empty": 72,
+            "full": 59,
+            "simultaneous": 117,
+            "overflow": 33,
+            "underflow": 34,
+            "reset": 2
+          },
+          "directory": "/workspace/scratch/83829a2602b9/chip-final-evidence/chip-verification-13cmj4sq/fifo-101",
+          "failed": [],
+          "tests": 2
+        },
+        {
+          "case": "rtl-lint",
+          "seed": 0,
+          "kind": "lint",
+          "verdict": "PASS",
+          "steps": [
+            {
+              "code": 0,
+              "reason": null,
+              "elapsedMs": 9,
+              "log": "step-0.log",
+              "truncated": false
+            }
+          ],
+          "artifacts": {
+            "step-0.log": {
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "bytes": 0
+            }
+          },
+          "bins": {},
+          "directory": "/workspace/scratch/83829a2602b9/chip-final-evidence/chip-verification-13cmj4sq/rtl-lint-0",
+          "failed": [],
+          "tests": null
+        }
+      ],
+      "coverage": [
+        {
+          "id": "fifo-functional-bins",
+          "verdict": "PASS",
+          "fraction": 1.0,
+          "minimum": 1.0,
+          "bins": {
+            "empty": 191,
+            "full": 196,
+            "simultaneous": 343,
+            "overflow": 94,
+            "underflow": 91,
+            "reset": 6
+          },
+          "uncoveredBins": []
+        }
+      ],
+      "requirements": [
+        {
+          "id": "fifo-behavior",
+          "evidence": "simulation",
+          "verdict": "PASS"
+        },
+        {
+          "id": "lint",
+          "evidence": "lint",
+          "verdict": "PASS"
+        }
+      ],
+      "evidenceDirectory": "/workspace/scratch/83829a2602b9/chip-final-evidence/chip-verification-13cmj4sq",
+      "scope": "Declared RTL/tool contract only; no whole-chip or physical signoff claim"
+    },
+    "negativeControl": {
+      "schema": 1,
+      "name": "fifo-negative-control",
+      "planHash": "b8363422b627e150dd44419b0b51f2464c64f64dea89131009c65eee2c767409",
+      "inputs": {
+        "examples/chip-verification/rtl/fifo_bug.sv": {
+          "sha256": "34b5cac25527f74b48356e8f81598f07996504fec18fd0ff21e4de7ad630828f",
+          "bytes": 891
+        },
+        "examples/chip-verification/tb.sv": {
+          "sha256": "1d6ec5a02105379632e3195270a13963ee3a72d878ad2021a32fcee26281b6df",
+          "bytes": 3278
+        }
+      },
+      "tools": {
+        "/workspace/scratch/83829a2602b9/tools/eda/usr/bin/iverilog": {
+          "sha256": "a6071e4b4a68feafca0c8ee0e6aa275eee9a43a108c62801cfd1eca6eab6d8a3",
+          "bytes": 51640
+        },
+        "/workspace/scratch/83829a2602b9/tools/eda/usr/bin/vvp": {
+          "sha256": "a10bd7d4a0850308ac8c2c98115b6a3084f9be978307610f2a521190c28f4023",
+          "bytes": 1354376
+        }
+      },
+      "implementation": {
+        "verify.py": {
+          "sha256": "89c5a8fd82cd41b48699afa73b83a49d7904233ee86d1e0afadcbcf518b85219",
+          "bytes": 1787
+        },
+        "runner.py": {
+          "sha256": "777c28b3a4f63d32a6f293303a59daa5ac5c66d235bbc98a6ec6cb00f0e9cace",
+          "bytes": 10743
+        },
+        "plan.py": {
+          "sha256": "2c2a4b0ba1d62a4bceee513be255d8f7ade232a4e4e64406265d392c05df735f",
+          "bytes": 9130
+        },
+        "evidence.py": {
+          "sha256": "b4f0b0feb61bb8ab74d0e8c063d665a9dfebf73ce2ff64c16d2374d443d52175",
+          "bytes": 4397
+        }
+      },
+      "verdict": "FAIL",
+      "inputsChanged": false,
+      "runs": [
+        {
+          "case": "fifo",
+          "seed": 1,
+          "kind": "simulation",
+          "verdict": "FAIL",
+          "steps": [
+            {
+              "code": 0,
+              "reason": null,
+              "elapsedMs": 8,
+              "log": "step-0.log",
+              "truncated": false
+            },
+            {
+              "code": 1,
+              "reason": null,
+              "elapsedMs": 4,
+              "log": "step-1.log",
+              "truncated": false
+            }
+          ],
+          "artifacts": {
+            "step-0.log": {
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "bytes": 0
+            },
+            "step-1.log": {
+              "sha256": "854362c2f9c2479e1421e4169d29abab606ac53cb59f375ca3a7a3f512684382",
+              "bytes": 210
+            }
+          },
+          "bins": {},
+          "directory": "/workspace/scratch/83829a2602b9/chip-final-evidence/chip-verification-t7ivrr9v/fifo-1",
+          "error": "TOOL_EXIT",
+          "diagnostic": "VCD info: dumpfile trace.vcd opened for output.\nFATAL: /workspace/scratch/83829a2602b9/future-code/examples/chip-verification/tb.sv:40: post-cycle flag mismatch seed=1 size=3\n       Time: 66000  Scope: tb.tick\n"
+        },
+        {
+          "case": "fifo",
+          "seed": 17,
+          "kind": "simulation",
+          "verdict": "FAIL",
+          "steps": [
+            {
+              "code": 0,
+              "reason": null,
+              "elapsedMs": 8,
+              "log": "step-0.log",
+              "truncated": false
+            },
+            {
+              "code": 1,
+              "reason": null,
+              "elapsedMs": 5,
+              "log": "step-1.log",
+              "truncated": false
+            }
+          ],
+          "artifacts": {
+            "step-0.log": {
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "bytes": 0
+            },
+            "step-1.log": {
+              "sha256": "536bc4ad5d69d57e6b9f7bdbd4fcd54d6efa02105bce8efd204b74097c79d433",
+              "bytes": 211
+            }
+          },
+          "bins": {},
+          "directory": "/workspace/scratch/83829a2602b9/chip-final-evidence/chip-verification-t7ivrr9v/fifo-17",
+          "error": "TOOL_EXIT",
+          "diagnostic": "VCD info: dumpfile trace.vcd opened for output.\nFATAL: /workspace/scratch/83829a2602b9/future-code/examples/chip-verification/tb.sv:40: post-cycle flag mismatch seed=17 size=3\n       Time: 66000  Scope: tb.tick\n"
+        },
+        {
+          "case": "fifo",
+          "seed": 101,
+          "kind": "simulation",
+          "verdict": "FAIL",
+          "steps": [
+            {
+              "code": 0,
+              "reason": null,
+              "elapsedMs": 8,
+              "log": "step-0.log",
+              "truncated": false
+            },
+            {
+              "code": 1,
+              "reason": null,
+              "elapsedMs": 5,
+              "log": "step-1.log",
+              "truncated": false
+            }
+          ],
+          "artifacts": {
+            "step-0.log": {
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "bytes": 0
+            },
+            "step-1.log": {
+              "sha256": "26948e0b130412f13e178f6ab3e322d91f24fbdf219906aea1dd98cbdeb64e07",
+              "bytes": 212
+            }
+          },
+          "bins": {},
+          "directory": "/workspace/scratch/83829a2602b9/chip-final-evidence/chip-verification-t7ivrr9v/fifo-101",
+          "error": "TOOL_EXIT",
+          "diagnostic": "VCD info: dumpfile trace.vcd opened for output.\nFATAL: /workspace/scratch/83829a2602b9/future-code/examples/chip-verification/tb.sv:40: post-cycle flag mismatch seed=101 size=3\n       Time: 66000  Scope: tb.tick\n"
+        }
+      ],
+      "coverage": [
+        {
+          "id": "fifo-functional-bins",
+          "verdict": "UNKNOWN",
+          "fraction": null,
+          "minimum": 1.0,
+          "bins": {
+            "empty": 0,
+            "full": 0,
+            "simultaneous": 0,
+            "overflow": 0,
+            "underflow": 0,
+            "reset": 0
+          },
+          "uncoveredBins": [
+            "empty",
+            "full",
+            "simultaneous",
+            "overflow",
+            "underflow",
+            "reset"
+          ]
+        }
+      ],
+      "requirements": [
+        {
+          "id": "fifo-behavior",
+          "evidence": "simulation",
+          "verdict": "FAIL"
+        }
+      ],
+      "evidenceDirectory": "/workspace/scratch/83829a2602b9/chip-final-evidence/chip-verification-t7ivrr9v",
+      "scope": "Declared RTL/tool contract only; no whole-chip or physical signoff claim"
+    }
+  }
+}

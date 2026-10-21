@@ -1,0 +1,57 @@
+name: chip-verification
+
+on:
+  pull_request:
+    paths:
+      - 'adapters/chip-verification/**'
+      - 'examples/chip-verification/**'
+      - 'tests/chip-verification/**'
+      - 'tests/foundry/chip-verification.test.ts'
+      - 'src/harness/foundry/prepared_commands.py'
+      - '.github/workflows/chip-verification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rtl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install real open-source EDA tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends iverilog verilator
+          iverilog -V
+          verilator --version
+      - name: Protocol adversaries and independent verifier
+        run: node --experimental-strip-types --test tests/foundry/chip-verification.test.ts
+      - name: Real RTL lint and seeded simulation
+        run: |
+          python3 examples/chip-verification/configure.py --output "$RUNNER_TEMP/chip-good" --verilator /usr/bin/verilator
+          python3 adapters/chip-verification/verify.py --plan "$RUNNER_TEMP/chip-good/plan.json" --output "$RUNNER_TEMP/chip-evidence"
+      - name: Deliberate RTL bug must fail, with failed seeds retained
+        shell: bash
+        run: |
+          python3 examples/chip-verification/configure.py --output "$RUNNER_TEMP/chip-bad" --negative-control
+          set +e
+          python3 adapters/chip-verification/verify.py --plan "$RUNNER_TEMP/chip-bad/plan.json" --output "$RUNNER_TEMP/chip-evidence"
+          result=$?
+          set -e
+          test "$result" -eq 1
+      - name: Matched real RTL preparation comparison
+        run: python3 examples/chip-verification/benchmark.py --output "$RUNNER_TEMP/chip-evidence/preparation-benchmark" --seeds 12 --repetitions 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chip-verification-evidence
+          path: ${{ runner.temp }}/chip-evidence
+          if-no-files-found: error

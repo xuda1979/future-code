@@ -1,0 +1,212 @@
+{
+  "schema": 1,
+  "seeds": [
+    1,
+    17,
+    101,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "repetitions": 3,
+  "allEvidenceEqual": true,
+  "compilationsPerRegression": {
+    "per-seed-build": 12,
+    "shared-build": 1
+  },
+  "avoidedCompilationFraction": 0.9166666666666666,
+  "medianWallMs": {
+    "per-seed-build": 108.2569339996553,
+    "shared-build": 91.09792899835156
+  },
+  "trials": [
+    {
+      "trial": 0,
+      "order": [
+        "per-seed-build",
+        "shared-build"
+      ],
+      "arms": {
+        "per-seed-build": {
+          "wallMs": 108.2569339996553,
+          "compilations": 12,
+          "executedSimulations": 12,
+          "commands": 24,
+          "verdict": "PASS",
+          "evidenceDirectory": "/workspace/scratch/83829a2602b9/chip-comparison-current/chip-verification-x1jvzx_8"
+        },
+        "shared-build": {
+          "wallMs": 91.09792899835156,
+          "compilations": 1,
+          "executedSimulations": 12,
+          "commands": 13,
+          "verdict": "PASS",
+          "evidenceDirectory": "/workspace/scratch/83829a2602b9/chip-comparison-current/chip-verification-0ic3lk3y"
+        }
+      }
+    },
+    {
+      "trial": 1,
+      "order": [
+        "shared-build",
+        "per-seed-build"
+      ],
+      "arms": {
+        "shared-build": {
+          "wallMs": 90.907543002686,
+          "compilations": 1,
+          "executedSimulations": 12,
+          "commands": 13,
+          "verdict": "PASS",
+          "evidenceDirectory": "/workspace/scratch/83829a2602b9/chip-comparison-current/chip-verification-54s1ah3d"
+        },
+        "per-seed-build": {
+          "wallMs": 87.84631099842954,
+          "compilations": 12,
+          "executedSimulations": 12,
+          "commands": 24,
+          "verdict": "PASS",
+          "evidenceDirectory": "/workspace/scratch/83829a2602b9/chip-comparison-current/chip-verification-7pfzh4ic"
+        }
+      }
+    },
+    {
+      "trial": 2,
+      "order": [
+        "per-seed-build",
+        "shared-build"
+      ],
+      "arms": {
+        "per-seed-build": {
+          "wallMs": 134.80755099953967,
+          "compilations": 12,
+          "executedSimulations": 12,
+          "commands": 24,
+          "verdict": "PASS",
+          "evidenceDirectory": "/workspace/scratch/83829a2602b9/chip-comparison-current/chip-verification-dkkoptdu"
+        },
+        "shared-build": {
+          "wallMs": 126.45555900235195,
+          "compilations": 1,
+          "executedSimulations": 12,
+          "commands": 13,
+          "verdict": "PASS",
+          "evidenceDirectory": "/workspace/scratch/83829a2602b9/chip-comparison-current/chip-verification-tgl5h96k"
+        }
+      }
+    }
+  ],
+  "inputs": {
+    "examples/chip-verification/rtl/fifo.sv": {
+      "sha256": "2058c4c81e5d6395858260ed672a7c9a22818f11480148ecb05c854374fdf281",
+      "bytes": 848
+    },
+    "examples/chip-verification/tb.sv": {
+      "sha256": "1d6ec5a02105379632e3195270a13963ee3a72d878ad2021a32fcee26281b6df",
+      "bytes": 3278
+    }
+  },
+  "tools": {
+    "/workspace/scratch/83829a2602b9/tools/eda/usr/bin/iverilog": {
+      "sha256": "a6071e4b4a68feafca0c8ee0e6aa275eee9a43a108c62801cfd1eca6eab6d8a3",
+      "bytes": 51640
+    },
+    "/workspace/scratch/83829a2602b9/tools/eda/usr/bin/vvp": {
+      "sha256": "a10bd7d4a0850308ac8c2c98115b6a3084f9be978307610f2a521190c28f4023",
+      "bytes": 1354376
+    }
+  },
+  "implementation": {
+    "verify.py": {
+      "sha256": "8225390359cda8bbcfd8e3eeb8f3384f0db4a9eebfcad696828fe0a1b60c9ee9",
+      "bytes": 2152
+    },
+    "runner.py": {
+      "sha256": "77880ec854695f0fdf4d274f66a4ed81522a146abe47bb0e04de319dd5c46f38",
+      "bytes": 7218
+    },
+    "plan.py": {
+      "sha256": "cee068b0c2ab7e493d049a43b22d022c0a41d532c0301a9869efa9558fc93e01",
+      "bytes": 10203
+    },
+    "evidence.py": {
+      "sha256": "b4f0b0feb61bb8ab74d0e8c063d665a9dfebf73ce2ff64c16d2374d443d52175",
+      "bytes": 4397
+    },
+    "prepared_commands.py": {
+      "sha256": "b152f1b1b90beff4403eb709434d52bf656a1ddff9433e38ad57945a5bf8817e",
+      "bytes": 8878
+    }
+  },
+  "scope": "Measured small real RTL workload; no live-LLM or industrial speedup claim",
+  "date": "2026-10-21",
+  "sourceParent": "1218b4ad7ca82a9e553a9d9b219a094e627e9bb2",
+  "benchmarkScript": {
+    "path": "examples/chip-verification/benchmark.py",
+    "sha256": "60e1c13e0c0b888966d2dd0f1e3c65e4b2cb45da889d58abee9e5970ac7b556f"
+  },
+  "regressions": {
+    "correctness": {
+      "status": "PASS",
+      "command": "node scripts/test-correctness.mjs",
+      "summary": [
+        "\u2139 tests 71",
+        "\u2139 pass 71",
+        "\u2139 fail 0",
+        "\u2139 skipped 0"
+      ]
+    },
+    "resilience": {
+      "status": "PASS",
+      "command": "node scripts/test-resilience.mjs",
+      "summary": [
+        "\u2139 tests 158",
+        "\u2139 pass 158",
+        "\u2139 fail 0",
+        "\u2139 skipped 0"
+      ]
+    },
+    "foundry": {
+      "status": "PASS",
+      "command": "node scripts/test-foundry.mjs",
+      "summary": [
+        "\u2139 tests 723",
+        "\u2139 pass 723",
+        "\u2139 fail 0",
+        "\u2139 skipped 0"
+      ]
+    },
+    "swarm": {
+      "status": "PASS",
+      "command": "node scripts/test-swarm.mjs",
+      "summary": [
+        "\u2139 tests 425",
+        "\u2139 pass 425",
+        "\u2139 fail 0",
+        "\u2139 skipped 0"
+      ]
+    },
+    "commands": {
+      "status": "PASS",
+      "command": "node scripts/test-commands.mjs",
+      "summary": [
+        "\u2139 tests 100",
+        "\u2139 pass 100",
+        "\u2139 fail 0",
+        "\u2139 skipped 0"
+      ]
+    }
+  },
+  "focusedTests": {
+    "pythonChipAndPreparation": 23,
+    "status": "PASS",
+    "realRtlEnabled": true,
+    "skipped": 0
+  }
+}
