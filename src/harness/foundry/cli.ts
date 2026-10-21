@@ -7,6 +7,8 @@ import { evaluate, loadEvaluation, promote, rollback, suggest } from "./evolutio
 import { runTasks } from "./runtime.ts";
 import { Scheduler } from "./scheduler.ts";
 import { Store } from "./store.ts";
+import { discoverySnapshot, initializeDiscovery, runDiscovery } from "./discoveryRuntime.ts";
+import { formatHealth } from "./health.ts";
 import type { Contract, PinnedCommand, Recipe, Task } from "./types.ts";
 
 const usage = `Future Code Harness Foundry (single host)
@@ -22,6 +24,9 @@ const usage = `Future Code Harness Foundry (single host)
   promote  --evaluation ID --confirm
   rollback --to HASH --confirm
   evolve   --protocol FILE --allow-exec [--auto-promote]
+  discovery-init --spec FILE (dedicated state root)
+  discovery-run --allow-exec (new search or resume)
+  discovery-status
 All commands accept --root DIR (default .future-code/foundry).
 Command workers are trusted executables, not sandboxed untrusted plugins.`;
 function args(argv: string[]): { command: string; options: Map<string, string> } {
@@ -55,6 +60,13 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
   };
   try {
     switch (command) {
+      case "discovery-init": initializeDiscovery(store, json(need("--spec"))); print(discoverySnapshot(store)); break;
+      case "discovery-run": {
+        need("--allow-exec");
+        const result = await runDiscovery(store, controller.signal, r => console.error(formatHealth(r)));
+        print(result); if (result.phase !== "COMPLETE" || !result.best) process.exitCode = controller.signal.aborted ? 130 : 2; break;
+      }
+      case "discovery-status": print(discoverySnapshot(store)); break;
       case "init": {
         const spec = json(need("--spec"));
         const worker = pinCommand(spec.worker, process.cwd()); const checker = pinCommand(spec.verifier, process.cwd());
