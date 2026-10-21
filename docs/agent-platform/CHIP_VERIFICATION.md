@@ -8,6 +8,11 @@ default prompt, dependency or chip-specific acceptance rule to the runtime.
 Software, mathematics, ML and scientific experiment configurations keep their
 existing behavior.
 
+The adapter uses the reusable [prepared-command engine](PREPARED_COMMANDS.md):
+compile once per frozen-input verification invocation and fan out all seeds over
+the identified artifact. Chip-specific tools and evidence semantics stay outside
+that general mechanism. Each independent verifier prepares its own build.
+
 ## Run an actual RTL example
 
 Requires Python >=3.10, a POSIX host and Icarus Verilog (`iverilog`, `vvp`). The
@@ -27,6 +32,13 @@ must return FAIL/exit 1. It asserts full at three entries instead of four. Both
 use an independent shift-queue scoreboard, synchronous reset, directed overflow
 and underflow, pointer wrap, simultaneous push/pop and 500 pseudorandom cycles
 for each of seeds 1, 17 and 101. No LLM is used to judge those outcomes.
+
+By default the example performs one compilation for all seeds. Use
+`--per-seed-build` to generate the original repeated-compilation baseline.
+Cases may declare `prepare: {steps, artifacts}`. Preparation cannot depend on
+`{seed}`; it publishes only declared files with checked hashes. Consumer commands
+read them through `{shared}` while writing their own outputs under `{work}`.
+Missing, failed, oversized or changed prepared artifacts block acceptance.
 
 Add `--verilator /absolute/path/to/verilator` to include a mandatory lint case.
 `--iverilog`, `--vvp` and `--ivl-root` support locally extracted toolchains. Every
@@ -143,6 +155,16 @@ Verilator, requires both good and negative-control executions, and uploads raw
 evidence. The existing Foundry suite discovers the Node integration regression,
 which checks that the independent verifier rejects failing UVM evidence despite
 a successful wrapper and a worker's claimed success.
+
+Run the matched preparation-efficiency comparison:
+
+```sh
+python3 examples/chip-verification/benchmark.py --output /tmp/future-chip-comparison --seeds 12 --repetitions 3
+```
+
+Both arms run every seed, requirement and coverage bin. The report records real
+compilation counts, complete evidence equality, alternating run order and CPU
+wall times. It does not claim an industrial or live-LLM speedup.
 
 Primary tool references: [Icarus simulation](https://steveicarus.github.io/iverilog/usage/simulation.html),
 [Verilator](https://verilator.org/guide/latest/),

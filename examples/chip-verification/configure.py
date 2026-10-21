@@ -9,7 +9,7 @@ import sys
 REPO = Path(__file__).resolve().parents[2]
 
 
-def make_plan(project, iverilog, vvp, *, negative=False, ivl_root=None, verilator=None):
+def make_plan(project, iverilog, vvp, *, negative=False, ivl_root=None, verilator=None, share_build=True):
     base = "examples/chip-verification/"
     rtl = base + "rtl/" + ("fifo_bug.sv" if negative else "fifo.sv")
     bench = base + "tb.sv"
@@ -26,6 +26,10 @@ def make_plan(project, iverilog, vvp, *, negative=False, ivl_root=None, verilato
                 "evidence": {"format": "checks-json", "path": "results.json", "checks": ["scoreboard", "reset"]},
                 "artifacts": ["trace.vcd"]}],
             "coverage": [{"id": "fifo-functional-bins", "case": "fifo", "bins": ["empty", "full", "simultaneous", "overflow", "underflow", "reset"], "minimum": 1.0}]}
+    if share_build:
+        case = plan["cases"][0]
+        case["prepare"] = {"steps": [case["steps"].pop(0)], "artifacts": ["sim.vvp"]}
+        case["steps"][0]["argv"] = [arg.replace("{work}/sim.vvp", "{shared}/sim.vvp") for arg in case["steps"][0]["argv"]]
     if verilator:
         plan["cases"].append({"id": "rtl-lint", "seeds": [0], "steps": [
             {"argv": [str(verilator), "--lint-only", "--top-module", "fifo", "{project}/" + rtl], "timeoutMs": 15000}],
@@ -43,13 +47,14 @@ def main():
     parser.add_argument("--ivl-root")
     parser.add_argument("--verilator")
     parser.add_argument("--negative-control", action="store_true")
+    parser.add_argument("--per-seed-build", action="store_true", help="Comparison baseline: compile separately for every seed")
     args = parser.parse_args()
     if not args.iverilog or not args.vvp:
         parser.error("Icarus Verilog is required; install iverilog or provide --iverilog and --vvp")
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     plan = make_plan(REPO, Path(args.iverilog).resolve(), Path(args.vvp).resolve(),
-                     negative=args.negative_control, ivl_root=args.ivl_root, verilator=args.verilator)
+                     negative=args.negative_control, ivl_root=args.ivl_root, verilator=args.verilator, share_build=not args.per_seed_build)
     path = output / "plan.json"
     path.write_text(json.dumps(plan, indent=2) + "\n")
     # This is a new configuration using the ordinary Swarm schema and budgets.
@@ -57,8 +62,9 @@ def main():
     swarm.update(name="chip-verification", project=str(REPO))
     adapter = REPO / "adapters/chip-verification"
     files = [str(adapter / name) for name in ("verify.py", "plan.py", "runner.py", "evidence.py")]
+    files += [str(REPO / "src/harness/foundry/prepared_commands.py")]
     files += [str(path), str(REPO / "examples/chip-verification/tb.sv")]
-    files += list({step["argv"][0] for case in plan["cases"] for step in case["steps"]})
+    files += list({step["argv"][0] for case in plan["cases"] for step in case.get("prepare", {}).get("steps", []) + case["steps"]})
     if args.ivl_root:
         files += [str(p) for p in Path(args.ivl_root).rglob("*") if p.is_file()]
     swarm["checks"] = {"chip": {"argv": [sys.executable, str(adapter / "verify.py"), "--plan", str(path)],

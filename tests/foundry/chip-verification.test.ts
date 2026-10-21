@@ -13,6 +13,7 @@ const repo = fileURLToPath(new URL("../../", import.meta.url));
 const python = executable(process.env.PYTHON ?? "python3");
 const adapter = resolve(repo, "adapters/chip-verification");
 const files = ["verify.py", "plan.py", "runner.py", "evidence.py"].map(name => join(adapter, name));
+files.push(resolve(repo, "src/harness/foundry/prepared_commands.py"));
 
 test("chip report adversaries and optional real RTL regression", () => {
   const result = spawnSync(python, ["-m", "unittest", "discover", "-s", "tests/chip-verification", "-p", "test_*.py", "-v"],

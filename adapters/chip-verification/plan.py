@@ -92,19 +92,33 @@ def validate(plan):
     require(names([c["id"] for c in cases]), "duplicate case IDs")
     total = 0
     for case in cases:
-        fields(case, ["id", "seeds", "steps", "evidence"], ["artifacts"])
+        fields(case, ["id", "seeds", "steps", "evidence"], ["artifacts", "prepare"])
         seeds = case["seeds"]
         require(isinstance(seeds, list) and 0 < len(seeds) <= 256
                 and all(integer(s, 0, 2**31 - 1) for s in seeds) and len(set(seeds)) == len(seeds), "invalid seeds")
         total += len(seeds)
         require(isinstance(case["steps"], list) and 0 < len(case["steps"]) <= 16, "invalid steps")
-        for step in case["steps"]:
+        preparation = case.get("prepare", {})
+        if preparation:
+            fields(preparation, ["steps", "artifacts"])
+            require(isinstance(preparation["steps"], list) and 0 < len(preparation["steps"]) <= 16, "invalid preparation steps")
+            require(isinstance(preparation["artifacts"], list) and 0 < len(preparation["artifacts"]) <= 16
+                    and len(set(preparation["artifacts"])) == len(preparation["artifacts"]), "invalid prepared artifacts")
+            for path in preparation["artifacts"]:
+                relative(path)
+            require(not any("{seed}" in arg or "{shared}" in arg for step in preparation["steps"] for arg in step["argv"]),
+                    "shared preparation cannot depend on a seed or itself")
+        elif "prepare" in case:
+            require(False, "empty preparation is invalid")
+        for step in preparation.get("steps", []) + case["steps"]:
             fields(step, ["argv", "timeoutMs"])
             argv = step["argv"]
             require(isinstance(argv, list) and 0 < len(argv) <= 256
                     and all(isinstance(x, str) and x and "\0" not in x for x in argv)
                     and Path(argv[0]).is_absolute() and "{" not in argv[0], "executable must be absolute")
             require(integer(step["timeoutMs"], 10, plan["timeoutMs"]), "invalid step deadline")
+        require(preparation or not any("{shared}" in arg for step in case["steps"] for arg in step["argv"]),
+                "shared artifact requested without preparation")
         evidence = case["evidence"]
         fmt = evidence.get("format")
         require(fmt in ("checks-json", "junit", "uvm", "sby", "exit-code"), "unknown evidence format")

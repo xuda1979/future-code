@@ -15,6 +15,14 @@ Prefer reading the smallest relevant source/test set. Do not reconstruct current
 
 ## External LLM boundary
 
+Future-Code is project-neutral. Keep field-specific tools, evidence semantics,
+reference models and prompts in optional project adapters/configurations. Shared
+runtime improvements must express reusable execution, resource or evidence
+mechanisms without a built-in chip, quantum, biology or other domain policy.
+Amortize deterministic preparation only within the current frozen-input check;
+independent verification must rebuild its own evidence and reject changed shared
+artifacts. Never use an exploratory cache receipt to skip final acceptance.
+
 Future-Code currently treats LLMs as opaque external API services.
 
 The host may control:

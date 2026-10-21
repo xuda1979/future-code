@@ -28,6 +28,10 @@ def main():
                                         "diagnostic": r.get("diagnostic", "")}
                                        for r in report["runs"] if r["verdict"] != "PASS"][:32],
                           "coverage": report["coverage"], "requirements": report["requirements"],
+                          "preparation": {name: {"verdict": stage["verdict"], "commands": len(stage["steps"]),
+                                                 "error": stage.get("error")}
+                                          for name, stage in report["prepared"].items()},
+                          "sharedArtifactsChanged": report["sharedArtifactsChanged"],
                           "inputsChanged": report["inputsChanged"], "evidenceDirectory": report["evidenceDirectory"]}))
         return {"PASS": 0, "FAIL": 1, "UNKNOWN": 2}[report["verdict"]]
     except Exception as error:

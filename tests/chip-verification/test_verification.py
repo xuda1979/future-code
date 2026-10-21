@@ -15,7 +15,7 @@ ADAPTER = REPO / "adapters/chip-verification"
 sys.path.insert(0, str(ADAPTER))
 from evidence import parse
 from plan import read_json, validate, validate_formal_configs
-from runner import run_plan
+from runner import run_plan, _commands
 
 spec = importlib.util.spec_from_file_location("chip_configure", REPO / "examples/chip-verification/configure.py")
 configure = importlib.util.module_from_spec(spec)
@@ -129,7 +129,7 @@ class ProtocolTests(unittest.TestCase):
             validate_formal_configs(p, folder)
 
 
-class ExecutionTests(unittest.TestCase):
+class ExecutionFixture:
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.addCleanup(self.folder.cleanup)
@@ -142,6 +142,8 @@ class ExecutionTests(unittest.TestCase):
             (self.root / "producer.py").write_text(source)
         return run_plan(self.plan, self.root, self.root / "out")
 
+
+class ExecutionTests(ExecutionFixture, unittest.TestCase):
     def test_seeds_merge_coverage_and_repeated_checks_get_fresh_directories(self):
         report = self.run_fixture()
         self.assertEqual(report["verdict"], "PASS")
@@ -207,6 +209,78 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(report["verdict"], "FAIL")
 
 
+class PreparationTests(ExecutionFixture, unittest.TestCase):
+    """Prepared work is generic; no RTL is needed to exercise its guarantees."""
+    def setUp(self):
+        super().setUp()
+        (self.root / "prepare.py").write_text("from pathlib import Path\nPath('table.txt').write_text('frozen table')\n")
+        self.plan["inputs"].append("prepare.py")
+        self.plan["cases"][0]["prepare"] = {"steps": [{"argv": [sys.executable, "{project}/prepare.py"], "timeoutMs": 1000}],
+                                              "artifacts": ["table.txt"]}
+        self.plan["cases"][0]["steps"][0]["argv"].append("{shared}/table.txt")
+        self.source = PRODUCER + "\nassert Path(sys.argv[2]).read_text() == 'frozen table'\n"
+
+    def test_one_preparation_supplies_all_parameterized_runs(self):
+        report = self.run_fixture(self.source)
+        self.assertEqual(report["verdict"], "PASS")
+        self.assertEqual(len(report["prepared"]["trial"]["steps"]), 1)
+        self.assertEqual([r["seed"] for r in report["runs"]], [1, 17])
+        self.assertTrue(all(r["preparation"] == "trial" for r in report["runs"]))
+        again = self.run_fixture(self.source)
+        self.assertEqual(again["verdict"], "PASS")
+        self.assertNotEqual(report["prepared"]["trial"]["published"], again["prepared"]["trial"]["published"])
+
+    def test_failed_preparation_blocks_every_consumer(self):
+        (self.root / "prepare.py").write_text("raise SystemExit(1)\n")
+        report = self.run_fixture(self.source)
+        self.assertEqual(report["verdict"], "FAIL")
+        self.assertTrue(all(r["error"] == "PREPARATION_FAILED" and not r["steps"] for r in report["runs"]))
+
+    def test_missing_or_oversized_prepared_artifacts_are_unknown(self):
+        for source in ("pass", "from pathlib import Path\nPath('table.txt').write_text('x'*20000)"):
+            (self.root / "prepare.py").write_text(source)
+            report = self.run_fixture(self.source)
+            self.assertEqual(report["verdict"], "UNKNOWN")
+            self.assertTrue(all(not r["steps"] for r in report["runs"]))
+
+    def test_consumer_cannot_change_shared_artifacts_and_claim_pass(self):
+        self.plan["cases"][0]["seeds"] = [1]
+        source = self.source + "\np=Path(sys.argv[2]);p.chmod(0o644);p.write_text('modified')\n"
+        report = self.run_fixture(source)
+        self.assertEqual(report["runs"][0]["verdict"], "PASS")
+        self.assertTrue(report["sharedArtifactsChanged"])
+        self.assertEqual(report["verdict"], "UNKNOWN")
+
+    def test_preparation_cannot_depend_on_a_seed_or_an_undeclared_stage(self):
+        for token in ("{seed}", "{shared}"):
+            plan = copy.deepcopy(self.plan)
+            plan["cases"][0]["prepare"]["steps"][0]["argv"].append(token)
+            with self.assertRaises(ValueError):
+                validate(plan)
+        plan = base_plan()
+        plan["cases"][0]["steps"][0]["argv"].append("{shared}/missing")
+        with self.assertRaises(ValueError):
+            validate(plan)
+
+    def test_generic_stage_supports_nonchip_parameter_names(self):
+        import time
+        root = self.root / "generic"
+        stage = _commands.prepare_stage(self.plan["cases"][0]["prepare"], root,
+            {"PATH": os.environ.get("PATH", "")}, {"project": self.root}, time.monotonic() + 3, 4096, 16384)
+        self.assertEqual(stage["verdict"], "PASS")
+        # This caller uses data/partition labels, no chip/seed/evidence schema.
+        for partition in ("left", "right"):
+            work = self.root / partition
+            work.mkdir()
+            code = "from pathlib import Path;import sys;assert Path(sys.argv[1]).read_text()=='frozen table';print(sys.argv[2])"
+            steps = [{"argv": [sys.executable, "-c", code, "{dataset}/table.txt", "{partition}"], "timeoutMs": 1000}]
+            result = _commands.run_steps(steps, work, {"PATH": os.environ.get("PATH", "")},
+                {"dataset": stage["published"], "partition": partition}, time.monotonic() + 3, 4096)
+            self.assertEqual(result["verdict"], "PASS")
+            self.assertEqual((work / "step-0.log").read_text().strip(), partition)
+        self.assertTrue(_commands.prepared_unchanged(stage, 16384))
+
+
 class RtlIntegrationTests(unittest.TestCase):
     def test_actual_rtl_good_and_deliberate_bug(self):
         ivl = os.environ.get("FUTURE_CHIP_IVERILOG") or shutil.which("iverilog")
@@ -216,13 +290,21 @@ class RtlIntegrationTests(unittest.TestCase):
         ivl_root = os.environ.get("FUTURE_CHIP_IVL_ROOT")
         with tempfile.TemporaryDirectory() as output:
             for negative, expected in ((False, "PASS"), (True, "FAIL")):
-                plan = configure.make_plan(REPO, ivl, vvp, negative=negative, ivl_root=ivl_root)
-                report = run_plan(plan, REPO, output)
-                self.assertEqual(report["verdict"], expected, json.dumps(report))
-                self.assertEqual(len(report["runs"]), 3)
-                if not negative:
-                    self.assertEqual(report["coverage"][0]["fraction"], 1.0)
-                    self.assertTrue(all("trace.vcd" in row["artifacts"] for row in report["runs"]))
+                reports = []
+                for shared in (False, True):
+                    plan = configure.make_plan(REPO, ivl, vvp, negative=negative, ivl_root=ivl_root, share_build=shared)
+                    report = run_plan(plan, REPO, output)
+                    self.assertEqual(report["verdict"], expected, json.dumps(report))
+                    self.assertEqual(len(report["runs"]), 3)
+                    compilations = sum(len(s["steps"]) for s in report["prepared"].values())
+                    compilations += sum(max(0, len(r["steps"]) - 1) for r in report["runs"])
+                    self.assertEqual(compilations, 1 if shared else 3)
+                    if not negative:
+                        self.assertEqual(report["coverage"][0]["fraction"], 1.0)
+                        self.assertTrue(all("trace.vcd" in row["artifacts"] for row in report["runs"]))
+                    reports.append(report)
+                self.assertEqual([[r["verdict"], r["bins"]] for r in reports[0]["runs"]],
+                                 [[r["verdict"], r["bins"]] for r in reports[1]["runs"]])
 
 
 if __name__ == "__main__":
