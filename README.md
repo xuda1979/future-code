@@ -45,6 +45,8 @@ host-owned. Policy recommendations cannot bypass admission or verification.
 - Optional theoretical research contracts: exact proof targets, checked lemma
   dependencies, shared-premise prioritization and revocable deductive knowledge.
 - Scoped worktrees, pinned checks, final integration and resumable agent journals.
+- Optional chip-verification adapters: seeded RTL regressions, UVM/JUnit/SBY
+  evidence, requirement traceability and functional coverage gates.
 - External job identity, reconciliation and cumulative objective budgets.
 - Content-addressed artifacts and immutable event/evidence histories.
 - Versioned hypotheses with retraction, dependency invalidation and explicit conflicts.
@@ -111,6 +113,7 @@ Missing token or dollar measurements remain unknown.
 | Expert seeds and autonomous experience accumulation | [Project knowledge](docs/agent-platform/PROJECT_KNOWLEDGE.md) |
 | Frozen contracts and recipe experiments | [Foundry](docs/agent-platform/FOUNDRY.md) |
 | External-API agents and durable sessions | [Swarm](docs/agent-platform/SWARM.md) |
+| RTL simulation, lint, chip evidence and coverage closure | [Chip verification](docs/agent-platform/CHIP_VERIFICATION.md) |
 | Independent policy proposals during execution | [Workflow policy](docs/agent-platform/WORKFLOW_POLICY.md) |
 | Parallel hypothesis search and evidence-gated delegation | [Research frontiers](docs/agent-platform/research-frontier.md) |
 | Iterative candidate-program search with independent evaluators | [Evaluator-guided discovery](docs/agent-platform/evaluator-guided-discovery.md) |
