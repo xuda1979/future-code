@@ -168,7 +168,9 @@ test("runtime ignores unchecked results, then reconstructs accepted Bayesian obs
   const accepted: any = researchStrategySnapshot(s, cfg, run);
   near(accepted.frontier.design.posterior.a, 0.9); assert.equal(accepted.frontier.design.observations, 1);
   assert.equal(accepted.frontier.design.trust, "CONDITIONAL_ON_OPERATOR_MODEL_NOT_ACCEPTANCE");
-  assert.equal(accepted.candidates[0].allocationScore, accepted.candidates[0].design.bitsPerMs);
+  assert.equal(accepted.frontier.scoring, "CONDITIONAL_INFORMATION_BITS_PER_JOB_MS");
+  assert.equal(accepted.candidates[0].allocationScore, accepted.candidates[0].design.conditionalBitsPerMs);
+  near(accepted.candidates[0].allocationScore, accepted.candidates[0].design.bitsPerMs);
   const reopened = await Store.open(s.root);
   try { assert.deepEqual(researchStrategySnapshot(reopened, cfg, run), accepted); } finally { reopened.close(); }
 }, configure));

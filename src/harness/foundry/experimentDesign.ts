@@ -9,16 +9,24 @@ export interface ExperimentDesign {
   /** Operator-owned likelihoods, frozen with the strategy, never model rewards. */
   likelihoods: Record<string, Record<string, Record<ResearchOutcome, number>>>;
   fallbackCostMs: number;
+  /** Deterministic bounds on exact, greedy batch conditioning. */
+  batch?: { maxStates: number; maxLikelihoodTerms: number };
 }
 
 export function validateExperimentDesign(s: ResearchStrategy): void {
   const d = s.design; if (d === undefined) return;
-  fields(d, ["schema", "hypotheses", "likelihoods", "fallbackCostMs"]);
+  fields(d, ["schema", "hypotheses", "likelihoods", "fallbackCostMs"], ["batch"]);
   invariant(s.frontier && d.schema === 1 && Array.isArray(d.hypotheses) && d.hypotheses.length >= 2 &&
     d.hypotheses.length <= 32 && new Set(d.hypotheses.map(h => h.id)).size === d.hypotheses.length,
     "experimental design requires a frontier and 2..32 unique hypotheses");
   invariant(Number.isFinite(d.fallbackCostMs) && d.fallbackCostMs >= 1 && d.fallbackCostMs <= 3600000,
     "invalid experimental design fallback cost");
+  if (d.batch !== undefined) {
+    fields(d.batch, ["maxStates", "maxLikelihoodTerms"]);
+    invariant(Number.isSafeInteger(d.batch.maxStates) && d.batch.maxStates >= 1 && d.batch.maxStates <= 4096 &&
+      Number.isSafeInteger(d.batch.maxLikelihoodTerms) && d.batch.maxLikelihoodTerms >= 1 &&
+      d.batch.maxLikelihoodTerms <= 4000000, "invalid experimental design batch bounds");
+  }
   const probability = (x: number) => Number.isFinite(x) && x >= 0 && x <= 1;
   for (const h of d.hypotheses) {
     fields(h, ["id", "prior"]); identifier(h.id);

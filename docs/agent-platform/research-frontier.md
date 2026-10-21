@@ -81,8 +81,10 @@ consecutive conversational turns. It pauses optional recommendations for that
 line; it does not prove the approach impossible.
 
 An optional [finite experimental-design model](experimental-design.md) ranks
-eligible candidates by expected information gain per job millisecond within
-the existing purpose and shared-lemma priorities. It reconstructs posterior
+eligible candidates by conditional expected information gain per job millisecond
+within the existing purpose and shared-lemma priorities. Parallel selection
+accounts for overlap with pending jobs and earlier selections in the batch,
+with explicit bounds on exact outcome enumeration. It reconstructs posterior
 weights from accepted evidence, labels cost fallbacks, and suspends optional
 recommendations when evidence contradicts the model or remains conflicted.
 The default policy and scientific acceptance boundary stay unchanged.
