@@ -7,4 +7,5 @@ export const DECISION_GUIDANCE = "Before substantial work, identify the uncertai
   "Revisit the approach when evidence changes or work expands without useful measurement. " +
   "Check uncertain environmental and interface prerequisites with a minimal reproduction. Measure the intended outcome; tool success and activity alone do not establish progress. " +
   "Reuse fresh applicable evidence; do not repeatedly evaluate unchanged inputs or defer an actionable failure for unrelated improvements. " +
+  "For sustained experiments, preserve the best verified artifact and its evaluation contract as an incumbent. Compare new outcomes against it before further expensive work. If progress stalls, revise the tested hypothesis or measurement using observed failures; batch independent variants within resource bounds. " +
   "Use negative results to eliminate hypotheses. Keep straightforward tasks direct, preserve acceptance and budgets, and reconcile existing external work before replacing it.";

@@ -8,6 +8,7 @@ import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { identifier, invariant, positive, validateContract, validateRecipe } from "../kernel.ts";
 import type { CommandSpec, Contract, PinnedCommand, Recipe, SpawnPolicy, Task } from "../types.ts";
 import { WORKFLOW_OPERATIONS, type WorkflowBounds } from "../workflow.ts";
+import { validateExperimentPipelines, type ExperimentPolicy } from "./experimentPipeline.ts";
 
 export const TOOLS = ["list_files", "read_file", "search_files", "write_file", "edit_file", "delete_file", "run_check", "run_probe", "recall", "run_job", "read_job_artifact", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict", "publish_finding", "read_findings", "record_experience", "read_knowledge"] as const;
 export type ToolName = typeof TOOLS[number];
@@ -83,6 +84,8 @@ export interface SwarmBudget {
   maxPatchBytes: number;
 }
 export interface JobTemplate {
+  /** Opt-in identical-input reuse and evidence-gated compute stage promotion. */
+  experiment?: ExperimentPolicy;
   research?: ResearchConfiguration;
   adapter: CommandSpec;
   /** Optional submission gate: exact-source/evidence passing run_check receipts. */
@@ -432,7 +435,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     keys(s.jobs, [], Object.keys(s.jobs));
     positive(Object.keys(s.jobs).length, s.researchStrategy?.frontier ? 256 : 32, "job templates");
     for (const [id, job] of Object.entries(s.jobs)) {
-      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs", "preflightChecks", "research"]);
+      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs", "preflightChecks", "research", "experiment"]);
       if (job.research !== undefined) {
         validateResearchConfiguration(job.research, job.adapter);
         const validators = Object.values(job.research.validators ?? {});
@@ -470,6 +473,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       positive(job.maxConcurrent, Math.min(256, job.maxJobs), "remote concurrency");
     }
   }
+  validateExperimentPipelines(s);
   const researchSpecs = Object.fromEntries(Object.entries(s.jobs ?? {}).filter(([, j]) => j.research).map(([name, j]) => [name, j.research!.spec]));
   validateTheoryTemplates(researchSpecs);
   if (s.researchStrategy) theoryGraph(s.researchStrategy, researchSpecs);

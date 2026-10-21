@@ -6,6 +6,11 @@ this trajectory: no check may have run yet. Future-Code now supports a declared
 measurement cadence and current-evidence prerequisites for new external jobs.
 These are general R&D controls, not project-specific training or benchmark rules.
 
+For remote measurements, [experiment pipelines](EXPERIMENT_PIPELINES.md) add
+source-bound identical-input reuse and numeric promotion thresholds between
+cheap and expensive job stages. They complement local preflight checks while
+keeping task acceptance independent.
+
 ## Configuration
 
 Merge this fragment into a complete Swarm specification before initialization:

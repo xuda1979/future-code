@@ -15,6 +15,7 @@ const result = spawnSync(process.execPath, ["--experimental-strip-types", "--tes
   "tests/foundry/debugging-guardrails.test.ts",
   "tests/foundry/decision-policy.test.ts",
   "tests/foundry/evaluation-cadence.test.ts", "tests/foundry/job-preflight.test.ts",
+  "tests/foundry/experiment-pipeline.test.ts",
   "tests/foundry/scientific-experiments.test.ts",
   "tests/foundry/research-strategy.test.ts",
   "tests/foundry/experiment-design.test.ts",

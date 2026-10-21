@@ -16,6 +16,7 @@ import { abortable } from "./transport.ts";
 import { performance } from "node:perf_hooks";
 import { createHash } from "node:crypto";
 import { theoryPremises } from "./theory.ts";
+import { experimentBinding, experimentPromotion, installExperimentPipelines, recordExperimentInput } from "./experimentPipeline.ts";
 
 /** Host-only polling advice. No effect on remote identity or acceptance. */
 export function nextRemotePollMs(template: Pick<JobTemplate, "pollMs" | "maxPollMs">, idlePolls: number): number {
@@ -139,8 +140,10 @@ export class ResearchJobs {
   readonly journal: SessionJournal;
   readonly cfg: PinnedSwarm;
   readonly rpc: JobRPC;
+  private readonly inFlight = new Map<string, Promise<unknown>>();
   constructor(journal: SessionJournal, cfg: PinnedSwarm, rpc: JobRPC = defaultRPC) {
     this.journal = journal; this.cfg = cfg; this.rpc = rpc;
+    installExperimentPipelines(journal.store);
     journal.store.db.exec(`CREATE TABLE IF NOT EXISTS research_jobs(
       key TEXT PRIMARY KEY, run TEXT NOT NULL, task TEXT NOT NULL, template TEXT NOT NULL,
       input_hash TEXT NOT NULL, created REAL NOT NULL, progress_at REAL NOT NULL,
@@ -234,9 +237,8 @@ export class ResearchJobs {
     const objective = objectiveForRun(store, c.runId);
     invariant(Buffer.byteLength(canonical(input)) <= this.cfg.spec.budget.maxToolOutputBytes, "job input too large");
     if (template.research) invariant(digest(input) === digest(template.research.spec.input), "experiment input differs from frozen research protocol");
-    const binding = digest({ command, template, input, base: this.cfg.baseCommit });
-    const key = template.research ? digest({ run: c.runId, task: c.task.id, name, binding }) :
-      digest({ run: c.runId, task: c.task.id, call: call.id, name });
+    const experiment = experimentBinding(store, this.cfg, c, call);
+    const { key, binding } = experiment;
     if (this.cfg.spec.researchStrategy?.frontier && template.research &&
       !store.db.prepare("SELECT 1 FROM research_jobs WHERE key=?").get(key)) {
       invariant(c.task.research?.includes(name), "frontier experiment requires an admitted task assignment");
@@ -276,7 +278,14 @@ export class ResearchJobs {
     let row = store.transaction(() => {
       this.journal.assertLease(c);
       const old = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key);
-      if (old) { invariant(old.input_hash === binding, "job replay input drift"); return old; }
+      if (old) {
+        invariant(old.input_hash === binding, "job replay input drift");
+        recordExperimentInput(store, this.cfg, c, call, experiment);
+        if (template.experiment?.reuseIdentical) store.event("job.reused", { key, template: name,
+          sourceHash: experiment.sourceHash, terminal: old.result_hash !== null }, c.runId, c.task.id);
+        return old;
+      }
+      const promotion = experimentPromotion(store, this.cfg, c, call, experiment);
       if (template.research?.spec.schema === 2 && template.research.spec.theory)
         theoryPremises(store, this.cfg, c.runId, c.task, template.research.spec);
       for (const requirement of template.research?.spec.schema === 2 ? template.research.spec.planValidation ?? [] : [])
@@ -306,10 +315,13 @@ export class ResearchJobs {
         (key,run,task,template,input_hash,created,progress_at,progress_token,poll_at,failures,job_id,status,result_hash,updated,reconciliation_hash,progress_rank,stale_at,idle_polls)
         VALUES(?,?,?,?,?,?,?,NULL,0,0,NULL,'UNKNOWN',NULL,?,NULL,0,?,0)`)
         .run(key, c.runId, c.task.id, name, binding, now, now, now, now + template.staleMs);
+      recordExperimentInput(store, this.cfg, c, call, experiment);
+      const promotionReceipt = promotion ? store.artifact(promotion) : null;
       const preflightReceipt = preflight ? store.artifact({ ...preflight as object, key, inputHash: binding } as Json) : null;
       if (preflightReceipt) store.db.prepare("INSERT OR IGNORE INTO agent_receipts VALUES(?,?,?)")
         .run(c.runId, c.task.id, preflightReceipt);
       store.event("job.intent", { key, template: name, inputHash: binding, objective,
+        ...(promotionReceipt ? { promotionReceipt } : {}),
         ...(preflightReceipt ? { preflightReceipt } : {}),
         ...(planReceipts.length ? { planReceipts } : {}) }, c.runId, c.task.id);
       return store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
@@ -328,15 +340,27 @@ export class ResearchJobs {
     let raw: unknown;
     try {
       const started = performance.now();
+      let rpcOwner = true;
       // Keep this deadline referenced: a custom adapter may return a pending
       // promise without any I/O handles to keep the process alive until timeout.
       const deadline = new AbortController();
       const timer = setTimeout(() => deadline.abort(), this.cfg.spec.budget.toolTimeoutMs);
       const bounded = createCombinedAbortSignal(signal, { signalB: deadline.signal });
-      try { raw = await abortable(this.rpc(command, this.cfg, request, bounded.signal), bounded.signal); }
+      try {
+        // Cross-process ensure(key) deduplication remains the adapter's duty.
+        // Also coalesce a pending RPC for duplicate calls in this controller.
+        let pending = template.experiment?.reuseIdentical ? this.inFlight.get(key) : undefined;
+        rpcOwner = !pending;
+        if (!pending) {
+          pending = Promise.resolve().then(() => this.rpc(command, this.cfg, request, bounded.signal));
+          if (template.experiment?.reuseIdentical) this.inFlight.set(key, pending);
+        }
+        try { raw = await abortable(pending, bounded.signal); }
+        finally { if (rpcOwner && this.inFlight.get(key) === pending) this.inFlight.delete(key); }
+      }
       finally {
         clearTimeout(timer); bounded.cleanup();
-        onRpc?.(Math.max(0, performance.now() - started));
+        if (rpcOwner) onRpc?.(Math.max(0, performance.now() - started));
       }
     }
     catch (e) {
@@ -372,6 +396,11 @@ export class ResearchJobs {
     }) : null;
     store.transaction(() => {
       this.journal.assertLease(c); const now = Date.now();
+      const current = store.db.prepare("SELECT result_hash FROM research_jobs WHERE key=?").get(key);
+      if (current?.result_hash) {
+        invariant(current.result_hash === receipt, "concurrent job result drift");
+        return;
+      }
       const rank = v.status === "QUEUED" ? 1 : v.status === "RUNNING" ? 2 : terminal ? 3 : 0;
       let changed = rank > Number(row.progress_rank ?? 0);
       if (v.progressToken !== undefined) {

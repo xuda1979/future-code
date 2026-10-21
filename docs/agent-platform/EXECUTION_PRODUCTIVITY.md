@@ -4,6 +4,14 @@ Foundry/Swarm now closes six runtime gaps behind sustained R&D productivity.
 The changes use external model APIs and general task/job contracts; they add no
 project-specific training, hardware or acceptance logic.
 
+[Experiment pipelines](EXPERIMENT_PIPELINES.md) further reduce repeated work:
+reuse identical source/input jobs and promote candidates only after a matching
+cheap-stage metric qualifies. In the [offline local-process comparison](validation/experiment-pipelines-20261021.json),
+full evaluations fell from 4 to 1 and total jobs from 7 to 4, with identical best
+loss and passing independent task/integration checks in both arms. This is a
+fixed numerical workload with a scripted provider; live project gains remain
+unmeasured.
+
 The subsequent [tool batching](TOOL_BATCHING.md) change bounds parallel reads,
 coalesces ordered private edits into one replayable snapshot, and preserves
 effect boundaries before remote job batches.
