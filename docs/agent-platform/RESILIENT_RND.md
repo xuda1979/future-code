@@ -282,6 +282,15 @@ Adapters must really implement remote deduplication; the flag alone cannot make
 an arbitrary submit endpoint safe. The supplied Python endpoint implements this
 with durable records, atomic writes and a per-job execution lock.
 
+Replies are committed against the current job row in a database transaction.
+Concurrent controllers cannot replace an established remote ID. Once a terminal
+receipt is stored, a late nonterminal reply or transport error returns that saved
+result without changing it; conflicting terminal replies still fail closed.
+Lifecycle ranks, previously observed milestones and progress deadlines are merged
+against current durable state, so stale replies cannot reset stalled-job detection.
+When identical experiment calls share one in-flight RPC, that RPC contributes
+one poll or failure observation; additional callers do not multiply retry backoff.
+
 A queued/running job saves the pending tool call and releases the local task slot.
 Other independent agents can proceed. Polling is deterministic code, not model
 reasoning, and does not repeatedly charge tool/model turns. `staleMs` marks a
