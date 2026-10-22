@@ -1,0 +1,43 @@
+\subsection{The separation also occurs in complete epochs}
+Persistent refresh is not the only affected regime. Complete epochs
+partition all obligations into disjoint nonempty waves.
+\begin{theorem}[Complete-epoch information separation]\label{thm:strict-pairwise}
+For any fanout $b\ge6$, $S>0$ and $16/11<H/S<28/17$, two laws on six
+checks partitioned into three nonempty waves have identical population
+singleton and pairwise completion statistics but disjoint unique global
+tree optima. Define
+\[
+ \Delta_P=(28S-17H)/8,\qquad \Delta_Q=(11H-16S)/5.
+\]
+The sharp deterministic pairwise-only regret is
+$\min(\Delta_P,\Delta_Q)$; the sharp randomized minimax regret is
+$\Delta_P\Delta_Q/(\Delta_P+\Delta_Q)$.
+\end{theorem}
+\begin{proof}[Proof sketch; full orbit certificate in the companion analysis]
+Let $G=\{0,1,2,3\}$, $O=\{4,5\}$. A block's type $(g,o)$ counts its
+members from $G,O$. Let $A=(G,\{4\},\{5\})$, and let $B,C,D$ be uniform
+over partitions with block-type multisets respectively
+\begin{align*}
+ B&:\{(2,1),(2,0),(0,1)\},\\
+ C&:\{(2,1),(1,1),(1,0)\},\\
+ D&:\{(2,0),(1,1),(1,1)\}.
+\end{align*}
+Take $P=7A/8+B/8$, $Q=9A/10+C/20+D/20$.
+Within-$G$ same-wave probabilities are $11/12$, cross probabilities
+$1/32$, and the $O$ pair probability zero in both laws. Uniformly
+permuting wave order aligns every window-specific first/second moment.
+
+Contraction strictly improves every nonroot binary or ternary internal
+node throughout the stated price interval. With only six leaves, this
+reduces all potentially optimal shapes to a flat root or one internal
+child. Exact counting over the remaining coverage orbits leaves only
+flat and the tree grouping $G$ nondominated. Their cost differences are
+$\Delta_P$ and $-\Delta_Q$. Mixing these two actions and equating their
+regrets gives the stated minimax result. The companion analysis supplies
+the contraction inequalities and all orbit coefficients; an independent
+exact reference checks all 2,752 labeled unordered trees.
+\end{proof}
+At the implemented prices the two wrong-choice penalties are 32 and
+102.4 bytes; randomized minimax regret is $512/21$ bytes. This constructed
+law has variable-width windows. The next result connects it to fixed-eight
+batching without claiming a global 24-leaf optimum.

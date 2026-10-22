@@ -1,0 +1,73 @@
+\subsection{Fixed-width batches retain a local information gap}
+The previous theorem allows variable window widths. The following lift
+connects the information limit to the evaluated eight-completion flush.
+Its conclusion concerns two fixed feasible layouts; it does not assert
+global optimality over all trees of the enlarged registry.
+
+\begin{lemma}[Uniform equal-width padding]\label{lem:padding}
+Let a random partition of $n$ original checks have $q$ blocks of size at
+most $w$. Add $F=qw-n\ge2$ distinct filler checks, uniformly allocating
+them to the block deficits. If $p_{ij}$ is the original probability that
+$i,j$ share a block, then the same-block probabilities are
+\begin{align}
+ p_{if}&=\frac{w-1-\sum_{j\ne i}p_{ij}}{F},\label{eq:filler-one}\\
+ p_{fg}&=\frac{qw(w-1)-(2w-2)n+2\sum_{i<j}p_{ij}}{F(F-1)}
+ \quad(f\ne g).\label{eq:filler-two}
+\end{align}
+Thus identical original pairwise probabilities imply identical pairwise
+probabilities on the padded registry.
+\end{lemma}
+\begin{proof}
+If $i$ lies in a block of size $k$, its block receives $w-k$ fillers,
+so a named filler joins it with probability $(w-k)/F$.
+Taking expectations and using
+$\E(k-1)=\sum_{j\ne i}p_{ij}$ gives~\eqref{eq:filler-one}.
+For distinct fillers the conditional probability is
+$\sum_{a=1}^q(w-k_a)(w-k_a-1)/[F(F-1)]$.
+Expand the numerator and use $\sum_a k_a=n$ and
+$\E\sum_a k_a(k_a-1)=2\sum_{i<j}p_{ij}$ to obtain
+\eqref{eq:filler-two}. Original pair memberships are unchanged.
+\end{proof}
+
+\begin{proposition}[Fixed-eight candidate-class separation]\label{prop:fixed-eight}
+For $b\ge6$ and the price interval of Theorem~\ref{thm:strict-pairwise},
+there are two laws on complete 24-check execution sequences with identical
+population bivariate completion-rank distributions, but opposite preferred
+choices in a two-layout candidate class under consecutive batches of eight.
+The two wrong-choice penalties remain $\Delta_P,\Delta_Q$; the class-relative
+sharp randomized minimax regret is
+$\Delta_P\Delta_Q/(\Delta_P+\Delta_Q)$.
+\end{proposition}
+\begin{proof}
+Apply Lemma~\ref{lem:padding} to the six-check laws with $q=3,w=8,F=18$.
+Their largest original block has size four. Original--filler probabilities
+are $67/288$ for $G$ and $55/144$ for $O$; filler--filler probability is
+$191/612$, in both worlds. Uniformly permute the three blocks and
+independently shuffle the eight members of each. For two distinct checks
+with same-block probability $p$, the probability of any specified pair of
+distinct completion ranks is $p/[qw(w-1)]$ if the ranks lie in one batch,
+and $(1-p)/[q(q-1)w^2]$ otherwise. Singleton ranks are uniform. Hence every
+bivariate rank distribution agrees, while grouping consecutive ranks by
+eight recovers the padded partition exactly.
+
+Place the original six checks below one child of a common root and a fixed
+feasible filler-only tree below its other child. The two candidate layouts
+use respectively the flat six-leaf subtree and $T_G$ from
+Theorem~\ref{thm:strict-pairwise}. The root and filler subtree contribute
+the same cost to both choices within each world, including construction.
+The original subtree's touched windows are unchanged. Subtracting the
+common terms preserves $\Delta_P$ and $\Delta_Q$, and the same two-action
+minimax calculation applies. Common costs need not agree between worlds.
+\end{proof}
+
+At the implemented prices, the wrong-choice penalties are 32 and 102.4
+bytes and the class-relative randomized penalty is $512/21$ bytes.
+The exact reference enumerates all 740 and 2,540 positive-mass padded
+partitions in the smaller $w=4,F=6$ instance, independently checks the
+pairwise formulas, and checks actual batching and packet costs on 600
+complete 24-check sequences. Thirty tests cover these identities and
+deliberate corruptions. Enumeration and representative sequence conformance support the
+implementation; the padding and cancellation arguments establish the
+general claim. Neither this construction nor its rank equivalence implies
+that empirical pairwise-summary vectors have identical joint laws, or
+that the two embedded layouts are globally optimal on 24 checks.

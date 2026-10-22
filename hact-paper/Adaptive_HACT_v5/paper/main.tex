@@ -4,7 +4,7 @@
 \usepackage{amsmath,amssymb,amsthm,microtype}
 \usepackage{lmodern}
 \usepackage{booktabs,tabularx,array,graphicx,xcolor}
-\usepackage{algorithm,algpseudocode,enumitem}
+\usepackage{enumitem}
 \usepackage{float}
 \usepackage{tikz}
 \usetikzlibrary{positioning,arrows.meta,fit}
@@ -15,7 +15,7 @@
 \def\UrlBreaks{\do\.\do\@\do\\\\\do\/\do\_\do\|\do\-\do\+\do\=\do\#\do\$\do\%\do\^\do\&\do\*\do\~\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z\do\A\do\B\do\C\do\D\do\E\do\F\do\G\do\H\do\I\do\J\do\K\do\L\do\M\do\N\do\O\do\P\do\Q\do\R\do\S\do\T\do\U\do\V\do\W\do\X\do\Y\do\Z}
 \makeatother
 \usepackage{fancyhdr}
-\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Research manuscript v10.0}\fancyfoot[C]{\thepage}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small Adaptive HACT}\fancyhead[R]{\small Author review v14.0}\fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}\setlength{\parskip}{3pt}\setlength{\emergencystretch}{2em}
 \newtheorem{theorem}{Theorem}\newtheorem{proposition}[theorem]{Proposition}\newtheorem{lemma}[theorem]{Lemma}
 \theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
@@ -27,7 +27,7 @@
 \author{Da Xu \and Fei Wang}
 \date{\small China Mobile Research Institute\\
 Corresponding author: Da Xu, \href{mailto:xudayj@chinamobile.com}{\texttt{xudayj@chinamobile.com}}\\[3pt]
-October 2026 \quad | \quad Research manuscript v10.0}
+October 2026 \quad | \quad Author review v14.0}
 \input{generated_v9/macros.tex}
 \begin{document}
 \maketitle
@@ -38,10 +38,14 @@ separates a protected semantic registry and canonical checker outcomes from
 an adaptive certificate tree. Stable identities and local generation fencing
 preserve authorization through permutation and migration under explicit
 trust assumptions. Completion sets determine ancestor-packet refresh cost.
-We prove that even exact singleton and pairwise statistics cannot identify a
-globally optimal tree: two nine-check distributions have identical pairwise
-statistics but disjoint optimum sets under the implemented packet prices.
-An independent all-topology reference checks this witness. A fixed-order
+We prove for every fanout at least three and every affine positive-slot
+packet price that exact singleton and pairwise statistics can have disjoint
+global tree optima; a sharp minimax bound quantifies the information penalty.
+An independent all-topology reference checks parameterized witnesses. Under
+exchangeable complete batches, an exact size-state reference optimizes all
+tree shapes and permutations in $O(bn^2)$ arithmetic operations; this
+model-specific null baseline specializes established tree optimization.
+A fixed-order
 dynamic program provides an exact conditional reference; the practical
 compiler uses pairwise seriation and independent validation. Frozen clustered
 workloads show held-out padded-byte reductions of 23.43\%, 10.75\%, and 5.56\%;
@@ -51,8 +55,13 @@ twelve archived candidates reduces compressed hierarchical streams by
 and indexed-ledger services agree with an archived-record oracle in all
 \VnineOracleMatches{} comparisons. Their answer bytes are equal by construction
 under common deterministic encoding, so this protocol cannot establish a
-bandwidth advantage. Local timings remain descriptive, and the archived
-ablation demonstrates no beyond-pairwise algorithmic gain. The results support
+bandwidth advantage. A new six-project cohort records 30 suite runs and 151,380 check executions.
+Bounded full-wave refinement has small primary gains, larger secondary gains,
+and losses on partial source-transplant traces; maintained-counter ledgers
+remain faster for the fixed diagnostic requests. Local timings are descriptive.
+The exact symmetric baseline beats frozen full-wave refinement on all 15
+item-shuffled interventions and loses on all 15 file-group interventions;
+it also loses on the original repeated-order holdouts. The results support
 semantics-preserving layout adaptation and its packet-cost model; comparative
 diagnostic utility and agent-productivity benefits require further evidence.
 \end{abstract}
@@ -135,8 +144,9 @@ construction, with a conditional authorization invariant through migration.
 \item A completion-set packet-cost model, a fixed-order exact reference,
 and a practical pairwise-seriation compiler with validation against the incumbent.
 An all-topology separation establishes that pairwise statistics cannot in
-general identify an optimum; it does not establish a practical
-beyond-pairwise algorithmic advantage.
+general identify an optimum. Under exchangeability, an exact size-state
+baseline instead finds a global optimum without learning. Neither result
+establishes a practical beyond-pairwise algorithmic advantage.
 \item An auditable evaluation separating within-format byte savings from
 query-service costs, with independent reference answers, actual cache queries,
 strict paging, and separate resource accounting against an indexed flat ledger.
@@ -162,6 +172,14 @@ Test prioritization seeks earlier fault exposure~\cite{rothermel}; regression-te
 \paragraph{Seriation and authenticated layouts.}
 Spectral seriation orders items using an affinity matrix~\cite{atkins}. Average-linkage clustering likewise provides an established proximity-based ordering. Generalized alphabetic-tree optimization supplies the subtree/forest recurrence used here~\cite{alphabetic}. Workload-adaptive authenticated structures, including Huffman--Merkle Trees~\cite{hmt}, already optimize layouts under access patterns. Our price counts repeated completion-frontier updates, including strict-epoch construction, under a fixed packet cap. Pairwise affinity proposes an order; full hyperedge observations score it. No global optimality or unproved NP-hardness result is claimed for unrestricted joint ordering and tree synthesis.
 
+Graham, Li and Yao optimize batch-update group-key trees with expected
+touched-ancestor cost under independent Bernoulli replacements~\cite{graham2007}.
+Their cardinality-based dynamic programming is close prior art. Our
+fixed-size without-replacement completion law, affine capped packet price
+and cold charge define a different specialization of that established
+principle. The information lower bounds and semantic migration contract
+are separate claims.
+
 \begin{table}[t]\centering\small
 \caption{Mechanism comparison with Huffman--Merkle Trees (HMT)~\cite{hmt}.
 The security and query services differ; no direct performance superiority is claimed.}
@@ -184,7 +202,14 @@ objective. Its free tree shapes, packet arities and absence of balance
 constraints differ from those partitioning formulations. Their hardness
 results therefore do not establish hardness for HACT. The model-specific
 separation below establishes an information limit of pairwise summaries,
-rather than priority for the general use of hyperedges.
+rather than priority for the general use of hyperedges. Similarity-based
+hierarchical clustering already has explicit pairwise objectives~\cite{dasgupta},
+and constrained clustering explicitly includes a three-hypergraph hierarchy
+objective~\cite{hyperhierarchy}. The latter charges triplet separations
+using least-common-ancestor cluster sizes. HACT charges every touched node
+using its arity-dependent packet price, with construction and migration.
+These distinct objectives do not transfer approximation or hardness results
+automatically.
 
 \paragraph{Online decisions with switching costs.}
 Fixed-share learning tracks changing experts~\cite{herbster}; dependent sampling reduces switches compared with independent weighted-majority draws~\cite{geulen}. Full-information and bandit switching-cost settings have different achievable regret guarantees~\cite{cesa}. We use the full-information setting because one recorded completion wave can be scored against every frozen certificate layout without reexecuting the tests. This is not full counterfactual feedback for arbitrary agent strategies: if a layout changes the tests' execution schedule or model behavior, our exogenous-cost assumption may fail. Our bound specializes established tools to measured layout-installation costs; it is not a new minimax online-learning result.
@@ -250,7 +275,9 @@ On IDs $\{0,1,2\}$, let $P$ be uniform on $\emptyset,\{0,1\},\{0,2\},\{1,2\}$ an
 This elementary parity construction is not a new fact about higher-order
 statistics. The following extension establishes the stronger optimization
 consequence under the packet prices actually used by the artifact.
-\input{pairwise_separation.tex}
+\input{generalized_separation.tex}
+\input{strict_separation.tex}
+\input{fixed_batch_separation.tex}
 
 \section{Learning Layouts Without Changing the Contract}\label{sec:compiler}
 \subsection{Practical catalogue and full-wave selection}
@@ -285,7 +312,7 @@ Every feasible root has an arity and a contiguous partition of its interval. Its
 This is a specialization of classical alphabetic-tree optimization~\cite{alphabetic}. The historical three-proposal reference multiplies compilation time by a constant, not by $n!$. Dense spectral computation can itself cost $O(n^3)$; the reference clustering implementation uses $O(n^2\log n)$ heap operations and $O(n^2)$ storage.
 
 \begin{proposition}[Validation after learned ordering]\label{prop:validation}
-Condition on a training set that fixes $K$ complete layouts. For $m$ independent identically distributed validation epochs with each layout cost in $[0,B]$, let $\widehat L$ minimize empirical validation cost. With probability at least $1-\delta$,
+Condition on a training set that fixes $K$ complete layouts. For $m$ independent identically distributed validation epochs, independent of the training set, with each layout cost in $[0,B]$, let $\widehat L$ minimize empirical validation cost. With probability at least $1-\delta$,
 \begin{equation}
  J(\widehat L)\le\min_{L\in\mathcal C}J(L)+2B\sqrt{\frac{\log(2K/\delta)}{2m}}.
 \end{equation}
@@ -296,6 +323,9 @@ The guarantee is only relative to the fixed catalogue. It neither justifies choo
 
 \subsection{Compiler identity and scope}
 The practical default has no hidden microtree optimization. Exact DP is a reference and optional offline candidate. The block-backbone proposition and implementation remain in Appendix~\ref{sec:block} solely as an ablation; its restricted-class exactness does not override the observed simpler-baseline advantage. At 1,024 checks, order learning still takes seconds in our measurement, so layouts should be cached and compiled away from the agent's per-action path. Validation of padded costs does not optimize compressed archives or model tokenization; adoption must measure the actual delivery representation.
+
+\input{bounded_refinement.tex}
+\input{exchangeable_optimum.tex}
 
 \section{Practical Online Selection: Price the Window, Not the Promise}\label{sec:online}
 Freeze a compiled catalogue $\mathcal C=\{L_1,\ldots,L_K\}$. At event $t$, choose a layout before observing the current completion wave; afterwards score that same wave under every catalogue member. This is full-information feedback only because the check schedule is held fixed. It is not counterfactual feedback for arbitrary agent behavior.
@@ -325,23 +355,24 @@ tracking analysis appears in Appendix~\ref{app:tracking}, with the negative
 results retained. Neither the appendix bound nor this empirical comparison
 establishes general superiority over other switching-cost policies.
 
-\begin{algorithm}[t]
-\caption{Deployable evidence control; inference and checking remain separate}
-\begin{algorithmic}[1]
-\Require Protected registry, checker and snapshot identities; frozen layout catalogue
-\For{each event}
- \State Choose from past evidence using Equation~\eqref{eq:window}, or keep the frozen layout
- \If{layout changes}
-  \State Revoke tickets, increment generation, remap stable IDs, rebuild and price the installation
- \EndIf
- \State Receive trusted completion records for the fixed check schedule
- \State Reject stale, conflicting or malformed records; aggregate bounded packets
- \State Publish only the complete current contract result; otherwise retain FAIL/UNKNOWN
- \State Expose a root-status card; retrieve diagnostic packets only when needed
- \State Score the observed event and append its cost vector to the bounded window
-\EndFor
-\end{algorithmic}
-\end{algorithm}
+\begin{figure}[t]
+\centering\begin{minipage}{.94\linewidth}
+\hrule\medskip
+\textbf{Per-event evidence control.} Require the protected registry, checker
+and snapshot identities and a frozen layout catalogue.
+\begin{enumerate}[leftmargin=1.8em,itemsep=2pt,topsep=3pt]
+\item Choose a layout from past evidence using Equation~\eqref{eq:window}, or keep the incumbent.
+\item If the layout changes, revoke tickets, advance the generation, remap stable IDs, rebuild and charge the installation.
+\item Receive trusted completion records for the fixed check schedule.
+\item Reject stale, conflicting or malformed records and aggregate bounded packets.
+\item Publish only a complete current-contract result; otherwise retain FAIL/UNKNOWN.
+\item Expose root status and retrieve diagnostics on demand.
+\item Score the observed event and append its cost vector to the bounded window.
+\end{enumerate}
+\medskip\hrule
+\end{minipage}
+\caption{Deployable evidence control. Inference, checking and semantic authority remain separate.}
+\end{figure}
 
 \section{Stable Evidence Through Permutation and Migration}\label{sec:safety}
 A result token carries $(\mathrm{epoch},g_i,b_i)$, where $b_i$ binds the semantic ID to the registry, source snapshot, checker, and environment. It does not carry a display position as its identity. A layout-specific kernel maps stable IDs to current positions. During migration it rebuilds from canonical trusted records; it never transplants an ordinal cache entry into a different permutation.
@@ -380,6 +411,13 @@ A different scalar objective could combine these quantities only with declared u
 \input{evaluation_v5.tex}
 \input{v7_comparison.tex}
 \input{evaluation_v8.tex}
+\section{New Public-Software Validation}\label{sec:v11evaluation}
+\input{v12_followup_protocol.tex}
+\input{v12_journal_results.tex}
+\section{Conditional Adoption from Independent Calibration}
+\input{adoption_rule.tex}
+\input{v13_results.tex}
+\input{v14_results.tex}
 \input{discussion.tex}
 \input{availability.tex}
 \input{references.tex}
