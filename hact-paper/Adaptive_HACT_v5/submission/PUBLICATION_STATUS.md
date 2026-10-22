@@ -1,50 +1,47 @@
-# PR #76: observation publication blocks the evidence check
+# HACT v14 public evidence release
 
-The manuscript, source, tests and independent audits are published for review.
-The PR is open and ready for review, but its required evidence check has not
-passed. On commit `e2bdb019d4692ed38c1454f1b8034573ec9682d6`, the full HACT
-suite reported 772 passes, 29 failures and 14 errors. All 43 failures/errors
-were missing-file errors for archived observations or the v12 independent report.
-Refreshing the source-only release manifest did not restore those inputs.
+PR #76 contains the manuscript, source, tests and complete observation inputs
+required by its evidence workflow. The author explicitly authorized public
+release of the 31.1 MB archive, including its logs and host metadata, the required
+v12 independent audit report and observation/release inventories.
 
-The restoration helper now has a strict `--require-index` mode used by CI.
-An absent observation index is a hard error before the suite runs. Manifest
-refresh also refuses to proceed without that inventory. These changes preserve
-all required evidence checks; they do not turn missing records into passes.
-
-The minimum retained inputs needed to finish the fix are:
+## Exact retained inputs
 
 - The 53 parts under `data/observations/observations.zip.part0000` through
-  `part0052`, assembled into **31,138,565 bytes** of ZIP data.
+  `part0052` assemble into **31,138,565 bytes** of ZIP data.
 - Archive SHA-256:
   `5b003c2566df152e77fef9e0af8f4caace4a446a9fa3bc5e7ce708feda65f35d`.
-- `OBSERVATION_ARCHIVE.json`, binding all part hashes and all 522 original
-  files under `results/v11`, `v12`, `v13` and `v14`.
-- `.ai-loop/v12/reports/independent_followups.json`, the retained numeric
+- `OBSERVATION_ARCHIVE.json` binds every part and all **522 original files**
+  under `results/v11`, `v12`, `v13` and `v14` by path, size and SHA-256.
+- `.ai-loop/v12/reports/independent_followups.json` retains the numeric
   independent audit report required by the v12 tests and audit.
-- Updated `RELEASE_FILES.txt` and `RELEASE_MANIFEST.json` covering the complete
-  restored inputs and current source, without rebaselining any observation.
+- `RELEASE_FILES.txt` and `RELEASE_MANIFEST.json` cover current source and every
+  restored observation, including copies intentionally ignored by Git.
 
-The archive contains mathematical/synthetic results, public-project test
+The observations contain mathematical/synthetic results, public-project test
 registries and outcomes, timings, logs, source hashes and environment/version
-metadata. Original host paths and test-fixture strings remain in the records
-so their hashes stay unchanged. Publishing it to this public repository would
-make these records publicly accessible. The full author-review package already
-preserves them privately.
+metadata. Original host paths and test-fixture strings remain unchanged so
+existing evidence hashes and provenance checks remain valid. This restoration
+adds no checker execution or new measured result. Packaging's resource exclusion,
+the six initial VOID schedule runs and the retained negative results remain.
 
-Automatic approval review rejected the archive upload again during this CI
-repair because the request to fix checks did not explicitly authorize disclosure
-of that private payload. No alternate upload transport is used. Explicit
-approval to publish the inputs listed above is required before the remote
-check can reproduce the complete local verification.
+## Verification contract
+
+Run `python tools/hydrate_observations.py --require-index` before tests or audits.
+It rejects an absent index, missing or changed archive parts, altered restored
+observations, unsafe paths and symlinks. Restoration is offline and resumable.
+The release-manifest check independently verifies each listed file. Manifest
+refresh refuses a missing observation inventory or altered packed records;
+refreshing an inventory cannot substitute for restoring required observations.
+
+The prepared complete release passed all **818 HACT tests** and all **22 workflow
+audit/control commands** locally. A clean snapshot restored all 522 original
+observations, verified **3,452 release files**, passed all **38 focused v14 tests**
+and passed the independent v12 audit. Remote CI status is reported separately
+on [PR #76](https://github.com/xuda1979/future-code/pull/76).
 
 Historical v11–v13 release inventories and other internal revision notes are
-outside this minimum CI fix and remain private. Their publication is not needed
-to run the current independent audits. The public source-only manifest binds
-only its listed published files; it cannot establish observation completeness.
-
-After approval, publish the exact indexed parts and required report, refresh the
-complete release inventory, and run the full suite, historical/current audits
-and service/source controls. Report the remote result separately from local
-validation. Do not skip or weaken these gates. Journal submission remains
-subject to author review and factual declarations.
+outside this CI repair and remain in the full author-review package. They are
+not required by the current independent audits. All scientific checks and
+acceptance boundaries remain intact. Journal submission remains subject to
+author review and factual declarations.

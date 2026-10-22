@@ -7,11 +7,10 @@ installation is delegated to the included GitHub Actions workflow.
 
 ## Restore, verify, test
 
-The complete author-review package stores the v11–v14 raw observations in a
-lossless split ZIP under `data/observations`. Those parts and their index are
-currently absent from PR #76 pending explicit publication approval; see
-[`PUBLICATION_STATUS.md`](../submission/PUBLICATION_STATUS.md). Hydration
-is offline and requires only the
+The public release stores all 522 v11–v14 raw observations in a lossless split
+ZIP under `data/observations`. The assembled archive is 31,138,565 bytes; see
+[`PUBLICATION_STATUS.md`](../submission/PUBLICATION_STATUS.md) for its hash and
+release scope. Hydration is offline and requires only the
 standard library. It verifies all parts, the assembled archive, exact member
 inventory and each original file. Existing matching files are retained; different
 files and symlink paths reject. Interrupted restoration is safely resumable.
@@ -29,13 +28,13 @@ PYTHONPATH=. python -m experiments_v14.report --check
 
 `--require-index` rejects a source-only checkout immediately rather than reporting
 that restoration was unnecessary. `OBSERVATION_ARCHIVE.json` binds every original
-path, size and SHA-256. The complete release manifest independently includes every
+path, size and SHA-256. The release manifest independently includes every
 restored path as well as all archive parts. Ignoring the hydrated copies in Git
-does not exclude them from integrity checks. The source-only public manifest
-does not establish evidence completeness. Do not refresh a manifest to fix
+does not exclude them from integrity checks. Do not refresh a manifest to fix
 missing observations: the refresh refuses a missing index or changed packed
 observations. The v12 independent audit also requires the retained numeric report
-`.ai-loop/v12/reports/independent_followups.json`; its producer and audit must
+`.ai-loop/v12/reports/independent_followups.json`, included in this release;
+its producer and audit must
 agree without replacing the archived measurement records.
 
 The v14 producer checks 70 exact small cases and re-encodes previously retained

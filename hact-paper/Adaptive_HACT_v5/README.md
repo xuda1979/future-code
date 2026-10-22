@@ -1,10 +1,10 @@
 # Adaptive HACT: v14 journal revision
 
-**Publication status:** PR #76 is open for review, but its evidence check is
-blocked by missing observation inputs. Automatic approval review requires
-explicit authorization to publish the archive from the private author-review
-package. The public source checkout cannot yet reproduce the full audit. See
-[the concrete payload and blocker](submission/PUBLICATION_STATUS.md).
+**Publication status:** this revision includes the manuscripts, source and
+complete v11–v14 observation archive for review in PR #76. The author has
+explicitly authorized public release of the archive, required v12 audit report
+and observation/release inventories. See
+[the evidence release scope](submission/PUBLICATION_STATUS.md).
 
 Start with the [IEEE manuscript](paper/journal.pdf),
 [scientific review and response](docs/V14_REFEREE_REVIEW.md) and
@@ -30,9 +30,9 @@ historical 3 wins / 18 ties / 9 losses and the maintained-counter ledger's
 service advantage remain explicit. Natural consumer and agent speedups remain
 unestablished; no positive packet result is substituted for them.
 
-The complete author-review package transports v11–v14 observations in a
-hash-bound lossless archive. Public reproduction requires the pending archive
-parts described above. Restore the exact original paths before any test or audit:
+The release transports all 522 v11–v14 observations in a hash-bound lossless
+archive under `data/observations`. Restore the exact original paths before any
+test or audit:
 
 ```sh
 python tools/hydrate_observations.py --require-index
@@ -40,9 +40,8 @@ python tools/verify_manifest.py
 ```
 
 See [reproduction](docs/V14_REPRODUCE.md) for dependency installation, all
-historical gates and PDF builds. The complete release manifest includes every
-restored raw file; the current public manifest covers only its published files
-and cannot establish evidence completeness. JSS variants are
+historical gates and PDF builds. The release manifest includes every restored
+raw file and all archive parts. JSS variants are
 generated from the same primary source; the extended analysis retains full
 proofs and historical results.
 
@@ -53,8 +52,9 @@ holds are superseded by the user's explicit instruction to publish this PR.
 
 ## Historical v13
 
-The v13 review and reproduction guides remain in docs/V13_*. Its release
-manifest and author handoff are preserved in historical/v13_*.
+The v13 review and reproduction guides remain in docs/V13_*. Historical release
+inventories are retained in the full author-review package; the current public
+inventory covers all inputs required by the v14 workflow.
 
 ## Historical v12 and earlier records
 
