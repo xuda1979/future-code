@@ -1,9 +1,9 @@
 # Adaptive HACT: v14 journal revision
 
-**Publication status:** the source/manuscript PR is a draft. Automatic approval
-review requires explicit authorization for the exact raw-observation archive
-and release metadata; the public PR therefore lacks those files and cannot yet pass its evidence
-gate. The full author-review package preserves them privately. See
+**Publication status:** PR #76 is open for review, but its evidence check is
+blocked by missing observation inputs. Automatic approval review requires
+explicit authorization to publish the archive from the private author-review
+package. The public source checkout cannot yet reproduce the full audit. See
 [the concrete payload and blocker](submission/PUBLICATION_STATUS.md).
 
 Start with the [IEEE manuscript](paper/journal.pdf),
@@ -35,13 +35,14 @@ hash-bound lossless archive. Public reproduction requires the pending archive
 parts described above. Restore the exact original paths before any test or audit:
 
 ```sh
-python tools/hydrate_observations.py
+python tools/hydrate_observations.py --require-index
 python tools/verify_manifest.py
 ```
 
 See [reproduction](docs/V14_REPRODUCE.md) for dependency installation, all
-historical gates and PDF builds. The release manifest includes every restored
-raw file, so transport compression does not remove evidence. JSS variants are
+historical gates and PDF builds. The complete release manifest includes every
+restored raw file; the current public manifest covers only its published files
+and cannot establish evidence completeness. JSS variants are
 generated from the same primary source; the extended analysis retains full
 proofs and historical results.
 

@@ -11,6 +11,9 @@ sys.path.insert(0, str(ROOT))
 
 
 def main():
+    index = ROOT / 'OBSERVATION_ARCHIVE.json'
+    if not index.is_file():
+        raise ValueError('required v14 observation inventory missing; refuse incomplete release manifest')
     current = ROOT / 'RELEASE_MANIFEST.json'
     archived = ROOT / 'historical/v5_release_manifest.json'
     if not archived.exists():
@@ -23,8 +26,7 @@ def main():
     # Packed observations remain first-class release bytes after restoration.
     # Git ignores their hydrated copies; the explicit hash-bound inventory
     # prevents a publication snapshot from silently dropping raw evidence.
-    index = ROOT / 'OBSERVATION_ARCHIVE.json'
-    observations = json.loads(index.read_text())['files'] if index.exists() else {}
+    observations = json.loads(index.read_text())['files']
     from tools.hydrate_observations import safe
     for name in observations:
         safe(ROOT, name)

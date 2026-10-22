@@ -1,5 +1,5 @@
 from pathlib import Path
-import hashlib,json,zipfile,subprocess
+import hashlib,json,zipfile,subprocess,sys
 import pytest
 from tools.hydrate_observations import hydrate,safe
 
@@ -21,9 +21,24 @@ def fixture(root, members=None):
 
 def test_restoration_is_exact_offline_and_idempotent(tmp_path):
     fixture(tmp_path)
-    assert hydrate(tmp_path)['files_restored']==1
+    assert hydrate(tmp_path,require_index=True)['files_restored']==1
     assert (tmp_path/'results/v14/a.json').read_bytes()==b'{"answer":42}\n'
     assert hydrate(tmp_path)['files_already_matching']==1
+
+
+def test_required_inventory_cannot_be_omitted(tmp_path):
+    assert hydrate(tmp_path)['status']=='NOT_REQUIRED'
+    with pytest.raises(ValueError,match='required observation archive index is missing'):
+        hydrate(tmp_path,require_index=True)
+
+
+def test_required_inventory_cli_rejects_source_only_checkout(tmp_path):
+    tools=tmp_path/'tools';tools.mkdir()
+    script=tools/'hydrate_observations.py'
+    script.write_bytes((Path(__file__).resolve().parents[1]/'tools/hydrate_observations.py').read_bytes())
+    result=subprocess.run([sys.executable,str(script),'--require-index'],capture_output=True,text=True)
+    assert result.returncode!=0
+    assert 'required observation archive index is missing' in result.stderr
 
 
 @pytest.mark.parametrize('name',['../escape','/absolute','a/../escape','a\\b','./relative'])
@@ -71,3 +86,19 @@ def test_release_manifest_keeps_ignored_raw_bytes_and_refuses_rebaseline(tmp_pat
     with pytest.raises(ValueError,match='refuse rebaselining'):update_manifest.main()
     (tmp_path/'results/v14/a.json').unlink()
     with pytest.raises(ValueError,match='missing'):update_manifest.main()
+
+
+def test_manifest_refresh_cannot_drop_missing_observation_inventory(tmp_path,monkeypatch):
+    from tools import update_manifest
+    fixture(tmp_path);hydrate(tmp_path)
+    subprocess.run(['git','init','-q',str(tmp_path)],check=True)
+    (tmp_path/'.gitignore').write_text('results/\n')
+    (tmp_path/'RELEASE_MANIFEST.json').write_text('{}')
+    (tmp_path/'RELEASE_FILES.txt').write_text('')
+    monkeypatch.setattr(update_manifest,'ROOT',tmp_path)
+    update_manifest.main()
+    original={name:(tmp_path/name).read_bytes() for name in ['RELEASE_MANIFEST.json','RELEASE_FILES.txt']}
+    (tmp_path/'OBSERVATION_ARCHIVE.json').unlink()
+    with pytest.raises(ValueError,match='required v14 observation inventory missing'):
+        update_manifest.main()
+    assert all((tmp_path/name).read_bytes()==raw for name,raw in original.items())

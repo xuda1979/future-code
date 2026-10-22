@@ -7,7 +7,7 @@ is hash-checked before an atomic rename, so an interrupted hydration is resumabl
 This prepares inputs; the independent audits and release-manifest gate still run.
 """
 from pathlib import Path, PurePosixPath
-import hashlib,json,tempfile,zipfile,os
+import argparse,hashlib,json,tempfile,zipfile,os
 
 ROOT=Path(__file__).resolve().parents[1]
 INDEX='OBSERVATION_ARCHIVE.json'
@@ -35,10 +35,12 @@ def safe(root, name):
     return path
 
 
-def hydrate(root=ROOT):
+def hydrate(root=ROOT, *, require_index=False):
     root=Path(root).resolve()
     index_path=root/INDEX
     if not index_path.exists():
+        if require_index:
+            raise ValueError('required observation archive index is missing: '+INDEX)
         return {'status':'NOT_REQUIRED','files_restored':0,'scope':'no packed observation index'}
     index=json.loads(index_path.read_text())
     if index.get('schema')!='hact-observation-archive-1':raise ValueError('invalid observation index schema')
@@ -97,4 +99,8 @@ def hydrate(root=ROOT):
 
 
 if __name__=='__main__':
-    print(json.dumps(hydrate()))
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--require-index',action='store_true',
+                        help='reject an incomplete evidence checkout before testing')
+    args=parser.parse_args()
+    print(json.dumps(hydrate(require_index=args.require_index)))

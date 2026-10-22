@@ -20,7 +20,7 @@ jobs:
           python-version: "3.12"
       - name: Restore exact offline observations and verify release
         run: |
-          python tools/hydrate_observations.py
+          python tools/hydrate_observations.py --require-index
           python tools/verify_manifest.py
       - name: Python dependencies
         run: |
