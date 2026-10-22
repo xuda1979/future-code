@@ -8,6 +8,7 @@ const tests = [
   'tests/foundry/productivity.test.ts', 'tests/foundry/swarm.test.ts',
   'tests/foundry/swarm-http.test.ts', 'tests/foundry/swarm-evidence.test.ts',
   'tests/foundry/resilience.test.ts', 'tests/foundry/job-races.test.ts',
+  'tests/foundry/objective-restart.test.ts',
   'tests/foundry/rnd-cadence.test.ts', 'tests/foundry/resilience-e2e.test.ts',
 ];
 const flags = process.argv.slice(2);
