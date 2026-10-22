@@ -141,6 +141,9 @@ export class ResearchJobs {
   readonly cfg: PinnedSwarm;
   readonly rpc: JobRPC;
   private readonly inFlight = new Map<string, Promise<unknown>>();
+  // Coalesced callers share one remote observation, not one poll/failure each.
+  private readonly observedRPCs = new WeakSet<Promise<unknown>>();
+  private readonly failedRPCs = new WeakSet<Promise<unknown>>();
   constructor(journal: SessionJournal, cfg: PinnedSwarm, rpc: JobRPC = defaultRPC) {
     this.journal = journal; this.cfg = cfg; this.rpc = rpc;
     installExperimentPipelines(journal.store);
@@ -338,6 +341,7 @@ export class ResearchJobs {
     const request = { schema: 1, operation: row.job_id ? "inspect" : "ensure", key, jobId: row.job_id ?? null,
       input, inputHash: binding, baseCommit: this.cfg.baseCommit } as Json;
     let raw: unknown;
+    let pending: Promise<unknown> | undefined;
     try {
       const started = performance.now();
       let rpcOwner = true;
@@ -349,7 +353,7 @@ export class ResearchJobs {
       try {
         // Cross-process ensure(key) deduplication remains the adapter's duty.
         // Also coalesce a pending RPC for duplicate calls in this controller.
-        let pending = template.experiment?.reuseIdentical ? this.inFlight.get(key) : undefined;
+        pending = template.experiment?.reuseIdentical ? this.inFlight.get(key) : undefined;
         rpcOwner = !pending;
         if (!pending) {
           pending = Promise.resolve().then(() => this.rpc(command, this.cfg, request, bounded.signal));
@@ -368,12 +372,20 @@ export class ResearchJobs {
       if (e instanceof FatalAttemptError) throw e;
       store.transaction(() => {
         this.journal.assertLease(c);
-        const backoff = Math.min(60000, template.pollMs * 2 ** Math.min(row.failures, 10));
+        // Another controller or an operator may have reconciled this job while
+        // the RPC was pending. A late transport error cannot undo that receipt.
+        const current = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
+        if (current.result_hash || (pending && (this.observedRPCs.has(pending) || this.failedRPCs.has(pending)))) return;
+        const backoff = Math.min(60000, template.pollMs * 2 ** Math.min(current.failures, 10));
         store.db.prepare("UPDATE research_jobs SET failures=failures+1,poll_at=?,status='UNKNOWN',updated=? WHERE key=?")
           .run(Date.now() + backoff, Date.now(), key);
-        store.event("job.reconciling", { key, jobId: row.job_id ?? null, reason: "adapter RPC failed; never infer remote termination" }, c.runId, c.task.id);
+        store.event("job.reconciling", { key, jobId: current.job_id ?? null, reason: "adapter RPC failed; never infer remote termination" }, c.runId, c.task.id);
       });
+      // A caller's deadline is an unknown outcome. A coalesced caller may still
+      // receive the actual reply, which must remain eligible for reconciliation.
+      if (pending) this.failedRPCs.add(pending);
       row = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
+      if (row.result_hash) return store.readArtifact(row.result_hash);
       throw this.wait(row, template);
     }
     signal.throwIfAborted(); this.journal.assertLease(c);
@@ -382,7 +394,6 @@ export class ResearchJobs {
     try {
       keys(v, ["schema", "key", "jobId", "status"], ["progressToken", "result"]);
       invariant(v.schema === 1 && v.key === key && typeof v.jobId === "string" && v.jobId.length > 0 && v.jobId.length <= 512, "invalid job identity");
-      invariant(!row.job_id || v.jobId === row.job_id, "remote job identity changed");
       invariant(["QUEUED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "UNKNOWN"].includes(v.status), "invalid job status");
       invariant(v.progressToken === undefined || (typeof v.progressToken === "string" && v.progressToken.length > 0 && v.progressToken.length <= 256), "invalid remote progress");
       invariant(v.status !== "SUCCEEDED" || Object.hasOwn(v, "result"), "successful job needs a result");
@@ -394,38 +405,44 @@ export class ResearchJobs {
       schema: 1, key, jobId: v.jobId, status: v.status, template: name,
       inputHash: binding, baseCommit: this.cfg.baseCommit, replyHash: receipt,
     }) : null;
-    store.transaction(() => {
+    row = store.transaction(() => {
       this.journal.assertLease(c); const now = Date.now();
-      const current = store.db.prepare("SELECT result_hash FROM research_jobs WHERE key=?").get(key);
-      if (current?.result_hash) {
-        invariant(current.result_hash === receipt, "concurrent job result drift");
-        return;
+      // The pre-RPC snapshot is not authoritative after an await. Serialize
+      // identity, terminality and progress checks against the latest job row.
+      const current = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
+      if (current.job_id && current.job_id !== v.jobId)
+        throw new FatalAttemptError("INVALID_JOB_REPLY: remote job identity changed");
+      if (current.result_hash) {
+        invariant(!terminal || current.result_hash === receipt, "concurrent job result drift");
+        return current;
       }
+      if (pending && this.observedRPCs.has(pending)) return current;
       const rank = v.status === "QUEUED" ? 1 : v.status === "RUNNING" ? 2 : terminal ? 3 : 0;
-      let changed = rank > Number(row.progress_rank ?? 0);
+      let changed = rank > Number(current.progress_rank ?? 0);
       if (v.progressToken !== undefined) {
         // A semantic milestone renews liveness only once. Alternating or replayed
         // old tokens (A -> B -> A -> B) must not keep a stalled remote job alive.
         const inserted = store.db.prepare(
           "INSERT OR IGNORE INTO research_job_progress(key,token,observed) VALUES(?,?,?)"
         ).run(key, v.progressToken, now);
-        changed = changed || (v.progressToken !== row.progress_token && inserted.changes > 0);
+        changed = changed || (v.progressToken !== current.progress_token && inserted.changes > 0);
       }
-      const idlePolls = changed || terminal ? 0 : Math.min(1_000_000, Number(row.idle_polls ?? 0) + 1);
+      const idlePolls = changed || terminal ? 0 : Math.min(1_000_000, Number(current.idle_polls ?? 0) + 1);
       const pollMs = nextRemotePollMs(template, idlePolls);
       store.db.prepare(`UPDATE research_jobs SET job_id=?,status=?,progress_at=?,progress_token=?,poll_at=?,failures=0,
         result_hash=?,updated=?,reconciliation_hash=?,progress_rank=?,stale_at=?,idle_polls=? WHERE key=?`)
-        .run(v.jobId, v.status, changed ? now : row.progress_at, v.progressToken ?? row.progress_token,
+        .run(v.jobId, v.status, changed ? now : current.progress_at, v.progressToken ?? current.progress_token,
           now + pollMs, terminal ? receipt : null, now, reconciliationHash,
-          Math.max(Number(row.progress_rank ?? 0), rank), changed ? now + template.staleMs : row.stale_at, idlePolls, key);
+          Math.max(Number(current.progress_rank ?? 0), rank), changed ? now + template.staleMs : current.stale_at, idlePolls, key);
       // Store only meaningful changes; polling/replayed milestones do not
       // manufacture progress.
-      if (changed || row.status !== v.status || row.job_id !== v.jobId) store.event("job.observed",
+      if (changed || current.status !== v.status || current.job_id !== v.jobId) store.event("job.observed",
         { key, jobId: v.jobId, status: v.status, progress: changed, receipt }, c.runId, c.task.id);
       if (terminal) this.releaseCapacity(name, now);
+      return store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
     });
-    if (terminal) return v as unknown as Json;
-    row = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
+    if (pending) this.observedRPCs.add(pending);
+    if (row.result_hash) return store.readArtifact(row.result_hash);
     throw this.wait(row, template);
   }
   private wait(row: Record<string, any>, template: JobTemplate): DeferredAttemptError | FatalAttemptError {
