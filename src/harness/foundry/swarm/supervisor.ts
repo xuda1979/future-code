@@ -13,7 +13,7 @@ import { externalEffectSnapshot, objectiveJobUsage } from "./jobs.ts";
 import { buildObjectiveEpisode, installRndEpisodeTables, objectiveEpisodeStatus, persistObjectiveEpisode } from "../rndEpisodes.ts";
 import { installRndReflectionTables, latestObjectiveReflection, reflectRun } from "../rndReflection.ts";
 import { evaluateInterventionOutcomes, installInterventionMemoryTables, interventionMemoryForFindings } from "../interventionMemory.ts";
-import { requireAdmission, submitProposal } from "../proposals.ts";
+import { decideProposal, submitProposal } from "../proposals.ts";
 import { claimGate } from "../claims.ts";
 import { contextualInterventionPolicy, recoveryFeatures } from "../contextualPolicy.ts";
 import { objectiveRequestTotals } from "./requestAccounting.ts";
@@ -140,8 +140,26 @@ export function installObjectives(store: Store): void {
       objective TEXT PRIMARY KEY, max_requests INTEGER NOT NULL, max_request_bytes INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS swarm_objective_completions(
       objective TEXT PRIMARY KEY, run TEXT NOT NULL, attestation TEXT NOT NULL,
-      created REAL NOT NULL);`);
+      created REAL NOT NULL);
+    CREATE TABLE IF NOT EXISTS swarm_objective_integration_failures(
+      objective TEXT NOT NULL, run TEXT NOT NULL, reason TEXT NOT NULL,
+      created REAL NOT NULL, PRIMARY KEY(objective,run));`);
   store.db.exec(`CREATE INDEX IF NOT EXISTS swarm_objective_revision_run ON swarm_objective_revisions(run,objective);`);
+  // Older supervisors overwrote the failure reason on pause/restart. Recover
+  // it once from immutable events; never scan the event history in the loop.
+  const migration = "extension.swarm.integrationFailuresMigrated";
+  if (!store.getMeta(migration)) store.transaction(() => {
+    store.db.exec(`INSERT OR IGNORE INTO swarm_objective_integration_failures
+      SELECT id,run,reason,updated FROM swarm_objectives
+      WHERE run IS NOT NULL AND reason LIKE 'Final integration failed:%';
+      INSERT OR IGNORE INTO swarm_objective_integration_failures
+      SELECT o.id,e.run,json_extract(e.payload,'$.reason'),e.at
+      FROM events e JOIN swarm_objectives o ON o.id=json_extract(e.payload,'$.id')
+      WHERE e.kind='objective.state' AND e.run IS NOT NULL
+        AND json_extract(e.payload,'$.reason') LIKE 'Final integration failed:%'
+      ORDER BY e.seq DESC;`);
+    store.setMeta(migration, 1);
+  });
   installRndEpisodeTables(store);
   installRndReflectionTables(store);
   installInterventionMemoryTables(store);
@@ -169,6 +187,9 @@ export function objectiveStatus(store: Store, id: string): Json {
   const completion = store.db.prepare(
     "SELECT run,attestation,created FROM swarm_objective_completions WHERE objective=?"
   ).get(id);
+  const integrationFailure = store.db.prepare(
+    "SELECT run,reason,created FROM swarm_objective_integration_failures WHERE objective=? AND run=?"
+  ).get(id, r.run);
   const usage = objectiveRequestTotals(store, id);
   const evidenceGate = r.run && store.db.prepare("SELECT 1 FROM runs WHERE id=?").get(r.run)
     ? objectiveEvidenceGate(store, String(r.run), id) : null;
@@ -181,7 +202,8 @@ export function objectiveStatus(store: Store, id: string): Json {
     jobBudget: jobBudget as unknown as Json,
     episode: objectiveEpisodeStatus(store, id),
     reflection: latestObjectiveReflection(store, id),
-    completion: (completion ?? null) as Json };
+    completion: (completion ?? null) as Json,
+    integrationFailure: (integrationFailure ?? null) as Json };
 }
 
 function recordObjectiveCompletion(store: Store, objective: string, row: any,
@@ -300,6 +322,10 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     const row = store.db.prepare("SELECT * FROM swarm_objectives WHERE id=?").get(input.id)!;
     invariant(row.owner === owner && row.lease > Date.now(), "stale objective supervisor"); return row;
   };
+  const ownedRun = <T>(run: string, action: () => T): T => store.transaction(() => {
+    const check = () => invariant(assertOwner().run === run, "objective changed during recovery planning");
+    check(); const result = action(); check(); return result;
+  });
   const transition = (state: string, reason: string | null = null) => store.transaction(() => {
     const row = assertOwner();
     if (row.state !== state || row.reason !== reason) {
@@ -409,39 +435,48 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         reflectionHash: reflected.hash, reflection: reflected.reflection, interventionMemory, interventionPolicy }, controller.signal);
       controller.signal.throwIfAborted();
       if (!proposal) {
-        store.db.prepare("UPDATE swarm_recovery_attempts SET state='DECLINED',detail=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
-          .run("planner returned no safe recovery plan", Date.now(), input.id, row.run);
+        ownedRun(row.run, () => {
+          store.db.prepare("UPDATE swarm_recovery_attempts SET state='DECLINED',detail=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
+            .run("planner returned no safe recovery plan", Date.now(), input.id, row.run);
+        });
         return false;
       }
-      const envelope = submitProposal(store, "RECOVERY", proposal, String(row.run), `recovery:${input.id}:${revision}`);
-      proposal = requireAdmission(store, envelope, proposal => {
-        keys(proposal, ["reason", "tasks"], ["addressedFindings"]);
-        const current = assertOwner(); invariant(current.run === row.run, "objective changed during recovery planning");
-        invariant(typeof proposal.reason === "string" && proposal.reason.trim().length > 0 && Buffer.byteLength(proposal.reason) <= 4096, "invalid recovery reason");
-        validateTasks(store.contract(), proposal.tasks); validateSwarmTasks(cfg.spec, proposal.tasks);
-        assertScientificObligations(scientificObligations, proposal.tasks, cfg.spec);
-        const writeAuthority = tasks.flatMap(task => task.writeScope);
-        const readAuthority = [...writeAuthority, ...tasks.flatMap(task => task.readScope ?? [])];
-        for (const task of proposal.tasks) {
-          for (const path of task.writeScope)
-            invariant(inScope(path, writeAuthority), "recovery plan widens write authority");
-          for (const path of task.readScope ?? [])
-            invariant(inScope(path, readAuthority), "recovery plan widens read authority");
-        }
-        const proposalStrategy = recoveryStrategySignature(proposal.tasks, cfg.spec.defaultAgent);
-        const priorStrategies = store.db.prepare(
-          "SELECT plan FROM swarm_objective_revisions WHERE objective=? ORDER BY revision"
-        ).all(input.id).map(row => recoveryStrategySignature(
-          store.readArtifact(String(row.plan)) as unknown as Task[], cfg.spec.defaultAgent
-        ));
-        invariant(!priorStrategies.includes(proposalStrategy),
-          "recovery plan repeats a previously failed execution strategy");
-        const addressedFindings = [...new Set(proposal.addressedFindings ?? [])].sort();
-        const knownFindings = new Set(Array.isArray((reflected.reflection as any).findings)
-          ? (reflected.reflection as any).findings.map((item: any) => String(item.code)) : []);
-        invariant(addressedFindings.every(code => knownFindings.has(code)),
-          "recovery plan claims an unknown reflection finding");
+      // Hold the ownership fence through proposal persistence and admission.
+      // A late reply cannot write even a rejection over a successor's work.
+      const decision = ownedRun(row.run, () => {
+        const envelope = submitProposal(store, "RECOVERY", proposal!, String(row.run), `recovery:${input.id}:${revision}`);
+        const admission = decideProposal(store, envelope, proposal => {
+          keys(proposal, ["reason", "tasks"], ["addressedFindings"]);
+          const current = assertOwner(); invariant(current.run === row.run, "objective changed during recovery planning");
+          invariant(typeof proposal.reason === "string" && proposal.reason.trim().length > 0 && Buffer.byteLength(proposal.reason) <= 4096, "invalid recovery reason");
+          validateTasks(store.contract(), proposal.tasks); validateSwarmTasks(cfg.spec, proposal.tasks);
+          assertScientificObligations(scientificObligations, proposal.tasks, cfg.spec);
+          const writeAuthority = tasks.flatMap(task => task.writeScope);
+          const readAuthority = [...writeAuthority, ...tasks.flatMap(task => task.readScope ?? [])];
+          for (const task of proposal.tasks) {
+            for (const path of task.writeScope)
+              invariant(inScope(path, writeAuthority), "recovery plan widens write authority");
+            for (const path of task.readScope ?? [])
+              invariant(inScope(path, readAuthority), "recovery plan widens read authority");
+          }
+          const proposalStrategy = recoveryStrategySignature(proposal.tasks, cfg.spec.defaultAgent);
+          const priorStrategies = store.db.prepare(
+            "SELECT plan FROM swarm_objective_revisions WHERE objective=? ORDER BY revision"
+          ).all(input.id).map(row => recoveryStrategySignature(
+            store.readArtifact(String(row.plan)) as unknown as Task[], cfg.spec.defaultAgent
+          ));
+          invariant(!priorStrategies.includes(proposalStrategy),
+            "recovery plan repeats a previously failed execution strategy");
+          const addressedFindings = [...new Set(proposal.addressedFindings ?? [])].sort();
+          const knownFindings = new Set(Array.isArray((reflected.reflection as any).findings)
+            ? (reflected.reflection as any).findings.map((item: any) => String(item.code)) : []);
+          invariant(addressedFindings.every(code => knownFindings.has(code)),
+            "recovery plan claims an unknown reflection finding");
+        });
+        return { admission, proposal: envelope.payload };
       });
+      invariant(decision.admission.verdict === "ADMIT", `proposal ${decision.admission.verdict}: ${decision.admission.reason}`);
+      proposal = decision.proposal;
       const addressedFindings = [...new Set(proposal.addressedFindings ?? [])].sort();
       const newPlan = store.artifact(JSON.parse(canonical(proposal.tasks)));
       const newRun = randomUUID();
@@ -464,24 +499,28 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       return adoptPreparedRecovery(row, { state: "PREPARED", new_run: newRun, revision });
     } catch (e) {
       if (controller.signal.aborted) throw e;
-      const current = store.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective=? AND run=?").get(input.id, row.run);
-      if (current?.state === "PREPARED") {
-        store.event("objective.recovery.pending", { id: input.id, run: row.run, revision,
-          detail: e instanceof Error ? e.message.slice(0, 1024) : "prepared recovery awaiting restart" }, row.run);
-        throw e; // preserve PREPARED for deterministic adoption on process restart
-      }
-      const detail = e instanceof Error ? e.message.slice(0, 2048) : "recovery planner failed";
-      if (e instanceof DeferredAttemptError) {
-        const retryAt = Math.max(Date.now() + (supervision?.recoveryBackoffMs ?? 2000), e.wakeAt);
-        store.db.prepare("UPDATE swarm_recovery_attempts SET state='STARTED',detail=?,retry_at=?,updated=? WHERE objective=? AND run=?")
-          .run(detail, retryAt, Date.now(), input.id, row.run);
-        store.event("objective.recovery.deferred",
-          { id: input.id, run: row.run, revision, retryAt, detail }, row.run);
+      const prepared = ownedRun(row.run, () => {
+        const current = store.db.prepare("SELECT state FROM swarm_recovery_attempts WHERE objective=? AND run=?").get(input.id, row.run);
+        if (current?.state === "PREPARED") {
+          store.event("objective.recovery.pending", { id: input.id, run: row.run, revision,
+            detail: e instanceof Error ? e.message.slice(0, 1024) : "prepared recovery awaiting restart" }, row.run);
+          return true;
+        }
+        const detail = e instanceof Error ? e.message.slice(0, 2048) : "recovery planner failed";
+        if (e instanceof DeferredAttemptError) {
+          const retryAt = Math.max(Date.now() + (supervision?.recoveryBackoffMs ?? 2000), e.wakeAt);
+          store.db.prepare("UPDATE swarm_recovery_attempts SET state='STARTED',detail=?,retry_at=?,updated=? WHERE objective=? AND run=?")
+            .run(detail, retryAt, Date.now(), input.id, row.run);
+          store.event("objective.recovery.deferred",
+            { id: input.id, run: row.run, revision, retryAt, detail }, row.run);
+        } else {
+          store.db.prepare("UPDATE swarm_recovery_attempts SET state='FAILED',detail=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
+            .run(detail, Date.now(), input.id, row.run);
+          store.event("objective.recovery.failed", { id: input.id, run: row.run, revision, detail }, row.run);
+        }
         return false;
-      }
-      store.db.prepare("UPDATE swarm_recovery_attempts SET state='FAILED',detail=?,retry_at=NULL,updated=? WHERE objective=? AND run=?")
-        .run(detail, Date.now(), input.id, row.run);
-      store.event("objective.recovery.failed", { id: input.id, run: row.run, revision, detail }, row.run);
+      });
+      if (prepared) throw e; // preserve PREPARED for deterministic adoption on restart
       return false;
     }
   };
@@ -512,12 +551,14 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
         continue;
       }
       if (runStatus === "PASS") {
-        // If final integration previously failed and recovery was merely
-        // deferred, resume the durable recovery attempt instead of skipping
-        // this branch forever because state is already NEEDS_ATTENTION.
-        if (row.state === "NEEDS_ATTENTION" && typeof row.reason === "string" &&
-            row.reason.startsWith("Final integration failed:")) {
-          if (await attemptRecovery(row.reason)) { report(); continue; }
+        // Lifecycle status is transient (PAUSED/RUNNING); a failed verification
+        // is durable. Resume its recovery deadline, not the expensive check.
+        const failure = store.db.prepare(
+          "SELECT reason FROM swarm_objective_integration_failures WHERE objective=? AND run=?"
+        ).get(input.id, row.run);
+        if (failure && !store.getMeta(`extension.swarm.integration.${row.run}`)) {
+          transition("NEEDS_ATTENTION", String(failure.reason));
+          if (await attemptRecovery(String(failure.reason))) { report(); continue; }
         } else {
           const preGate = objectiveEvidenceGate(store, row.run, input.id);
           if (preGate.status !== "PASS") {
@@ -544,6 +585,11 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
             } catch (e) {
               controller.signal.throwIfAborted();
               const reason = `Final integration failed: ${e instanceof Error ? e.message.slice(0, 800) : "unknown error"}. Inspect evidence; do not weaken the acceptance checks.`;
+              ownedRun(row.run, () => {
+                store.db.prepare("INSERT OR IGNORE INTO swarm_objective_integration_failures VALUES(?,?,?,?)")
+                  .run(input.id, row.run, reason, Date.now());
+                store.event("objective.integration.failed", { id: input.id, reason }, row.run);
+              });
               transition("NEEDS_ATTENTION", reason);
               if (await attemptRecovery(reason)) { report(); continue; }
             }

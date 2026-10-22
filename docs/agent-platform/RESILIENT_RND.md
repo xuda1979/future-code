@@ -136,6 +136,14 @@ modify main, checkout, force-update or push. Cached evidence is revalidated.
 problems or failed final integration. It does not silently drop the objective or
 run identical failed checks forever.
 
+Final integration failures are durable per objective/run, independently of the
+current `RUNNING`, `NEEDS_ATTENTION` or `PAUSED` status. Restarting supervision
+resumes the saved recovery decision and `retry_at` deadline without rerunning a
+known failed check. `objective.integrationFailure` retains the original reason
+and timestamp even while paused. Existing stores recover these records once from
+their immutable event history. A new recovery run gets its own verification; the
+previous run's failure stays in the audit history.
+
 Supervision performs bounded execution replanning by default. `supervision.recoveryAgent`
 selects the external API profile and defaults to `defaultAgent`. `maxReplans` is
 an optional lifetime cap (0 disables automatic replanning); when omitted, recovery
@@ -163,6 +171,12 @@ plan/run stays in `swarm_objective_revisions`; `objective` status reports the
 latest revision and recovery state. Acceptance checks, protected paths and provider configuration
 are not writable through the planner interface.
 
+Recovery replies are fenced by the current supervisor owner, unexpired lease and
+run binding in the same database transaction as admission or a recovery-state
+update. A delayed proposal, decline, provider deferral or error from a replaced
+supervisor cannot overwrite the new controller's decision. Lease loss exits with
+an error so the process supervisor can restart against the durable state.
+
 Scientific tasks in the initial plan are immutable acceptance anchors. Recovery
 preserves their task IDs, inputs, required `research` templates, exact `knowledge`
 versions, acceptance criteria and named checks. It may change their method or
@@ -180,7 +194,10 @@ attempt/request ledger, while objective budgets bound cumulative spend.
 Credential/configuration failures should normally return no recovery
 plan and wait for operator repair. Explicitly running a successful `integrate`
 can still resolve the final integration gate; the supervisor revalidates the
-resulting receipt before accepting completion.
+resulting receipt before accepting completion. An existing successful integration
+receipt takes precedence over a pending recovery attempt. This does not turn the
+failure record into acceptance: task artifacts, current evidence and scientific
+obligations must still pass the host-owned gates.
 
 ## Multi-host execution workers
 
