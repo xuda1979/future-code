@@ -10,10 +10,11 @@
       "url": "http://127.0.0.1:8000/v1/chat/completions",
       "model": "YOUR_DEPLOYED_MODEL_ID",
       "system": "Implement only the assigned task. Read relevant scoped files, make the smallest correct patch, run the configured named check, and finish with a concise summary. Acceptance belongs to the independent verifier. Do not invent file contents or read credentials.",
-      "tools": ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall"],
+      "tools": ["list_files", "read_file", "write_file", "edit_file", "delete_file", "run_check", "recall", "record_experience", "read_knowledge"],
       "checks": ["behavior"]
     }
   },
+  "projectKnowledge": { "namespace": "project-rnd", "maxCardsPerTask": 8, "maxContextBytes": 4096 },
   "checks": {
     "behavior": {
       "argv": ["$NODE", "./examples/swarm/verify-demo.mjs"],

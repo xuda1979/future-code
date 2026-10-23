@@ -6,7 +6,7 @@ import { ResearchProgramme } from "../researchProgramme.ts";
 import { formatHealth, type HealthObserver } from "../health.ts";
 import { superviseSwarm, objectiveStatus } from "./supervisor.ts";
 import { readFileSync, statSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { invariant, canonical } from "../kernel.ts";
 import { Store } from "../store.ts";
@@ -22,6 +22,7 @@ import { readMemory, rebuildMemoryPage, type MemoryQuery } from "./memory.ts";
 import type { ThreadState } from "./session.ts";
 import { workflowObservation } from "../workflow.ts";
 import { ProjectKnowledge, type KnowledgePack, type KnowledgePhase } from "./knowledge.ts";
+import { humanKnowledgePack, readTeachingFile, type HumanInputKind } from "./humanKnowledge.ts";
 export const help = `Foundry Swarm: durable coding agents on the existing Foundry kernel
   init --spec FILE --allow-exec
   run --tasks FILE --allow-exec
@@ -37,6 +38,7 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   knowledge-certificate --finding ID --version HASH [--limit N]
   experience [--hash CARD_ID] [--query TEXT --phase PHASE --after CURSOR --limit N]
   experience-import --spec PACK_JSON --allow-exec
+  teach --file NOTE.md --id ID --kind request|skill|experience|knowledge --trigger TEXT --conditions TEXT [--source TEXT --tags TAG1,TAG2 --phase PHASE] --allow-exec
   experience-export --finding PACK_ID --hash CARD_ID
   experience-retire --hash CARD_ID --reason TEXT --allow-exec
   reflection --objective ID
@@ -71,15 +73,15 @@ export function tokenize(text: string): string[] {
 function file(path: string): any { invariant(statSync(path).size <= 32 * 1024 * 1024, "JSON input exceeds 32 MiB"); return JSON.parse(readFileSync(path, "utf8")); }
 export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal, onProgress: HealthObserver = r => console.error(formatHealth(r))): Promise<Json> {
   const cmd = argv[0] ?? "help"; if (cmd === "help") return { help };
-  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence", "--finding", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit", "--query", "--phase"]);
+  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence", "--finding", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit", "--query", "--phase", "--file", "--id", "--kind", "--trigger", "--conditions", "--source", "--tags"]);
   for (let i = 1; i < argv.length; i++) {
     const k = argv[i]; invariant(allowed.has(k) && !opts.has(k), `unknown/duplicate option ${k}`);
     if (k === "--allow-exec") opts.set(k, "true");
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
-  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "workflow", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate", "knowledge", "knowledge-retract", "knowledge-certificate", "research-strategy", "research-strategy-rebuild", "research-compare", "experience", "experience-import", "experience-export", "experience-retire"].includes(cmd), "unknown swarm command");
-  if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate", "knowledge-retract", "research-strategy-rebuild", "research-compare", "experience-import", "experience-retire"].includes(cmd)) need("--allow-exec");
+  invariant(["init", "run", "resume", "supervise", "objective", "episode", "reflection", "recommend", "status", "workflow", "receipt", "events", "memory", "memory-rebuild", "job-reconcile", "integrate", "claims", "claim-revalidation-task", "claim-retract", "claim-adjudicate", "knowledge", "knowledge-retract", "knowledge-certificate", "research-strategy", "research-strategy-rebuild", "research-compare", "experience", "experience-import", "experience-export", "experience-retire", "teach"].includes(cmd), "unknown swarm command");
+  if (["init", "run", "resume", "supervise", "job-reconcile", "integrate", "claim-retract", "claim-adjudicate", "knowledge-retract", "research-strategy-rebuild", "research-compare", "experience-import", "experience-retire", "teach"].includes(cmd)) need("--allow-exec");
   const store = await Store.open(opts.get("--root") ?? resolve(".future-code", "swarm"));
   try {
     switch (cmd) {
@@ -123,8 +125,16 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
         return opts.has("--finding") ? JSON.parse(canonical(programme.read({ id: need("--finding"), version: need("--version") }, true))) :
           programme.list(opts.get("--task-after"), Number(opts.get("--limit") ?? 20));
       }
-      case "experience": case "experience-import": case "experience-export": case "experience-retire": {
+      case "teach": case "experience": case "experience-import": case "experience-export": case "experience-retire": {
         const knowledge = new ProjectKnowledge(store, loadSwarm(store));
+        if (cmd === "teach") {
+          const path = need("--file");
+          const pack = humanKnowledgePack({ id: need("--id"), kind: need("--kind") as HumanInputKind,
+            source: opts.get("--source") ?? basename(path), trigger: need("--trigger"), conditions: need("--conditions"),
+            phase: (opts.get("--phase") ?? "any") as KnowledgePhase,
+            tags: opts.has("--tags") ? need("--tags").split(",").map(tag => tag.trim()) : [], text: readTeachingFile(path) });
+          return knowledge.importPack(pack);
+        }
         if (cmd === "experience-import") return knowledge.importPack(file(need("--spec")) as KnowledgePack);
         if (cmd === "experience-export") return JSON.parse(canonical(knowledge.exportPack(need("--finding"), [need("--hash")])));
         if (cmd === "experience-retire") { knowledge.retire(need("--hash"), need("--reason")); return { retired: true }; }
