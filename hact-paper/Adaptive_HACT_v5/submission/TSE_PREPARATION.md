@@ -1,33 +1,47 @@
-# Journal preparation record
+# IEEE TSE submission preparation
 
-Preparation target: IEEE Transactions on Software Engineering, subject to the
-authors' review and venue decision. The scope fit is verification/evidence
-infrastructure for software agents, with theoretical and controlled empirical
-contributions. This is a scope judgment, not an acceptance prediction.
+**Checked:** 23 October 2026. **Status:** complete draft packet prepared for author review; no journal submission has been created.
 
-The concise `journal.pdf` uses unmodified IEEEtran1.8b in Computer Society
-journal mode. It is attributed for the requested author review. The full
-`main.pdf` and reproducibility artifacts supply supporting analysis; they must
-not be uploaded as an undeclared competing manuscript.
+## Prepared files
 
-Official references checked on 2026-10-21:
+- `paper/journal.pdf` — attributed IEEE Computer Society journal-format manuscript, 12 pages including references.
+- `paper/tse_supplement.pdf` — seven-page technical supplement containing the full supporting derivations, exact-scoring/adoption details and reproduction guide.
+- `paper/tse_cover_letter.pdf` — one-page unsent cover letter for editors.
+- `submission/TSE_source.zip` — flat LaTeX source archive with a hash manifest and all local sources/figures; clean source-only builds were checked.
+- `submission/SUBMISSION_METADATA.json` and `submission/TSE_UPLOAD_MAP.md` — machine-readable known metadata and upload checklist.
 
-- IEEE TSE call: https://www.computer.org/digital-library/journals/ts/cfp-ieee-transactions-on-software-engineering
-- Author entry: https://www.computer.org/tse-author-information
-- General author resources: https://www.computer.org/publications/author-resources
-- Class distribution and documentation: https://ctan.org/pkg/ieeetran
+The primary abstract has **186 words**. IEEE Computer Society's current general author guidance sets regular/special-issue journal abstracts at 100–200 words and says abstracts must not contain mathematical expressions or references. The current abstract meets that rule. The page limit itself varies by journal; the 12-page count is a format/readiness fact, not a claim that TSE's current portal limit has been verified. TSE does not offer double-anonymous review under the same guidance, so the attributed manuscript is appropriate.
 
-The author-entry/general-resource pages returned HTTP403 to direct retrieval;
-their search excerpts and old author PDFs do not establish current detailed
-rules. Consequently this package does not certify a live submission portal,
-anonymity policy, mandatory page limit, supplement limits or publication fees.
-Do not apply the historical14-page recommendation as a verified current rule.
-The class/template check is complete; current journal-specific portal checks
-belong after author review and before final submission.
+The article uses the unmodified IEEEtran Computer Society journal class. Its references are ordered by first citation. The supplement holds the full derivations while the principal argument and all evidence boundaries remain in the article. The disclosure identifies OpenAI Codex and the kinds of assistance; it does not state that the authors have completed their final review.
 
-The unsent cover letter deliberately omits unconfirmed declarations. Before
-submitting, obtain the final manuscript approvals and factual funding,
-conflict, contribution and related-submission information. Check any required
-employer publication process and disclose public manuscript/artifact versions
-where requested. No author consent, institutional permission or exclusive
-submission declaration has been attested by the assistant.
+## Current author guidance checked
+
+- IEEE Computer Society, [How to Get Published: Author Guidelines](https://www.computer.org/publications/author-resources) — abstract requirements, journal-specific page-limit direction, submission materials and double-anonymous policy.
+- IEEE TSE, [Author Information](https://www.computer.org/csdl/journal/ts/write-for-us/15090?title=Author%20Information&periodical=IEEE%20Transactions%20on%20Software%20Engineering) — journal-specific author entry.
+- IEEE, [Publishing Portal](https://publishingportal.ieee.org) and [portal instructions](https://journals.ieeeauthorcenter.ieee.org/submit-your-article-for-peer-review/ieee-publishing-portal/) — account-based journal submission route.
+- IEEE, [submission and peer-review policies](https://journals.ieeeauthorcenter.ieee.org/become-an-ieee-journal-author/publishing-ethics/guidelines-and-policies/submission-and-peer-review-policies/) — originality and disclosure policy.
+
+The Publishing Portal is currently at its login/identity-provider step. No draft record, upload, journal-specific page-limit confirmation, manuscript ID, or final submission has been made. TSE's live portal requirements and any page limit must be checked in the authenticated account before the upload sequence is treated as complete.
+
+## Author facts needed before the final portal declarations
+
+Names, author order, shared affiliation and Da Xu's corresponding email are recorded from the supplied paper/authorship information. Fei Wang's email, both ORCIDs, author contribution roles, funding, conflicts, related submissions/publications, coauthor approval, and any applicable employer clearance remain unverified and are left blank in the metadata. Blank fields mean unknown, not “none.” The corresponding author must complete those facts and review the files and AI disclosure before submission.
+
+The public GitHub artifact already contains an earlier version of the manuscript and associated evidence. Its versioned source commit is recorded in `SUBMISSION_METADATA.json`; disclose that public version if requested by the journal's related-work or prior-publication fields. This preparation does not make an originality, exclusivity, conflict, funding or coauthor-approval attestation on behalf of either author.
+
+## Validation completed
+
+The three TSE entry points clean-built from the extracted source archive in
+three LaTeX passes each. The main manuscript is 12 pages, the supplement 7,
+and the cover letter 1; the JSS variants build at 32 and 31 pages. All five
+logs are free of overfull-box, unresolved-reference and citation warnings.
+Rendered pages were reviewed for clipping and layout. The deterministic source
+archive has a SHA-256 manifest; its repeat build is byte-identical. The worked
+optimizer example matches the exact solver (9,600 expected bytes for the
+balanced tree; 9,984 for the chain).
+
+The full HACT suite passed (**818 tests in 42.51 seconds**). Historical and
+current v11–v14 audit checks and manuscript projections passed. Observation
+hydration confirmed all 522 files already match their frozen hashes, and the
+refreshed release manifest verifies **3,462 files**. No new scientific
+observation or checker execution was generated by this manuscript preparation.

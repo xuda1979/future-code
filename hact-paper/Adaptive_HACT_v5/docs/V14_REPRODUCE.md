@@ -73,9 +73,11 @@ retain their original sampling units and exclusions.
 
 ## Build the manuscripts
 
-`paper/journal.tex` is the primary IEEE source. `paper/main.tex` preserves full
-proofs and historical analysis. Attributed/blinded JSS variants are generated;
-the complete artifact contains identifying provenance and is not anonymous.
+`paper/journal.tex` is the primary IEEE source. `paper/tse_supplement.tex`
+contains the full supporting proofs and reproduction guide for the TSE packet;
+`paper/main.tex` preserves the extended historical analysis. JSS format
+variants are generated separately. The complete artifact contains identifying
+provenance; the TSE journal uses single-anonymous review.
 Use a clean build directory per source to avoid stale auxiliary files:
 
 ```sh

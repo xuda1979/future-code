@@ -17,33 +17,31 @@
 \hypersetup{pdftitle={Adaptive HACT: Information Limits and Safe Adaptation of Verification Evidence},pdfauthor={Da Xu and Fei Wang}}
 \title{Adaptive HACT: Information Limits and Safe Adaptation of Verification Evidence}
 \author{Da~Xu and Fei~Wang\thanks{The authors are with China Mobile Research Institute. Corresponding author: Da Xu, xudayj@chinamobile.com. }}
-\markboth{Author Review, October 2026}{Xu and Wang: Adaptive HACT}
+\markboth{Manuscript prepared for peer review, October 2026}{Xu and Wang: Adaptive HACT}
 \begin{document}
 \maketitle
 \begin{abstract}
-Adaptive verification evidence poses two questions: which completion
+Adaptive verification evidence raises two questions: which completion
 statistics identify an efficient representation, and how may that
-representation change without weakening acceptance? Adaptive HACT separates
-a protected semantic registry from generation-fenced certificate trees and
-prices packets touched by joint completion sets. We prove that exact
-singleton and pairwise probabilities can leave globally optimal trees
-unidentified for every fanout at least three and every affine positive-slot
-packet price, with sharp minimax regret. A complete-epoch construction
-extends the limitation to fixed-eight batching in a two-layout class even
-when all bivariate completion-rank laws agree. Conversely, exchangeable
-complete batches admit an exact global tree/permutation optimizer using
-$O(bn^2)$ arithmetic operations. This specialization of cardinality-based
-tree optimization supplies a no-learning baseline. A local publication
-invariant preserves acceptance through migration; a conditional paired-cost
-rule accounts for calibration, workload shift and installation. Independent
-enumeration checks the symmetric optimum in 74,245 tree comparisons.
-Retrospective scoring of 30 controlled dispatch shifts finds that this
-baseline beats frozen full-wave refinement on all 15 item-shuffled traces
-and loses on all 15 file-group traces. It also costs 21.26--62.13\% more on
-original repeated-order holdouts. With byte observers disabled, the tree
-service takes 1.61--3.54 times the maintained-counter ledger's operation
-time. The results establish information limits, a tractable null regime
-and safe adaptation conditions; service and agent speedups remain unproven.
+representation change without weakening acceptance? Adaptive HACT
+(Hyperedge-Aware Certificate Trees) separates a protected semantic registry
+from generation-fenced certificate trees and prices packets touched by joint
+completion sets. We prove that exact singleton and pairwise probabilities
+can leave globally optimal trees unidentified for every fanout of at least
+three and every affine positive-slot packet price, with sharp minimax
+regret. A complete-epoch construction extends this limitation to fixed-eight
+batching within a two-layout class. Under exchangeable complete batches, a
+specialization of established tree optimization provides an exact global
+baseline. A local publication invariant preserves acceptance through
+migration; a conditional adoption rule includes calibration, shift and
+installation costs. Independent enumeration checks 74,245 tree comparisons.
+Retrospective scoring finds that the symmetric baseline beats frozen
+full-wave refinement on all 15 item-shuffled traces and loses on all 15
+file-group traces. It costs 21.26--62.13\% more on original holdouts.
+Without byte observers, the tree service takes 1.61--3.54 times the
+maintained-counter ledger's operation time. The results establish
+information limits and conditional adaptation guarantees; service and agent
+speedups remain unproven.
 \end{abstract}
 \begin{IEEEkeywords}
 Verification evidence, software agents, completion hypergraphs, adaptive
@@ -94,7 +92,7 @@ The obstruction disappears under a declared symmetry model. If a uniform
 completion permutation is divided into fixed batch sizes, expected packet
 cost depends only on coverage cardinality. A size-state dynamic program
 then optimizes all shapes and permutations exactly in $O(bn^2)$ arithmetic
-operations. This model-specific instance of established batch-update tree
+operations after computing the cardinality weights. This model-specific instance of established batch-update tree
 optimization~\cite{graham2007} is a stronger null baseline than one compact
 topology: when the future law remains exchangeable conditional on training,
 learning cannot improve its expected cost.
@@ -148,8 +146,8 @@ composition under the stated verification contract and packet objective.
 \caption{Semantic authority, adaptive representation and the consumer contract.
 The compiler cannot modify the protected contract or canonical outcomes.
 Both ledger controls and the tree answer the same diagnostic requests.
-Diagram source was developed with OpenAI Codex (October 2026 session); it is rendered
-from the included TikZ source.}
+The diagram is rendered from the included TikZ source; AI assistance is
+disclosed in the acknowledgments.}
 \label{fig:journal-architecture}
 \end{figure*}
 
@@ -216,7 +214,7 @@ might dominate in both worlds. The following theorem rules that out under
 the affine packet objective.
 \input{generalized_separation.tex}
 \input{strict_separation_summary.tex}
-\input{fixed_batch_separation.tex}
+\input{fixed_batch_summary.tex}
 
 \section{Semantics Through Adaptation}\label{sec:jsafety}
 A result token carries the candidate epoch, stable ID $g_i$ and a binding
@@ -303,7 +301,7 @@ Empirical validation alone gives no deployment guarantee. The following
 rule uses independent calibration and an explicit shift allowance.
 Repeated suite runs do not establish those sampling assumptions.
 
-\input{adoption_rule.tex}
+\input{adoption_summary.tex}
 
 \begin{table}[t]\centering\footnotesize
 \caption{Established ingredients and the contribution claimed here.}
@@ -538,11 +536,15 @@ The artifact includes the full historical analysis, raw execution receipts,
 a reproduction guide and a claim-to-evidence map. A hash-bound offline
 archive restores the original observation paths before manifest verification
 and independent audits; it preserves every recorded exclusion and outcome.
-\section*{Declaration of Generative AI Assistance}
-OpenAI Codex assisted with text, proofs, code, experiment execution and
-automated independent checks throughout this revision. Those checks are not
-human peer review. The authors are responsible for the final content and
-will review it before any submission.
+\section*{Acknowledgments}
+OpenAI Codex (October 2026) assisted with prose throughout the article,
+the proofs and analytical examples in Sections III--V, the TikZ source
+of Figure~\ref{fig:journal-architecture}, and the experiment, reference and
+audit code supporting Sections VI--VII. Its use included drafting,
+derivation, implementation, experiment execution and automated checks.
+The separately implemented checks reduce shared-code risk; they are
+AI-assisted checks, not independent human peer review. The authors retain
+responsibility for the article's content, correctness and citations.
 
 \input{journal_references.tex}
 \end{document}

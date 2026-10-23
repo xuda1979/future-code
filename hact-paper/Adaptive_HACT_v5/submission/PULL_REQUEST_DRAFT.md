@@ -1,24 +1,32 @@
-# Strengthen HACT scoring theory, conditional adoption, and journal evidence
+# Prepare the IEEE TSE submission packet for author review
 
-The manuscript previously left two decisions unresolved: what information a
-frozen layout catalogue actually needs, and when an observed byte saving is
-large enough to justify adoption. This revision adds an exact population-summary
-criterion and streaming paired scoring, then derives a conditional expected-byte
-adoption rule with calibration, support, workload-shift and installation terms.
+This revision turns the reviewed HACT paper into a clean TSE-format submission
+packet. It tightens the abstract to 186 words under current IEEE Computer
+Society guidance, keeps the attributed 12-page article focused, and places the
+complete supporting derivations and reproduction guide in a seven-page
+supplement. A one-page editor-facing cover letter, flat deterministic LaTeX
+source archive with a SHA-256 inventory, upload map and explicit author-fact
+metadata accompany the PDFs. The JSS variants are regenerated from the same
+article source.
 
-The branch also carries the previously unpublished v11/v12 theoretical and
-empirical revisions. It retains their exact information separations, fixed-eight
-extension, public-suite executions, controlled schedule losses, provenance
-exclusions and observer-cost service ablation. The IEEE primary manuscript and
-JSS variants are rebuilt from the scientific source.
+Scientific observations, claims, results, exclusions, and source evidence are
+preserved. The full historical `main.pdf` is identified as supporting history,
+not another manuscript to upload. Public artifact provenance is recorded for
+disclosure if the journal asks about public or related versions. Unknown author
+emails, ORCIDs and factual declarations remain null; no consent, originality,
+exclusivity, funding or conflict statement is invented.
 
-Validation includes all labeled unordered six-leaf trees and all three-window
-complete partitions (247,680 independent scoring comparisons), rational feature
-ranks, negative-law/uncertainty/drift controls, tamper tests, full prototype
-regressions and historical independent audits. Exact final counts and file
-hashes are in docs/V13_VALIDATION.json.
+All five PDFs compile in clean directories without overfull, undefined-reference
+or citation warnings and were visually reviewed. The TSE source archive was
+extracted into a fresh directory and all three entry points clean-built; its
+file hashes and deterministic rebuild were checked. The worked optimizer
+example independently reproduces 9,600 versus 9,984 expected bytes. The full
+818-test regression passed in 42.51 seconds. The v11–v14 audit and manuscript
+projection checks also pass; the refreshed manifest verifies 3,462 files and
+all 522 observation records remain byte-identical.
 
-The software cohorts remain UNKNOWN for the new deployment-benefit guarantee;
-they do not establish its sampling/drift assumptions. The maintained-counter
-ledger remains faster under the controlled demand. This is a research revision
-for author review, not a claim of top-journal acceptance or a final submission.
+The IEEE Publishing Portal reached its login/identity-provider step. No draft,
+upload, submission ID or final journal submission exists. The corresponding
+author must sign in, complete the remaining facts, review the exact files and
+portal declarations, then make the final submission decision. This PR is for
+repository review; it is not a claim of journal acceptance or submission.
