@@ -1,0 +1,114 @@
+\subsection{The separation also occurs in complete epochs}
+The preceding construction uses persistent refresh events. A complete
+verification epoch imposes more structure: the completion sets are disjoint
+and cover every declared check. That restriction does not make pairwise
+summaries sufficient.
+
+\begin{theorem}[Complete-epoch information separation]\label{thm:strict-pairwise}
+For any integer fanout $b\ge6$, $S>0$ and
+$16/11<H/S<28/17$, there are two laws on six checks partitioned into exactly
+three nonempty refresh windows, with one full initial construction, that
+have identical population singleton and pairwise completion statistics
+but disjoint unique global tree optima.
+Writing
+\[
+ \Delta_P=(28S-17H)/8,\qquad
+ \Delta_Q=(11H-16S)/5,
+\]
+the sharp deterministic pairwise-only regret is
+$\min(\Delta_P,\Delta_Q)$; the sharp randomized minimax regret is
+$\Delta_P\Delta_Q/(\Delta_P+\Delta_Q)$.
+\end{theorem}
+\begin{proof}
+Let $G=\{0,1,2,3\}$ and $O=\{4,5\}$.
+A block's type $(g,o)$ counts its members from $G$ and $O$.
+Let $A=(G,\{4\},\{5\})$, and let $B,C,D$ be uniform laws over all
+partitions of the respective block-type multisets
+\begin{align*}
+ B&:\{(2,1),(2,0),(0,1)\},\\
+ C&:\{(2,1),(1,1),(1,0)\},\\
+ D&:\{(2,0),(1,1),(1,1)\}.
+\end{align*}
+There are 12, 24 and 12 partitions in those families. Define
+\[
+ P=\tfrac78 A+\tfrac18 B,\qquad
+ Q=\tfrac9{10}A+\tfrac1{20}C+\tfrac1{20}D.
+\]
+Every check completes once in every outcome. Each within-$G$ pair shares
+a window with probability $11/12$, each $G$--$O$ pair with probability
+$1/32$, and the $O$ pair with probability zero, under either law.
+Uniformly permuting each partition's three windows also makes every
+window-specific first and second moment agree. The expected number of
+windows touching $G$ is nevertheless $9/8$ under $P$ and $6/5$ under $Q$.
+
+We next reduce \emph{all} tree shapes and leaf permutations.
+A node's weight, including its initial packet, lies in $[2,4]$.
+Contracting a nonroot internal child of arity $d=2$ or $3$ raises the
+parent's price by $S(d-1)$ per emission and removes that child's packet.
+Its cost change in every complete three-window outcome is at most
+\[
+ 4S(d-1)-2(H+Sd),
+\]
+which is $-2H$ for $d=2$ and $-2(H-S)$ for $d=3$, both negative.
+Contraction stays feasible because there are only six leaves and $b\ge6$.
+Since $\sum_v(d_v-1)=5$, a tree with at least three internal nodes
+must contain such a nonroot child. Repeated contractions leave a flat root
+or one root with a single internal child. Arity-two/three children are
+themselves dominated by the flat root.
+
+The remaining five child types are listed in
+Table~\ref{tab:strict-orbits}, with $x=H/S$.
+Direct counting in $A,B,C,D$ gives each entry.
+Every row except $(4,0)$ exceeds the flat cost $4x+24$ throughout
+the stated interval. The $(4,0)$ tree has root children $G,\{4\},\{5\}$;
+its $P$ and $Q$ costs are respectively
+\[
+ J_P(T_G)=\tfrac{49}{8}H+\tfrac{41}{2}S,\qquad
+ J_Q(T_G)=\tfrac{31}{5}H+\tfrac{104}{5}S.
+\]
+The flat tree costs $4H+24S$ in both worlds.
+Thus $T_G$ is uniquely preferred under $P$ and flat is uniquely preferred
+under $Q$, with gaps $\Delta_P,\Delta_Q>0$.
+
+For the minimax statement, larger trees cannot improve either action:
+each contraction saves at least $m=2(H-S)$, and
+$m-\Delta_P=(33H-44S)/8>0$ in the interval. Even a tree contracting to
+$T_G$ is therefore componentwise dominated by flat. The only nondominated
+actions are $T_G$ and flat. Choosing $T_G$ with probability $p$ has regrets
+$(1-p)\Delta_P$ and $p\Delta_Q$; equating them proves the randomized
+formula, attained at $p=\Delta_P/(\Delta_P+\Delta_Q)$.
+\end{proof}
+
+\begin{table}[t]\centering\footnotesize
+\caption{Complete-epoch orbit certificate after contracting arities two and
+three. Entries are total expected bytes divided by $S$, with $x=H/S$.
+The flat comparator is $4x+24$.}\label{tab:strict-orbits}
+\begin{tabular}{@{}crr@{}}\toprule
+Child type & $P$ & $Q$\\\midrule
+$(2,2)$ & $\frac{383}{48}x+\frac{335}{12}$ & $\frac{239}{30}x+\frac{418}{15}$\\
+$(3,1)$ & $\frac{113}{16}x+\frac{97}{4}$ & $\frac{1131}{160}x+\frac{971}{40}$\\
+$(3,2)$ & $8x+28$ & $\frac{639}{80}x+\frac{447}{16}$\\
+$(4,0)$ & $\frac{49}{8}x+\frac{41}{2}$ & $\frac{31}{5}x+\frac{104}{5}$\\
+$(4,1)$ & $\frac{113}{16}x+\frac{373}{16}$ & $\frac{71}{10}x+\frac{47}{2}$\\
+\bottomrule\end{tabular}
+\end{table}
+
+At the artifact's $H=512,S=320$, $T_G$ costs 9,696 bytes under $P$
+and $49,152/5=9,830.4$ under $Q$; flat costs 9,728.
+The deterministic penalty is 32 bytes and randomized minimax regret is
+$512/21\simeq24.381$ bytes, attained with group probability $5/21$.
+An independent subset reference and separately written literal evaluator
+agree on all 2,752 labeled unordered six-leaf trees, including uniqueness.
+An exact affine certificate checks all two-node orbit classes across the
+whole price interval. An integration test also fits the implemented full-wave
+refiner on both exact mixtures and verifies its two different optima using
+independent packet pricing; this is analytical conformance, not workload
+performance evidence.
+
+This is a constructed complete-epoch result, not an observed software
+improvement. It allows three externally chosen refresh windows with
+variable membership and width. The six-check CLI with its fixed eight-record
+flush would instead produce one wave, so it does not instantiate this witness.
+Other higher-order summaries, including wave-size distributions, may
+distinguish these laws; the lower bound concerns the specified pairwise-only
+information interface.

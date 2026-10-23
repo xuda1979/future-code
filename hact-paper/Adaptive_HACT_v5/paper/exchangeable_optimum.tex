@@ -1,0 +1,67 @@
+\subsection{An exact global baseline under completion symmetry}\label{sec:symmetry}
+The information lower bound is a worst-case statement. A structured null
+regime admits a global optimum without learning co-activity. Fix nonempty
+batch sizes $w_1,\ldots,w_q$ summing to $n$. Complete a uniformly random
+permutation of the registry and partition it into those consecutive batches.
+For any semantic coverage $G$ of size $s$, the expected number of touched
+waves is
+\begin{equation}\label{eq:symmetry-weight}
+ r_n(s)-1=\sum_{a=1}^q\left(1-
+       \frac{\binom{n-s}{w_a}}{\binom n{w_a}}\right),
+\end{equation}
+where a binomial coefficient with upper argument smaller than its lower
+argument is zero. The one in $r_n(s)$ charges the cold build.
+No independence among checks or waves is assumed. The formula also follows
+from exchangeability conditional on the declared ordered batch sizes.
+
+Let $D(s)$ minimize expected subtree cost for $s$ leaves, using the
+\emph{full-registry} weights $r_n(s)$. Let $F_d(s)$ minimize the sum of
+$d$ nonempty child-subtree costs, with infeasible states infinite:
+\begin{align}
+ D(1)&=0,\qquad F_1(s)=D(s),\nonumber\\
+ F_d(s)&=\min_{1\le t\le s-d+1}\{D(t)+F_{d-1}(s-t)\},\nonumber\\
+ D(s)&=\min_{2\le d\le\min(b,s)}
+        \{r_n(s)c(d)+F_d(s)\}.\label{eq:symmetry-dp}
+\end{align}
+
+\begin{theorem}[Global optimality under exchangeability]\label{thm:symmetry}
+For the declared exchangeable completion law, Equation~\eqref{eq:symmetry-dp}
+minimizes the expected strict-epoch padded cost over every feasible tree
+shape and leaf permutation. After computing the weights, it uses
+$O(bn^2)$ arithmetic operations and $O(bn)$ states. With integer packet
+prices it can be evaluated exactly using a common denominator and integer
+numerators; arithmetic bit complexity is additional.
+\end{theorem}
+\begin{proof}
+Any batch is a uniform $w_a$-subset of the full registry. Its probability
+of missing $G$ is the binomial ratio in~\eqref{eq:symmetry-weight}.
+Linearity of expectation gives each internal node the contribution
+$r_n(s)c(d)$, depending only on its coverage size and arity. Conditioning
+on a root's arity and nonempty child sizes leaves the sum of independent
+optimization subproblems; probabilistic independence is unnecessary.
+Induction on $s$ proves the forest and tree recurrences enumerate all
+possible shapes. Relabeling leaves changes no expected contribution, so
+canonical depth-first labels attain the unrestricted permutation optimum.
+Every forest transition scans at most $s$ splits for each $(d,s)$,
+giving $O(bn^2)$ work and $O(bn)$ stored costs/splits. Multiplying all rational
+weights by their common denominator preserves every comparison and tie.
+\end{proof}
+
+Consequently, if a future epoch retains this exchangeable law conditional
+on the training data and selected layout, no training-dependent selection
+improves its expected padded cost below $D(n)$. Condition on that selection:
+each fixed tree costs at least $D(n)$, then average over training. Independent
+training and future epochs suffice; unconditional symmetry alone does not
+exclude training information that predicts the future completion pattern.
+This gives a concrete null baseline against which to test learning.
+Graham, Li and Yao already optimize batch-update key trees using cardinality
+states under independent Bernoulli replacements~\cite{graham2007}.
+Our fixed-size, without-replacement law, affine capped packet prices and
+per-epoch cold charge specify a different instance; the size-state principle
+is established. Neither a shuffled dispatch queue nor a good
+fit to one trace establishes exchangeable completion times. Violating the
+model removes the global-optimality guarantee, so we also score this baseline
+on the frozen structured traces and retain its losses. The objective excludes
+query service, compilation seconds and installation manifests; those remain
+separate lifecycle ledgers. The model-derived layout is an optional advisory
+candidate and does not change the acceptance registry or runtime policy.

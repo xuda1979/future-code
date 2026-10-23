@@ -1,0 +1,42 @@
+\subsection{A bounded restricted optimizer}
+The historical practical method fits Jaccard affinities, obtains an
+average-linkage order and groups consecutive leaves into compact blocks of
+at most eight. Full-wave validation retains either the incumbent or the
+learned compact layout. The new optional method refines \emph{maximal existing
+subtrees} containing at most $s$ leaves. Each selected subtree is disjoint
+from the others. It keeps the order and that subtree's leaf interval, solves
+Equation~\eqref{eq:dp} on projected training waves, and accepts a replacement
+only if the complete integer training objective strictly decreases.
+All larger ancestors remain unchanged; ties retain the incumbent subtree.
+
+\begin{proposition}[Restricted exactness and bounded refinement]\label{prop:jrefine}
+For a fixed order and fixed disjoint refinement intervals, independent exact
+fitting minimizes training cost over trees obtained by replacing only those
+subtrees. Retaining the incumbent on ties gives nonincreasing integer
+training cost. For intervals of sizes $m_i\le s$, the DP work is at most
+$O(bns^2)$ with $O(bs^2)$ peak DP storage, apart from input projection,
+cost computation and ordering.
+\end{proposition}
+\begin{proof}
+All ancestor contributions depend only on the unchanged coverage and arity.
+The mutable objective is the sum of independent interval objectives, so
+minimizing each minimizes the restricted sum. The incumbent is feasible in
+every subproblem. Since $\sum_im_i\le n$,
+$\sum_im_i^3\le s^2\sum_im_i\le ns^2$. Sequential solution gives the stated
+storage bound. Integer rescoring rejects a numerically nonimproving DP
+replacement.
+\end{proof}
+
+The implementation uses float64 inside the existing recurrence; exactness
+is to numerical precision. Independent integer rescoring establishes
+monotonicity, not exact rational optimality for every large instance.
+Independent literal-tree enumeration checks tiny cases. Every leaf remains
+present exactly once and all packet arities remain feasible.
+
+The primary frozen cap is $s=32$; $64$ is a secondary sensitivity.
+A nominal cap of 32 often refines only eight-leaf subtrees of a compact8
+tree, because its next ancestors have 64 leaves. Reporting the actual largest
+subproblem prevents describing a locality restriction as global optimization.
+Dense pairwise ordering still has quadratic storage and approximately
+$O(n^2\log n)$ heap work. It can dominate bounded refinement and is admitted
+separately under the resource budget.

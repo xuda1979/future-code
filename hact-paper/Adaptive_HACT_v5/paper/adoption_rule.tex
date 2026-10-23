@@ -1,0 +1,126 @@
+\subsection{Conditional adoption with lifecycle costs}\label{sec:adoption}
+Selecting the smallest observed cost does not establish a net deployment
+benefit. The following rule makes the additional assumptions explicit.
+It specializes standard bounded-loss calibration and multiple-comparison
+control~\cite{hoeffding,learntest}; it introduces no new concentration inequality.
+Its HACT-specific step is to bound \emph{paired} differences after cancelling
+packets with the same semantic coverage.
+
+Fix an incumbent $L_0$ and $K\ge1$ training-fitted candidates $L_j$ before
+calibration. All layouts use the same registry and packet contract.
+An epoch partitions the $n$ checks into exactly $q$ nonempty waves of at
+most $w$ checks, with $q\le n\le qw$. Let $h_e(G)$ count the waves that
+intersect semantic coverage $G$. Aggregate the internal packet prices by
+coverage and subtract the candidate's coefficients from the incumbent's:
+\[
+ a_{jG}=\sum_{v:G_{L_0}(v)=G}c(d_v)
+          -\sum_{v:G_{L_j}(v)=G}c(d_v).
+\]
+Coefficients may have either sign. Shared packets cancel, regardless of
+their display positions. The strict-epoch saving is exactly
+\begin{align}\label{eq:paired-saving}
+ d_j(e)&=\ell_e(L_0)-\ell_e(L_j)\nonumber\\
+       &=a_{j0}+\sum_G a_{jG}h_e(G),\quad
+ a_{j0}=\sum_Ga_{jG}.
+\end{align}
+For $s=|G|$, the support implies
+\begin{equation}\label{eq:hit-envelope}
+ l_G=\max\{\lceil s/w\rceil,q-(n-s)\}
+       \le h_e(G)\le u_G=\min(s,q).
+\end{equation}
+The second lower bound follows because every untouched nonempty wave
+requires a distinct check outside $G$. In particular $h_e(\mathcal R)=q$.
+Define
+\begin{align*}
+ A_j&=a_{j0}+\sum_{a_{jG}>0}a_{jG}l_G
+                    +\sum_{a_{jG}<0}a_{jG}u_G,\\
+ B_j&=a_{j0}+\sum_{a_{jG}>0}a_{jG}u_G
+                    +\sum_{a_{jG}<0}a_{jG}l_G.
+\end{align*}
+Set $R_j=B_j-A_j$. Thus $d_j(e)\in[A_j,B_j]$ on the entire declared support, rather than
+merely the observed epochs. Bounds for different coverages need not be
+jointly attainable, so this envelope is conservative.
+
+Pairwise insufficiency does not require retaining every raw wave forever.
+Once a catalogue is frozen, exact paired scoring needs only the accumulated
+sum of each $d_j(e)$ and the number of epochs. More generally, the following
+standard linear-identification argument characterizes population scoring
+interfaces, and distinguishes exact score recovery from argmin recovery.
+
+\begin{proposition}[Exact population score identification]\label{prop:summary-span}
+On the finite epoch support $\Omega$, let an interface expose only
+$\E_P\phi_1,\ldots,\E_P\phi_p$ for all probability laws $P$.
+It determines every expected paired score $\E_Pd_j$, for every $P$, if and
+only if each function $d_j$ belongs to
+$\operatorname{span}\{1,\phi_1,\ldots,\phi_p\}$ on $\Omega$.
+The smallest number of scalar expectation features for exact scoring is
+the dimension of the span of the $d_j$ modulo constant functions.
+\end{proposition}
+\begin{proof}
+Span membership supplies an affine recovery formula. Conversely, if
+$d_j$ is outside the span, finite-dimensional orthogonality supplies a
+signed vector $z$ annihilating $1$ and every $\phi_i$ but not $d_j$.
+Its positive and negative parts have the same nonzero mass. Normalizing
+them yields laws $P,Q$ with equal exposed summaries but different expected
+paired scores. The dimension statement follows by taking a basis modulo
+constants and applying the same argument to any lower-dimensional feature
+span. This concerns exact scoring; different scores alone do not imply
+different minimizing layouts, which requires the earlier separations.
+\end{proof}
+
+The implementation accumulates exact integer paired sums in one pass with
+$O(K)$ score counters, in addition to the frozen coverage coefficients and
+one epoch's masks. It retains no per-epoch loss rows on this path. Auditable
+source/checker records and any required raw provenance remain separate;
+score sufficiency grants no permission to discard acceptance evidence.
+
+\begin{theorem}[Conditional expected lifecycle benefit]\label{thm:adoption}
+Condition on training and the frozen catalogue, support, $0<\delta<1$,
+TV radius $0\le\rho\le1$, horizon $h\ge1$ and nonnegative installation
+costs $I_j$, all specified before calibration. Suppose the $m\ge1$
+calibration epochs are IID from $P$ and independent of fitting. Let
+$\bar d_j$ be their paired mean, and define
+\begin{align}
+ t_j&=R_j\sqrt{\frac{\log(K/\delta)}{2m}},\nonumber\\
+ g_j&=\max\{A_j,\bar d_j-t_j-\rho R_j\}-I_j/h.
+ \label{eq:adoption-lower}
+\end{align}
+With probability at least $1-\delta$ over calibration, simultaneously
+for all candidates and every future law $Q$ on the same support with
+$\operatorname{TV}(P,Q)\le\rho$,
+\[
+ h\,\E_Qd_j-I_j\ge h g_j.
+\]
+Adopting only a candidate with $g_j>0$, otherwise retaining $L_0$,
+therefore certifies a conditional positive expected padded-byte benefit.
+This does not certify realized savings, elapsed time, or task acceptance.
+\end{theorem}
+\begin{proof}
+For each fixed candidate the one-sided Hoeffding inequality gives
+$\Pr\{\E_Pd_j<\bar d_j-t_j\}\le\delta/K$ when $R_j>0$.
+When $R_j=0$ the cost difference is constant and the conclusion holds
+deterministically. A union bound makes these inequalities simultaneous;
+candidate differences within an epoch need not be independent.
+
+Use the convention $\operatorname{TV}(P,Q)=\sup_E|P(E)-Q(E)|$.
+For $R_j>0$, normalize $(d_j-A_j)/R_j$ to $[0,1]$ and integrate
+its superlevel-set probabilities. It follows that
+$|\E_Qd_j-\E_Pd_j|\le\rho R_j$, uniformly over the TV ball.
+For $R_j=0$ the difference is zero. Since $Q$ remains on the same
+support, also $\E_Qd_j\ge A_j$. Combining the bounds and subtracting
+$I_j/h$ proves the claim. The simultaneous event permits selection of
+any qualifying candidate after calibration.
+\end{proof}
+
+The rule conditions on a \emph{justified} sampling design and shift radius;
+neither is learned or verified from repeated observations by this theorem.
+If deployment can leave the declared support, the guarantee does not apply.
+Reusing calibration to refit layouts, choose the radius, or repeatedly
+deploy new catalogues needs additional error accounting. The implementation
+binds all plan parameters to a digest and requires external sampling/freeze
+provenance; an assertion string alone is not evidence of independence or
+chronology. Missing provenance or radius returns $\UNKNOWN$ and retains
+the incumbent. Installation costs are bytes in the declared protocol;
+compilation seconds and consumer utility remain separate admission tests.
+An installation operation already charged inside the first epoch must not
+also appear in $I_j$; the cost ledger must assign each operation once.

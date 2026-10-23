@@ -1,3 +1,13 @@
+# Current HACT v14 research documentation
+
+- [Scientific review and revision response](V14_REFEREE_REVIEW.md)
+- [Frozen revision contract](V14_REVISION_CONTRACT.md)
+- [Reproduction and measurement boundaries](V14_REPRODUCE.md)
+- [Validation record](V14_VALIDATION.md)
+- [Author review](../submission/AUTHOR_REVIEW.md)
+
+## Historical documentation index
+
 # Current manuscript: v10 theory and submission-readiness review
 
 Start with `V10_SUBMISSION_READINESS.md`, `V10_CONFIRMATORY_PROTOCOL.md`,

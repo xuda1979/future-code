@@ -1,7 +1,7 @@
 \section{Optional Fixed-Share Analysis: Not the Deployment Recommendation}\label{app:tracking}
 This section retains v3's former Theorem 4 and its assumptions. It is an optional comparator, not the practical selector recommended in v4. On the measured streams it loses to the deterministic priced-window rule in three regimes. We have not searched for a favorable adversarial stream after seeing those results, and make no claim that a tracking bound implies an empirical advantage.
 \subsection{Fixed-share weights with maximal coupling}
-Let a declared bound $R$ cover each round's loss spread, $\max_i\ell_t(i)-\min_i\ell_t(i)\le R$. Reject a measurement exceeding it instead of clipping the cost. Define $z_{t,i}=(\ell_t(i)-\min_j\ell_t(j))/R$. Starting at $p_1(i)=1/K$, update
+Let a declared bound $R>0$ cover each round's loss spread, $\max_i\ell_t(i)-\min_i\ell_t(i)\le R$. Reject a measurement exceeding it instead of clipping the cost. Define $z_{t,i}=(\ell_t(i)-\min_j\ell_t(j))/R$. Starting at $p_1(i)=1/K$, update
 \begin{align}
  q_{t+1}(i)&=\frac{p_t(i)\exp(-\eta z_{t,i})}{\sum_jp_t(j)\exp(-\eta z_{t,j})},\\
  p_{t+1}(i)&=(1-\alpha)q_{t+1}(i)+\alpha/K,\quad 0<\eta\le1,\;0\le\alpha<1.\label{eq:share}
@@ -9,7 +9,7 @@ Let a declared bound $R$ cover each round's loss spread, $\max_i\ell_t(i)-\min_i
 Independent draws from each new distribution can waste migrations. Instead, conditional on $A_t=i$, retain $i$ with probability $\min\{1,p_{t+1}(i)/p_t(i)\}$. If it is not retained, sample from the normalized positive residual $(p_{t+1}-p_t)_+$. This maximal coupling has marginal $p_{t+1}$ and switch probability $\operatorname{TV}(p_t,p_{t+1})$. Established dependent-sampling methods motivate this choice~\cite{geulen}; we do not claim it as a new sampling algorithm.
 
 \begin{theorem}[Catalogue tracking with migration]\label{thm:tracking}
-Assume a frozen catalogue, a fixed exogenous sequence of full-information loss vectors, spread at most $R$, and $M_{ij}\le M$. For any comparator path $u_{1:T}$ with $s$ changes and $0<\alpha<1$, the coupled policy satisfies
+Assume a frozen catalogue, a fixed exogenous sequence of full-information loss vectors, spread at most $R>0$, and $M_{ij}\le M$. For any comparator path $u_{1:T}$ with $s$ changes and $0<\alpha<1$, the coupled policy satisfies
 \begin{align}
  \E[\mathcal L_T]-\sum_t\ell_t(u_t)
  \le{}& R\left[\frac{\log K+s\log(K/\alpha)+(T-1-s)\log(1/(1-\alpha))}{\eta}

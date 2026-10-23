@@ -1,3 +1,124 @@
+# Adaptive HACT: v14 journal revision
+
+**Publication status:** this revision includes the manuscripts, source and
+complete v11–v14 observation archive for review in PR #76. The author has
+explicitly authorized public release of the archive, required v12 audit report
+and observation/release inventories. See
+[the evidence release scope](submission/PUBLICATION_STATUS.md).
+
+Start with the [IEEE manuscript](paper/journal.pdf),
+[scientific review and response](docs/V14_REFEREE_REVIEW.md) and
+[reproduction guide](docs/V14_REPRODUCE.md). This is a theory-led paper on
+information limits and safe adaptation of verification evidence, with measured
+applicability boundaries. IEEE Transactions on Software Engineering remains the
+ambitious target. The requested PR publishes the reviewable work; it is not a
+journal submission or a guarantee of acceptance.
+
+V14 complements the pairwise-information lower bound with an **exact global
+tree/permutation optimizer under exchangeable complete batches**, using
+O(b n²) arithmetic operations and O(b n) states. The size-state method is a
+specialization of established batch-update tree optimization, with close prior
+art explicitly compared. Independent enumeration agrees in **74,245 feasible
+tree comparisons across 70 cases**. The earlier conditional adoption rule and
+semantic migration invariant remain intact.
+
+The stronger no-learning baseline beats frozen full-wave cap32 refinement on
+**all 15 item-shuffled traces** and loses on **all 15 file-group traces**. It costs
+**21.26–62.13% more on original repeated-order holdouts**. This retrospective
+re-encoding adds no upstream execution. Packaging's resource exclusion, the
+historical 3 wins / 18 ties / 9 losses and the maintained-counter ledger's
+service advantage remain explicit. Natural consumer and agent speedups remain
+unestablished; no positive packet result is substituted for them.
+
+The release transports all 522 v11–v14 observations in a hash-bound lossless
+archive under `data/observations`. Restore the exact original paths before any
+test or audit:
+
+```sh
+python tools/hydrate_observations.py --require-index
+python tools/verify_manifest.py
+```
+
+See [reproduction](docs/V14_REPRODUCE.md) for dependency installation, all
+historical gates and PDF builds. The release manifest includes every restored
+raw file and all archive parts. JSS variants are
+generated from the same primary source; the extended analysis retains full
+proofs and historical results.
+
+Authors remain **Da Xu and Fei Wang**, **China Mobile Research Institute**;
+correspondence **xudayj@chinamobile.com**. [Author review](submission/AUTHOR_REVIEW.md)
+records final factual inputs needed before journal submission. Earlier upload
+holds are superseded by the user's explicit instruction to publish this PR.
+
+## Historical v13
+
+The v13 review and reproduction guides remain in docs/V13_*. Historical release
+inventories are retained in the full author-review package; the current public
+inventory covers all inputs required by the v14 workflow.
+
+## Historical v12 and earlier records
+
+The material below preserves prior revision descriptions; it is not the current
+readiness assessment.
+
+# Adaptive HACT: v12 journal revision
+
+Start with the [JSS-format manuscript](paper/jss.pdf), the
+[referee review and revision response](docs/V12_REFEREE_REVIEW.md), and the
+[author-review guide](submission/AUTHOR_REVIEW.md).
+The [IEEE version](paper/journal.pdf) is an ambitious alternative;
+[full analysis](paper/main.pdf) preserves historical material.
+Authors: **Da Xu and Fei Wang**, **China Mobile Research Institute**;
+correspondence: **xudayj@chinamobile.com**.
+**No journal submission or repository push was performed in this revision.**
+
+V12 adds an exact fixed-eight information-separation extension, corrects the
+interpretation of repeated completion patterns, and supplies two separately
+frozen follow-ups. Thirty admitted dispatch-shift executions yield three wins,
+eighteen ties and nine losses for primary refinement versus historical compact
+selection; six initial provenance exclusions are preserved. All 240 service
+ablation arms pass 10,080 answer checks. Removing byte observers reduces time
+but leaves HACT slower than maintained counters for every paired block.
+
+The contribution is an information limit and a semantic adaptation framework
+with measured applicability boundaries. It is not a general agent-speedup or
+service-superiority claim. See [venue decision](submission/JOURNAL_DECISION.md),
+[reproduction](docs/V12_REPRODUCE.md), [theory review](docs/V12_THEORY_REVIEW.md),
+and [empirical review](docs/V12_EMPIRICAL_REVIEW.md).
+
+## Historical v11 and earlier records
+
+The following sections preserve earlier descriptions and validation counts;
+they are not the current readiness assessment.
+
+# Adaptive HACT: v11 author review
+
+**Read [the concise journal manuscript](paper/journal.pdf)**, then
+[the author-review guide](submission/AUTHOR_REVIEW.md).
+The [full analysis](paper/main.pdf) retains historical experiments and proofs.
+Authors: **Da Xu and Fei Wang**, **China Mobile Research Institute**;
+corresponding author **xudayj@chinamobile.com**.
+**No editorial submission has been made. The user will review before submission.**
+
+V11 adds a packet-price-general information theorem, a complete-epoch
+separation with a sharp minimax penalty, independently checked references,
+and optional bounded full-wave subtree refinement. Thirty actual suite runs
+on six new public projects record 151,380 check executions. Primary compiler
+savings are small; larger cap64 gains are explicitly secondary. Partial
+source-transfer losses, slower tree service costs and Packaging resource
+failures are retained. No live-agent speedup or population-level superiority
+is claimed.
+
+Start with [claims and evidence](docs/V11_CLAIMS_AND_EVIDENCE.md),
+[reproduction](docs/V11_REPRODUCE.md), [data deviations](docs/V11_PUBLIC_DATA_DEVIATIONS.md)
+and [independent review](docs/V11_INDEPENDENT_THEORY_REVIEW.md).
+All old results retain their original version/provenance.
+
+## Historical v10 review and earlier records
+
+The following material records the earlier review and its then-current
+validation counts. It is not the current v11 submission-readiness assessment.
+
 # Adaptive HACT: manuscript v10 and submission-readiness review
 
 Start with `paper/main.pdf` and `docs/V10_SUBMISSION_READINESS.md`. The authors
