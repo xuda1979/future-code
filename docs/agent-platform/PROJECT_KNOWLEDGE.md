@@ -11,6 +11,7 @@ can still add advice during a run. Core code has no scientific domain registry.
 | Asset | How it enters | Runtime meaning |
 | --- | --- | --- |
 | Expert/reference pack | Initial spec or optional import at any time | Attributed, content-versioned seed; not independently verified |
+| Human Markdown or `SKILL.md` | `teach` command, initially or during work | Requests, procedures, experience and knowledge use the same attributed seed lifecycle |
 | Structured experience | Agent calls `record_experience` during normal work | Trigger, lesson, conditions, workflow phase, tags and owned evidence references |
 | Failure ledger | Host automatically indexes diagnostic checkpoints | Exact failed inputs; a crash/error alone does not falsify a hypothesis |
 | Failure-to-pass transition | Host consolidates at independent source acceptance | Historical failure and accepted patch passed the same named check; cause remains unknown |
@@ -38,6 +39,10 @@ Add this optional policy to a Swarm spec:
 }
 ```
 
+Both shipped Swarm example specs enable this policy and the knowledge tools.
+Custom specs retain their explicit opt-in. Initialize a new state store with the
+updated spec; existing frozen configurations are not silently rewritten.
+
 Include `record_experience`, `read_knowledge` and `recall` in the profiles that
 should learn/retrieve project knowledge. They supplement existing scoped file
 reads/searches, checks and authorized research jobs. Agents without these tools
@@ -60,6 +65,61 @@ conditions. Content hashes identify versions; reimporting identical bytes is
 idempotent. Changed versions coexist with history. An operator may retire an
 obsolete version without deleting it. A pack is suitable for Git review, but
 review is optional for runtime learning.
+
+## Teach the project in Markdown
+
+Scientists and developers can keep their methods in a normal `SKILL.md`, or write
+requests, observations and background knowledge as Markdown or plain text. Import
+one file into an initialized Swarm project with:
+
+```sh
+node --experimental-strip-types src/harness/foundry/swarm/cli.ts teach \
+  --root STATE --file path/to/SKILL.md --id measurement-review --kind skill \
+  --source 'Project maintainer' \
+  --trigger 'measurement schema baseline validation' \
+  --conditions 'Use with this project and its pinned validators; recheck assumptions on new data.' \
+  --tags measurement,schema --phase validation --allow-exec
+```
+
+The interactive application accepts the same arguments after `/swarm teach`.
+`--source`, `--tags` and `--phase` are optional; source defaults to the filename
+and phase to `any`. Choose concrete trigger words/tags that also appear in task
+goals, file scopes or check names: automatic retrieval uses literal terms.
+
+| `--kind` | Human input | Seed meaning |
+| --- | --- | --- |
+| `request` | Persistent priorities, preferences or project requests | Constraint guidance within the frozen task contract |
+| `skill` | Reusable procedure or a `SKILL.md` | Procedure to consult under its declared conditions |
+| `experience` | Lessons, failed approaches or practical observations | Reference advice with explicit applicability |
+| `knowledge` | Background, definitions or domain notes | Reference material with attribution |
+
+Use task/goal files for work to execute, and pinned checks for mandatory acceptance
+requirements. A saved request is retrieved guidance; it does not enqueue tasks or
+edit a running objective. All four kinds retain `EXPERT_SEED_UNVERIFIED` trust.
+Human attribution establishes provenance; scientific assertions still need
+independent evidence. Skill frontmatter cannot grant tools or change budgets,
+scope or checks through this import.
+
+The importer reads at most 64 KiB of valid UTF-8 from one regular local file.
+It preserves the complete text, including frontmatter, in ordered parts of at
+most 2048 bytes each. Each part identifies its position and a version-specific
+retrieval tag. Workers should retrieve every part, follow pagination, and read
+them in order before applying a multipart procedure. The automatic digest alone
+may show only a subset. Referenced files/URLs, hooks and shell substitutions are
+stored as text; import does not fetch or execute them. Import supporting files
+separately or expose them through ordinary scoped reads/adapters.
+
+Text and metadata determine the version. Reimporting the same file and metadata
+is idempotent. Editing the file requires another import; the old version stays
+inspectable. The result lists card IDs, so `experience-retire` can retire each
+obsolete part explicitly. An import during work becomes eligible for retrieval
+at the next complete model-request boundary, subject to phase/query/context
+bounds. Saved replies still replay against their original context.
+
+The interactive session's native skill loader also discovers
+`.future/skills/<name>/SKILL.md` in the project and skills in the user config
+directory. Swarm uses the explicit `teach` bridge above, so an operator can reuse
+the same document while keeping the long-running runtime's capability contract.
 
 ## Autonomous discovery and consolidation
 
@@ -207,6 +267,11 @@ The Git/check end-to-end fixture demonstrates failure capture and reuse in a
 later run without additional summarizer requests. Scientific framework tests
 exercise accepted positive/negative observations and retraction using an
 arbitrary domain name.
+
+`tests/foundry/human-knowledge.test.ts` covers human input kinds, complete
+multilingual multipart text, file bounds, inert skill directives, persistent and
+idempotent CLI imports, real worker-context reuse and unchanged independent
+acceptance. These tests run in both Foundry and Swarm regression suites.
 
 These tests establish runtime behavior. They are scripted/offline evidence,
 not measurements of live-model productivity or a claim of expert performance

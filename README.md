@@ -112,7 +112,7 @@ Missing token or dollar measurements remain unknown.
 |---|---|
 | Architectural principles and trust boundaries | [Sovereign kernel](docs/agent-platform/SOVEREIGN_KERNEL.md) |
 | Claims, evidence, conflicts and adjudication | [Knowledge protocol](docs/agent-platform/KNOWLEDGE_PROTOCOL.md) |
-| Expert seeds and autonomous experience accumulation | [Project knowledge](docs/agent-platform/PROJECT_KNOWLEDGE.md) |
+| Human requests, skills, knowledge and autonomous experience accumulation | [Project knowledge](docs/agent-platform/PROJECT_KNOWLEDGE.md) |
 | Frozen contracts and recipe experiments | [Foundry](docs/agent-platform/FOUNDRY.md) |
 | External-API agents and durable sessions | [Swarm](docs/agent-platform/SWARM.md) |
 | RTL simulation, lint, chip evidence and coverage closure | [Chip verification](docs/agent-platform/CHIP_VERIFICATION.md) |
