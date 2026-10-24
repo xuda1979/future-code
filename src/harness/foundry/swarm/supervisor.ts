@@ -10,6 +10,7 @@ import { integrateSwarm, loadSwarm, runSwarm } from "./host.ts";
 import { inScope, keys, validateSwarmTasks, type PinnedSwarm } from "./config.ts";
 import { createApiRecoveryPlanner } from "./recovery.ts";
 import { externalEffectSnapshot, objectiveJobUsage } from "./jobs.ts";
+import { actionEvidenceGate } from "../operations/actions.ts";
 import { buildObjectiveEpisode, installRndEpisodeTables, objectiveEpisodeStatus, persistObjectiveEpisode } from "../rndEpisodes.ts";
 import { installRndReflectionTables, latestObjectiveReflection, reflectRun } from "../rndReflection.ts";
 import { evaluateInterventionOutcomes, installInterventionMemoryTables, interventionMemoryForFindings } from "../interventionMemory.ts";
@@ -48,6 +49,7 @@ export interface ObjectiveEvidenceGate {
   unresolvedExternalJobs: number;
   externalJobsByTemplate: Record<string, number>;
   scientificBlocker: string | null;
+  externalActions?: { unresolved: number; invalid: number; manifestHash: string };
 }
 
 /** Host-owned completion gate. External models may propose work, but they never
@@ -69,6 +71,7 @@ export function objectiveEvidenceGate(store: Store, run: string, objective?: str
   ).get(run)?.n ?? 0);
   const externalEffects = externalEffectSnapshot(store, run, objective);
   const claims = claimGate(store, run);
+  const actions = actionEvidenceGate(store, run, undefined, objective);
   let scientificBlocker: string | null = null;
   const cfg = store.getMeta<PinnedSwarm>("extension.swarm");
   if (cfg) {
@@ -77,7 +80,7 @@ export function objectiveEvidenceGate(store: Store, run: string, objective?: str
   }
   return {
     status: Number(counts.verified) === Number(counts.total) && openConflicts === 0 &&
-      externalEffects.unresolved === 0 && claims.openClaimConflicts === 0 && claims.staleClaims === 0 &&
+      externalEffects.unresolved === 0 && actions.status === "PASS" && claims.openClaimConflicts === 0 && claims.staleClaims === 0 &&
       scientificBlocker === null ? "PASS" : "BLOCKED",
     taskCount: Number(counts.total),
     verifiedTasks: Number(counts.verified),
@@ -89,6 +92,8 @@ export function objectiveEvidenceGate(store: Store, run: string, objective?: str
     unresolvedExternalJobs: externalEffects.unresolved,
     externalJobsByTemplate: externalEffects.byTemplate,
     scientificBlocker,
+    ...(cfg?.operations ? { externalActions: { unresolved: actions.unresolved, invalid: actions.invalid,
+      manifestHash: store.artifact(actions.records) } } : {}),
   };
 }
 export function recoveryStrategySignature(tasks: Task[], defaultAgent?: string): string {
@@ -346,8 +351,8 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
   };
   const unresolvedRemoteJobs = (run: string): number => {
     const exists = store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='research_jobs'").get();
-    if (!exists) return 0;
-    return store.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE run=? AND result_hash IS NULL").get(run)!.n;
+    const actions = actionEvidenceGate(store, run, undefined, input.id);
+    return (exists ? Number(store.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE run=? AND result_hash IS NULL").get(run)!.n) : 0) + actions.unresolved + actions.invalid;
   };
   const adoptPreparedRecovery = (row: any, recovery: any): boolean => {
     invariant(recovery?.state === "PREPARED" && typeof recovery.new_run === "string", "invalid prepared recovery");

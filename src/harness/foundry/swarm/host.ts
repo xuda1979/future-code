@@ -24,6 +24,9 @@ import { WorkflowPolicyAgent, workflowPolicyMetrics } from "./workflowPolicy.ts"
 import { workflowObservation } from "../workflow.ts";
 import { ProjectKnowledge } from "./knowledge.ts";
 import { assertRunScientificAcceptance } from "./scientificAcceptance.ts";
+import { assertProjectPack, registerProjectPack } from "../projectPack.ts";
+import { pinOperations } from "../operations/contracts.ts";
+import { Operations, actionEvidenceGate } from "../operations/actions.ts";
 const json = (value: unknown): Json => JSON.parse(canonical(value));
 const KEY = "extension.swarm";
 export async function initializeSwarm(store: Store, input: SwarmSpec, signal: AbortSignal): Promise<PinnedSwarm> {
@@ -76,13 +79,22 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
       }
     }
   }
+  if (spec.operations) {
+    cfg.operations = pinOperations(spec.operations, spec.project, executable("node"));
+    for (const command of Object.values(cfg.operations.adapters)) for (const pin of command.pins) {
+      const path = relative(spec.project, pin.path).replaceAll("\\", "/");
+      if (path && !path.startsWith("../") && !isAbsolute(path)) spec.protectedPaths.push(path);
+    }
+    for (const tasks of Object.values(spec.operations.routes ?? {})) validateSwarmTasks(spec, tasks);
+  }
   spec.protectedPaths = [...new Set([...spec.protectedPaths, ".gitignore", ".gitattributes", ".gitmodules"])].sort();
   const contract: Contract = { schema: 1, ...(spec.supervision?.snapshotReads ? { readIsolation: "snapshot" as const } : {}), name: spec.name, workerId: workerIdentity(cfg), verifierId: verifierIdentity(cfg),
     environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior", ...(Object.values(spec.jobs ?? {}).some(j => j.research) ? ["research"] : []), ...(spec.researchProgramme ? ["knowledge"] : [])],
     slos: [], limits: spec.limits };
+  if (cfg.operations) contract.requiredChecks.push("operations");
   store.initialize(contract, spec.recipe, undefined, {
     [KEY]: json(cfg),
-    "extension.evidenceDomain": spec.domainPack ?? "software-engineering",
+    "extension.evidenceDomain": registerProjectPack(store, spec.domainPack),
   });
   if (Object.values(spec.jobs ?? {}).some(j => j.research)) installResearch(store);
   if (spec.researchProgramme) new ResearchProgramme(store, spec.researchProgramme);
@@ -90,6 +102,7 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
     const knowledge = new ProjectKnowledge(store, cfg);
     for (const pack of spec.projectKnowledge.packs ?? []) knowledge.importPack(pack);
   }
+  if (cfg.operations) new Operations(store, cfg.operations);
   new SessionJournal(store); return cfg;
 }
 export function loadSwarm(store: Store): PinnedSwarm {
@@ -97,12 +110,18 @@ export function loadSwarm(store: Store): PinnedSwarm {
   invariant(cfg.handsId === "local-git-posix-v1" || cfg.handsId === remoteWorkerFleetBackend.id, "unsupported execution backend");
   invariant((cfg.handsId === remoteWorkerFleetBackend.id) === !!cfg.spec.workers, "execution backend drift");
   validateSwarmSpec(cfg.spec); checkPins(cfg.git); Object.values(cfg.checks).forEach(checkPins);
+  invariant(!!cfg.operations === !!cfg.spec.operations, "operations configuration drift");
+  if (cfg.operations) {
+    invariant(digest(cfg.operations.policy) === digest(cfg.spec.operations), "operations policy drift");
+    Object.values(cfg.operations.adapters).forEach(checkPins);
+    new Operations(store, cfg.operations);
+  }
   Object.values(cfg.jobAdapters ?? {}).forEach(checkPins);
   Object.values(cfg.researchCheckers ?? {}).forEach(checkPins);
   Object.values(cfg.experimentValidators ?? {}).flatMap(v => Object.values(v)).forEach(v => checkPins(v.command));
   Object.values(cfg.workerAdapters ?? {}).forEach(checkPins);
   invariant((store.contract().readIsolation === "snapshot") === !!cfg.spec.supervision?.snapshotReads, "snapshot isolation drift");
-  invariant(store.getMeta("extension.evidenceDomain") === (cfg.spec.domainPack ?? "software-engineering"),
+  invariant(store.getMeta("extension.evidenceDomain") === assertProjectPack(store, cfg.spec.domainPack),
     "evidence domain drift");
   const c = store.contract();
   invariant(c.workerId === workerIdentity(cfg) && c.verifierId === verifierIdentity(cfg) &&
@@ -148,6 +167,7 @@ export async function integrateSwarm(store: Store, run: string, signal: AbortSig
   const cfg = loadSwarm(store); const summary = new Scheduler(store).summary(run);
   invariant(summary.status === "PASS", "all tasks must pass before integration");
   const assertKnowledgeGate = () => {
+    if (cfg.operations) invariant(actionEvidenceGate(store, run).status === "PASS", "integration blocked by external action evidence");
     const claims = claimGate(store, run);
     const open = Number(store.db.prepare("SELECT COUNT(*) AS n FROM fabric_conflicts WHERE run=? AND status='OPEN'").get(run)?.n ?? 0);
     invariant(open === 0 && claims.openClaimConflicts === 0 && claims.staleClaims === 0,

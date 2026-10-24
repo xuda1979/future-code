@@ -23,7 +23,9 @@ import type { ThreadState } from "./session.ts";
 import { workflowObservation } from "../workflow.ts";
 import { ProjectKnowledge, type KnowledgePack, type KnowledgePhase } from "./knowledge.ts";
 import { humanKnowledgePack, readTeachingFile, type HumanInputKind } from "./humanKnowledge.ts";
+import { handleOperations } from "../operations/cli.ts";
 export const help = `Foundry Swarm: durable coding agents on the existing Foundry kernel
+  operations help (durable project-neutral external service commands)
   init --spec FILE --allow-exec
   run --tasks FILE --allow-exec
   resume --run ID --allow-exec
@@ -72,6 +74,7 @@ export function tokenize(text: string): string[] {
 }
 function file(path: string): any { invariant(statSync(path).size <= 32 * 1024 * 1024, "JSON input exceeds 32 MiB"); return JSON.parse(readFileSync(path, "utf8")); }
 export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal, onProgress: HealthObserver = r => console.error(formatHealth(r))): Promise<Json> {
+  if (argv[0] === "operations") return handleOperations(argv.slice(1), signal);
   const cmd = argv[0] ?? "help"; if (cmd === "help") return { help };
   const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence", "--finding", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit", "--query", "--phase", "--file", "--id", "--kind", "--trigger", "--conditions", "--source", "--tags"]);
   for (let i = 1; i < argv.length; i++) {
