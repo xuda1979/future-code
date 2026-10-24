@@ -14,6 +14,7 @@ import type { DebuggingState } from "./debugging.ts";
 import { installMemoryTables, indexMemory } from "./memory.ts";
 import type { DecisionState } from "./decisions.ts";
 import type { ProjectKnowledge } from "./knowledge.ts";
+import { chargeOperationsRequest } from "../operations/actions.ts";
 
 export interface PatchArtifact { schema: 1; patchHash: string; summary: string }
 export interface ThreadState {
@@ -267,6 +268,7 @@ export class SessionJournal {
         if (wake !== null) return { wake };
         const live = this.store.db.prepare("SELECT COUNT(*) AS n FROM agent_requests WHERE provider=? AND status='ACTIVE'").get(provider)!.n;
         if (live >= budget.modelConcurrency) return null;
+        chargeOperationsRequest(this.store, count);
         const id = randomUUID();
         this.store.db.prepare(`INSERT INTO agent_requests
           (id,run,task,fence,provider,bytes,request,started,deadline,status,wait_ms,replay_request)

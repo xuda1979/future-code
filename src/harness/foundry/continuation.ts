@@ -9,7 +9,7 @@ export class DeferredAttemptError extends Error {
   readonly wakeAt: number;
   readonly kind: string;
   readonly capacity?: { template: string; maxConcurrent: number };
-  constructor(kind: "provider" | "remote-job" | "remote-stalled" | "checkpoint" | "spawn" | "cancelled" | "cohort-capacity",
+  constructor(kind: "provider" | "remote-job" | "remote-stalled" | "external-action" | "checkpoint" | "spawn" | "cancelled" | "cohort-capacity",
     wakeAt: number, reason: string, capacity?: { template: string; maxConcurrent: number }) {
     super(reason); this.name = "DeferredAttemptError";
     invariant(Number.isSafeInteger(wakeAt) && wakeAt >= 0, "invalid continuation time");

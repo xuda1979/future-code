@@ -7,6 +7,10 @@ export type { Claim, ClaimInput, ClaimStatus, ClaimConflict } from "./claims.ts"
 export type { AdjudicationRecord } from "./adjudication.ts";
 export { admitAdjudicationTask } from "./adjudication.ts";
 export { Store } from "./store.ts";
+export { Operations, actionEvidenceGate, unresolvedActions } from "./operations/actions.ts";
+export { OperationsEvents } from "./operations/events.ts";
+export { pinOperations, validateOperations } from "./operations/contracts.ts";
+export type { OperationsPolicy, CapabilitySpec, PinnedOperations, ValueSchema } from "./operations/contracts.ts";
 export { Scheduler } from "./scheduler.ts";
 export { runTasks } from "./runtime.ts";
 export { spawnTasks } from "./dynamicDag.ts";

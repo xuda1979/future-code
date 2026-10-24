@@ -51,4 +51,5 @@ export function validateToolProposal(c: Capsule, cfg: PinnedSwarm, profile: Agen
   if (call.name === "run_check") invariant(permittedChecks(profile).includes(call.arguments.name as string), "check not permitted");
   if (call.name === "run_probe") invariant(profile.probes?.includes(call.arguments.name as string), "probe not permitted");
   if (call.name === "run_job") invariant(profile.jobs?.includes(call.arguments.name as string), "job not permitted");
+  if (call.name === "invoke_capability") invariant(profile.capabilities?.includes(call.arguments.name as string), "external capability not permitted");
 }

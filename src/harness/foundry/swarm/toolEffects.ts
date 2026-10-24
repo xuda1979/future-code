@@ -2,19 +2,20 @@ import { invariant } from "../kernel.ts";
 import type { Json } from "../types.ts";
 import type { PinnedSwarm, ToolName } from "./config.ts";
 
-export type ToolEffectClass = "read" | "workspace-write" | "check" | "control-plane" | "external-job";
+export type ToolEffectClass = "read" | "workspace-write" | "check" | "control-plane" | "external-job" | "external-action";
 export type ReplayPolicy = "safe" | "state-bound" | "reconcile";
 export interface ToolEffectContract {
   tool: ToolName;
   effect: ToolEffectClass;
   replay: ReplayPolicy;
-  idempotency: "none" | "call-id" | "spawn-request" | "job-key";
+  idempotency: "none" | "call-id" | "spawn-request" | "job-key" | "resource-transition";
   compensation: "none" | "snapshot-rollback" | "operator-reconcile";
   risk: "low" | "medium" | "high";
   rationale: string;
 }
 
 const fixed: Partial<Record<ToolName, ToolEffectContract>> = {
+  read_operations: { tool: "read_operations", effect: "read", replay: "safe", idempotency: "none", compensation: "none", risk: "low", rationale: "bounded project operations projection" },
   read_knowledge: { tool: "read_knowledge", effect: "read", replay: "safe", idempotency: "none",
     compensation: "none", risk: "low", rationale: "bounded project-shared cards, never source receipt authority or acceptance" },
   record_experience: { tool: "record_experience", effect: "control-plane", replay: "state-bound", idempotency: "call-id",
@@ -54,6 +55,15 @@ const fixed: Partial<Record<ToolName, ToolEffectContract>> = {
 };
 
 export function toolEffectContract(cfg: PinnedSwarm, tool: ToolName, args: Json): ToolEffectContract {
+  if (tool === "read_operations") invariant(cfg.operations, "operations not configured");
+  if (tool === "invoke_capability") {
+    const name = (args as any)?.name;
+    invariant(typeof name === "string" && cfg.operations && Object.hasOwn(cfg.operations.policy.capabilities, name), "unknown external capability");
+    const effect = cfg.operations.policy.capabilities[name].effect;
+    return { tool, effect: effect === "read" ? "read" : "external-action", replay: effect === "read" ? "safe" : "reconcile",
+      idempotency: effect === "read" ? "none" : "resource-transition", compensation: effect === "read" ? "none" : "operator-reconcile",
+      risk: effect === "read" ? "low" : "high", rationale: "operator-pinned capability with durable action identity and reconciled resource usage" };
+  }
   if (tool === "run_check" || tool === "run_probe") {
     const name = (args as any)?.name;
     invariant(typeof name === "string" && cfg.spec.checks[name], "unknown check capability");

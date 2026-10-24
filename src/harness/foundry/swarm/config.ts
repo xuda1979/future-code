@@ -9,8 +9,10 @@ import { identifier, invariant, positive, validateContract, validateRecipe } fro
 import type { CommandSpec, Contract, PinnedCommand, Recipe, SpawnPolicy, Task } from "../types.ts";
 import { WORKFLOW_OPERATIONS, type WorkflowBounds } from "../workflow.ts";
 import { validateExperimentPipelines, type ExperimentPolicy } from "./experimentPipeline.ts";
+import { resolveEvidencePack, type EvidencePackSelection } from "../projectPack.ts";
+import { validateOperations, type OperationsPolicy, type PinnedOperations } from "../operations/contracts.ts";
 
-export const TOOLS = ["list_files", "read_file", "search_files", "write_file", "edit_file", "delete_file", "run_check", "run_probe", "recall", "run_job", "read_job_artifact", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict", "publish_finding", "read_findings", "record_experience", "read_knowledge"] as const;
+export const TOOLS = ["list_files", "read_file", "search_files", "write_file", "edit_file", "delete_file", "run_check", "run_probe", "recall", "run_job", "read_job_artifact", "spawn_tasks", "save_progress", "propose_claim", "read_claims", "propose_conflict", "publish_finding", "read_findings", "record_experience", "read_knowledge", "invoke_capability", "read_operations"] as const;
 export type ToolName = typeof TOOLS[number];
 export type Protocol = "anthropic" | "chat-completions";
 export interface ProviderRoute {
@@ -39,6 +41,7 @@ export interface AgentProfile {
   /** Exploratory capabilities, separate from independent acceptance checks. */
   probes?: string[];
   jobs?: string[];
+  capabilities?: string[];
   promptCache?: boolean;
   allowHttp?: boolean;
   /** Optional shared concurrency/rate-limit pool across model profiles. */
@@ -137,6 +140,8 @@ export interface SupervisionPolicy {
   };
 }
 export interface SwarmSpec {
+  /** Optional operator-owned external capabilities; no domain rules in the host. */
+  operations?: OperationsPolicy;
   /** Opt-in debugging policy. Healthy single-file tasks need no extra requests. */
   debugging?: {
     maxFailedCycles: number;
@@ -161,8 +166,8 @@ export interface SwarmSpec {
   researchStrategy?: ResearchStrategy;
   /** Explicit project sharing of bounded cards, never private source logs. */
   projectKnowledge?: KnowledgePolicy;
-  /** Evidence-Fabric semantic contract. Defaults to software-engineering. */
-  domainPack?: "software-engineering" | "ml-research" | "scientific-computing";
+  /** Operator-owned evidence semantics, pinned with the config. Legacy presets remain compatible. */
+  domainPack?: EvidencePackSelection;
   /** Optional multi-host execution fleet. The coordinator remains authoritative. */
   workers?: Record<string, ExecutionWorker>;
   supervision?: SupervisionPolicy;
@@ -180,6 +185,7 @@ export interface SwarmSpec {
   budget: SwarmBudget;
 }
 export interface PinnedSwarm {
+  operations?: PinnedOperations;
   version: 1;
   handsId: string;
   spec: SwarmSpec;
@@ -208,12 +214,11 @@ function names(names: string[], known: string[], label: string): void {
 }
 export const permittedChecks = (a: AgentProfile): string[] => [...new Set([...a.checks, ...(a.diagnostics ?? [])])];
 export function validateSwarmSpec(s: SwarmSpec): void {
-  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack", "coordination", "verification", "debugging", "researchProgramme", "researchStrategy", "projectKnowledge"]);
+  keys(s, ["schema", "name", "project", "baseRef", "defaultAgent", "agents", "checks", "integrationChecks", "protectedPaths", "limits", "recipe", "budget"], ["jobs", "workers", "supervision", "domainPack", "coordination", "verification", "debugging", "researchProgramme", "researchStrategy", "projectKnowledge", "operations"]);
+  if (s.operations) validateOperations(s.operations);
   invariant(s.schema === 1 && typeof s.name === "string" && !!s.name.trim(), "invalid swarm identity");
   invariant(typeof s.project === "string" && s.project.length > 0, "missing project");
-  invariant(s.domainPack === undefined ||
-    ["software-engineering", "ml-research", "scientific-computing"].includes(s.domainPack),
-    "unknown evidence domain pack");
+  resolveEvidencePack(s.domainPack);
   invariant(typeof s.baseRef === "string" && s.baseRef.length > 0 && !s.baseRef.startsWith("-") && !s.baseRef.includes("\0"), "invalid baseRef");
   const c: Contract = { schema: 1, name: s.name, workerId: "swarm", verifierId: "swarm-checker", environmentId: "pinned-project",
     requiredChecks: ["scope", "behavior"], slos: [], limits: s.limits };
@@ -272,7 +277,10 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   invariant(s.integrationChecks.every(n => s.checks[n].replaySafe), "integration checks must be replay-safe");
   for (const [id, a] of Object.entries(s.agents)) {
     identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"],
-      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs", "cohort", "probes", "checkpointCheck", "diagnostics", "decisionPolicy"]);
+      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs", "cohort", "probes", "checkpointCheck", "diagnostics", "decisionPolicy", "capabilities"]);
+    if (a.capabilities !== undefined) names(a.capabilities, Object.keys(s.operations?.capabilities ?? {}), "external capabilities");
+    if (a.tools.includes("invoke_capability")) invariant(s.operations && a.capabilities?.length, "invoke_capability requires a capability grant");
+    if (a.tools.includes("read_operations")) invariant(s.operations, "read_operations requires operations policy");
     if (a.cohort !== undefined) {
       identifier(a.cohort);
       invariant(s.coordination && Object.hasOwn(s.coordination.cohorts, a.cohort), "unknown agent cohort");
@@ -479,6 +487,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   if (s.researchStrategy) theoryGraph(s.researchStrategy, researchSpecs);
   const credentialNames = new Set(Object.values(s.agents).map(a => a.keyEnv).filter(Boolean));
   for (const check of [...Object.values(s.checks), ...Object.values(s.jobs ?? {}).map(j => j.adapter),
+    ...Object.values(s.operations?.capabilities ?? {}).map(c => c.adapter),
     ...Object.values(s.workers ?? {}).map(w => w.adapter),
     ...Object.values(s.jobs ?? {}).flatMap(j => j.research?.proofChecker ? [j.research.proofChecker] : []),
     ...Object.values(s.jobs ?? {}).flatMap(j => Object.values(j.research?.validators ?? {}).map(v => v.command))]) {

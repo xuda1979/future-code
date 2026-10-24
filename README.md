@@ -2,7 +2,8 @@
 
 [中文](README.zh.md)
 
-Future-Code is a runtime for sustained software development and research using
+Future-Code is a project-neutral runtime for sustained development, research and
+governed external operations using
 external LLM APIs. Models propose plans, code, tools and hypotheses. The kernel
 controls execution authority; independent checks determine acceptance.
 
@@ -54,6 +55,11 @@ host-owned. Policy recommendations cannot bypass admission or verification.
 - Versioned hypotheses with retraction, dependency invalidation and explicit conflicts.
 - Optional autonomous project knowledge: expert packs, observed failures, reusable
   experience cards, checked scientific findings and bounded cross-run retrieval.
+- Optional continuous operations: durable events/timers, project-defined external
+  capabilities, cross-run action identities, atomic resource reservations,
+  inspected outcomes, obligations and account-wide model-request ceilings.
+- Operator-supplied evidence packs with pinned content; project knowledge,
+  substantive policies and executable domain validators stay in project adapters.
 - Contextual recovery recommendations with sample counts, uncertainty and abstention.
 - Paired real-project evaluation with wall time, model requests, quality gates and nullable cost.
 
@@ -113,6 +119,7 @@ Missing token or dollar measurements remain unknown.
 | Architectural principles and trust boundaries | [Sovereign kernel](docs/agent-platform/SOVEREIGN_KERNEL.md) |
 | Claims, evidence, conflicts and adjudication | [Knowledge protocol](docs/agent-platform/KNOWLEDGE_PROTOCOL.md) |
 | Human requests, skills, knowledge and autonomous experience accumulation | [Project knowledge](docs/agent-platform/PROJECT_KNOWLEDGE.md) |
+| Continuous external work, capability grants, resources, deadlines and service commands | [Project-neutral operations](docs/agent-platform/PROJECT_OPERATIONS.md) |
 | Frozen contracts and recipe experiments | [Foundry](docs/agent-platform/FOUNDRY.md) |
 | External-API agents and durable sessions | [Swarm](docs/agent-platform/SWARM.md) |
 | RTL simulation, lint, chip evidence and coverage closure | [Chip verification](docs/agent-platform/CHIP_VERIFICATION.md) |

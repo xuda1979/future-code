@@ -19,6 +19,8 @@ const string = { type: "string" }; const integer = { type: "integer", minimum: 0
 const def = (name: ToolName, description: string, properties: Record<string, Json>, required: string[]): ToolDefinition =>
   ({ name, description, schema: { type: "object", properties, required, additionalProperties: false } });
 export const definitions: ToolDefinition[] = [
+  def("invoke_capability", "Invoke an explicitly granted, project-defined external capability. Inspect the capability contract in the task context. The host validates input, stable resource identity, current authority, reservations and external receipts. Unknown effects are durably reconciled; never invent another resource identity to retry. A confirmed operation is not task acceptance.", { name: string, input: {} }, ["name", "input"]),
+  def("read_operations", "Read a bounded operations projection with resource commitments and unresolved action references. Observations do not grant authority or establish task acceptance.", {}, []),
   def("record_experience", "Autonomously retain an atomic reusable lesson or procedure from project references and R&D. Record exact applicability conditions and owned evidence receipts. Remains a hypothesis even after its source task passes; semantic promotion requires an independently adjudicated claim whose statement is canonical JSON {conditions,lesson}. Use contradicts to flag a corrected seed/lesson without overwriting it. New evidence requires a new id.", {
     id: { type: "string", minLength: 1, maxLength: 128 },
     kind: { type: "string", enum: ["hypothesis", "procedure", "constraint"] },

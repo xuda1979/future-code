@@ -34,6 +34,7 @@ import { admitDecisionCall, decisionContext } from "./decisions.ts";
 import { KNOWLEDGE_NOTICE, ProjectKnowledge, type ExperienceInput, type KnowledgeQuery } from "./knowledge.ts";
 import { assertResearchFrontierExpansion } from "./researchStrategy.ts";
 import { assertTheoryAcceptance, theoryTaskContext } from "./theory.ts";
+import { Operations, actionEvidenceGate } from "../operations/actions.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -56,12 +57,14 @@ export class SwarmDriver implements Driver {
   readonly cohorts: CohortBoard | null;
   readonly programme: ResearchProgramme | null;
   readonly knowledge: ProjectKnowledge | null;
+  readonly operations: Operations | null;
   readonly accepted?: Driver["accepted"];
   constructor(store: Store, cfg: PinnedSwarm, fetcher?: typeof fetch, backend: HandsBackend = localGitBackend,
     jobRpc?: JobRPC) {
     invariant(backend.id === cfg.handsId, "execution backend identity mismatch");
     this.store = store; this.cfg = cfg; this.backend = backend; this.jobRpc = jobRpc;
     this.workerId = workerIdentity(cfg); this.verifierId = verifierIdentity(cfg);
+    this.operations = cfg.operations ? new Operations(store, cfg.operations) : null;
     this.knowledge = cfg.spec.projectKnowledge ? new ProjectKnowledge(store, cfg) : null;
     this.journal = new SessionJournal(store, this.knowledge ?? undefined); this.brain = new HttpBrain(this.journal, fetcher);
     this.cohorts = cfg.spec.coordination ? new CohortBoard(store, cfg, this.journal) : null;
@@ -93,6 +96,10 @@ export class SwarmDriver implements Driver {
     const theoretical = theoryTaskContext(this.store, this.cfg, c, Math.floor(admittedContext / 2));
     const t = this.journal.open(c, { history: [{ role: "user", content: canonical({
       task: c.task, dependencies: c.dependencies,
+      ...(this.operations ? { capabilities: Object.fromEntries((profile.capabilities ?? []).map(name => {
+        const { adapter, ...contract } = this.cfg.operations!.policy.capabilities[name];
+        return [name, contract];
+      })) } : {}),
       ...(theoretical ? { theoretical } : {}),
       ...(this.programme && c.task.knowledge?.length ? { knowledge: this.programme.context(c.task.knowledge, { theoryStatementsOnly: !!theoretical }) } : {}),
       ...(c.task.research?.length ? { research: Object.fromEntries(c.task.research.map(name => [name, this.cfg.spec.jobs![name].research!.spec])) } : {}),
@@ -344,6 +351,12 @@ export class SwarmDriver implements Driver {
                   throw new PersistedDeferredAttemptError("spawn", Date.now(), reason);
                 }
                 result = { childIds: spawned.childIds, verified: spawned.dependencies };
+              } else if (call.name === "invoke_capability") {
+                invariant(this.operations, "operations not configured");
+                result = await timedTool(() => this.operations!.invoke(c, call.arguments.name as string,
+                  call.arguments.input, profile.capabilities ?? [], signal));
+              } else if (call.name === "read_operations") {
+                invariant(this.operations, "operations not configured"); result = this.operations.snapshot();
               } else if (call.name === "run_job") {
                 invariant(jobs, "no remote job templates configured");
                 result = await runJob(call);
@@ -581,6 +594,10 @@ export class SwarmDriver implements Driver {
   async verify(c: Capsule, result: WorkerResult, signal: AbortSignal, control?: AttemptControl): Promise<Verification> {
     this.journal.assertLease(c);
     const verification = await this.backend.verify(this.store, this.cfg, c, result.artifact, signal);
+    if (this.operations) {
+      const gate = actionEvidenceGate(this.store, c.runId, c.task.id);
+      verification.checks.push({ id: "operations", verdict: gate.status === "PASS" ? "PASS" : "UNKNOWN", detail: canonical(gate) });
+    }
     if (this.store.contract().requiredChecks.includes("research")) verification.checks.push(await verifyResearch(this.store, this.cfg, c, signal));
     if (this.programme) {
       try { this.programme.context(c.task.knowledge ?? []); verification.checks.push({ id: "knowledge", verdict: "PASS" }); }
