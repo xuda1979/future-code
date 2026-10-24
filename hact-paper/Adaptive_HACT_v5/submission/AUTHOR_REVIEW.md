@@ -1,32 +1,15 @@
-# HACT v14 author review
+# HACT submission packet: author review
 
-Read paper/journal.pdf and docs/V14_REFEREE_REVIEW.md. The primary paper now
-pairs a general information lower bound with a tractable exchangeable null
-regime, a semantic migration invariant and reproducible empirical boundaries.
-The global size-state reference is correctly attributed as a specialization
-of established batch-update tree optimization, not a first dynamic program.
-The new baseline's item/file policy reversal and original-holdout losses are
-reported alongside the earlier ledger comparison and resource exclusions.
+The TSE draft packet is prepared in `paper/journal.pdf` (12 pages), `paper/tse_supplement.pdf` (7 pages), `paper/tse_cover_letter.pdf` (1 page), and `submission/TSE_source.zip`. Start with the paper and supplement; the cover letter is an unsent editor-facing draft. The source archive clean-builds the primary article, supplement and cover letter from one folder.
 
-IEEE TSE remains the intended ambitious target. The concrete revision is
-ready for author and external subject-matter review under its stated scope;
-acceptance is not established by automated checks. Natural hierarchical
-consumer utility remains unproven and is not part of the positive claim.
+The manuscript retains the v14 scientific results and limitations. Its 186-word abstract follows current IEEE Computer Society general abstract guidance. Full supporting derivations are in the supplement. The references are ordered by first citation. Current Computer Society guidance lists TSE among journals that do not offer double-anonymous review; the author-attributed paper is prepared for that model.
 
-## Review files
+## Please verify the author-only facts
 
-- paper/journal.pdf: primary IEEE manuscript.
-- docs/V14_REFEREE_REVIEW.md: issue-by-issue response and proof assumptions.
-- docs/V14_REPRODUCE.md: offline restoration, full gates and build commands.
-- OBSERVATION_ARCHIVE.json and data/observations/: complete lossless v11–v14 receipts.
-- paper/main.pdf: extended proofs and historical analysis.
-- paper/jss.pdf and paper/jss_blinded.pdf: generated format alternatives.
-- submission/TSE_COVER_LETTER_DRAFT.md: unsent draft.
+Known from the author instructions: **Da Xu**, then **Fei Wang**; both at **China Mobile Research Institute**; corresponding author Da Xu at **xudayj@chinamobile.com**. Please correct these only if the submission should use different official forms.
 
-The user explicitly authorized publication as a PR. That supersedes earlier
-public-upload holds. It does not authorize a journal submission; the user
-reviews the paper before final submission. Names/order, affiliation, author
-contributions, funding, conflicts, related submissions and any required employer
-clearance remain factual author checks. No missing declaration is invented.
-The complete artifact contains identifying provenance. A blinded manuscript
-alone does not anonymize it. Check the current submission portal before use.
+Still needed for the portal: Fei Wang's preferred email, ORCIDs if used, author contribution roles, funding statement, conflict-of-interest statement, related manuscripts/submissions and the disclosure of the public GitHub version, confirmation that both authors approve this exact package, and any required employer publication clearance. These are not inferred from blank fields. The AI-assistance disclosure is in the manuscript acknowledgments and supplement; both authors should review and approve it.
+
+The journal portal requires an authenticated IEEE account. It has reached the sign-in step, but no draft record or file upload exists. After the author facts and account are available, check TSE's current portal-specific page/file rules, prepare the draft record, review the rendered proof and declarations, and stop for author approval immediately before its final Submit control. No final submission has been made.
+
+The complete research review and reproduction records remain in `docs/V14_REFEREE_REVIEW.md` and `docs/V14_REPRODUCE.md`. The code and evidence are public at the versioned commit in `submission/SUBMISSION_METADATA.json`.

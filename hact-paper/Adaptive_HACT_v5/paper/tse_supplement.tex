@@ -1,0 +1,173 @@
+\documentclass[10pt,letterpaper]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=25mm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,booktabs,array,tabularx}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\renewcommand{\thetheorem}{S\arabic{theorem}}
+\renewcommand{\thesection}{S\arabic{section}}
+\setlength{\emergencystretch}{3em}
+\newcommand{\E}{\mathbb E}
+\newcommand{\ind}{\mathbf 1}
+\newcommand{\PASS}{\mathsf{PASS}}
+\newcommand{\UNKNOWN}{\mathsf{UNKNOWN}}
+\title{Technical Supplement to\\Adaptive HACT: Information Limits and Safe Adaptation of Verification Evidence}
+\author{Da Xu and Fei Wang\\China Mobile Research Institute\\
+\small Corresponding author: \href{mailto:xudayj@chinamobile.com}{xudayj@chinamobile.com}}
+\date{}
+\hypersetup{pdftitle={Adaptive HACT: Technical Supplement},pdfauthor={Da Xu and Fei Wang}}
+\begin{document}
+\maketitle
+This supplement accompanies the primary manuscript. It supplies the full
+complete-epoch orbit certificate, fixed-width padding proof and a practical
+route through the reproducibility artifact. It is supporting material for
+one submission. All numerical observations retain their original provenance;
+no new checker campaign, consumer study or agent evaluation is introduced.
+
+\section{Notation and scope}
+A rooted tree represents a registry of $n$ distinct checks. Internal arities
+lie in $\{2,\ldots,b\}$, and a packet costs $c(d)=H+Sd$ bytes.
+A node with semantic coverage $G$ is emitted once for each completion wave
+that intersects $G$. A strict epoch additionally constructs every internal
+packet once. Thus $W(T)=\sum_v c(d_v)$ is construction cost and
+$h_e(G)$ counts touched waves. Acceptance still requires every current
+approved check to pass; none of these costs changes that predicate.
+The main article gives the parameter-general persistent-refresh separation
+and the global exchangeable optimum. The following two proofs complete its
+complete-epoch and fixed-width extensions.
+
+\section{Complete-epoch separation and orbit certificate}
+\input{strict_separation.tex}
+
+\section{Fixed-width padding and rank equivalence}
+\input{fixed_batch_separation.tex}
+
+\section{Exact scoring and conditional adoption}
+\input{adoption_rule.tex}
+
+\section{Using the full-registry weights in the symmetric optimizer}
+For declared batch sizes $w_1,\ldots,w_q$ summing to $n$, every node uses
+\[
+r_n(s)=1+\sum_a\left(1-\frac{\binom{n-s}{w_a}}{\binom n{w_a}}\right).
+\]
+The registry size remains $n$ inside every subtree state. Treating a subtree
+as an independently completed registry defines a different law and can
+change its optimum. Costs are additive across child subtrees; this
+optimization decomposition does not assume probabilistic independence.
+
+For example, let $n=4$, $b=2$, and $(w_1,w_2)=(2,2)$ at the implemented
+prices $H=512,S=320$. A two-leaf internal node has weight $8/3$, while
+three- and four-leaf internal nodes have weight $3$. A balanced binary
+tree therefore costs $1152(3+2\cdot8/3)=9600$ expected bytes, including
+construction. A binary chain costs $1152(3+3+8/3)=9984$. This is a
+worked analytical example, not a measured software result.
+
+The integer implementation scales rational weights by a common
+denominator before comparing costs. Its arithmetic-operation bound is
+$O(bn^2)$ after weights, with $O(bn)$ cost and split states; integer
+bit complexity and reconstructing an output tree are additional accounting.
+Independent enumeration checks 70 small cases and 74,245 feasible labeled
+tree comparisons. These finite checks test the implementation; the induction
+in the main article establishes the model-conditional general theorem.
+The no-learning corollary additionally conditions on the future law given
+training and selection. Unconditional exchangeability alone is insufficient.
+
+\section{Evidence units and claim boundaries}
+\begin{table}[htbp]
+\centering\small
+\caption{How the retained evidence supports the article. Re-encoding a
+trace is not a new upstream execution.}
+\begin{tabularx}{\linewidth}{@{}p{.25\linewidth}p{.25\linewidth}X@{}}
+\toprule
+Evidence & Unit or count & Supported interpretation\\\midrule
+General information separation & 39 exact parameter cases &
+Implementation conformance for a theorem proved for all admissible
+fanouts and affine positive-slot prices.\\
+Symmetric global reference & 70 cases; 74,245 tree comparisons &
+Exact optimization under the declared completion law.\\
+Public compiler cohort & Six requested projects; five admitted;
+25 original admitted runs &
+A convenience cohort of repeated suites, not independent source
+changes or agent tasks. Packaging's resource exclusion remains.\\
+Controlled dispatch shifts & 36 attempted processes; 30 admitted,
+including six repaired runs &
+Six initial VOID source-provenance outcomes are retained.
+Artificial scheduling interventions do not establish natural drift.\\
+Service observer ablation & 240 arms; 10,080 answer checks &
+Local operation-time and answer conformance for fixed requests;
+correlated timing blocks do not enlarge the project sample.\\
+Retrospective symmetric scoring & The same 25 original and
+30 admitted shift runs &
+A stronger baseline comparison, with all original and file-group
+losses retained; no additional checker execution.\\\bottomrule
+\end{tabularx}
+\end{table}
+
+The symmetric layout beats frozen full-wave cap32 on all 15 item-shuffled
+traces and loses on all 15 file-group traces. It costs 21.26--62.13\%
+more on original repeated-order holdouts. With byte observers disabled,
+the tree service takes 1.61--3.54 times the maintained-counter ledger's
+operation time. No natural hierarchical consumer demand, general agent
+speedup, token-billing reduction or physical-network benefit is inferred.
+
+\section{Reproducing the frozen evidence}
+The immutable scientific artifact is the public repository commit
+\begin{center}\small
+\texttt{ea874d49362552fd4c1369ef19fc307e6d040c7f}
+\end{center}
+available at
+\begin{center}\small
+\url{https://github.com/xuda1979/future-code/tree/ea874d49362552fd4c1369ef19fc307e6d040c7f/hact-paper/Adaptive_HACT_v5}.
+\end{center}
+The accompanying source archive contains the current article and supplement.
+The observation transport in that artifact consists of 53 parts of a
+31,138,565-byte lossless ZIP. Its SHA-256 is
+\begin{center}\small\ttfamily
+5b003c2566df152e77fef9e0af8f4caace4a446a9fa3bc5e7ce708feda65f35d
+\end{center}
+The index binds the original path, size and hash of each of 522 observations.
+Hydration restores exact bytes, refuses mismatches and is offline.
+The release inventory independently covers the restored observations as well
+as their transport parts. Hashes provide byte integrity, not signatures.
+
+With Python 3.12, use numpy 2.3.5, pytest 9.0.2 and pytest-asyncio 1.3.0.
+From the artifact root:
+\begin{verbatim}
+python tools/hydrate_observations.py --require-index
+python tools/verify_manifest.py
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=. \
+  python -m pytest -q -p pytest_asyncio.plugin
+PYTHONPATH=. python -m experiments_v14.exchangeable_study --check
+PYTHONPATH=. python -m audit.check_v14
+PYTHONPATH=. python -m experiments_v14.report --check
+\end{verbatim}
+The reproduction guide lists all historical and current gates. Those checks
+remain required: the primary workflow also rechecks v5/v9 arithmetic,
+v10/v11 separation and exact references, v12 fixed batches and independent
+follow-ups, v13 adoption and feature span, all manuscript projections,
+the service oracle, measured query trace, and frozen source/synthetic
+controls. The retained v12 audit report is
+\path{.ai-loop/v12/reports/independent_followups.json}.
+No missing observation should be repaired by changing its expected hash or
+regenerating a measured record. A fresh computation goes to a new output path.
+
+\section*{AI assistance}
+OpenAI Codex (October 2026) assisted with this supplement's text, the
+derivations and proof presentation, the worked example, and the associated
+code and automated checks. These checks are distinct from human peer review.
+The authors retain responsibility for the content.
+\begin{thebibliography}{2}
+\bibitem{hoeffding} W. Hoeffding. Probability Inequalities for Sums of
+Bounded Random Variables. \emph{Journal of the American Statistical
+Association}, 58(301):13--30, 1963.
+\url{https://doi.org/10.1080/01621459.1963.10500830}.
+\bibitem{learntest} A. N. Angelopoulos, S. Bates, E. J. Cand\`es,
+M. I. Jordan, and L. Lei. Learn then Test: Calibrating Predictive
+Algorithms to Achieve Risk Control. arXiv:2110.01052v5, 2022.
+\url{https://arxiv.org/abs/2110.01052v5}.
+\end{thebibliography}
+\end{document}

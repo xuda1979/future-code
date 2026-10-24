@@ -1,81 +1,15 @@
-# V13 target decision
+# Journal target and submission status
 
-Current intended ambitious target: **IEEE Transactions on Software Engineering**,
-subject to the user's review. The new paired-cost adoption and exact-summary
-results strengthen the theory/systems argument. They do not establish top-journal
-significance or a real-service advantage; see docs/V13_REFEREE_REVIEW.md.
+**Current target:** IEEE Transactions on Software Engineering, regular research article, subject to final author and journal-portal review. The paper makes a theory-and-systems contribution about limits of pairwise completion information and safe adaptation of verification evidence, with a reproducible study that retains negative transfer and service results. This is a fit judgment, not an acceptance prediction. The authors should decide whether the significance and scope are sufficient for TSE.
 
-The JSS-format manuscript/source variants are preserved as possible alternatives.
-No venue has received a submission, and no fees or declarations are authorized
-by preparing a format variant. The v12 editorial-fit judgment below is historical.
-Current portal-specific requirements remain to be verified before submission.
+A TSE-format package is prepared: a 12-page attributed primary article, 7-page technical supplement, 1-page cover letter, and flat LaTeX source archive. Current IEEE Computer Society guidance says TSE does not offer double-anonymous review and that journal page limits vary by journal. The abstract is 186 words and follows the general 100–200-word, citation-free, equation-free guidance. No TSE page limit has been inferred from general publication length or historical drafts; verify current portal instructions after sign-in.
 
-## Historical v12 venue assessment
+The Publishing Portal is at its login step. No submission draft, upload, manuscript ID, fee choice or declaration has been created. The public GitHub artifact includes an earlier manuscript version; its exact commit is recorded in the submission metadata and should be disclosed where requested.
 
-# Venue decision after the v12 internal review
+JSS-format alternatives are retained as historical alternatives and are not included as concurrent submissions. `paper/main.pdf` is extended historical analysis and must not be presented as a second manuscript. No journal has received this submission.
 
-Recommended first target: **Journal of Systems and Software (JSS), regular
-research article**. Retain IEEE Transactions on Software Engineering (TSE) as
-an ambitious alternative if the authors judge the significance sufficient.
-This is an editorial fit judgment, not an acceptance or ranking guarantee.
+Author-only factual fields still require completion: Fei Wang's preferred email, ORCIDs if used, contribution roles, funding, conflicts, related submissions/publications, coauthor approval and any required employer clearance. The author-attributed manuscript and cover letter are drafts for review; the assistant has made no originality, exclusivity or author-consent attestation.
 
-JSS's official scope covers verification, testing, AI for software engineering,
-and build/test automation. It explicitly welcomes validated negative results
-and reproducible research. That fits the paper's combination of exact information
-limits, conditional semantic assurance, and measured limits of adaptive evidence
-representations. The manuscript should be presented as a theory-and-systems
-boundary study. The evidence does not support marketing it as general agent
-acceleration or an empirically superior service.
+## Historical venue assessments
 
-The strongest TSE case is the parameter-general global-optimum separation and
-sharp regret, now connected to fixed-eight batching through a precise local
-extension. The remaining TSE risk is significance beyond this packet objective:
-the five admitted projects are a convenience sample, the primary refinement
-often ties or loses under transfer, and no natural consumer workload establishes
-a region of service superiority. These are scientific limitations, not defects
-that copyediting can remove. Do not replace negative observations to improve fit.
-
-## Prepared files
-
-- `paper/jss.pdf`: attributed JSS-format manuscript for author review.
-- `paper/jss_blinded.pdf`: manuscript with names, affiliations, email and the
-  identifying repository link removed. This does not anonymize the full artifact.
-- `paper/journal.pdf`: equivalent IEEE-format version for a possible TSE route.
-- `submission/JSS_source.zip` and `JSS_blinded_source.zip`: flat source archives.
-- `submission/COVER_LETTER_DRAFT.md`: unsent JSS cover letter for final author review.
-- `submission/HIGHLIGHTS.txt`: optional concise highlights, not an assertion that
-  the journal currently requires them.
-- `paper/main.pdf`: extended historical analysis, not a second manuscript to
-  upload as though it were an independently submitted article.
-
-## Primary guidance checked on 2026-10-21
-
-1. JSS official scope: https://shop.elsevier.com/journals/journal-of-systems-and-software/0164-1212
-2. Elsevier LaTeX instructions: https://www.elsevier.com/researcher/author/policies-and-guidelines/latex-instructions
-3. Elsevier AI policy: https://www.elsevier.com/about/policies-and-standards/generative-ai-policies-for-journals
-4. JSS journal-specific guide: https://www.sciencedirect.com/journal/journal-of-systems-and-software/publish/guide-for-authors
-5. TSE author entry: https://www.computer.org/tse-author-information
-
-The official Elsevier instructions support use of elsarticle and a single
-source archive with files at one folder level; both source archives are built
-that way. The class is the unmodified v3.3 file linked by that official page,
-not a claim that v3.3 is the newest CTAN release. Source URL:
-https://assets.ctfassets.net/o78em1y1w4i4/UtkmcwzDXZeIUVlmhPGFm/4923f3c3bcc768b6fc4fa4f26cf39d72/elsarticle.cls
-
-Current general Elsevier guidance requires transparent AI disclosure and human
-accountability; the manuscript discloses assistance in methods and a separate
-declaration, with diagram/plot provenance. It does not claim that final author
-review has already occurred.
-
-The journal-specific guide and TSE author entry returned HTTP403. Therefore
-current portal-specific anonymity, word/page limits, supplement limits and
-mandatory upload-field requirements remain unverified. Both manuscript
-variants are prepared to make that final portal check straightforward. No fee,
-consent, exclusivity, institutional approval or conflict declaration is inferred.
-
-## Final author-only factual inputs
-
-Confirm author names/order/affiliations and contributions; funding and conflicts;
-related publications or submissions; employer approval if applicable; and final
-AI-assisted-content review. No statement of "no funding" or "no conflicts" has
-been invented. Final submission remains the user's decision and action.
+Older JSS recommendations and TSE significance reviews below are preserved as revision history. They do not supersede the current TSE preparation status and should be read alongside the latest manuscript and referee review.

@@ -23,7 +23,7 @@ general superiority for a tree service that the evidence does not support.
 | The exact solver could validate itself. | Independent reference averages literal completion permutations and enumerates labeled unordered trees: 70 cases, 74,245 feasible comparisons. Additional regressions cover all small positive batch-size compositions, permutations and three price regimes. | Finite checks support the implementation; the induction establishes the general theorem under its assumptions. |
 | Retrospective baseline selection could hide losses. | Published all 25 original runs and all 30 previously admitted dispatch runs, with raw hashes, both frozen selected baselines and literal costs. The symmetric baseline wins on all 15 item-shuffled traces and loses on all 15 file-group traces versus cap32 full-wave selection. | Original repeated-order holdouts cost 21.26–62.13% more. Packaging remains excluded. These are descriptive re-encodings, with no new check execution or population significance claim. |
 | Small packet gains could be sold as system speedups. | Kept observer-disabled tree/maintained-counter operation-time ratios of 1.61–3.54 and all prior transfer losses prominent. Exact and calibrated adoption objectives exclude unknown CPU/network conversions. | No established natural-consumer utility, agent-productivity, token-billing or physical-WAN benefit. A hierarchy needs independently justified consumer demand. |
-| The main manuscript overloaded readers with historical proof details. | Used a concise complete-epoch separation proof in the primary source; retained the full certificate, orbit audit and historical analysis in the extended source. Abstract, introduction and conclusion now use the same scoped argument. | The fixed-eight result remains a two-layout-class separation; it is not mislabeled as an unrestricted global optimum. |
+| The main manuscript overloaded readers with historical proof details. | The primary article now presents the scoped results concisely; a focused seven-page supplement carries the full complete-epoch orbit certificate, fixed-width padding/rank argument, and adoption derivation. The extended `main.pdf` remains historical analysis, not another submission file. | The fixed-eight result remains a two-layout-class separation; it is not mislabeled as an unrestricted global optimum. |
 | Hundreds of megabytes of raw JSON make the PR difficult to inspect. | Lossless offline archive restores every v11–v14 observation to its original path. Per-part, assembled-archive and per-file hashes are checked; existing mismatches reject. Independent audits and the release manifest still cover all restored bytes. | Compression changes transport only. The archive is not a summary, signature or substitute for the evidence gate. |
 
 ## Proof review
@@ -59,6 +59,9 @@ sampled consumer study; inventing or relabeling one would undermine this paper.
 IEEE TSE remains the ambitious target; the authors should assess theoretical
 novelty, venue fit and final factual declarations before journal submission.
 Publishing the requested PR does not submit the paper to a journal.
+The current TSE-format packet and portal status are recorded in
+`submission/TSE_PREPARATION.md` and `submission/TSE_UPLOAD_MAP.md`; the primary
+paper, supplement and unsent cover letter are separate files for one article.
 
 ## Provenance
 

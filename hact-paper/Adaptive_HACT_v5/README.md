@@ -1,18 +1,25 @@
-# Adaptive HACT: v14 journal revision
+# Adaptive HACT: TSE submission packet prepared for author review
 
-**Publication status:** this revision includes the manuscripts, source and
-complete v11–v14 observation archive for review in PR #76. The author has
-explicitly authorized public release of the archive, required v12 audit report
-and observation/release inventories. See
-[the evidence release scope](submission/PUBLICATION_STATUS.md).
+**Journal status:** a TSE-format packet is prepared for review. No portal draft,
+upload or journal submission exists; the portal is at sign-in. The final
+submission action remains for the authors after they confirm factual declarations
+and approve the exact files. See the [preparation record](submission/TSE_PREPARATION.md)
+and [upload map](submission/TSE_UPLOAD_MAP.md).
 
-Start with the [IEEE manuscript](paper/journal.pdf),
-[scientific review and response](docs/V14_REFEREE_REVIEW.md) and
-[reproduction guide](docs/V14_REPRODUCE.md). This is a theory-led paper on
-information limits and safe adaptation of verification evidence, with measured
-applicability boundaries. IEEE Transactions on Software Engineering remains the
-ambitious target. The requested PR publishes the reviewable work; it is not a
-journal submission or a guarantee of acceptance.
+Start with the [12-page IEEE manuscript](paper/journal.pdf),
+[7-page technical supplement](paper/tse_supplement.pdf),
+[scientific review and response](docs/V14_REFEREE_REVIEW.md), and
+[reproduction guide](docs/V14_REPRODUCE.md). The unsent
+[cover letter](paper/tse_cover_letter.pdf), flat LaTeX source archive, and
+machine-readable metadata are prepared alongside them. This is a theory-led
+paper on information limits and safe adaptation of verification evidence, with
+measured applicability boundaries; no acceptance or real-service advantage is
+claimed beyond the reported evidence.
+
+The [public evidence release scope](submission/PUBLICATION_STATUS.md) records
+the user's authorization for the 31.1 MB observation archive, required v12
+audit report and observation/release inventories. That earlier PR is merged;
+the current manuscript-preparation changes are published separately for review.
 
 V14 complements the pairwise-information lower bound with an **exact global
 tree/permutation optimizer under exchangeable complete batches**, using
@@ -41,9 +48,10 @@ python tools/verify_manifest.py
 
 See [reproduction](docs/V14_REPRODUCE.md) for dependency installation, all
 historical gates and PDF builds. The release manifest includes every restored
-raw file and all archive parts. JSS variants are
-generated from the same primary source; the extended analysis retains full
-proofs and historical results.
+raw file and all archive parts. JSS variants are generated from the same primary
+source. The focused TSE supplement carries the complete supporting derivations;
+`paper/main.pdf` retains the longer historical analysis and is not part of the
+TSE upload packet.
 
 Authors remain **Da Xu and Fei Wang**, **China Mobile Research Institute**;
 correspondence **xudayj@chinamobile.com**. [Author review](submission/AUTHOR_REVIEW.md)
