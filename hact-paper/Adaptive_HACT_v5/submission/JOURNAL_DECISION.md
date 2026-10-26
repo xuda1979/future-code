@@ -8,7 +8,7 @@ The Publishing Portal is at its login step. No submission draft, upload, manuscr
 
 JSS-format alternatives are retained as historical alternatives and are not included as concurrent submissions. `paper/main.pdf` is extended historical analysis and must not be presented as a second manuscript. No journal has received this submission.
 
-Author-only factual fields still require completion: Fei Wang's preferred email, ORCIDs if used, contribution roles, funding, conflicts, related submissions/publications, coauthor approval and any required employer clearance. The author-attributed manuscript and cover letter are drafts for review; the assistant has made no originality, exclusivity or author-consent attestation.
+Author-only factual fields still require completion: ORCIDs if used, contribution roles, funding, conflicts, related submissions/publications, coauthor approval and any required employer clearance. Da Xu is the corresponding author; Fei Wang is second author. Both email addresses are recorded in SUBMISSION_METADATA.json. The author-attributed manuscript and cover letter are drafts for review; the assistant has made no originality, exclusivity or author-consent attestation.
 
 ## Historical venue assessments
 

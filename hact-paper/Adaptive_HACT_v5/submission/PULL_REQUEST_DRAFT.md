@@ -12,8 +12,8 @@ article source.
 Scientific observations, claims, results, exclusions, and source evidence are
 preserved. The full historical `main.pdf` is identified as supporting history,
 not another manuscript to upload. Public artifact provenance is recorded for
-disclosure if the journal asks about public or related versions. Unknown author
-emails, ORCIDs and factual declarations remain null; no consent, originality,
+disclosure if the journal asks about public or related versions. The known author names, order, affiliations and both email addresses are recorded.
+ORCIDs and factual declarations remain null; no consent, originality,
 exclusivity, funding or conflict statement is invented.
 
 All five PDFs compile in clean directories without overfull, undefined-reference
