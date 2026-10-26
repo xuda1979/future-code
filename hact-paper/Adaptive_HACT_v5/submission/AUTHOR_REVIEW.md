@@ -6,9 +6,9 @@ The manuscript retains the v14 scientific results and limitations. Its 186-word 
 
 ## Please verify the author-only facts
 
-Known from the author instructions: **Da Xu**, then **Fei Wang**; both at **China Mobile Research Institute**; corresponding author Da Xu at **xudayj@chinamobile.com**. Please correct these only if the submission should use different official forms.
+Known from the author instructions: **Da Xu** (xudayj@chinamobile.com), then **Fei Wang** (wangfei@chinamobile.com); both at **China Mobile Research Institute**. Da Xu is the corresponding author. Please correct these only if the submission should use different official forms.
 
-Still needed for the portal: Fei Wang's preferred email, ORCIDs if used, author contribution roles, funding statement, conflict-of-interest statement, related manuscripts/submissions and the disclosure of the public GitHub version, confirmation that both authors approve this exact package, and any required employer publication clearance. These are not inferred from blank fields. The AI-assistance disclosure is in the manuscript acknowledgments and supplement; both authors should review and approve it.
+Still needed for the portal: ORCIDs if used, author contribution roles, funding statement, conflict-of-interest statement, related manuscripts/submissions and the disclosure of the public GitHub version, confirmation that both authors approve this exact package, and any required employer publication clearance. These are not inferred from blank fields. The AI-assistance disclosure is in the manuscript acknowledgments and supplement; both authors should review and approve it.
 
 The journal portal requires an authenticated IEEE account. It has reached the sign-in step, but no draft record or file upload exists. After the author facts and account are available, check TSE's current portal-specific page/file rules, prepare the draft record, review the rendered proof and declarations, and stop for author approval immediately before its final Submit control. No final submission has been made.
 
