@@ -211,8 +211,13 @@ test("semantic promotion requires exact independent claim adjudication and withd
   const evidenceId = String(s.db.prepare("SELECT id FROM fabric_evidence WHERE run=? AND task=? AND source='foundry-independent-verifier'").get(run, judge.id)!.id);
   const supported = adjudicateClaim(s, run, claim.id, claim.version, evidenceId);
   assert.equal((knowledge.get(undefined, card.id) as any).trust, "VALIDATED_CLAIM_WITH_CONDITIONS");
+  const later = start(s).c;
+  assert.equal((knowledge.context(later, ["behavior"]) as any).items.find((i: any) => i.id === card.id).trust,
+    "VALIDATED_CLAIM_WITH_CONDITIONS");
   retractClaim(s, run, claim.id, supported.version, "new contrary evidence");
   assert.equal((knowledge.get(undefined, card.id) as any).trust, "STALE_CLAIM_REVALIDATE");
+  assert.equal((knowledge.context(later, ["behavior"]) as any).items.find((i: any) => i.id === card.id).trust,
+    "STALE_CLAIM_REVALIDATE");
 }, enable));
 
 test("phase-aware literal retrieval has stable bounded UTF-8 pages and preserves contradictions", async () => fixture(async (s, cfg) => {
@@ -225,6 +230,9 @@ test("phase-aware literal retrieval has stable bounded UTF-8 pages and preserves
   assert.ok(page.items.every((x: any) => ["implementation", "any"].includes(x.phase)));
   assert.ok(page.items.some((x: any) => x.id === seed.id && x.contested));
   assert.ok(page.items.some((x: any) => x.id === proposal.id && x.contested));
+  const context: any = knowledge.context(start(s).c, ["behavior"]);
+  assert.ok(context.items.some((x: any) => x.id === seed.id && x.contested && x.contradictions.includes(proposal.id)));
+  assert.ok(context.items.some((x: any) => x.id === proposal.id && x.contested && x.contradictions.includes(seed.id)));
   const huge = pack(); huge.id = "utf8"; huge.entries = Array.from({ length: 12 }, (_, i) => ({ ...pack().entries[0], id: `seed-${i}`,
     lesson: "中文经验🐈".repeat(80), tags: ["utf8"], trigger: "utf8" }));
   knowledge.importPack(huge);
@@ -257,6 +265,24 @@ test("CLI imports/retirements are optional host actions and keep full history in
   assert.ok(!(knowledge.search(undefined) as any).items.some((x: any) => x.id === id));
   assert.equal((knowledge.get(undefined, id) as any).trust, "DEPRECATED");
 }, enable));
+
+test("ranked context keeps five contradiction references in the minimum byte budget", async () => fixture(async (s, cfg) => {
+  const { q, lease, c } = start(s), knowledge = new ProjectKnowledge(s, cfg);
+  const target: any = knowledge.record(c, { ...experience("specific"), tags: ["behavior", "src/a.txt", "specific"],
+    lesson: "Evidence must be read in context. ".repeat(50) }, null);
+  const contradictions = [];
+  for (let i = 0; i < 5; i++) contradictions.push((knowledge.record(c,
+    { ...experience(`correction-${i}`), contradicts: [target.id] }, null) as any).id);
+  accept(s, q, lease, c, knowledge);
+  const context: any = knowledge.context(start(s).c, ["behavior", "specific"], "any", 1024);
+  assert.ok(Buffer.byteLength(canonical(context)) <= 1024);
+  assert.equal(context.items[0].id, target.id);
+  assert.equal(context.items[0].contested, true);
+  assert.deepEqual(new Set(context.items[0].contradictions), new Set(contradictions));
+  assert.equal(context.items[0].trust, "UNVERIFIED_LESSON_ACCEPTED_SOURCE");
+}, s => {
+  enable(s); s.projectKnowledge!.namespace = "n".repeat(128); s.projectKnowledge!.maxCardsPerTask = 8;
+}));
 
 test("a saved model reply replays against its checkpoint even if knowledge arrives during a crash", async () => fixture(async (s, cfg) => {
   const { c } = start(s);

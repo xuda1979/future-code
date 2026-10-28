@@ -90,6 +90,17 @@ export function knowledgeTerms(value: string): string[] {
   const words = value.toLowerCase().match(/[\p{L}\p{N}_./-]{2,64}/gu) ?? [];
   return [...new Set(words)].slice(0, 32);
 }
+/** Give goal, file scope and check names independent space in the query. A long
+ * goal must not erase the exact identifiers most useful for finding old work. */
+export function taskKnowledgeTerms(c: Capsule, checks: string[]): string[] {
+  const groups = [knowledgeTerms(c.task.goal), knowledgeTerms(c.task.writeScope.join(" ")),
+    knowledgeTerms((c.task.readScope ?? []).join(" ")), knowledgeTerms(checks.join(" "))];
+  const terms = new Set<string>();
+  for (let i = 0; i < 32 && terms.size < 32; i++) for (const group of groups) {
+    if (group[i] && terms.size < 32) terms.add(group[i]);
+  }
+  return [...terms];
+}
 const pick = (v: KnowledgeText): KnowledgeText => ({ trigger: v.trigger, lesson: v.lesson, conditions: v.conditions,
   phase: v.phase, tags: v.tags });
 export const KNOWLEDGE_NOTICE = "[future-code:project-knowledge-v1]";
@@ -350,6 +361,65 @@ export class ProjectKnowledge {
     }
     return row.artifact ? "UNVERIFIED_LESSON_ACCEPTED_SOURCE" : "UNVERIFIED_LOCAL_HYPOTHESIS";
   }
+  private preview(c: Capsule | undefined, row: any, card: Card): any {
+    const links = this.store.db.prepare(`SELECT card,target FROM project_knowledge_links WHERE project=? AND (card=? OR target=?) LIMIT 5`)
+      .all(this.project, row.id, row.id).filter(l => this.visible(c, String(l.card)) && this.visible(c, String(l.target)));
+    return { id: row.id, kind: card.kind, ...pick(card), trust: this.trust(card, row),
+      applicability: card.origin ? (card.origin.baseCommit === this.cfg.baseCommit && card.origin.environment === this.environment
+        ? "MATCHING_BASE_AND_CHECKS_STILL_REVALIDATE" : "HISTORICAL_ENVIRONMENT_REVALIDATE") : "DECLARED_CONDITIONS_ONLY",
+      ...(links.length ? { contradictions: links.map(l => l.card === row.id ? l.target : l.card), contested: true } : {}),
+      evidenceAccess: "REFERENCES_DO_NOT_GRANT_SOURCE_RECEIPT_ACCESS" };
+  }
+  /** Automatic task context ranks indexed matches before opening artifacts.
+   * This is lexical relevance, never scientific confidence or acceptance. The
+   * explicit search API retains chronological keyset pagination. */
+  context(c: Capsule, checks: string[], phase: KnowledgePhase = "any", maxBytes = this.policy.maxContextBytes): Json {
+    this.assertLease(c);
+    invariant(KNOWLEDGE_PHASES.includes(phase), "invalid knowledge phase");
+    invariant(Number.isSafeInteger(maxBytes) && maxBytes >= 1024 && maxBytes <= this.policy.maxContextBytes, "invalid knowledge context budget");
+    const terms = taskKnowledgeTerms(c, checks), candidateLimit = 32;
+    const args: any[] = [this.project, ...terms, this.project, c.runId, c.task.id];
+    if (phase !== "any") args.push(phase);
+    const rows = terms.length ? this.store.db.prepare(`WITH matches AS (
+      SELECT card,COUNT(*) AS matched,GROUP_CONCAT(term) AS matched_terms FROM project_knowledge_terms
+      WHERE project=? AND term IN (${terms.map(() => "?").join(",")}) GROUP BY card
+    ) SELECT k.*,x.artifact,x.evidence,m.matched,m.matched_terms FROM matches m
+      JOIN project_knowledge_cards k ON k.project=? AND k.id=m.card
+      LEFT JOIN project_knowledge_exports x ON x.project=k.project AND x.card=k.id
+      WHERE (k.kind!='experience' OR x.card IS NOT NULL OR (k.run=? AND k.task=?))
+      AND NOT EXISTS(SELECT 1 FROM project_knowledge_retirements r WHERE r.project=k.project AND r.card=k.id)
+      ${phase === "any" ? "" : "AND k.phase IN ('any',?)"}
+      ORDER BY m.matched DESC,k.seq DESC LIMIT ?`).all(...args, candidateLimit + 1) : [];
+    // Terms contain no commas. Only candidate metadata is materialized here;
+    // authenticate the selected cards before disclosing any source content.
+    const candidates = rows.slice(0, candidateLimit).map(row => ({ row, matched: String(row.matched_terms).split(",") }));
+    const items: any[] = [], covered = new Set<string>();
+    const result = () => ({ project: this.policy.namespace, authority: "ADVICE_ONLY_REVALIDATE_BEFORE_USE", items,
+      selection: { method: "distinct-term-coverage", candidatesExamined: Math.min(rows.length, candidateLimit), candidateLimit,
+        candidateLimitReached: rows.length > candidateLimit } });
+    while (candidates.length && items.length < 3) {
+      const novelty = (x: typeof candidates[number]) => x.matched.filter(t => !covered.has(t)).length;
+      candidates.sort((a, b) => novelty(b) - novelty(a) || b.matched.length - a.matched.length || Number(b.row.seq) - Number(a.row.seq));
+      const chosen = candidates.shift()!, card = this.read(chosen.row);
+      const matched = knowledgeTerms([...card.tags, card.trigger].join(" ")).filter(t => terms.includes(t));
+      invariant(canonical([...matched].sort()) === canonical([...chosen.matched].sort()), "knowledge term index differs from source");
+      const item = this.preview(c, chosen.row, card);
+      items.push(item);
+      if (Buffer.byteLength(canonical(result())) > maxBytes) {
+        // Preserve exact references and trust/contradiction labels even when a
+        // long lesson cannot fit; full text remains available by card ID.
+        delete item.trigger; delete item.lesson; delete item.conditions; delete item.tags;
+        item.previewOmitted = true;
+        if (Buffer.byteLength(canonical(result())) > maxBytes) {
+          items.pop(); invariant(items.length > 0, "knowledge metadata exceeds context bound"); break;
+        }
+      }
+      chosen.matched.forEach(t => covered.add(t));
+    }
+    for (const item of items) this.store.db.prepare("INSERT OR IGNORE INTO project_knowledge_uses VALUES(?,?,?,?)")
+      .run(this.project, c.runId, c.task.id, item.id);
+    return json(result());
+  }
   /** Indexed candidates + keyset paging; each returned card is authenticated.
    * Project sharing grants the card, never its originating private receipts. */
   search(c: Capsule | undefined, query: KnowledgeQuery = {}, maxBytes = this.policy.maxContextBytes): Json {
@@ -379,13 +449,7 @@ export class ProjectKnowledge {
       const card = this.read(row);
       invariant(!terms.length || knowledgeTerms([...card.tags, card.trigger].join(" ")).some(t => terms.includes(t)),
         "knowledge term index differs from source");
-      const links = this.store.db.prepare(`SELECT card,target FROM project_knowledge_links WHERE project=? AND (card=? OR target=?) LIMIT 5`)
-        .all(this.project, row.id, row.id).filter(l => this.visible(c, String(l.card)) && this.visible(c, String(l.target)));
-      const item: any = { id: row.id, kind: card.kind, ...pick(card), trust: this.trust(card, row),
-        applicability: card.origin ? (card.origin.baseCommit === this.cfg.baseCommit && card.origin.environment === this.environment
-          ? "MATCHING_BASE_AND_CHECKS_STILL_REVALIDATE" : "HISTORICAL_ENVIRONMENT_REVALIDATE") : "DECLARED_CONDITIONS_ONLY",
-        ...(links.length ? { contradictions: links.map(l => l.card === row.id ? l.target : l.card), contested: true } : {}),
-        evidenceAccess: "REFERENCES_DO_NOT_GRANT_SOURCE_RECEIPT_ACCESS" };
+      const item = this.preview(c, row, card);
       items.push(item); const previous = cursor; cursor = Number(row.seq);
       if (Buffer.byteLength(canonical(page(true))) > maxBytes) {
         items.pop(); cursor = previous;
