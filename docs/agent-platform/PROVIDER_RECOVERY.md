@@ -18,6 +18,26 @@ remain the same logical model and protocol; a route in cooldown is skipped so
 another healthy route can respond. Providers, checks and credentials are never
 selected or changed automatically beyond the configured routes.
 
+Objective recovery planning also tries the recovery agent's configured routes
+in order. It checks all saved replies before issuing another request, so a
+fallback plan survives restart without spending another primary request. Each
+route retains its own replay identity, including routes sharing a quota pool;
+concurrency, cooldown and cumulative request budgets still use the shared pool.
+Planning uses sequential failover rather than speculative requests. If every
+route is unavailable, the earliest eligible route determines the durable retry
+deadline. Recovery resumes automatically when that deadline is reached and a
+configured endpoint responds.
+
+A malformed or truncated recovery tool reply receives at most two correction
+requests per route. Corrections include a bounded validation finding and the
+rejected receipt hash, changing the input without copying an unbounded reply.
+Restart reconstructs the same correction chain from saved responses; it cannot
+reset the limit or repeatedly replay the first invalid response. Three invalid
+replies exhaust that route, allowing another configured route to respond. A
+well-formed decline remains a terminal planner decision. Proposed plans still
+pass the supervisor's authority, strategy, scientific obligation and acceptance
+gates before any replacement work is admitted.
+
 Half-open admission also waits for old in-flight requests. A crashed probe can
 be replaced after its recorded deadline; its request remains unknown spend.
 Success wakes matching provider continuations early, without changing task
@@ -69,6 +89,7 @@ Task status continues to show the durable wait reason and wake time.
 
 ```sh
 node --experimental-strip-types --test tests/foundry/provider-recovery.test.ts
+node --experimental-strip-types --test tests/foundry/recovery-planning.test.ts
 node scripts/test-swarm.mjs
 node scripts/test-resilience.mjs
 ```
