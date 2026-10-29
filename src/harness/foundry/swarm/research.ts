@@ -1,6 +1,7 @@
 import { SessionJournal } from "./session.ts";
 import { canonical, digest, invariant } from "../kernel.ts";
 import { runResearchValidation } from "../researchValidation.ts";
+import { generalizationFeedback } from "../generalization.ts";
 import type { Store } from "../store.ts";
 import type { Capsule, Check } from "../types.ts";
 import type { PinnedSwarm } from "./config.ts";
@@ -66,8 +67,12 @@ export async function verifyResearch(store: Store, cfg: PinnedSwarm, c: Capsule,
           .run(c.runId, c.task.id, row.template, row.key, digest(spec), row.result_hash, assessmentHash, assessment.outcome);
         store.event("research.assessed", { template: String(row.template), assessmentHash, outcome: assessment.outcome }, c.runId, c.task.id);
       });
+      if (assessment.generalization) new SessionJournal(store).receipt(c, store.readArtifact(assessmentHash));
       assessments.push(assessmentHash);
-      invariant(spec.acceptance === "valid-result" || assessment.outcome === "SUPPORTED", `hypothesis ${assessment.outcome.toLowerCase()}`);
+      invariant(spec.acceptance === "valid-result" || assessment.outcome === "SUPPORTED",
+        `hypothesis ${assessment.outcome.toLowerCase()}` + (assessment.generalization ? " " + canonical({
+          assessmentHash, generalization: generalizationFeedback(assessment.generalization),
+        }) : ""));
     }
     return { id: "research", verdict: "PASS", detail: canonical({ required, assessments }) };
   } catch (error) {

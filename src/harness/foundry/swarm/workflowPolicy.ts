@@ -71,6 +71,7 @@ export class WorkflowPolicyAgent {
       "Call propose_workflow exactly once. Copy the three expected versions from the observation.",
       "Prefer an empty operations array when a change has no clear benefit. State the measured bottleneck and intended benefit.",
       "Use only allowedOperations. Expand only unstarted READY tasks; preserve their goal and acceptance.",
+      "Audit missing critical steps, not only scheduling bottlenecks. For unfamiliar work, add scoped discovery of authoritative methods and an independent plan audit before execution when the visible plan lacks justified prerequisites, input quality/diversity or representative evaluation. Treat omitted context as unknown; the adviser cannot inspect references itself. Assign reference inspection to permitted workers and order dependent work after discovery/audit; keep simple justified tasks direct.",
       "Children use local IDs and dependsOn sibling IDs, inherit the parent's verified dependencies and must stay inside parent file scopes.",
       "Child input is explicit JSON; reference the problem in the parent goal when appropriate. Do not fabricate unseen evidence.",
       "Timeouts affect future leases only; parallelism is bounded by the admitted recipe. Ongoing work drains without preemption.",

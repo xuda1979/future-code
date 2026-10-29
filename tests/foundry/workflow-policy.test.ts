@@ -423,3 +423,41 @@ test("workflow configuration rejects unknown roles, unbounded resources and expa
   delete valid.supervision!.dynamicDAG;
   assert.throws(() => validateSwarmSpec(valid), /dynamicDAG/);
 });
+
+
+test("workflow review can insert missing methodology discovery and plan audit before execution", async () => {
+  await fixture(async (store, cfg) => {
+    const q = new Scheduler(store);
+    const run = q.start([{ ...task("root"), goal: "Develop an artifact that works on unseen workloads",
+      writeScope: ["src"], readScope: ["src"] }]);
+    let calls = 0;
+    const fetcher = (async (_url: any, init: any) => {
+      calls++; const body = JSON.parse(init.body);
+      const instruction = body.messages.find((m: any) => m.role === "system").content;
+      assert.match(instruction, /missing critical steps/);
+      assert.match(instruction, /authoritative methods/);
+      assert.match(instruction, /input quality\/diversity/);
+      assert.match(instruction, /representative evaluation/);
+      assert.match(instruction, /omitted context as unknown/);
+      assert.equal(body.tools.length, 1, "the adviser receives no worker execution tools");
+      return reply("", [{ name: "propose_workflow", arguments: proposal(store, run, [
+        { op: "expand_task", taskId: "root", children: [
+          child("discover", { goal: "Inspect permitted references and project memory; identify critical lifecycle steps",
+            writeScope: [], acceptance: ["Produce source-grounded requirements and explicit unknowns"] }),
+          child("audit", { goal: "Independently audit prerequisites and the adequacy of inputs and evaluation",
+            dependsOn: ["discover"], writeScope: [], acceptance: ["Review the discovered plan and preserve unresolved gaps"] }),
+          child("execute", { goal: "Implement within the original objective after discovery and plan audit",
+            dependsOn: ["audit"] }),
+        ] },
+      ]) }]);
+    }) as typeof fetch;
+    await new WorkflowPolicyAgent(store, cfg, fetcher).review(run, signal());
+    assert.equal(calls, 1);
+    assert.deepEqual(q.claimMany(run, "worker", 4).map(l => l.taskId), ["root.discover"]);
+    const audit = JSON.parse(String(store.db.prepare("SELECT spec FROM tasks WHERE run=? AND id='root.audit'").get(run)!.spec));
+    const execute = JSON.parse(String(store.db.prepare("SELECT spec FROM tasks WHERE run=? AND id='root.execute'").get(run)!.spec));
+    assert.ok(audit.dependencies.includes("root.discover"));
+    assert.ok(execute.dependencies.includes("root.audit"));
+    assert.equal((workflowPolicyMetrics(store, run) as any).requests, 1);
+  }, configure);
+});
