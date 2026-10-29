@@ -141,6 +141,7 @@ Missing token or dollar measurements remain unknown.
 | Remote file batches and worker replacement | [Remote batch recovery](docs/agent-platform/REMOTE_TOOL_BATCHING.md) |
 | Premise probes, cross-patch failure loops and fresh-context audits | [Falsification debugging](docs/agent-platform/FALSIFICATION_DEBUGGING.md) |
 | Proactive measurement reviews and prerequisites for external experiments | [Evidence-first decisions](docs/agent-platform/EVIDENCE_FIRST_DECISIONS.md) |
+| Methodology discovery, workload coverage and external-performance diagnostics | [Generalization evidence](docs/agent-platform/GENERALIZATION_EVIDENCE.md) |
 | Empirical strategy learning | [Intervention memory](docs/agent-platform/INTERVENTION_MEMORY.md) |
 | Current regression and real-source evidence | [Validation](docs/agent-platform/SOVEREIGN_VALIDATION.md) |
 | Full terminal CLI setup | [Linux deployment](DEPLOY-LINUX.md), [onboarding](ONBOARDING.md) |

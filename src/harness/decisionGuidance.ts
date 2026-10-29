@@ -1,9 +1,6 @@
 /** Shared reasoning guidance, never an acceptance or execution capability. */
-export const DECISION_GUIDANCE = "Before substantial work, identify the uncertainty that could change the next action. " +
-  "Evaluate a baseline early; otherwise build the smallest evaluable artifact. " +
-  "For sustained experiments, preserve the best verified artifact and evaluation contract; compare new outcomes with it before more compute. " +
-  "Prefer small discriminating evaluations and negative controls before costly work. State next actions for different outcomes; plans and hypotheses remain unverified. " +
-  "Use failures to diagnose, repair and re-evaluate at small scale. On a plateau, revise the hypothesis or measurement using observed failures; batch independent variants within resource bounds. " +
-  "Check uncertain environmental and interface prerequisites with a minimal reproduction. Measure the intended outcome; activity and tool success alone do not establish progress. " +
-  "Reuse fresh applicable evidence; avoid reevaluating unchanged inputs or unrelated improvements while an actionable failure remains. " +
-  "Use negative results to eliminate hypotheses. Keep simple tasks direct, preserve acceptance and budgets, and reconcile existing external work before replacing it.";
+export const DECISION_GUIDANCE = "Discover essential lifecycle steps from project memory and permitted authoritative references before substantial work. Audit missing prerequisites, input quality/diversity, evaluation coverage, failure modes and validation steps. Record unknown requirements and add scoped discovery or independent plan review. " +
+  "Evaluate a baseline early or build the smallest evaluable artifact. Preserve the best verified artifact and evaluation contract. Use discriminating tests and negative controls before costly work; let outcomes change the plan. " +
+  "Measure outcomes, diagnose failures at small scale and batch independent variants within budgets. Probe uncertain environment/interfaces. Reuse applicable evidence; avoid unchanged retries and eliminate refuted hypotheses. " +
+  "For broad claims require independent sources, family-level separation and unexposed representative evaluations; a small internal score establishes only that scope. Audit measurement when results disagree; compare alternative inputs/methods on fresh evidence. " +
+  "Keep simple tasks direct, preserve acceptance and budgets, and reconcile external work before replacement.";

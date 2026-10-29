@@ -2,6 +2,8 @@ import { canonical, digest, identifier, invariant } from "./kernel.ts";
 import type { Json } from "./types.ts";
 import { assessTheory, validateTheoryContract, validateTheoryContext, validateTheoryEvidence, type TheoryAssessment,
   type TheoryContract, type TheoryEvidence, type CheckedTheoryPremise } from "./theory.ts";
+import { assessGeneralization, validateGeneralizationContract, type GeneralizationContract,
+  type GeneralizationEvidence, type GeneralizationAssessment } from "./generalization.ts";
 
 export type ResearchOutcome = "SUPPORTED" | "REFUTED" | "INCONCLUSIVE";
 interface ResearchBase {
@@ -30,6 +32,8 @@ export interface ExperimentSpec extends ResearchBase {
   planValidation?: { id: string; checks: string[] }[];
   /** Opt-in deductive research; semantics belong to the project's pinned oracle. */
   theory?: TheoryContract;
+  /** Optional frozen requirements for claims beyond the development workload. */
+  generalization?: GeneralizationContract;
 }
 export type ResearchSpec = ExperimentSpec | LegacyResearchSpec;
 export interface ExperimentContext {
@@ -57,6 +61,7 @@ export interface ValidatorReport {
   outcome: ResearchOutcome;
   measurements?: Json;
   theory?: TheoryEvidence;
+  generalization?: GeneralizationEvidence;
 }
 export interface ResearchAssessment {
   schema: 1;
@@ -69,6 +74,7 @@ export interface ResearchAssessment {
   conflicted?: boolean;
   validation?: { id: string; implementationHash: string; reportHash: string }[];
   theory?: TheoryAssessment;
+  generalization?: GeneralizationAssessment;
 }
 export function fields(value: any, required: string[], optional: string[] = []): void {
   invariant(value && typeof value === "object" && !Array.isArray(value), "expected research object");
@@ -83,7 +89,7 @@ function ids(v: unknown, max: number): asserts v is string[] {
 const base = ["schema", "kind", "question", "hypothesis", "assumptions", "refutation", "protocol", "identity", "input", "acceptance"];
 export function validateResearchSpec(s: ResearchSpec): void {
   invariant(s && (s.schema === 1 || s.schema === 2), "unknown research schema");
-  if (s.schema === 2) fields(s, [...base, "parameters", "execution", "units", "artifacts", "validation"], ["planValidation", "theory"]);
+  if (s.schema === 2) fields(s, [...base, "parameters", "execution", "units", "artifacts", "validation"], ["planValidation", "theory", "generalization"]);
   else invariant(base.every(k => Object.hasOwn(s, k)), "incomplete legacy research specification");
   identifier(s.kind); [s.question, s.hypothesis, s.refutation, s.protocol].forEach(x => text(x));
   invariant(Array.isArray(s.assumptions) && s.assumptions.length <= 64 && new Set(s.assumptions).size === s.assumptions.length, "invalid assumptions");
@@ -113,6 +119,7 @@ export function validateResearchSpec(s: ResearchSpec): void {
     invariant(Array.isArray(requirements) && requirements.length > 0 && requirements.length <= 8 && new Set(requirements.map(v => v.id)).size === requirements.length, "invalid experiment validators");
     for (const v of requirements) { fields(v, ["id", "checks"]); identifier(v.id); ids(v.checks, 64); }
   }
+  validateGeneralizationContract(s);
 }
 
 /** Universal completeness/provenance checks. Scientific semantics belong to the
@@ -152,7 +159,7 @@ export function assessResearch(s: ExperimentSpec, raw: unknown, context: Experim
     hash(result.implementationHash);
     const required = s.validation.find(v => v.id === result.id); invariant(required, "undeclared experiment validator");
     const report = result.report as ValidatorReport;
-    fields(report, ["schema", "validator", "implementationHash", "specHash", "resultHash", "contextHash", "checks", "outcome"], ["measurements", "theory"]);
+    fields(report, ["schema", "validator", "implementationHash", "specHash", "resultHash", "contextHash", "checks", "outcome"], ["measurements", "theory", "generalization"]);
     invariant(Buffer.byteLength(canonical(report)) <= 65536, "validator report too large");
     invariant(report.schema === 1 && report.validator === result.id && report.implementationHash === result.implementationHash &&
       report.specHash === digest(s) && report.resultHash === digest(raw) && report.contextHash === digest(context), "independent validator binding mismatch");
@@ -167,10 +174,13 @@ export function assessResearch(s: ExperimentSpec, raw: unknown, context: Experim
     validation.push({ id: result.id, implementationHash: result.implementationHash, reportHash: digest(report) });
   }
   const conflicted = outcomes.has("SUPPORTED") && outcomes.has("REFUTED");
+  const generalization = assessGeneralization(s, reports.map(r => r.report as ValidatorReport));
+  if (generalization) outcomes.add(generalization.outcome);
   const outcome: ResearchOutcome = conflicted ? "INCONCLUSIVE" : outcomes.has("REFUTED") ? "REFUTED" :
     outcomes.size === 1 && outcomes.has("SUPPORTED") ? "SUPPORTED" : "INCONCLUSIVE";
   return { schema: 1, specHash: digest(s), resultHash: digest(raw), outcome, estimates: [], assumptions: s.assumptions,
     contextHash: digest(context), conflicted, validation: validation.sort((a, b) => a.id.localeCompare(b.id)),
+    ...(generalization ? { generalization } : {}),
     ...(s.theory ? { theory: assessTheory(s, reports.map(r => r.report as ValidatorReport), outcome, conflicted) } : {}) };
 }
 

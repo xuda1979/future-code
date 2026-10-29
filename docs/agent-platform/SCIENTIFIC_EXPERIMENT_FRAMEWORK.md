@@ -1,5 +1,10 @@
 # Domain-neutral scientific experiment framework
 
+For claims beyond development examples, see the optional frozen
+[generalization evidence contract](GENERALIZATION_EVIDENCE.md). It adds independent
+family/source coverage, uncertainty and external-performance diagnostics to the
+same result validation and durable repair path.
+
 Future-Code manages reproducible execution and independent evidence checking.
 Projects supply their scientific methods through configured adapters. Adding a
 field, instrument, simulator, data layout or validation method requires no change
