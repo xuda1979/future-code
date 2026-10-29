@@ -550,10 +550,9 @@ export class SwarmDriver implements Driver {
           // Refresh only AFTER replay and at a complete tool boundary. The
           // resulting digest is checkpointed before the request, so a crash
           // cannot replay a reply against newly learned context.
-          const digest = this.knowledge.search(c, {
-            query: [c.task.goal, ...c.task.writeScope, ...(c.task.readScope ?? []), ...profile.checks].join(" ").slice(0, 512),
-            phase: t.state.diagnostics?.failures.length ? "debugging" : "any", limit: 3,
-          }, Math.min(this.knowledge.policy.maxContextBytes, Math.floor(limit / 4)));
+          const digest = this.knowledge.context(c, profile.checks,
+            t.state.diagnostics?.failures.length ? "debugging" : "any",
+            Math.min(this.knowledge.policy.maxContextBytes, Math.floor(limit / 4)));
           const content = KNOWLEDGE_NOTICE + canonical(digest);
           const previous = t.state.history.find(m => m.role === "user" && m.content.startsWith(KNOWLEDGE_NOTICE));
           if (previous?.content !== content) {

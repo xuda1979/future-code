@@ -206,23 +206,44 @@ lucky run into a universal skill would corrupt future work.
 
 ## Bounded retrieval and persistence
 
-Before a normal model request, the host refreshes one project digest. A query
-uses the task goal, readable/write scopes and configured check names. Debugging
+Before a normal model request, the host refreshes one project digest. Query terms
+interleave the task goal, write scopes, read scopes and configured check names,
+deduplicated to at most 32 literal terms. A long goal cannot consume the space
+reserved for file and check identifiers. Debugging
 selects `debugging`/`any` cards; otherwise the default phase admits all phases.
 Agents can explicitly select `research`, `design`, `implementation`, `debugging`,
 `validation` or `any` and supply a narrower query using `read_knowledge`.
 
-Search matches literal tags/trigger terms, newest first. It uses an SQLite term
+Explicit `read_knowledge` search matches literal tags/trigger terms, newest first.
+It uses an SQLite term
 index, project/phase/source indexes, keyset cursors and a `limit + 1` candidate
 page, rather than scanning whole transcripts. This is a deterministic baseline,
 not semantic/vector search or a proof of absence. Synonyms and differently
 segmented language may require explicit tags or another query. Follow
 `nextAfter` when `hasMore` is true; the cursor moves toward older records.
 
-The automatic digest selects at most three cards and fits the smaller of the
-policy budget and one quarter of the admitted thread context. Very small
-envelopes skip automatic injection. Large previews are omitted while card IDs,
-trust labels and applicability remain. Use `read_knowledge({id: CARD_ID})` to
+The automatic digest ranks eligible indexed matches by the number of distinct
+query terms they cover, with recency breaking ties. It considers the best 32
+candidate references, then greedily selects up to three cards: prefer coverage
+of query terms not yet represented, then total matches, then recency. This can
+retrieve an older specific finding ahead of newer generic matches and add a
+complementary reference before another card covering the same terms. It does
+not infer semantic relevance, truth, utility or scientific confidence.
+
+Project, publication, retirement and phase filters apply before the candidate
+limit. Only selected cards are opened and authenticated; their exact indexed
+term matches are checked against immutable source content. Current trust,
+retraction and contradiction labels are rechecked on every refresh. `selection`
+reports the candidate count and whether the pool was capped; it is not a paged
+search result. Use explicit `read_knowledge` queries and their `nextAfter`
+cursors to explore further. The cap bounds candidate metadata and artifact
+reads, **not** the number of matching index postings SQLite must aggregate.
+Very common terms can cost more to rank as a project grows. Complementary cards
+outside the top 32 and synonyms can still be missed; this is not proof of absence.
+
+The digest fits the smaller of the policy budget and one quarter of the admitted
+thread context. Very small envelopes skip automatic injection. Large previews
+are omitted while card IDs, trust labels and applicability remain. Use `read_knowledge({id: CARD_ID})` to
 obtain a full owned card receipt and `recall` for byte slices. The full encoded
 provider request remains subject to the existing context limit.
 
@@ -272,6 +293,14 @@ arbitrary domain name.
 multilingual multipart text, file bounds, inert skill directives, persistent and
 idempotent CLI imports, real worker-context reuse and unchanged independent
 acceptance. These tests run in both Foundry and Swarm regression suites.
+
+`tests/foundry/project-knowledge-selection.test.ts` covers older specific advice
+behind forty newer broad matches, long goals, complementary term coverage,
+privacy/phase/retirement filtering before ranking, candidate and UTF-8 bounds,
+source authentication, stable chronological pagination and deterministic reopen.
+The two worker-context regressions fail on the preceding runtime and pass with
+ranked retrieval using the same two scripted model responses and independent
+checks. They establish retrieval behavior, not live-model productivity gains.
 
 These tests establish runtime behavior. They are scripted/offline evidence,
 not measurements of live-model productivity or a claim of expert performance
