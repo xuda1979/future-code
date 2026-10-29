@@ -449,7 +449,7 @@ test("workflow review can insert missing methodology discovery and plan audit be
           child("execute", { goal: "Implement within the original objective after discovery and plan audit",
             dependsOn: ["audit"] }),
         ] },
-      ]) } }]);
+      ]) }]);
     }) as typeof fetch;
     await new WorkflowPolicyAgent(store, cfg, fetcher).review(run, signal());
     assert.equal(calls, 1);
