@@ -23,6 +23,7 @@ const result = spawnSync(process.execPath, ["--experimental-strip-types", "--tes
   "tests/foundry/theory.test.ts", "tests/foundry/swarm-theory.test.ts",
   "tests/foundry/scientific-acceptance.test.ts",
   "tests/foundry/objective-restart.test.ts",
+  "tests/foundry/recovery-planning.test.ts",
   "tests/foundry/research.test.ts", "tests/foundry/research-programme.test.ts",
   "tests/foundry/job-evidence.test.ts", "tests/foundry/job-races.test.ts", "tests/foundry/episodic-memory.test.ts",
   "tests/foundry/project-knowledge.test.ts", "tests/foundry/human-knowledge.test.ts",

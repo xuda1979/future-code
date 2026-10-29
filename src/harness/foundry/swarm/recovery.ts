@@ -3,7 +3,7 @@ import { FatalAttemptError } from "../errors.ts";
 import { DeferredAttemptError } from "../continuation.ts";
 import type { Store } from "../store.ts";
 import type { Json, Task } from "../types.ts";
-import { keys, type AgentProfile, type PinnedSwarm, type Protocol } from "./config.ts";
+import { keys, type AgentProfile, type PinnedSwarm, type Protocol, type ProviderRoute } from "./config.ts";
 import { boundedJson, isTransportFailure } from "./model.ts";
 import { SessionJournal } from "./session.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
@@ -13,6 +13,8 @@ import { boundedFetch, discardResponse } from "./transport.ts";
 import { DECISION_GUIDANCE } from "../../decisionGuidance.ts";
 
 const TOOL = "propose_recovery_plan";
+const MAX_RESPONSE_ATTEMPTS = 3;
+interface ResponseRepair { attempt: number; rejectedResponse: string; reason: string }
 
 const taskSchema: Json = {
   type: "object",
@@ -48,7 +50,7 @@ const inputSchema: Json = {
   required: ["decision", "reason", "tasks", "addressedFindings"],
 };
 
-function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: PinnedSwarm): Json {
+function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: PinnedSwarm, responseRepair?: ResponseRepair): Json {
   const instruction = [
     "You are Future-Code's bounded recovery planner.",
     "Do not execute code and do not change model/provider settings, inference engines, KV caches, credentials, checks, protected paths, resource ceilings, or the objective.",
@@ -64,6 +66,7 @@ function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: Pinne
     "Preserve every scientificObligations task ID, input, acceptance criteria, required research templates, exact knowledge imports and named checks. You may add helper tasks, change dependencies/methods and strengthen requirements; never replace a required experiment or proof with a summary.",
     "If there is no safe useful replan, decline.",
     "Call the recovery-plan tool exactly once.",
+    ...(responseRepair ? ["The previous response failed host validation. Correct the responseRepair finding with a complete, smaller tool payload; retain the objective and all authority and acceptance constraints."] : []),
   ].join(" ");
   const packet = canonical({
     objectiveId: context.objectiveId,
@@ -81,6 +84,7 @@ function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: Pinne
     allowedAgents: Object.keys(cfg.spec.agents).sort(),
     protectedPaths: cfg.spec.protectedPaths,
     taskLimit: cfg.spec.limits.tasks,
+    ...(responseRepair ? { responseRepair } : {}),
   });
   if (profile.protocol === "chat-completions") {
     return {
@@ -115,6 +119,7 @@ function requestBody(profile: AgentProfile, context: RecoveryContext, cfg: Pinne
 function toolInput(protocol: Protocol, raw: any): Record<string, unknown> {
   if (protocol === "chat-completions") {
     invariant(Array.isArray(raw?.choices) && raw.choices.length === 1, "invalid recovery planner response");
+    invariant(raw.choices[0]?.finish_reason !== "length", "recovery planner output truncated");
     const calls = raw.choices[0]?.message?.tool_calls;
     invariant(Array.isArray(calls) && calls.length === 1 && calls[0]?.type === "function" &&
       calls[0]?.function?.name === TOOL && typeof calls[0]?.function?.arguments === "string",
@@ -124,6 +129,7 @@ function toolInput(protocol: Protocol, raw: any): Record<string, unknown> {
     return value;
   }
   invariant(Array.isArray(raw?.content), "invalid recovery planner response");
+  invariant(raw.stop_reason !== "max_tokens", "recovery planner output truncated");
   const calls = raw.content.filter((block: any) => block?.type === "tool_use" && block?.name === TOOL);
   invariant(calls.length === 1 && calls[0].input && typeof calls[0].input === "object" &&
     !Array.isArray(calls[0].input), "recovery planner must call the recovery-plan tool exactly once");
@@ -170,7 +176,7 @@ function usageTokens(raw: any, protocol: Protocol): number | null {
   return total;
 }
 
-function headers(profile: AgentProfile): Record<string, string> {
+function headers(profile: Pick<AgentProfile, "protocol" | "keyEnv">): Record<string, string> {
   const out: Record<string, string> = { "content-type": "application/json" };
   if (profile.protocol === "anthropic") out["anthropic-version"] = "2023-06-01";
   if (profile.keyEnv) {
@@ -190,66 +196,114 @@ export function createApiRecoveryPlanner(store: Store, cfg: PinnedSwarm,
   const profile = cfg.spec.agents[agent];
   invariant(profile, "unknown recovery agent");
   const journal = new SessionJournal(store);
+  const routes: ProviderRoute[] = [profile, ...(profile.fallbacks ?? [])];
   return async (context, signal) => {
-    const body = requestBody(profile, context, cfg);
-    const encoded = canonical(body);
-    invariant(Buffer.byteLength(encoded) <= cfg.spec.budget.maxRequestBytes,
-      "recovery planner request exceeds configured request-byte budget");
-    const provider = digest({ quotaPool: profile.quotaPool ?? `${profile.url}#${profile.model}` });
-    const replay = journal.cachedRun(context.runId, "__recovery__", body);
-    if (replay !== null) {
-      const plan = decodePlan(profile.protocol, replay, context.reflection);
-      store.event("objective.recovery.model.replayed", {
-        objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
-        agent, provider, decision: plan ? "replan" : "decline",
-        proposalHash: digest(plan ?? { declined: true }),
-      }, context.runId);
-      return plan;
-    }
     signal.throwIfAborted();
-    const requestHeaders = headers(profile);
-    const requestId = await journal.reserveRun(context.runId, "__recovery__", provider, body, cfg.spec.budget, signal);
-    let recorded = false;
-    store.event("objective.recovery.model.request", {
-      objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
-      agent, provider, requestBytes: Buffer.byteLength(encoded),
-    }, context.runId);
-    const combined = createCombinedAbortSignal(signal, {
-      timeoutMs: cfg.spec.budget.requestTimeoutMs,
-    });
-    try {
-      const response = await boundedFetch(fetcher, profile.url, {
-        method: "POST", headers: requestHeaders, body: encoded, redirect: "error",
-        signal: combined.signal,
-      });
-      if (!response.ok) {
-        discardResponse(response);
-        journal.complete(requestId, null, null); recorded = true;
-        if (transientStatus(response.status))
-          throw new DeferredAttemptError("provider", journal.providerFailure(requestId, response.headers.get("retry-after"), response.status),
-            `Recovery model HTTP ${response.status}; retry scheduled`);
-        throw new FatalAttemptError(`Recovery model HTTP ${response.status}; provider/configuration requires attention`);
-      }
-      const raw = await boundedJson(response, cfg.spec.budget.maxToolOutputBytes, combined.signal);
-      journal.complete(requestId, usageTokens(raw, profile.protocol), raw); recorded = true;
-      const plan = decodePlan(profile.protocol, raw, context.reflection);
-      journal.providerSuccess(requestId);
-      store.event("objective.recovery.model.reply", {
+    const states = routes.map((route, index) => ({ route,
+      // Keep legacy primary receipts; isolate fallback replies even when routes
+      // serve the same model and deliberately share a quota pool.
+      task: index === 0 ? "__recovery__" : `__recovery_route_${index}__`,
+      provider: digest({ quotaPool: route.quotaPool ?? `${route.url}#${route.model}` }),
+      body: requestBody({ ...profile, model: route.model }, context, cfg), attempt: 0,
+      exhausted: null as Error | null }));
+    const reportReply = (provider: string, plan: RecoveryPlan | null, replayed: boolean) => {
+      store.event(replayed ? "objective.recovery.model.replayed" : "objective.recovery.model.reply", {
         objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
         agent, provider, decision: plan ? "replan" : "decline",
         proposalHash: digest(plan ?? { declined: true }),
       }, context.runId);
       return plan;
-    } catch (error) {
-      if (!recorded) journal.complete(requestId, null, null);
-      signal.throwIfAborted();
-      if (error instanceof DeferredAttemptError) throw error;
-      if (isTransportFailure(error) || combined.signal.aborted)
-        throw new DeferredAttemptError("provider", journal.providerFailure(requestId),
-          "Recovery provider transport unavailable; retry scheduled");
-      throw error;
-    } finally {
-      combined.cleanup();
+    };
+    const repair = (state: typeof states[number], raw: Json, error: unknown) => {
+      const reason = error instanceof Error ? error.message.slice(0, 512) : "Invalid recovery tool payload";
+      state.attempt++;
+      if (state.attempt >= MAX_RESPONSE_ATTEMPTS) {
+        state.exhausted = new FatalAttemptError("RECOVERY_RESPONSE_REPAIR_EXHAUSTED: three invalid recovery replies; " + reason);
+        return;
+      }
+      // Reconstruct corrections from durable rejected receipts, so restarting
+      // neither repeats an unchanged invalid request nor resets the repair limit.
+      state.body = requestBody({ ...profile, model: state.route.model }, context, cfg, {
+        attempt: state.attempt, rejectedResponse: digest(raw), reason,
+      });
+    };
+    // Search every configured route's receipts BEFORE making another RPC.
+    // A saved fallback plan must not cause another primary request after a crash.
+    for (const state of states) {
+      while (!state.exhausted) {
+        const raw = journal.cachedRun(context.runId, state.task, state.body);
+        if (raw === null) break;
+        let plan: RecoveryPlan | null;
+        try { plan = decodePlan(profile.protocol, raw, context.reflection); }
+        catch (error) { repair(state, raw, error); continue; }
+        return reportReply(state.provider, plan, true);
+      }
     }
+    const failures: Error[] = [];
+    for (const state of states) {
+      if (state.exhausted) { failures.push(state.exhausted); continue; }
+      try {
+        const requestHeaders = headers({ protocol: profile.protocol, keyEnv: state.route.keyEnv });
+        while (!state.exhausted) {
+          signal.throwIfAborted();
+          const encoded = canonical(state.body);
+          invariant(Buffer.byteLength(encoded) <= cfg.spec.budget.maxRequestBytes,
+            "recovery planner request exceeds configured request-byte budget");
+          const requestId = await journal.reserveRun(context.runId, state.task, state.provider,
+            state.body, cfg.spec.budget, signal);
+          let recorded = false;
+          store.event("objective.recovery.model.request", {
+            objectiveId: context.objectiveId, run: context.runId, revision: context.revision,
+            agent, provider: state.provider, requestBytes: Buffer.byteLength(encoded), responseAttempt: state.attempt,
+          }, context.runId);
+          const combined = createCombinedAbortSignal(signal, { timeoutMs: cfg.spec.budget.requestTimeoutMs });
+          try {
+            const response = await boundedFetch(fetcher, state.route.url, {
+              method: "POST", headers: requestHeaders, body: encoded, redirect: "error", signal: combined.signal,
+            });
+            if (!response.ok) {
+              discardResponse(response);
+              journal.complete(requestId, null, null); recorded = true;
+              if (transientStatus(response.status))
+                throw new DeferredAttemptError("provider", journal.providerFailure(requestId, response.headers.get("retry-after"), response.status),
+                  `Recovery model HTTP ${response.status}; retry scheduled`);
+              throw new FatalAttemptError(`Recovery model HTTP ${response.status}; provider/configuration requires attention`);
+            }
+            const decoded = await boundedJson(response, cfg.spec.budget.maxToolOutputBytes, combined.signal);
+            // Journal null means a lost/unknown response. Preserve a received
+            // JSON null as a known invalid receipt, so its repair survives restart.
+            const raw = decoded === null ? { invalidRecoveryResponse: null } : decoded;
+            journal.complete(requestId, usageTokens(raw, profile.protocol), raw); recorded = true;
+            signal.throwIfAborted();
+            let plan: RecoveryPlan | null;
+            try { plan = decodePlan(profile.protocol, raw, context.reflection); }
+            catch (error) {
+              repair(state, raw, error);
+              store.event("objective.recovery.model.invalid", { objectiveId: context.objectiveId,
+                run: context.runId, provider: state.provider, response: digest(raw), responseAttempt: state.attempt }, context.runId);
+              continue;
+            }
+            journal.providerSuccess(requestId);
+            return reportReply(state.provider, plan, false);
+          } catch (error) {
+            if (!recorded) { journal.complete(requestId, null, null); recorded = true; }
+            signal.throwIfAborted();
+            if (error instanceof DeferredAttemptError) throw error;
+            if (isTransportFailure(error) || combined.signal.aborted)
+              throw new DeferredAttemptError("provider", journal.providerFailure(requestId),
+                "Recovery provider transport unavailable; retry scheduled");
+            throw error;
+          } finally { combined.cleanup(); }
+        }
+        failures.push(state.exhausted!);
+      } catch (error) {
+        signal.throwIfAborted();
+        failures.push(error instanceof Error ? error : new Error(String(error)));
+      }
+    }
+    const deferred = failures.filter((error): error is DeferredAttemptError => error instanceof DeferredAttemptError);
+    if (deferred.length) throw new DeferredAttemptError("provider", Math.max(Date.now(), Math.min(...deferred.map(error => error.wakeAt))),
+      "All configured recovery model routes were unavailable; retry scheduled");
+    throw failures[0] ?? new FatalAttemptError("No recovery model route available");
   };
 }
