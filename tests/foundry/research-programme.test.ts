@@ -79,6 +79,7 @@ test("contradictory accepted observations remain conflicted despite subsequent a
   assert.equal(p.read(first, true).assessment.outcome, "SUPPORTED");
   assert.equal(p.read(contrary, true).assessment.outcome, "REFUTED");
   assert.throws(() => p.context([contrary]), /conflicted/);
+  assert.equal(p.matching(digest(cfg.spec.jobs!.bell.research!.spec)).conflicted, true);
   await run(s, cfg, "bell");
   assert.throws(() => p.context([current(p, "bell")]), /conflicted/);
   assert.equal((p.list() as any).findings[0].state, "CONFLICTED");

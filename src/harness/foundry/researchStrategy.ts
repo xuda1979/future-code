@@ -17,6 +17,15 @@ export interface ResearchStrategy {
   stopOnRefutation: boolean;
   /** Opt-in parallel hypothesis search. Scores allocate work, never certify truth. */
   frontier?: { maxParallel: number; explorationWeight: number; maxInconclusivePerLine: number };
+  /** Opt-in host allocation heuristics. Never a truth score or new authority. */
+  deliberation?: {
+    familiarObservations: number;
+    stagnationWindow: number;
+    maxUninformative: number;
+    maxResearchMs: number;
+    highImpact: boolean;
+    reuseProgrammeFindings: boolean;
+  };
   design?: ExperimentDesign;
 }
 export interface StrategyObservation {
@@ -25,7 +34,18 @@ export interface StrategyObservation {
   assessment: ResearchAssessment;
 }
 export function validateResearchStrategy(s: ResearchStrategy): void {
-  fields(s, ["schema", "candidates", "maxExperiments", "maxSnapshotBytes", "stopOnRefutation"], ["frontier", "design"]);
+  fields(s, ["schema", "candidates", "maxExperiments", "maxSnapshotBytes", "stopOnRefutation"], ["frontier", "design", "deliberation"]);
+  if (s.deliberation !== undefined) {
+    const d = s.deliberation;
+    fields(d, ["familiarObservations", "stagnationWindow", "maxUninformative", "maxResearchMs", "highImpact", "reuseProgrammeFindings"]);
+    invariant(s.frontier, "deliberation requires a bounded research frontier");
+    for (const n of [d.familiarObservations, d.stagnationWindow, d.maxUninformative])
+      invariant(Number.isSafeInteger(n) && n > 0 && n <= 256, "invalid deliberation evidence bound");
+    invariant(d.maxUninformative > d.stagnationWindow, "deliberation must allow escalation before stopping");
+    invariant(Number.isSafeInteger(d.maxResearchMs) && d.maxResearchMs > 0 && d.maxResearchMs <= 604800000,
+      "invalid deliberation time budget");
+    invariant(typeof d.highImpact === "boolean" && typeof d.reuseProgrammeFindings === "boolean", "invalid deliberation flags");
+  }
   if (s.frontier !== undefined) {
     fields(s.frontier, ["maxParallel", "explorationWeight", "maxInconclusivePerLine"]);
     invariant(Number.isSafeInteger(s.frontier.maxParallel) && s.frontier.maxParallel > 0 && s.frontier.maxParallel <= 32 &&

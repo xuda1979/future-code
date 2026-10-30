@@ -51,6 +51,11 @@ export interface AgentProfile {
   /** Launch configured fallbacks if the primary has not completed by this latency. */
   hedgeAfterMs?: number;
 }
+export interface VerifierNegativeControl {
+  id: string;
+  expectedExitCode: number;
+  edits: { path: string; content: string }[];
+}
 export interface CheckSpec extends CommandSpec {
   replaySafe: boolean;
   /** Operator-pinned micro-probe process deadline; never model-controlled. */
@@ -58,6 +63,9 @@ export interface CheckSpec extends CommandSpec {
   /** Operator assertion: no prerequisite check, shared external state or resource
    * collision; can run against a private copy of the candidate Git tree. */
   parallelSafe?: boolean;
+  /** Operator-pinned broken candidates. Independent verification must pass the
+   * real candidate and reject every control in separate private worktrees. */
+  negativeControls?: VerifierNegativeControl[];
   /** Operator-asserted file/directory prefixes for *automatic exploratory*
    * checkpoints only. Never filters explicit checks or independent verification. */
   diagnosticPaths?: string[];
@@ -226,6 +234,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   if (s.projectKnowledge !== undefined) validateKnowledgePolicy(s.projectKnowledge, s.recipe.contextBytes);
   if (s.researchStrategy !== undefined) {
     validateResearchStrategy(s.researchStrategy);
+    if (s.researchStrategy.deliberation?.reuseProgrammeFindings)
+      invariant(s.researchProgramme, "automatic research memory requires an explicit programme namespace");
     invariant(s.supervision?.workflowPolicy, "research strategy requires an independent workflow adviser");
     invariant(s.researchStrategy.maxSnapshotBytes <= s.recipe.contextBytes, "strategy context exceeds admitted context");
     if (s.researchStrategy.frontier) {
@@ -252,10 +262,31 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   invariant(s.checks && typeof s.checks === "object" && !Array.isArray(s.checks), "invalid checks");
   const checks = Object.keys(s.checks); positive(checks.length, 128, "check count");
   for (const [id, check] of Object.entries(s.checks)) {
-    identifier(id); keys(check, ["argv", "replaySafe"], ["files", "envAllow", "parallelSafe", "diagnosticPaths", "maxUnchangedFailures", "probeTimeoutMs"]);
+    identifier(id); keys(check, ["argv", "replaySafe"], ["files", "envAllow", "parallelSafe", "negativeControls", "diagnosticPaths", "maxUnchangedFailures", "probeTimeoutMs"]);
     invariant(typeof check.replaySafe === "boolean", "explicit replaySafe required");
     invariant(check.parallelSafe === undefined || typeof check.parallelSafe === "boolean", "invalid parallelSafe");
     invariant(!check.parallelSafe || check.replaySafe, "parallelSafe checks must be replay-safe");
+    if (check.negativeControls !== undefined) {
+      const controls = check.negativeControls;
+      invariant(check.parallelSafe === true && check.replaySafe, "verifier controls require standalone parallel-safe checks");
+      invariant(Array.isArray(controls) && controls.length > 0 && controls.length <= 4 &&
+        new Set(controls.map(c => c.id)).size === controls.length, "invalid verifier control count");
+      let bytes = 0;
+      for (const control of controls) {
+        keys(control, ["id", "expectedExitCode", "edits"]); identifier(control.id);
+        invariant(Number.isSafeInteger(control.expectedExitCode) && control.expectedExitCode > 0 &&
+          control.expectedExitCode <= 125, "invalid negative-control exit code");
+        invariant(Array.isArray(control.edits) && control.edits.length > 0 && control.edits.length <= 8 &&
+          new Set(control.edits.map(e => e.path)).size === control.edits.length, "invalid verifier control edits");
+        for (const edit of control.edits) {
+          keys(edit, ["path", "content"]); safePath(edit.path);
+          invariant(edit.path.length <= 256 && !inScope(edit.path, s.protectedPaths), "verifier control targets a protected path");
+          invariant(typeof edit.content === "string" && !edit.content.includes("\0"), "invalid verifier control text");
+          bytes += Buffer.byteLength(edit.content);
+        }
+      }
+      invariant(bytes <= 65536, "verifier controls exceed byte bound");
+    }
     invariant(check.probeTimeoutMs === undefined || (Number.isSafeInteger(check.probeTimeoutMs) &&
       check.probeTimeoutMs > 0 && check.probeTimeoutMs <= 2000 && check.replaySafe),
       "invalid probe deadline (1..2000ms, replay-safe probe required)");

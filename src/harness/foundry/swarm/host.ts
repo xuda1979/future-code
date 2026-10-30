@@ -88,6 +88,9 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
     for (const tasks of Object.values(spec.operations.routes ?? {})) validateSwarmTasks(spec, tasks);
   }
   spec.protectedPaths = [...new Set([...spec.protectedPaths, ".gitignore", ".gitattributes", ".gitmodules"])].sort();
+  // Pinning discovers additional protected implementations. In particular,
+  // negative controls must never be allowed to mutate their own verifier.
+  validateSwarmSpec(spec);
   const contract: Contract = { schema: 1, ...(spec.supervision?.snapshotReads ? { readIsolation: "snapshot" as const } : {}), name: spec.name, workerId: workerIdentity(cfg), verifierId: verifierIdentity(cfg),
     environmentId: digest({ project: spec.project, base: cfg.baseCommit, checks: cfg.checks }), requiredChecks: ["scope", "behavior", ...(Object.values(spec.jobs ?? {}).some(j => j.research) ? ["research"] : []), ...(spec.researchProgramme ? ["knowledge"] : [])],
     slos: [], limits: spec.limits };
