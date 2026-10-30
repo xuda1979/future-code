@@ -4,6 +4,7 @@ import { canonical, digest, invariant } from "../kernel.ts";
 import { ResearchProgramme } from "../researchProgramme.ts";
 import { selectResearchStrategy, type StrategyObservation } from "../researchStrategy.ts";
 import { selectResearchFrontier } from "../researchFrontier.ts";
+import { researchDeliberation, researchDossier, type DeliberationSample } from "../deliberation.ts";
 import { theoryGraph } from "../theory.ts";
 import type { Store } from "../store.ts";
 import type { Json, Task } from "../types.ts";
@@ -14,6 +15,7 @@ import type { PinnedSwarm } from "./config.ts";
 export function researchStrategySnapshot(store: Store, cfg: PinnedSwarm, run: string, taskIds?: string[]): Json {
   const policy = cfg.spec.researchStrategy; invariant(policy, "research strategy not configured");
   const observations: StrategyObservation[] = [], unresolved: string[] = [], failed = new Set<string>(), costs: Record<string, number | null> = {};
+  const samples: DeliberationSample[] = [];
   let used = 0, reserved = 0, unavailable: string | null = null;
   const installed = store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='research_jobs'").get();
   const summaries = policy.candidates.map(candidate => {
@@ -41,6 +43,13 @@ export function researchStrategySnapshot(store: Store, cfg: PinnedSwarm, run: st
     const durations = times.map(r => Number(r.updated) - Number(r.created)).filter(x => Number.isFinite(x) && x >= 0).sort((a, b) => a - b);
     costs[candidate.id] = durations.length ? durations[Math.floor(durations.length / 2)] : null;
     for (const job of rows) {
+      let sample: DeliberationSample | undefined;
+      if (job.result_hash && ["SUCCEEDED", "FAILED", "CANCELLED"].includes(String(job.status))) {
+        const elapsed = Number(job.updated) - Number(job.created);
+        sample = { key: String(job.key), observation: null,
+          elapsedMs: Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : null, completedAt: Number(job.updated) };
+        samples.push(sample);
+      }
       const task = store.db.prepare("SELECT status,evidence FROM tasks WHERE run=? AND id=?").get(run, job.task);
       if (["FAIL", "BLOCKED"].includes(String(task?.status))) { failed.add(candidate.id); continue; }
       if (!job.result_hash || task?.status !== "PASS") { unresolved.push(candidate.id); continue; }
@@ -55,7 +64,9 @@ export function researchStrategySnapshot(store: Store, cfg: PinnedSwarm, run: st
       invariant(check && JSON.parse(check.detail).assessments.includes(record.assessment_hash), "strategy assessment is not accepted evidence");
       const assessment: any = store.readArtifact(String(record.assessment_hash));
       invariant(assessment.specHash === digest(spec), "strategy experiment identity changed");
-      observations.push({ key: String(job.key), candidate: candidate.id, assessment });
+      const observation = { key: String(job.key), candidate: candidate.id, assessment };
+      observations.push(observation);
+      if (sample) sample.observation = observation;
     }
     return { ...candidate, specHash: digest(spec), question: spec.question.slice(0, 256), hypothesis: spec.hypothesis.slice(0, 256),
       hostObservedJobMs: costs[candidate.id] };
@@ -79,14 +90,37 @@ export function researchStrategySnapshot(store: Store, cfg: PinnedSwarm, run: st
       } catch { unavailable = "IMPORTED_FINDING_UNAVAILABLE"; }
     }
   }
+  if (policy.deliberation?.reuseProgrammeFindings) {
+    const programme = new ResearchProgramme(store, cfg.spec.researchProgramme!);
+    const matches = new Map<string, ReturnType<ResearchProgramme["matching"]>>();
+    for (const candidate of policy.candidates) {
+      try {
+        const specHash = digest(cfg.spec.jobs![candidate.template].research!.spec);
+        if (!matches.has(specHash)) matches.set(specHash, programme.matching(specHash));
+        const memory = matches.get(specHash)!;
+        if (memory.hasMore) unavailable = "PROGRAMME_MEMORY_LIMIT_EXCEEDED";
+        if (memory.conflicted) unavailable = "PROGRAMME_MEMORY_CONFLICTED";
+        for (const f of memory.findings) {
+          imported.add(f.version);
+          if (imported.size > 32) { unavailable = "KNOWLEDGE_OBSERVATION_LIMIT_EXCEEDED"; break; }
+          observations.push({ key: f.version, candidate: candidate.id, assessment: f.assessment });
+        }
+      } catch { unavailable = "PROGRAMME_MEMORY_UNAVAILABLE"; }
+    }
+  }
   if (policy.frontier) {
     const theory = theoryGraph(policy, Object.fromEntries(Object.entries(cfg.spec.jobs ?? {}).filter(([, j]) => j.research).map(([name, j]) => [name, j.research!.spec])));
-    const result = selectResearchFrontier(policy, observations, used + reserved, {
-      pending: [...new Set(unresolved)], failed: [...failed], costs, theory });
-    const batch = unavailable ? [] : result.batch;
-    const decision = { next: batch[0] ?? null, batch, reason: unavailable ?? result.reason };
+    const input = { pending: [...new Set(unresolved)], failed: [...failed], costs, theory };
+    let result = selectResearchFrontier(policy, observations, used + reserved, input);
+    const deliberation = policy.deliberation ? researchDeliberation(policy, observations, samples,
+      new Set(policy.candidates.filter(c => result.states[c.id] === "ELIGIBLE").map(c => c.line)).size) : undefined;
+    if (deliberation) result = selectResearchFrontier({ ...policy, frontier: { ...policy.frontier,
+      maxParallel: deliberation.maxParallel } }, observations, used + reserved, input);
+    const batch = unavailable || deliberation?.stop ? [] : result.batch;
+    const decision = { next: batch[0] ?? null, batch, reason: unavailable ?? deliberation?.stop ?? result.reason };
     const snapshot = { schema: 1, authority: "ADVICE_ONLY_RUNTIME_ENFORCES_SAFETY", strategyHash: digest(policy), used, reserved,
       committed: used + reserved, decision,
+      ...(deliberation ? { deliberation, dossier: researchDossier(observations) } : {}),
       frontier: { considered: policy.candidates.length, assigned: new Set(unresolved).size,
         maxParallel: policy.frontier.maxParallel, scoring: result.design ? "CONDITIONAL_INFORMATION_BITS_PER_JOB_MS" : "UCB_INFORMATION_ALLOCATION_NOT_TRUTH_PROBABILITY",
         ...(result.design ? { design: { status: result.design.status, modelHash: result.design.modelHash,

@@ -40,6 +40,10 @@ export class ResearchProgramme {
         programme TEXT NOT NULL, child TEXT NOT NULL, parent TEXT NOT NULL, PRIMARY KEY(programme,child,parent));
       CREATE INDEX IF NOT EXISTS research_knowledge_parent ON research_knowledge_dependencies(programme,parent);
       CREATE INDEX IF NOT EXISTS research_knowledge_version ON research_knowledge(programme,version);
+      CREATE TABLE IF NOT EXISTS research_knowledge_protocols(
+        programme TEXT NOT NULL, spec_hash TEXT NOT NULL, id TEXT NOT NULL, version TEXT NOT NULL,
+        PRIMARY KEY(programme,id,version));
+      CREATE INDEX IF NOT EXISTS research_knowledge_protocol ON research_knowledge_protocols(programme,spec_hash,id,version);
       CREATE TABLE IF NOT EXISTS research_knowledge_conflicts(
         programme TEXT NOT NULL, id TEXT NOT NULL, left_version TEXT NOT NULL, right_version TEXT NOT NULL,
         PRIMARY KEY(programme,id,left_version,right_version));`);
@@ -191,6 +195,8 @@ export class ResearchProgramme {
       this.closure(dependencies);
       const recordHash = this.store.artifact(json(record));
       this.store.db.prepare("INSERT INTO research_knowledge VALUES(?,?,?,?,?,?)").run(this.policy.id, id, version, recordHash, state, sourceKey);
+      this.store.db.prepare("INSERT INTO research_knowledge_protocols VALUES(?,?,?,?)")
+        .run(this.policy.id, assessment.specHash, id, version);
       this.store.db.prepare("INSERT INTO research_knowledge_heads VALUES(?,?,?) ON CONFLICT(programme,id) DO UPDATE SET version=excluded.version")
         .run(this.policy.id, id, version);
       for (const parent of dependencies) this.store.db.prepare("INSERT INTO research_knowledge_dependencies VALUES(?,?,?)").run(this.policy.id, version, parent.version);
@@ -210,6 +216,52 @@ export class ResearchProgramme {
       this.row(ref); this.invalidate(ref.version);
       this.store.db.prepare("UPDATE research_knowledge SET state='RETRACTED' WHERE programme=? AND id=? AND version=?").run(this.policy.id, ref.id, ref.version);
       this.store.event("research.knowledge.retracted", { programme: this.policy.id, ...ref, reason });
+    });
+  }
+  /** Opt-in retrieval inside this programme only. Exact protocols include all
+   * assumptions/inputs; text similarity never suppresses an experiment. The
+   * derived index cannot certify contents, live source acceptance or closure. */
+  matching(specHash: string, limit = 4): { findings: ResearchFinding[]; conflicted: boolean; hasMore: boolean } {
+    hash(specHash);
+    invariant(Number.isSafeInteger(limit) && limit > 0 && limit <= 8, "invalid protocol memory limit");
+    const rows = this.store.db.prepare(`SELECT p.id,p.version,k.state FROM research_knowledge_protocols p
+      JOIN research_knowledge_heads h ON h.programme=p.programme AND h.id=p.id AND h.version=p.version
+      JOIN research_knowledge k ON k.programme=p.programme AND k.id=p.id AND k.version=p.version
+      WHERE p.programme=? AND p.spec_hash=? AND k.state IN ('ACTIVE','CONFLICTED') ORDER BY p.id LIMIT ?`)
+      .all(this.policy.id, specHash, limit + 1);
+    let conflicted = false;
+    const findings = rows.slice(0, limit).map(row => {
+      const record = this.read({ id: String(row.id), version: String(row.version) }, row.state === "CONFLICTED");
+      invariant(record.assessment.specHash === specHash && digest(record.spec) === specHash, "protocol memory index drift; rebuild it");
+      const independent = this.store.db.prepare(`SELECT id FROM fabric_evidence WHERE run=? AND task=? AND evidence_hash=?
+        AND source='foundry-independent-verifier' AND kind='independent-verification'`)
+        .get(record.origin.run, record.origin.task, record.origin.evidenceHash);
+      invariant(independent, "protocol memory lacks independent verification");
+      const discriminator = acceptedDiscriminator(this.store, record.origin.run, String(independent.id));
+      const checked: any = discriminator.checks.find(c => c.id === "research" && c.verdict === "PASS");
+      invariant(checked && JSON.parse(checked.detail).assessments.includes(record.assessmentHash), "protocol memory assessment not accepted");
+      if (row.state === "CONFLICTED") conflicted = true;
+      return record;
+    });
+    return { findings, conflicted, hasMore: rows.length > limit };
+  }
+  /** Explicit bounded migration/rebuild for stores predating the protocol index.
+   * Publication maintains new rows in the acceptance transaction. */
+  rebuildProtocolIndex(after = 0, limit = 100): { nextAfter: number; complete: boolean; indexed: number } {
+    invariant(Number.isSafeInteger(after) && after >= 0 && Number.isSafeInteger(limit) && limit > 0 && limit <= 100,
+      "invalid protocol index page");
+    return this.store.transaction(() => {
+      const rows = this.store.db.prepare(`SELECT rowid AS cursor,id,version FROM research_knowledge
+        WHERE programme=? AND rowid>? ORDER BY rowid LIMIT ?`).all(this.policy.id, after, limit + 1);
+      for (const row of rows.slice(0, limit)) {
+        const f = this.read({ id: String(row.id), version: String(row.version) }, true);
+        this.store.db.prepare("DELETE FROM research_knowledge_protocols WHERE programme=? AND id=? AND version=?")
+          .run(this.policy.id, f.id, f.version);
+        this.store.db.prepare("INSERT INTO research_knowledge_protocols VALUES(?,?,?,?)")
+          .run(this.policy.id, f.assessment.specHash, f.id, f.version);
+      }
+      return { nextAfter: Number(rows[Math.min(rows.length, limit) - 1]?.cursor ?? after), complete: rows.length <= limit,
+        indexed: Math.min(rows.length, limit) };
     });
   }
   list(after = "", limit = 20): Json {

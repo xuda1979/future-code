@@ -5,7 +5,7 @@ import { canonical, digest, invariant, validateEvidence } from "../kernel.ts";
 import { FatalAttemptError } from "../errors.ts";
 import type { Capsule, Json, Task, Verification } from "../types.ts";
 import type { Store } from "../store.ts";
-import { inScope, keys, permittedChecks, safePath, type AgentProfile, type PinnedSwarm } from "./config.ts";
+import { inScope, keys, permittedChecks, safePath, type AgentProfile, type PinnedSwarm, type VerifierNegativeControl } from "./config.ts";
 import type { Call } from "./context.ts";
 import type { PatchArtifact } from "./session.ts";
 import { runProcess, type ProcessResult } from "./process.ts";
@@ -236,31 +236,69 @@ export class LocalGitHands implements Hands {
       if (width > 1) while (end < names.length && this.cfg.spec.checks[names[end]]?.parallelSafe) end++;
       if (end - i < 2) {
         // Preserve the existing single-check path and prerequisite build outputs.
-        const name = names[i++]; const report = { name, ...await this.check(name) }; reports.push(report);
+        const name = names[i++]; let report: CheckReport;
+        if (this.cfg.spec.checks[name]?.negativeControls) {
+          const tree = await this.tree(), commit = await this.verificationCommit(tree);
+          report = await this.auditCheck(await this.isolatedCheck(name, commit, tree), commit, tree);
+        } else report = { name, ...await this.check(name) };
+        reports.push(report);
         if (failFast && !checkPassed(report)) break;
         continue;
       }
       const tree = await this.tree();
-      const commit = (await git(this.cfg, await this.ready(), ["-c", "user.name=Future Code Verifier",
-        "-c", "user.email=verifier@localhost", "commit-tree", tree, "-p", this.cfg.baseCommit,
-        "-m", "Isolated verification snapshot"], this.signal)).trim();
+      const commit = await this.verificationCommit(tree);
       const group = await boundedChecks(names.slice(i, end), width, this.signal,
-        name => this.isolatedCheck(name, commit, tree), failFast);
+        async name => this.auditCheck(await this.isolatedCheck(name, commit, tree), commit, tree), failFast);
       reports.push(...group); i = end;
       if (failFast && group.some(r => !checkPassed(r))) break;
     }
     return reports;
   }
-  private async isolatedCheck(name: string, commit: string, tree: string): Promise<CheckReport> {
+  private async verificationCommit(tree: string): Promise<string> {
+    return (await git(this.cfg, await this.ready(), ["-c", "user.name=Future Code Verifier",
+      "-c", "user.email=verifier@localhost", "commit-tree", tree, "-p", this.cfg.baseCommit,
+      "-m", "Isolated verification snapshot"], this.signal)).trim();
+  }
+  private async auditCheck(report: CheckReport, commit: string, tree: string): Promise<CheckReport> {
+    const controls = this.cfg.spec.checks[report.name]?.negativeControls;
+    if (!controls || !checkPassed(report)) return report;
+    report.verifierAudit = { verdict: "FAIL", required: controls.length, controls: [] };
+    for (const control of controls) {
+      this.signal.throwIfAborted();
+      const result = await this.isolatedCheck(report.name, commit, tree, control);
+      report.verifierAudit.controls.push({ id: control.id, expectedExitCode: control.expectedExitCode, report: result });
+      if (result.error || result.code !== control.expectedExitCode || result.sourceUnchanged !== true) return report;
+    }
+    report.verifierAudit.verdict = "PASS";
+    return report;
+  }
+  private async isolatedCheck(name: string, commit: string, tree: string, control?: VerifierNegativeControl): Promise<CheckReport> {
     const started = performance.now(), temp = mkdtempSync(join(tmpdir(), "future-swarm-verifier-")), path = join(temp, "tree");
     const report: CheckReport = { name, code: null, stdout: "", stderr: "", isolation: "worktree", tree };
     try {
       await git(this.cfg, this.cfg.spec.project, ["worktree", "add", "--detach", path, commit], this.signal);
       const command = this.cfg.checks[name]; invariant(command, "unknown check");
+      let expectedTree = tree;
+      if (control) {
+        for (const edit of control.edits) {
+          safePath(edit.path); invariant(!inScope(edit.path, this.cfg.spec.protectedPaths), "protected control path");
+          let target = path;
+          for (const part of edit.path.split("/")) {
+            target = join(target, part); invariant(!lstatSync(target).isSymbolicLink(), "symlink control path forbidden");
+          }
+          invariant(lstatSync(target).isFile(), "control requires a regular tracked file");
+          await git(this.cfg, path, ["--literal-pathspecs", "ls-files", "--error-unmatch", "--", edit.path], this.signal);
+          writeFileSync(target, edit.content, "utf8");
+        }
+        await git(this.cfg, path, ["add", "-A", "--", "."], this.signal);
+        expectedTree = (await git(this.cfg, path, ["write-tree"], this.signal)).trim();
+        invariant(expectedTree !== tree, "negative control did not mutate candidate");
+        report.tree = expectedTree;
+      }
       Object.assign(report, await runProcess(command, path, [], this.signal,
         this.cfg.spec.budget.toolTimeoutMs, this.cfg.spec.budget.maxToolOutputBytes));
       await git(this.cfg, path, ["add", "-A", "--", "."], this.signal);
-      report.sourceUnchanged = (await git(this.cfg, path, ["write-tree"], this.signal)).trim() === tree;
+      report.sourceUnchanged = (await git(this.cfg, path, ["write-tree"], this.signal)).trim() === expectedTree;
       if (!report.sourceUnchanged) report.error = "verifier mutated tracked source";
     } catch (e) {
       report.error = e instanceof Error ? e.message.slice(0, 2000) : "verification worker error";

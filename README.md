@@ -126,6 +126,7 @@ Missing token or dollar measurements remain unknown.
 | General preparation and artifact reuse within a validation call | [Prepared commands](docs/agent-platform/PREPARED_COMMANDS.md) |
 | Independent policy proposals during execution | [Workflow policy](docs/agent-platform/WORKFLOW_POLICY.md) |
 | Parallel hypothesis search and evidence-gated delegation | [Research frontiers](docs/agent-platform/research-frontier.md) |
+| Research effort, checked dead ends and verifier mutation controls | [Bounded deliberation and verifier audits](docs/agent-platform/BOUNDED_DELIBERATION.md) |
 | Iterative candidate-program search with independent evaluators | [Evaluator-guided discovery](docs/agent-platform/evaluator-guided-discovery.md) |
 | Expected information gain and cost-aware experiment selection | [Active experimental design](docs/agent-platform/experimental-design.md) |
 | Theoretical science, proof obligations and lemma teams | [Theoretical research](docs/agent-platform/theoretical-research.md) |

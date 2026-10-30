@@ -55,6 +55,25 @@ function configure(s: any) {
 const root = (id = "a") => ({ ...task(id), writeScope: [], readScope: [] });
 const child = (id: string, template = id) => ({ id, goal: `Run independently checked ${template}`, acceptance: ["independent scientific validation"],
   input: {}, writeScope: [], readScope: [], research: [template] });
+function deliberationPolicy(s: any) {
+  configure(s);
+  s.researchStrategy.deliberation = { familiarObservations: 1, stagnationWindow: 2, maxUninformative: 4,
+    maxResearchMs: 60000, highImpact: false, reuseProgrammeFindings: true };
+}
+async function checkedScreen(s: any, cfg: any) {
+  let turn = 0;
+  const driver = new SwarmDriver(s, cfg, (async () => turn++ === 0 ? reply("", [{ name: "run_job", arguments: {
+    name: "screen", input: cfg.spec.jobs.screen.research.spec.input } }]) : reply()) as typeof fetch, undefined,
+  async (_c: any, _cfg: any, input: any) => {
+    const data = fixtureResult(cfg.spec.jobs.screen.research.spec, { key: input.key, jobId: input.key });
+    const bytes = Buffer.from(JSON.stringify(data.observations));
+    return { schema: 1, key: input.key, jobId: input.key, status: "SUCCEEDED", result: { exitCode: 0, data,
+      artifacts: { "raw-data": { sha256: sha256(bytes), bytes: bytes.length } } } };
+  });
+  const result = await runTasks(s, [{ ...root(), research: ["screen"] }], driver, { signal: signal() });
+  assert.equal(result.status, "PASS");
+  return result;
+}
 function propose(s: any, cfg: any, run: string, key: string, operations: any[]) {
   const versions = workflowVersions(s, run);
   return applyWorkflowProposal(s, run, key, JSON.parse(canonical({ schema: 1, reason: "Allocate verified research frontier", operations,
@@ -219,3 +238,65 @@ test("256 configured protocols remain admissible and a 4096-task run emits only 
     .all(run, "candidate0");
   assert.ok(plan.some(row => /SEARCH.*research_assignments.*INDEX/i.test(String(row.detail))));
 }, configure));
+
+test("automatic exact-protocol memory prunes a checked dead end across runs and survives reopen", async () => fixture(async (s, cfg) => {
+  await checkedScreen(s, cfg);
+  const run = new Scheduler(s).start([root("later")]), snapshot: any = researchStrategySnapshot(s, cfg, run);
+  assert.deepEqual(snapshot.decision.batch, ["alternative"]); assert.equal(snapshot.frontier.stateCounts.INVALIDATED, 1);
+  assert.equal(snapshot.dossier.records[0].outcome, "REFUTED"); assert.equal(snapshot.deliberation.gear, 1);
+  assert.equal((s.readArtifact(snapshot.dossier.records[0].receipt) as any).outcome, "REFUTED");
+  assert.equal(snapshot.deliberation.measuredMs, 0); // historical work is not billed to this run
+  const reopened = await Store.open(s.root);
+  try { assert.deepEqual(researchStrategySnapshot(reopened, cfg, run), snapshot); } finally { reopened.close(); }
+  const proposal = propose(s, cfg, run, "avoid-repeat", [{ op: "expand_task", taskId: "later", children: [child("screen")] }]);
+  assert.equal(proposal.verdict, "REJECT");
+  const changed = structuredClone(cfg); changed.spec.jobs!.screen.research!.spec.assumptions.push("New operating constraint");
+  assert.ok((researchStrategySnapshot(s, changed, run) as any).decision.batch.includes("screen"));
+  const isolated = structuredClone(cfg); isolated.spec.researchProgramme!.id = "different-project";
+  assert.ok((researchStrategySnapshot(s, isolated, run) as any).decision.batch.includes("screen"));
+  const disabled = structuredClone(cfg); disabled.spec.researchStrategy!.deliberation!.reuseProgrammeFindings = false;
+  assert.ok((researchStrategySnapshot(s, disabled, run) as any).decision.batch.includes("screen"));
+}, deliberationPolicy));
+
+test("the negative-knowledge index is bounded, rebuildable and cannot certify stale source acceptance", async () => fixture(async (s, cfg) => {
+  const first = await checkedScreen(s, cfg), programme = new ResearchProgramme(s, cfg.spec.researchProgramme!);
+  const protocol = digest(cfg.spec.jobs!.screen.research!.spec);
+  assert.equal(programme.matching(protocol).findings[0].assessment.outcome, "REFUTED");
+  const plan = s.db.prepare("EXPLAIN QUERY PLAN SELECT id FROM research_knowledge_protocols WHERE programme=? AND spec_hash=?")
+    .all(cfg.spec.researchProgramme!.id, protocol);
+  assert.ok(plan.some(row => /SEARCH.*research_knowledge_protocol/i.test(String(row.detail))));
+  s.db.prepare("DELETE FROM research_knowledge_protocols").run();
+  assert.deepEqual(programme.matching(protocol).findings, []);
+  await assert.rejects(handleSwarm(["knowledge-index-rebuild", "--root", s.root]), /allow-exec/);
+  const rebuilt: any = await handleSwarm(["knowledge-index-rebuild", "--root", s.root, "--limit", "1", "--allow-exec"]);
+  assert.equal(rebuilt.indexed, 1); assert.equal(rebuilt.complete, true);
+  assert.equal(programme.matching(protocol).findings.length, 1);
+  const run = new Scheduler(s).start([root("later")]);
+  s.db.prepare("UPDATE tasks SET status='FAIL' WHERE run=? AND id='a'").run(first.id);
+  const stale: any = researchStrategySnapshot(s, cfg, run);
+  assert.equal(stale.decision.reason, "PROGRAMME_MEMORY_UNAVAILABLE"); assert.deepEqual(stale.decision.batch, []);
+  assert.throws(() => programme.rebuildProtocolIndex(-1), /page/);
+}, deliberationPolicy));
+
+test("indexed protocol contents and explicit revocation are rechecked before memory can suppress work", async () => fixture(async (s, cfg) => {
+  await checkedScreen(s, cfg);
+  const programme = new ResearchProgramme(s, cfg.spec.researchProgramme!), protocol = digest(cfg.spec.jobs!.screen.research!.spec);
+  const f = programme.matching(protocol).findings[0];
+  s.db.prepare("UPDATE research_knowledge_protocols SET spec_hash=?").run(digest("wrong-protocol"));
+  assert.throws(() => programme.matching(digest("wrong-protocol")), /index drift/);
+  programme.rebuildProtocolIndex(); programme.retract({ id: f.id, version: f.version }, "Operating constraints withdrawn");
+  assert.deepEqual(programme.matching(protocol).findings, []);
+  const run = new Scheduler(s).start([root("later")]);
+  assert.ok((researchStrategySnapshot(s, cfg, run) as any).decision.batch.includes("screen"));
+}, deliberationPolicy));
+
+test("research time exhaustion rejects new reservations but preserves existing authoritative work", async () => fixture(async (s, cfg) => {
+  const first = await checkedScreen(s, cfg), capped = structuredClone(cfg);
+  // Host timing is persisted by the job runtime, never submitted by the worker.
+  const row = s.db.prepare("SELECT created FROM research_jobs WHERE run=?").get(first.id)!;
+  s.db.prepare("UPDATE research_jobs SET updated=? WHERE run=?").run(Number(row.created) + 1000, first.id);
+  capped.spec.researchStrategy!.deliberation!.maxResearchMs = 500;
+  const snapshot: any = researchStrategySnapshot(s, capped, first.id);
+  assert.equal(snapshot.decision.reason, "RESEARCH_TIME_BUDGET_EXHAUSTED"); assert.deepEqual(snapshot.decision.batch, []);
+  assert.equal(s.db.prepare("SELECT status FROM tasks WHERE run=? AND id='a'").get(first.id)!.status, "PASS");
+}, deliberationPolicy));

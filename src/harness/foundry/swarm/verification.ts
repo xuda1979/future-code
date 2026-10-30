@@ -10,8 +10,11 @@ export interface CheckReport extends Omit<ProcessResult, "code"> {
   tree?: string;
   sourceUnchanged?: boolean;
   elapsedMs?: number;
+  verifierAudit?: { verdict: "PASS" | "FAIL"; required: number;
+    controls: { id: string; expectedExitCode: number; report: CheckReport }[] };
 }
-export const checkPassed = (report: CheckReport): boolean => report.code === 0 && !report.error;
+export const checkPassed = (report: CheckReport): boolean => report.code === 0 && !report.error &&
+  (!report.verifierAudit || report.verifierAudit.verdict === "PASS");
 
 /** Keep configured report order, cap whole worker lifetimes, and drain every
  * launched worker even on cancellation. Final integration stops admitting new
