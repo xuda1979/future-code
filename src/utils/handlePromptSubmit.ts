@@ -31,6 +31,8 @@ import { processUserInput } from './processUserInput/processUserInput.js'
 import type { QueryGuard } from './QueryGuard.js'
 import { queryCheckpoint, startQueryProfile } from './queryProfiler.js'
 import { runWithWorkload } from './workloadContext.js'
+import { isAutoGoalMainThread, parkActiveAutoGoal } from '../commands/goal/auto.js'
+import { errorMessage } from './errors.js'
 
 function exit(): void {
   gracefulShutdownSync(0)
@@ -72,6 +74,7 @@ type BaseExecutionParams = {
   ) => Promise<void>
   setAppState: (updater: (prev: AppState) => AppState) => void
   onBeforeQuery?: (input: string, newMessages: Message[]) => Promise<boolean>
+  prepareForInput?: (signal: AbortSignal) => Promise<void>
   canUseTool?: CanUseToolFn
 }
 
@@ -164,6 +167,7 @@ export async function handlePromptSubmit(
       onQuery,
       setAppState,
       onBeforeQuery,
+      prepareForInput: params.prepareForInput,
       resetHistory,
       canUseTool,
       onInputChange,
@@ -342,6 +346,12 @@ export async function handlePromptSubmit(
       uuid,
     })
 
+    params.addNotification?.({
+      key: 'foreground-input-queued',
+      text: 'Message received; queued behind the active turn.',
+      priority: 'medium',
+    })
+
     onInputChange('')
     setCursorOffset(0)
     setPastedContents({})
@@ -380,6 +390,7 @@ export async function handlePromptSubmit(
     onQuery,
     setAppState,
     onBeforeQuery,
+    prepareForInput: params.prepareForInput,
     resetHistory,
     canUseTool,
     onInputChange,
@@ -418,6 +429,7 @@ async function executeUserInput(params: ExecuteUserInputParams): Promise<void> {
   // executeUserInput call, so there's no prior controller to inherit.
   const abortController = createAbortController()
   setAbortController(abortController)
+  let dispatchEpoch: number | undefined
 
   function makeContext(): ProcessUserInputContext {
     return getToolUseContext(messages, [], abortController, mainLoopModel)
@@ -435,6 +447,12 @@ async function executeUserInput(params: ExecuteUserInputParams): Promise<void> {
     // of starting a second executeUserInput. This call is a no-op if the
     // guard is already in dispatching (legacy queue-processor path).
     queryGuard.reserve()
+    dispatchEpoch = queryGuard.epoch
+    // Keep SessionStart before UserPromptSubmit hooks, but acquire ownership
+    // first so other continue messages queue instead of starting hidden waits.
+    await params.prepareForInput?.(abortController.signal)
+    abortController.signal.throwIfAborted()
+    if (queryGuard.epoch !== dispatchEpoch) throw new Error('Input dispatch superseded by a newer request')
     queryCheckpoint('query_process_user_input_start')
 
     const newMessages: Message[] = []
@@ -494,6 +512,8 @@ async function executeUserInput(params: ExecuteUserInputParams): Promise<void> {
           isMeta: cmd.isMeta,
           skipAttachments: !isFirst,
         })
+        abortController.signal.throwIfAborted()
+        if (queryGuard.epoch !== dispatchEpoch) throw new Error('Input dispatch superseded by a newer request')
         // Stamp origin here rather than threading another arg through
         // processUserInput → processUserInputBase → processTextPrompt → createUserMessage.
         // Derive origin from mode for task-notifications — mirrors the origin
@@ -594,17 +614,24 @@ async function executeUserInput(params: ExecuteUserInputParams): Promise<void> {
         }
       }
     }) // end runWithWorkload — ALS context naturally scoped, no finally needed
+  } catch (error) {
+    if (queryGuard.epoch === dispatchEpoch && !abortController.signal.aborted && isAutoGoalMainThread(querySource))
+      parkActiveAutoGoal('Input preparation or execution failed: ' + errorMessage(error).slice(0, 800))
+    throw error
   } finally {
     // Safety net: release the guard reservation if processUserInput threw
     // or onQuery was skipped. No-op if onQuery already ran (guard is idle
     // via end(), or running — cancelReservation only acts on dispatching).
     // This is the single source of truth for releasing the reservation;
     // useQueueProcessor no longer needs its own .finally().
-    queryGuard.cancelReservation()
+    if (queryGuard.epoch === dispatchEpoch) queryGuard.cancelReservation()
     // Safety net: clear the placeholder if processUserInput produced no
     // messages or threw — otherwise it would stay visible until the next
     // turn's resetLoadingState. Harmless when onQuery ran: setMessages grew
     // displayedMessages past the baseline, so REPL.tsx already hid it.
-    setUserInputOnProcessing(undefined)
+    if (queryGuard.epoch === dispatchEpoch) {
+      setUserInputOnProcessing(undefined)
+      if (!queryGuard.isActive) setAbortController(null)
+    }
   }
 }
