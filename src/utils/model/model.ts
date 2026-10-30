@@ -169,15 +169,18 @@ export function getRuntimeMainLoopModel(params: {
 /**
  * Get the default main loop model setting.
  *
- * This handles the built-in default:
- * - Opus for Max and Team Premium users
- * - Sonnet 4.6 for all other users (including Team Standard, Pro, Enterprise)
+ * This handles the built-in default for this deployment: the CMRI catalog
+ * default (GLM-5.3). The FUTURE_MODEL env var (set by cli-bundle.ts and
+ * the future-code.sh launcher) normally already points there; this is the
+ * hard fallback when nothing is configured.
  *
  * @returns The default model setting to use
  */
 export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
-  // Use deepseekv4_master as the default model for all users
-  return 'deepseekv4_master'
+  if (process.env.FUTURE_MODEL) {
+    return process.env.FUTURE_MODEL
+  }
+  return 'GLM-5.3'
 }
 
 /**

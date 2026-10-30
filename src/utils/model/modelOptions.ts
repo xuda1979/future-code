@@ -16,7 +16,7 @@ import { getSettings_DEPRECATED } from '../settings/settings.js'
 import { checkOpus1mAccess, checkSonnet1mAccess } from './check1mAccess.js'
 import { getAPIProvider } from './providers.js'
 import { isModelAllowed } from './modelAllowlist.js'
-import { listModelsByProvider, DEFAULT_MODEL_ID } from './cmriHuanxinCatalog.js'
+import { listModelsByProvider } from './cmriHuanxinCatalog.js'
 import {
   getCanonicalName,
   getFutureAiUserDefaultModelDescription,
@@ -66,11 +66,10 @@ export function getDefaultOptionForUser(fastMode = false): ModelOption {
   }
 
   // PAYG
-  const is3P = getAPIProvider() !== 'firstParty'
   return {
     value: null,
     label: 'Default (recommended)',
-    description: `Use the default model (currently ${renderDefaultModelSetting(getDefaultMainLoopModelSetting())})${is3P ? '' : ` · ${formatModelPricing(COST_TIER_3_15)}`}`,
+    description: `Use the default model (currently ${renderDefaultModelSetting(getDefaultMainLoopModelSetting())} via CMRI)`,
   }
 }
 
@@ -128,16 +127,6 @@ function getOpus41Option(): ModelOption {
     label: 'Opus 4.1',
     description: `Opus 4.1 · Legacy`,
     descriptionForModel: 'Opus 4.1 - legacy version',
-  }
-}
-
-function getOpus46Option(fastMode = false): ModelOption {
-  const is3P = getAPIProvider() !== 'firstParty'
-  return {
-    value: is3P ? getModelStrings().opus46 : 'opus',
-    label: 'Opus',
-    description: `Opus 4.6 · Most capable for complex work${getOpus46PricingSuffix(fastMode)}`,
-    descriptionForModel: 'Opus 4.6 - most capable for complex work',
   }
 }
 
@@ -324,51 +313,36 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
     return standardOptions
   }
 
-  // PAYG 1P API: Default (Sonnet) + Sonnet 1M + Opus 4.6 + Opus 1M + Haiku
-  if (getAPIProvider() === 'firstParty') {
-    const payg1POptions = [getDefaultOptionForUser(fastMode)]
-    if (checkSonnet1mAccess()) {
-      payg1POptions.push(getSonnet46_1MOption())
-    }
-    if (isOpus1mMergeEnabled()) {
-      payg1POptions.push(getMergedOpus1MOption(fastMode))
-    } else {
-      payg1POptions.push(getOpus46Option(fastMode))
-      if (checkOpus1mAccess()) {
-        payg1POptions.push(getOpus46_1MOption(fastMode))
-      }
-    }
-    payg1POptions.push(getHaiku45Option())
-    return payg1POptions
-  }
+  // PAYG (both the "1P" and "3P" labels of this fork's legacy branches):
+  // this binary is deployed exclusively against the CMRI gateway / Huanxin
+  // upstreams, so the /model picker always shows the CMRI + Huanxin catalog
+  // instead of Anthropic models. The catalog is the authoritative model list.
+  const paygOptions = [getDefaultOptionForUser(fastMode)]
 
-  // PAYG 3P: Use CMRI + Huanxin catalog instead of Anthropic models.
-  // The catalog is the authoritative model list for this deployment.
-  const payg3pOptions = [getDefaultOptionForUser(fastMode)]
-
-  // Add all CMRI models from the catalog (marked as CMRI models).
+  // Add all CMRI models from the catalog, tagged with their API source so
+  // users can tell CMRI-gateway models apart from Huanxin upstream ones.
+  // The default (GLM-5.3) is included as an explicit entry too: the custom
+  // -model fallback below would otherwise re-append it untagged as a
+  // "Custom model" duplicate when it is the active model.
   for (const m of listModelsByProvider('cmri')) {
-    // Skip the default — it's already in getDefaultOptionForUser.
-    if (m.id === DEFAULT_MODEL_ID) continue
-    payg3pOptions.push({
+    paygOptions.push({
       value: m.id,
       label: m.label,
-      description: `CMRI model — ${m.description}`,
+      description: `[CMRI] ${m.description}`,
     })
   }
 
-  // Add Huanxin DP4 model (keep it in the list per requirement).
+  // Add all Huanxin models from the catalog (e.g. the dp4 deepseek-v4-flash
+  // route), so every catalog entry is selectable from the picker.
   for (const m of listModelsByProvider('huanxin')) {
-    if (m.id === 'dp4') {
-      payg3pOptions.push({
-        value: m.id,
-        label: m.label,
-        description: `Huanxin model — ${m.description}`,
-      })
-    }
+    paygOptions.push({
+      value: m.id,
+      label: m.label,
+      description: `[Huanxin] ${m.description}`,
+    })
   }
 
-  return payg3pOptions
+  return paygOptions
 }
 
 // @[MODEL LAUNCH]: Add the new model ID to the appropriate family pattern below

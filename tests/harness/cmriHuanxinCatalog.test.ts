@@ -32,22 +32,38 @@ test("DEFAULT_MODEL_ID is cmri GLM-5.3", () => {
   expect(findModel(DEFAULT_MODEL_ID)!.provider).toBe("cmri");
 });
 
-test("cmri models are listed", () => {
+test("cmri models are the live gateway's model list", () => {
   const cmri = listModelsByProvider("cmri");
   const ids = cmri.map((m) => m.id);
-  expect(ids).toContain("GLM-5.3");
-  expect(ids).toContain("GLM-5.2");
+  // Ground truth: the CMRI LiteLLM gateway's (172.23.31.2/token/v1)
+  // GET /v1/models response, minus the duplicate openai/zimage alias.
+  expect(ids).toEqual([
+    "GLM-5.3",
+    "GLM-5.2",
+    "DeepSeek-v4.1",
+    "DeepSeek-V4-Flash-0731",
+    "MiniMax-M3",
+    "kimi-k3",
+    "hy3",
+    "hy3-preview",
+    "qwen3.8-27b",
+    "qwen3-embedding-8b",
+    "qwen3-reranker-4b",
+    "GLM-OCR",
+    "zimage",
+  ]);
 });
 
 test("huanxin models are listed", () => {
   const huanxin = listModelsByProvider("huanxin");
   const ids = huanxin.map((m) => m.id);
-  // Per a961b88: Huanxin keeps only dp4 (Huanxin DP4); the full CMRI
-  // catalog (GLM/DeepSeek/Qwen/MiniMax/hy3) lives under provider "cmri".
+  // Huanxin keeps only dp4 (the deepseek-v4-flash route); the full CMRI
+  // catalog (GLM/DeepSeek/Qwen/MiniMax/kimi/hy3/OCR/zimage) lives under
+  // provider "cmri".
   expect(ids).toEqual(["dp4"]);
-  // All 12 catalog models are accounted for: 11 cmri + 1 huanxin.
-  expect(MODEL_CATALOG).toHaveLength(12);
-  expect(listModelsByProvider("cmri")).toHaveLength(11);
+  // All 14 catalog models are accounted for: 13 cmri + 1 huanxin.
+  expect(MODEL_CATALOG).toHaveLength(14);
+  expect(listModelsByProvider("cmri")).toHaveLength(13);
 });
 
 test("findModel is case-insensitive", () => {

@@ -20,6 +20,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 _TRUTHY = {"1", "true", "yes", "on"}
+_TRUTHY_NEGATIVE = {"0", "false", "no", "off"}
 # X509_V_ERR_CERT_HAS_EXPIRED
 _CERT_EXPIRED_CODE = 10
 
@@ -265,8 +266,26 @@ def convert_messages(body: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def message_text_len(message: dict[str, Any]) -> int:
+    """Chars of prompt material a message contributes upstream: its text
+    content plus every tool_call's function name and arguments JSON. Tool-call
+    arguments (huge Write/Edit payloads) are serialized into the prompt by the
+    upstream, so ignoring them (as this used to) made compact_messages blind to
+    most of a tool-heavy Future Code session and oversized payloads slipped
+    through, drawing opaque 500s."""
+    total = 0
     content = message.get("content")
-    return len(content) if isinstance(content, str) else 0
+    if isinstance(content, str):
+        total += len(content)
+    tool_calls = message.get("tool_calls")
+    if isinstance(tool_calls, list):
+        for call in tool_calls:
+            if not isinstance(call, dict):
+                continue
+            fn = call.get("function")
+            if isinstance(fn, dict):
+                total += len(fn.get("name") or "")
+                total += len(fn.get("arguments") or "")
+    return total
 
 
 def trim_text_middle(text: str, max_chars: int) -> str:
@@ -290,23 +309,82 @@ def compact_messages(messages: list[dict[str, Any]], max_input_chars: int) -> li
         return messages
 
     compacted = [dict(message) for message in messages]
+    # tool_calls hold references into the original dicts; copy them so trimming
+    # one message never mutates the caller's request body.
+    for message in compacted:
+        if isinstance(message.get("tool_calls"), list):
+            message["tool_calls"] = [
+                dict(call) if isinstance(call, dict) else call
+                for call in message["tool_calls"]
+            ]
+            for call in message["tool_calls"]:
+                if isinstance(call, dict) and isinstance(call.get("function"), dict):
+                    call["function"] = dict(call["function"])
     system_budget = min(6000, max(1000, max_input_chars // 4))
     for message in compacted:
         if message.get("role") == "system" and isinstance(message.get("content"), str):
             message["content"] = trim_text_middle(message["content"], system_budget)
 
     while sum(message_text_len(message) for message in compacted) > max_input_chars:
-        text_messages = [
-            (index, message_text_len(message))
+        before = sum(message_text_len(message) for message in compacted)
+        # Only trim messages whose text CONTENT carries the bulk. A message
+        # whose size lives in tool_calls.arguments (message_text_len counts
+        # those too) would make trim_text_middle a no-op on its (short)
+        # content, wedging this loop at 100% CPU forever (the GLM-5.3
+        # --resume hang, 2026-10-31).
+        text_candidates = [
+            (index, len(message["content"]))
             for index, message in enumerate(compacted)
-            if isinstance(message.get("content"), str) and message_text_len(message) > 1000
+            if isinstance(message.get("content"), str) and len(message["content"]) > 1000
         ]
-        if not text_messages:
+        if text_candidates:
+            # Trim oversized plain text content first; keep recent messages
+            # intact as long as possible so the model retains its latest
+            # instructions/results.
+            index, current_len = max(text_candidates, key=lambda item: item[1])
+            overflow = before - max_input_chars
+            target_len = max(1000, current_len - max(overflow, current_len // 3))
+            compacted[index]["content"] = trim_text_middle(compacted[index]["content"], target_len)
+            if sum(message_text_len(message) for message in compacted) < before:
+                continue
+            # Trim did not shrink anything (content already <= target but the
+            # message still carries tool-arg bulk) — fall through to eviction.
+        # Remaining bulk is tool_calls arguments. NEVER trim argument JSON: the
+        # Remaining bulk is tool_calls arguments. NEVER trim argument JSON: the
+        # Huanxin upstream 500s on requests whose tool_call arguments it cannot
+        # re-parse (measured 2026-10-30 on GLM-5.3/cmri). Instead evict the
+        # OLDEST complete tool turn (the assistant tool_calls message plus its
+        # paired tool-result messages), replacing it with a short note, which
+        # preserves the alternation structure the upstream validates.
+        evicted = False
+        for index, message in enumerate(compacted):
+            tool_calls = message.get("tool_calls")
+            if not isinstance(tool_calls, list) or not tool_calls:
+                continue
+            # Collect this turn's tool-result messages (they immediately follow
+            # in role order; tolerate interleaved text messages by tool_call_id).
+            call_ids = {
+                call.get("id")
+                for call in tool_calls
+                if isinstance(call, dict) and isinstance(call.get("id"), str)
+            }
+            drop_indices = [index]
+            for later in range(index + 1, len(compacted)):
+                later_msg = compacted[later]
+                if later_msg.get("role") == "tool" and later_msg.get("tool_call_id") in call_ids:
+                    drop_indices.append(later)
+            note = "Context trimmed by local Huanxin proxy: an older tool-use turn was dropped to fit the window."
+            first = drop_indices[0]
+            compacted[first] = {
+                "role": "user",
+                "content": note,
+            }
+            for later in sorted(drop_indices[1:], reverse=True):
+                del compacted[later]
+            evicted = True
             break
-        index, current_len = max(text_messages, key=lambda item: item[1])
-        overflow = sum(message_text_len(message) for message in compacted) - max_input_chars
-        target_len = max(1000, current_len - max(overflow, current_len // 3))
-        compacted[index]["content"] = trim_text_middle(compacted[index]["content"], target_len)
+        if not evicted:
+            break
     return compacted
 
 
@@ -498,6 +576,25 @@ def server_is_glm52(server: ThreadingHTTPServer) -> bool:
     return str(getattr(server, "model_name", "")).lower() in {"glm5.2", "glm-5.2"}
 
 
+def _is_glm53(server: ThreadingHTTPServer) -> bool:
+    return str(getattr(server, "model_name", "")).lower() in {"glm5.3", "glm-5.3", "glm-5.3"}
+
+
+def window_policy_enabled(server: ThreadingHTTPServer) -> bool:
+    """The shared prompt+output context-window policy applies to every Huanxin
+    GLM route (5.2 and 5.3 both enforce prompt+max_tokens <= window with a
+    bare HTTP 500). Opt out with HUANXIN_WINDOW_POLICY=0."""
+    flag = os.environ.get("HUANXIN_WINDOW_POLICY", "1").strip().lower()
+    return flag not in _TRUTHY_NEGATIVE and (server_is_glm52(server) or _is_glm53(server))
+
+
+def _default_context_window(server: ThreadingHTTPServer) -> str:
+    """GLM 5.3 on cmri enforces prompt_tokens + max_tokens <= 202,752
+    (204,800 total minus ~2,048 reserved, measured 2026-10-30). GLM 5.2 keeps
+    its historical 131,072 default."""
+    return "202752" if _is_glm53(server) else "131072"
+
+
 def build_upstream_body(server: ThreadingHTTPServer, body: dict[str, Any], force_stream: bool | None = None) -> dict[str, Any] | None:
     messages = compact_messages(convert_messages(body), int(getattr(server, "max_input_chars", 24000)))
     if not messages:
@@ -540,15 +637,18 @@ def build_upstream_body(server: ThreadingHTTPServer, body: dict[str, Any], force
         tool_choice = convert_tool_choice(body.get("tool_choice"))
         if tool_choice is not None:
             upstream_body["tool_choice"] = tool_choice
-    if is_glm52:
-        # GLM 5.2's context window (~131072) is shared between the prompt and the
-        # generated output. Forcing a huge max_tokens leaves no room for the prompt
-        # once the conversation grows, so the upstream returns HTTP 500
-        # "Window limit exceeded" and Future Code then hangs in retry backoff. Size
-        # the output cap to fit the remaining window instead (respecting the client's
-        # requested max_tokens). This does NOT touch GLM's "full power" reasoning
-        # (thinking + reasoning_effort=max stay enabled above).
-        window = int(os.environ.get("HUANXIN_GLM52_CONTEXT_WINDOW", "131072"))
+    if window_policy_enabled(server):
+        # The Huanxin upstream models (GLM 5.2 and GLM 5.3 alike) share one
+        # context window between the prompt and the generated output, and
+        # reject prompt_tokens + max_tokens > window with an opaque HTTP 500
+        # ("Window limit exceeded" for 5.2, generic internal_error for 5.3 —
+        # measured on cmri: 184,292-token prompt + 18,460 OK, +18,461 fails).
+        # Forcing a huge max_tokens leaves no room for the prompt once the
+        # conversation grows, so Future Code hangs in retry backoff. Size the
+        # output cap to fit the remaining window instead (respecting the
+        # client's requested max_tokens). This does NOT touch GLM's "full
+        # power" reasoning (thinking + reasoning_effort=max stay enabled above).
+        window = int(os.environ.get("HUANXIN_GLM52_CONTEXT_WINDOW", _default_context_window(server)))
         safety = int(os.environ.get("HUANXIN_GLM52_WINDOW_SAFETY", "8192"))
         default_out = int(os.environ.get("HUANXIN_GLM52_MAX_TOKENS", "32000"))
         requested = body["max_tokens"] if isinstance(body.get("max_tokens"), int) and body["max_tokens"] > 0 else default_out
