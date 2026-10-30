@@ -16,7 +16,7 @@
 \setlength{\emergencystretch}{2em}
 \hypersetup{pdftitle={Adaptive HACT: Information Limits and Safe Adaptation of Verification Evidence},pdfauthor={Da Xu and Fei Wang}}
 \title{Adaptive HACT: Information Limits and Safe Adaptation of Verification Evidence}
-\author{Da~Xu and Fei~Wang\thanks{The authors are with China Mobile Research Institute. Corresponding author: Da Xu, xudayj@chinamobile.com. }}
+\author{Da~Xu and Fei~Wang\thanks{The authors are with China Mobile Research Institute, Beijing, China (e-mail: xudayj@chinamobile.com; wangfei@chinamobile.com). Corresponding author: Da Xu.}}
 \markboth{Manuscript prepared for peer review, October 2026}{Xu and Wang: Adaptive HACT}
 \begin{document}
 \maketitle
@@ -34,7 +34,8 @@ batching within a two-layout class. Under exchangeable complete batches, a
 specialization of established tree optimization provides an exact global
 baseline. A local publication invariant preserves acceptance through
 migration; a conditional adoption rule includes calibration, shift and
-installation costs. Independent enumeration checks 74,245 tree comparisons.
+installation costs. A sparse compact compiler admits a 26,948-check registry within 320 MiB
+in a repeated-pattern replay.
 Retrospective scoring finds that the symmetric baseline beats frozen
 full-wave refinement on all 15 item-shuffled traces and loses on all 15
 file-group traces. It costs 21.26--62.13\% more on original holdouts.
@@ -201,6 +202,18 @@ objective and needs its own measurements. Padded packets, compressed
 archives, answer traffic, serialized state, RAM and elapsed time remain
 separate units.
 
+\medskip\noindent\textit{When this objective applies.}
+Neither acceptance nor the evaluated diagnostic API requires a tree.
+For those fixed-group queries, maintained counters are the supported service
+choice. Equation~\eqref{eq:jcost} instead prices a consumer contract that
+explicitly requests refreshed hierarchical capsules with the stated slots.
+A remote incremental auditor subscribing to intermediate subtree counts is
+a possible contract, not a measured use case or a reason that a flat ledger
+cannot emit the same stream. Flat deltas, batching and compressed codecs
+would need equal-service comparisons. HACT's local bindings do not provide
+Merkle membership proofs or enclave attestation; cryptographic or distributed
+consumers require additional protocol design and evidence.
+
 \section{An Information Limit of Pairwise Summaries}
 \begin{proposition}[Pairwise probabilities omit subtree-hit information]\label{prop:pairwise}
 On three leaves, let $P$ be uniform on
@@ -290,6 +303,17 @@ This specializes classical alphabetic-tree optimization~\cite{alphabetic};
 it is not a global permutation optimizer or an optimum for compressed logs.
 
 \input{bounded_refinement.tex}
+\subsection{A bounded sparse ordering proposal}\label{sec:sparse}
+The post-review prototype stores positive Jaccard pair counts from training
+waves and proposes a compact order by a deterministic maximum-spanning
+forest~\cite{kruskal} and depth-first traversal. For $W$ waves of width at most $w$, it
+uses $O(n+E)$ ordering storage, where $E\le W\binom w2$ is the number of
+distinct positive pairs; sorting costs $O(E\log E)$ arithmetic operations.
+An explicit edge budget rejects oversized inputs. This replaces the dense
+ordering heuristic, not the full-wave objective or the verifier. Validation
+chooses between original and sparse compact layouts using exact touched-node
+costs; the separate ancestor-scoring index takes $O(n\,\mathrm{height})$
+references. No cap64 fit is included in the large-registry follow-up.
 \input{exchangeable_optimum.tex}
 \subsection{Validation and adoption}
 Training fixes a finite catalogue containing the incumbent first.
@@ -321,6 +345,9 @@ charged. A representation saving $g$ bytes per later epoch repays a one-time
 byte installation $I$ only after $h g>I$. Converting compilation seconds into
 that inequality requires a declared measured unit conversion. No token
 or agent-speed claim follows from padded-byte savings.
+The supplement examines a standard empirical-Bernstein alternative. Its
+finite-range term alone exceeds the constructed mean saving at $m=50$;
+variance sensitivity is not an established practical remedy for this example.
 
 \section{Evaluation Protocol}\label{sec:jevaluation}
 The evaluation asks four questions:
@@ -332,10 +359,11 @@ The evaluation asks four questions:
 \end{enumerate}
 
 \subsection{Evidence cohorts and frozen decisions}
+The artifact's freezes are internal source/input records, not external
+preregistration. The declared cohorts and endpoint roles remain fixed.
 The historical artifact contains 27 synthetic train/validation/held-out
 cells and twelve archived candidate traces from three projects.
-The new compiler study reuses those frozen observations, retaining their
-original provenance. It does not count a new encoding as a new checker run.
+The compiler study reuses those frozen observations with their original provenance.
 
 The public cohort is a declared convenience sample: Click 8.2.1,
 Jinja 3.1.6, Packaging 25.0, Pluggy 1.6.0, attrs 25.3.0 and
@@ -431,6 +459,7 @@ independent evidence pays for a more expensive compiler.
 \input{v12_journal_results.tex}
 \input{v13_results.tex}
 \input{v14_results.tex}
+\input{v15_review_results.tex}
 
 \section{Related Work}\label{sec:jrelated}
 Test prioritization, regression selection and self-adjusting computation
@@ -472,43 +501,34 @@ coverage cancellation, declared completion support and separately priced
 installation. Its Hoeffding and total-variation arguments are standard.
 
 \section{Threats to Validity and Deployment Guidance}
-The packet objective is additive and format-specific. Byte constants,
-refresh batching and fixed execution schedules constrain external validity.
-The theorem establishes a worst-case information limit, not that most
-workloads need higher moments. The new refinement is exact only in its
-declared restricted class and to the reference DP's numerical precision.
-A different proposal budget or order can produce different results.
-The conditional adoption rule does not repair unknown sampling or drift.
-The archived software cohorts do not establish its IID calibration and
-deployment-radius assumptions. Its synthetic validation demonstrates
-conformance within a specified model; it adds no independent software cases.
-The exchangeable optimum is exact for its law, not for arbitrary completion
-traces. Canonical labels, rather than learned locality, define its empirical
-baseline. Its item/file reversal and original-holdout losses preclude
-universal superiority. The retrospective baseline comparison is descriptive;
-dispatch intervention is not a test establishing exchangeability.
+The formal claims apply to the stated information interfaces and packet
+objective. The lower bound describes a worst case; the exchangeable optimum
+requires its completion law. Bounded refinement also depends on the fixed
+interval class and numerical precision. Byte constants, wave batching,
+proposal budgets and alternative codecs can change the preferred layout.
+The population information argument and the empirical item/file reversal
+answer different questions; neither estimates the prevalence of its regime.
 
-The convenience sample has six small Python projects, one excluded from
-fitting. The five admitted projects repeat completion patterns across
-original splits, establishing repeatability. Dispatch interventions probe
-artificial schedule changes; neither cohort establishes natural workflow
-generalization. Packaging supplies 89.0\% of the initial executions;
-the admitted compiler cohort has 25 runs and 16,640 checks. Historical
-replays, normal-suite repeats and transplanted regressions remain distinct
-sampling units. Environment incompatibilities remain recorded and are not
-automatically attributed to upstream defects.
+The original six-project convenience sample includes Packaging, which supplies
+89.0\% of the initial executions but is excluded from dense fitting and service
+replay. The admitted compiler cohort has 25 runs and 16,640 checks. Its repeated
+completion patterns establish repeatability. Dispatch interventions and bug
+transplants probe controlled changes; their units remain distinct from
+independent projects and natural agent workflows. Environmental failures
+remain disclosed. The sparse compact follow-up admits Packaging under the
+declared memory budget, but retains the repeated-pattern limitation and the
+large-service exclusion; scaling to $10^5$ tests remains untested.
 
-Controlled fixed-group demand favors maintained counters. A useful tree
-region requires independently justified delivery or aggregation savings
-that repay lifecycle costs. Equal codec bytes establish conformance.
-No live-model, token-billing or physical-WAN benefit is inferred from
-these local measurements.
-
-The safety result assumes trusted immutable checking and atomic local
-fencing. Tests do not certify test adequacy, and a report file is not an
-atomic external commit. The mathematical conclusions are conditional on the stated model and
-information interface, and empirical conclusions are limited to the recorded
-cohort and demand. These limits determine the contribution's external validity.
+Maintained counters are the supported service choice for the evaluated
+fixed-group requests. A hierarchical consumer must justify equal-service
+lifecycle savings. The profiled CPU shares locate implementation work;
+they are not causal shares of the unprofiled elapsed-time overhead. Natural
+consumer demand, live-agent productivity, billing and physical-network
+benefits remain open. The cohorts also lack the independent IID calibration
+and justified deployment radius required by the adoption certificate.
+Finally, the safety result requires trusted checking and atomic local
+fencing: test adequacy and an atomic external integration commit are
+separate obligations.
 
 \section{Conclusion}
 Joint completion events contain optimization information that exact pairwise
@@ -528,7 +548,8 @@ supports maintained counters for the evaluated requests. Retain the incumbent
 when independent lifecycle evidence does not justify a change.
 
 \section*{Data and Code Availability}
-The accompanying v14 artifact contains code, versioned observations,
+The accompanying artifact retains v11--v14 evidence and adds separately
+frozen v15 review follow-ups, versioned observations,
 exact references and independent audits. Historical releases are available at
 \url{https://github.com/xuda1979/future-code/tree/main/hact-paper/Adaptive_HACT_v5}.
 The release manifest binds source and PDF bytes; it is not a signature.
@@ -539,7 +560,7 @@ and independent audits; it preserves every recorded exclusion and outcome.
 \section*{Acknowledgments}
 OpenAI Codex (October 2026) assisted with prose throughout the article,
 the proofs and analytical examples in Sections III--V, the TikZ source
-of Figure~\ref{fig:journal-architecture}, and the experiment, reference and
+of Figures~\ref{fig:journal-architecture}--\ref{fig:pairwise-witness}, and the experiment, reference and
 audit code supporting Sections VI--VII. Its use included drafting,
 derivation, implementation, experiment execution and automated checks.
 The separately implemented checks reduce shared-code risk; they are

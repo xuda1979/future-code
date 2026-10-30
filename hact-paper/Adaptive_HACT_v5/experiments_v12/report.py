@@ -152,15 +152,16 @@ primary layout to the maintained-counter ledger within each new timing block.
 \begin{table}[t]\centering\footnotesize
 \caption{Observer ablation. Disabled columns are mean case-median operation
 times (ms); ratios compare HACT32 with counters in the same campaign.
-Inst.=original instrumentation; off=byte observers disabled.}
+Off=byte observers disabled (HACT32 ms / Counter ms at left);
+on=original instrumentation in separate paired executions.}
 \label{tab:v12-observer}
 \begin{tabular}{@{}lrrrr@{}}\toprule
 & \multicolumn{2}{c}{Observers off (ms)} & \multicolumn{2}{c}{HACT/counter}\\
-Project & Counter & HACT32 & Inst. & Off\\\midrule
+Project & Counter & HACT32 & Off & On\\\midrule
 '''
     for row in data['service']:
         off, on = row['states']['observer_disabled'], row['states']['instrumented']
-        text += f"{NAMES[row['project']]} & {1000*off['counter']:.1f} & {1000*off['hact_selected']:.1f} & {on['ratio']:.2f} & {off['ratio']:.2f} \\\\\n"
+        text += f"{NAMES[row['project']]} & {1000*off['counter']:.1f} & {1000*off['hact_selected']:.1f} & {off['ratio']:.2f} & {on['ratio']:.2f} \\\\\n"
     low, high = data['service_paired_ratio_ranges']['observer_disabled']
     text += r'''\bottomrule\end{tabular}\end{table}
 

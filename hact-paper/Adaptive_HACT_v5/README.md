@@ -1,20 +1,27 @@
-# Adaptive HACT: TSE submission packet prepared for author review
+# Adaptive HACT: review revision v15
 
-**Journal status:** a TSE-format packet is prepared for review. No portal draft,
-upload or journal submission exists; the portal is at sign-in. The final
-submission action remains for the authors after they confirm factual declarations
-and approve the exact files. See the [preparation record](submission/TSE_PREPARATION.md)
-and [upload map](submission/TSE_UPLOAD_MAP.md).
+The primary [IEEE manuscript](paper/journal.pdf) is 13 pages, with a
+[9-page technical supplement](paper/tse_supplement.pdf) and an unsent
+[one-page cover letter](paper/tse_cover_letter.pdf). See the
+[point-by-point review response](docs/V15_REVIEW_RESPONSE.md) and
+[reproduction guide](docs/V15_REPRODUCE.md).
 
-Start with the [12-page IEEE manuscript](paper/journal.pdf),
-[7-page technical supplement](paper/tse_supplement.pdf),
-[scientific review and response](docs/V14_REFEREE_REVIEW.md), and
-[reproduction guide](docs/V14_REPRODUCE.md). The unsent
-[cover letter](paper/tse_cover_letter.pdf), flat LaTeX source archive, and
-machine-readable metadata are prepared alongside them. This is a theory-led
-paper on information limits and safe adaptation of verification evidence, with
-measured applicability boundaries; no acceptance or real-service advantage is
-claimed beyond the reported evidence.
+V15 adds a bounded sparse compact compiler that admits the complete
+26,948-check Packaging registry under a 2 GiB address-space limit (319.6 MiB
+observed peak RSS). On each retained repeated-pattern holdout it saves 36.95%
+padded bytes against original compact order. Separate cap64 replays and
+exclusive CPU profiles address transfer and implementation costs. These do
+not change the original resource exclusions or establish natural consumer
+utility, large-service performance or agent acceleration. The maintained-counter
+ledger remains the supported service choice for the evaluated fixed queries.
+
+**Submission status:** this new revision awaits author review. IEEE login
+succeeded at the last verified checkpoint; the separate journal service was
+waiting for account-agreement consent. No journal draft, file upload or paper
+submission has been completed. Author-only declarations remain unverified.
+See the [preparation record](submission/TSE_PREPARATION.md) and
+[upload map](submission/TSE_UPLOAD_MAP.md). The v14 full analysis and JSS
+format alternatives remain historical; `journal.pdf` is the current TSE article.
 
 The [public evidence release scope](submission/PUBLICATION_STATUS.md) records
 the user's authorization for the 31.1 MB observation archive, required v12

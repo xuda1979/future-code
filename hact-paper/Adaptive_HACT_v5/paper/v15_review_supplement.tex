@@ -1,0 +1,86 @@
+\section{Post-review compiler, transfer and CPU diagnostics}
+These follow-ups use the internally frozen protocol
+\path{docs/V15_REVIEW_PROTOCOL.md}; this is not external preregistration.
+The freeze binds source and all reused inputs before the new compiler/profile
+executions. Frozen historical observations and endpoints are unchanged.
+
+\subsection{Secondary cap64 transfer}
+Table~\ref{tab:s-cap64} gives savings of cap64 relative to each named
+comparator: positive values mean fewer padded bytes. Each range spans three
+fixed dispatch seeds. The unit remains a scheduled process on the original
+five admitted projects, with no new checker execution or refitting.
+\begin{table}[htbp]\centering\small
+\caption{Frozen cap64 padded-byte savings (\%) on all admitted dispatch traces.}
+\label{tab:s-cap64}
+\begin{tabular}{@{}llrr@{}}\toprule
+Project & Policy & vs. historical compact & vs. symmetric\\\midrule
+Click & files & 7.78 to 10.13 & 16.09 to 21.01 \\
+Jinja & files & 8.90 to 11.58 & 15.50 to 23.64 \\
+Pluggy & files & 4.75 to 10.12 & 15.04 to 26.32 \\
+attrs & files & 0.00 & 18.26 to 20.48 \\
+ExceptionGroup & files & 1.95 to 7.51 & 11.64 to 14.29 \\
+Click & items & -1.48 to -0.82 & -10.87 to -9.06 \\
+Jinja & items & -1.84 to -1.47 & -10.08 to -8.59 \\
+Pluggy & items & -10.97 to -5.26 & -15.29 to -13.46 \\
+attrs & items & 0.00 & -9.37 to -8.68 \\
+ExceptionGroup & items & -10.08 to -2.38 & -15.53 to -14.83 \\
+\bottomrule\end{tabular}\end{table}
+
+\subsection{Sparse compact ordering and its resource boundary}
+The prototype accumulates exact positive pair intersections and singleton
+counts from bounded-width training waves. It sorts positive Jaccard edges,
+constructs a maximum-spanning forest, and linearizes each component by
+deterministic depth-first traversal; zero-affinity components retain canonical
+ties. This is an established spanning-forest heuristic, not a sparse
+implementation of average linkage and not an optimizer of the tree objective.
+For $W$ waves of width at most $w$, at most $W\binom w2$ positive-pair
+updates are needed and at most $E\le W\binom w2$ distinct edges are stored.
+Counting and ordering take $O(Ww^2+E\log E+n)$ arithmetic operations and
+$O(n+E)$ storage apart from integer bit complexity. The compact tree's
+separate ancestor-scoring index uses $O(n\,\mathrm{height})$ references.
+An explicit edge limit fails closed rather than dropping observations.
+
+Only original and sparse compact layouts enter this new validation catalogue.
+Cold construction and touched ancestors are fully charged, with incumbent
+retention on ties. The complete Packaging replay fits runs 0--1, selects on
+run 2, then scores runs 3--4. Its two identical held-out completion patterns
+establish repeatability, not natural transfer. The 2 GiB limit applies to the
+whole child process, and the peak RSS includes loading, fitting, validation
+and held-out scoring. The reported fit/validation seconds exclude file loading
+and hash verification. An independent literal tree traversal verifies every
+reported held-out price. This experiment neither changes the earlier dense
+compiler exclusion nor admits Packaging into the 2,048-check service study.
+
+\subsection{Exclusive CPU accounting}
+\begin{table}[htbp]\centering\scriptsize
+\caption{Pooled exclusive process-CPU shares (\%) for two retained cases per
+project and arm. cProfile uses \texttt{time.process\_time}; categories are
+disjoint and sum to 100 before rounding. H=HACT32; C=counter ledger.}
+\label{tab:s-profile}
+\begin{tabular}{@{}llrrrrrr@{}}\toprule
+Project & Arm & Hash & JSON & zlib & Kernel & Tree & Other\\\midrule
+Click & C & 0.0 & 41.2 & 2.7 & 0.0 & 0.0 & 56.1 \\
+Click & H & 1.2 & 19.7 & 0.8 & 4.6 & 48.3 & 25.3 \\
+Jinja & C & 0.0 & 40.9 & 2.3 & 0.0 & 0.0 & 56.8 \\
+Jinja & H & 1.2 & 19.8 & 0.7 & 4.8 & 47.9 & 25.7 \\
+Pluggy & C & 0.0 & 41.5 & 2.6 & 0.0 & 0.0 & 55.9 \\
+Pluggy & H & 1.9 & 34.4 & 1.8 & 7.9 & 11.8 & 42.2 \\
+attrs & C & 0.0 & 41.1 & 2.6 & 0.0 & 0.0 & 56.3 \\
+attrs & H & 0.9 & 15.4 & 0.6 & 3.5 & 58.4 & 21.2 \\
+ExceptionGroup & C & 0.0 & 40.3 & 3.7 & 0.0 & 0.0 & 56.0 \\
+ExceptionGroup & H & 1.8 & 35.2 & 1.9 & 7.2 & 9.0 & 44.8 \\
+\bottomrule\end{tabular}\end{table}
+Input snapshots and the semantic/wire oracle are outside profiling. Every
+case replays build, every eight-completion ingest and the same cold/warm query
+sequence as the observer-disabled experiment. Hashing contains the digest
+wrapper and hash primitives; JSON contains encoding, decoding and canonical
+serialization wrappers; zlib contains compression/decompression; kernel and
+tree contain their remaining module-local functions. Thus nested serialization
+is charged to JSON, not also to a caller's cumulative time. Other includes
+orchestration, generic builtins and answer processing. Allocation is distributed
+across functions and has not been isolated. In Click, the leading HACT
+functions are \texttt{walk}, \texttt{to\_dict} and \texttt{validate\_tree};
+the retained per-arm records list the twenty largest exclusive functions.
+Profiler overhead changes the execution regime. These shares locate work;
+they do not decompose the unprofiled HACT/counter elapsed-time difference or
+establish the speedup obtainable by removing a category.

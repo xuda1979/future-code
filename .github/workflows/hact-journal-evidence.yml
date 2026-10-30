@@ -49,6 +49,9 @@ jobs:
           PYTHONPATH=. python -m experiments_v14.exchangeable_study --check
           PYTHONPATH=. python -m audit.check_v14
           PYTHONPATH=. python -m experiments_v14.report --check
+          PYTHONPATH=. python -m experiments_v15.review_followups --check
+          PYTHONPATH=. python -m audit.check_v15
+          PYTHONPATH=. python -m experiments_v15.report --check
           python tools/verify_manifest.py
       - name: Recompute service oracle and measured query trace
         run: |

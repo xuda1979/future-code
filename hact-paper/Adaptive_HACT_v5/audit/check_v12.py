@@ -458,6 +458,8 @@ def audit_projection(initial, repaired, service, root=ROOT):
     names = dict(zip(PROJECTS, ('Click', 'Jinja', 'Pluggy', 'attrs', 'ExceptionGroup')))
     shift_table = latex.split('\\label{tab:v12-shifts}', 1)[1].split('\\bottomrule', 1)[0]
     service_table = latex.split('\\label{tab:v12-observer}', 1)[1].split('\\bottomrule', 1)[0]
+    require('Project & Counter & HACT32 & Off & On' in service_table,
+            'rendered service header does not identify the ratio order')
     def cells(table, label):
         lines = [line for line in table.splitlines() if line.startswith(label + ' & ')]
         require(len(lines) == 1, 'missing/duplicated manuscript table row')
@@ -472,7 +474,7 @@ def audit_projection(initial, repaired, service, root=ROOT):
         states = next(row['states'] for row in data['service'] if row['project'] == project)
         off, on = states['observer_disabled'], states['instrumented']
         expected = [f"{1000 * off['counter']:.1f}", f"{1000 * off['hact_selected']:.1f}",
-                    f"{on['ratio']:.2f}", f"{off['ratio']:.2f}"]
+                    f"{off['ratio']:.2f}", f"{on['ratio']:.2f}"]
         require(cells(service_table, names[project]) == expected, 'rendered service table differs')
     return {'status': 'PASS', 'manuscript_numbers_sha256': sha(path),
             'rendered_tables_sha256': sha(root / 'paper/v12_followup_results.tex'),

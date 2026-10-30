@@ -1,0 +1,31 @@
+\section{Calibration horizons and variance-sensitive alternatives}
+The calibration example is a stress test of a conditional certificate,
+not a recommendation to execute 100,000 suites before changing a layout.
+The main article's synthetic adoption table samples dependent prefixes
+within each seed; its counts do not estimate the minimum required sample size.
+
+For a frozen catalogue and $m\ge2$ IID epochs, a standard empirical-Bernstein
+bound~\cite{maurerpontil}, applied to the negated and range-normalized
+paired saving, replaces the Hoeffding radius by
+\[
+t^{\rm EB}_j=\sqrt{\frac{2\widehat v_j\log(2K/\delta)}m}
+             +\frac{7R_j\log(2K/\delta)}{3(m-1)},
+\]
+where $\widehat v_j$ is the unbiased sample variance in squared bytes.
+Using $\max\{A_j,\bar d_j-t^{\rm EB}_j-\rho R_j\}-I_j/h$ then gives
+the same conditional TV/lifecycle conclusion. The finite-range term
+remains even when the observed variance is zero. With $R_j=3584$ bytes,
+$K=1$, $\delta=.05$ and $m=50$, that term alone is approximately
+629.6 bytes, larger than the constructed 32-byte mean benefit. This
+particular bound therefore does not make the example practical at 50 epochs;
+it is an analytical comparison, not a new deployed or implemented certificate.
+A tighter externally justified support range or a substantially larger
+paired benefit can change the calculation. The frozen Hoeffding implementation
+and all original uncertified outcomes remain unchanged.
+
+A Wasserstein or moment-based allowance would additionally require a
+declared metric or moment class, an appropriate regularity bound for the
+packet-cost difference, and independently justified uncertainty for deployment
+shift. Replacing the TV symbol alone supplies none of that information.
+Variance sensitivity addresses calibration noise, not missing independence,
+consumer utility, installation cost or an unsupported drift model.
