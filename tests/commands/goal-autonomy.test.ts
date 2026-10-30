@@ -159,15 +159,36 @@ test("output styles retain autonomy; children and noninteractive callers cannot 
   assert.equal(isAutoGoalMainThread("sdk"), false);
 });
 
-test("a specific unresolved blocker is surfaced; a bare blocked label cannot silently park work", () => fixture(dir => {
+test("implementation failures and incomplete blocker reports keep the goal active", () => fixture(dir => {
   enableAutoGoal("Recover execution", dir);
   const path = join(dir, ".future-code", "goal.md");
-  writeFileSync(path, "# Recover execution\nStatus: blocked\n");
-  assert.ok(take(dir));
-  writeFileSync(path, "# Recover execution\nStatus: blocked\nBlocker: Required executor unavailable after reconnect and health checks\n");
+  for (const report of ["", "Blocker: Tests still fail", "Blocker: Required executor unavailable",
+    "Blocker: Tests fail\nBlocker type: implementation\nRecovery attempted: Ran tests\nExternal action required: Fix code",
+    "Blocker: Provider offline\nBlocker type: provider\nRecovery attempted: Reconnected",
+    "Blocker:\nBlocker type: hardware\nRecovery attempted:\nExternal action required: Restore power"]) {
+    writeFileSync(path, "# Recover execution\nStatus: blocked\n" + report + "\n");
+    assert.match(take(dir)!, /continue all work that remains possible/);
+    assert.equal(readAutoGoal(dir)?.state, "ACTIVE");
+  }
+  assert.equal(readAutoGoal(dir)?.totalContinuations, 6);
+}));
+
+test("external blockers display the actual error, attempted recovery and required external action", () => fixture(dir => {
+  enableAutoGoal("Recover execution", dir);
+  const path = join(dir, ".future-code", "goal.md");
+  writeFileSync(path, "# Recover execution\nStatus: blocked\n" +
+    "Blocker: Required executor unavailable: device offline\nBlocker type: hardware\n" +
+    "Recovery attempted: Reconnected and checked the device; still offline\n" +
+    "External action required: Restore power to the executor\n");
   const decision = decideAutoGoalContinuation({ cwd: dir, mainThread: true, withinTurnBudget: true });
   assert.equal(decision.kind, "BLOCKED");
-  if (decision.kind === "BLOCKED") assert.match(decision.reason, /Required executor unavailable/);
+  if (decision.kind === "BLOCKED") {
+    assert.match(decision.reason, /Required executor unavailable: device offline/);
+    assert.match(decision.reason, /Reconnected and checked the device/);
+    assert.match(decision.reason, /Restore power to the executor/);
+  }
+  assert.equal(readAutoGoal(dir)?.reason, decision.kind === "BLOCKED" ? decision.reason : null);
   assert.equal(readAutoGoal(dir)?.state, "PAUSED");
+  assert.equal(readAutoGoal(dir)?.totalContinuations, 0);
 }));
 

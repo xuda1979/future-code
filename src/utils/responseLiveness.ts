@@ -41,3 +41,14 @@ export function shouldRecoverSilentResponse(
     !isApiError &&
     !hasVisibleAssistantText(assistantMessages);
 }
+
+/** Preserve the provider's actual terminal diagnostic in the durable goal,
+ * rather than replacing it with a generic availability/credentials hint. */
+export function modelApiFailureReason(message: unknown): string {
+  const content = (message as { message?: { content?: unknown } } | null)?.message?.content;
+  const detail = typeof content === 'string' ? content : Array.isArray(content) ? content
+    .filter(block => block?.type === 'text' && typeof block.text === 'string')
+    .map(block => block.text).join('\n') : '';
+  return 'Model API failure after automatic recovery: ' +
+    (detail.trim() || 'Provider returned an error without diagnostic text.').slice(0, 640);
+}

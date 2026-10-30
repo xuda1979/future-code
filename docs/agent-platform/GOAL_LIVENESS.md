@@ -30,10 +30,14 @@ requests awaiting operator input.
 
 A silent model read expires after 180 seconds without model content, even if
 transport heartbeats continue. `FUTURE_CODE_MODEL_IDLE_TIMEOUT_MS` can set
-1000–3600000 ms. Before tool admission the host reconnects once. After tool
-admission it collects the existing tool results and continues with those
-receipts instead of replaying effects. Repeated model failure is a visible,
-durable blocker. Long-running tools/jobs are not cancelled merely for being
+1000–3600000 ms. Before tool admission the host keeps reconnecting with capped
+backoff in the default unattended retry mode (`FUTURE_CODE_UNATTENDED_RETRY=0`
+opts out and retains one reconnect). After tool admission it collects the
+existing tool results and continues with those receipts instead of replaying
+effects. Transient transport failures and retryable HTTP responses remain
+visible waits and resume automatically when service returns. A terminal
+provider failure retains the actual error in durable goal state and returns
+an error outcome. Long-running tools/jobs are not cancelled merely for being
 quiet; their own deadlines and durable supervision remain authoritative.
 
 Active interactive goals use a 64000-token working-context target for proactive
@@ -60,12 +64,38 @@ disables this optimization when provisioning a conversation. The budget is
 a target, not a reason to discard evidence or alter a previously cached prefix.
 
 Model-declared completion requests REVIEW and never fabricates acceptance.
-When no safe recovery remains, the agent can write `Status: blocked` and a
-specific `Blocker: <cause and attempted recovery>` in its current goal file.
-The host surfaces that reason. A bare blocked label cannot silently stop work.
+Unfinished implementation, failing tests and a model end-turn keep the goal
+active. A model-authored blocker only pauses the goal when its current goal
+file contains a complete external-dependency report:
+
+```text
+Status: blocked
+Blocker: Required executor is offline: device unavailable
+Blocker type: hardware
+Recovery attempted: Reconnected and checked device health; executor still offline
+External action required: Restore power to the executor
+```
+
+Allowed types are `hardware`, `network`, `provider`, `credentials`, `permissions`,
+`resources` and `external_dependency`. Reports missing a type, attempted
+recovery or required external action cause another diagnostic/work step. These
+fields record the agent's report; they do not independently certify the cause
+or establish acceptance. The host displays and saves the actual error,
+attempted recovery and required action. After restoring the dependency, use
+`/goal --resume` and recheck/update the goal file as work resumes.
+
 Caller limits, state corruption, API failure, tool cancellation and stop-hook
 prevention are also reported before pausing. Child/SDK failures cannot pause
 the main thread's goal.
+
+Supervised Swarm objectives automatically replan missing acceptance evidence
+before or after integration, within their existing authority, scientific
+obligations and request/replan budgets. Replacement runs cannot hide unresolved
+conflicts, stale claims or unreconciled external effects. Those remain explicit
+until their ledger is reconciled/adjudicated. Objective-level errors and durable
+recovery failures appear first in progress reports, even when many workers have
+failed. Deferred provider recovery retains its retry deadline and remains
+attached; reporting activity alone never counts as progress or completion.
 
 Run `node scripts/test-correctness.mjs` and `node scripts/test-commands.mjs` for
 the liveness regressions, plus the standard resilience/Foundry/Swarm gates.

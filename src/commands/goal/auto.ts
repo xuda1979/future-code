@@ -11,6 +11,21 @@ export const MAX_AUTO_GOAL_CONTINUATIONS = 100_000;
 const MAX_GOAL_BYTES = 4096;
 const MAX_STATE_BYTES = 16384;
 
+// A model may report a dependency failure, but an ordinary implementation or
+// test failure is work to do, not permission to retire the objective.
+const EXTERNAL_BLOCKER_TYPES = new Set([
+  "hardware", "network", "provider", "credentials", "permissions", "resources", "external_dependency",
+]);
+export const AUTO_GOAL_BLOCKER_GUIDANCE =
+  "Keep working until the final objective is independently verified. Diagnose recoverable failures, " +
+  "change the failed approach, and continue without asking the user to say continue. " +
+  "A failed test, unfinished plan, or difficult task is not an external blocker. " +
+  "Only when further progress requires something outside your available tools and authority, " +
+  "write Status: blocked, Blocker: <specific error>, Blocker type: <hardware|network|provider|credentials|permissions|resources|external_dependency>, " +
+  "Recovery attempted: <actual diagnostics and recovery results>, and External action required: <what must change before work can resume> " +
+  "on separate lines in .future-code/goal.md. Report that error, attempted recovery and required action to the user. " +
+  "These fields are a blocker report, not proof of completion. Respect operator pauses, permissions and explicit resource limits.";
+
 export interface AutoGoalState {
   schema: 1;
   goal: string;
@@ -112,7 +127,7 @@ export function resumeAutoGoal(cwd = process.cwd()): AutoGoalState | null {
     reason: null, updatedAt: new Date().toISOString() });
 }
 
-function goalFileOutcome(dir: string, goal: string): { state: 'REVIEW' | 'PAUSED'; reason: string } | null {
+function goalFileOutcome(dir: string, goal: string): { state: 'REVIEW' | 'PAUSED'; reason: string } | { recovery: string } | null {
   const path = join(dir, "goal.md");
   if (!existsSync(path)) return null;
   const stat = lstatSync(path);
@@ -123,8 +138,18 @@ function goalFileOutcome(dir: string, goal: string): { state: 'REVIEW' | 'PAUSED
   const status = /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?(completed|blocked)(?:\*\*)?\s*$/im.exec(text)?.[1]?.toLowerCase();
   if (status === 'completed') return { state: 'REVIEW',
     reason: 'Goal file declares completion; independent acceptance is still required. Review the verified artifacts.' };
-  const blocker = /^\s*(?:[-*]\s*)?(?:\*\*)?blocker(?:\*\*)?\s*:\s*(\S[^\r\n]*)/im.exec(text)?.[1]?.trim();
-  return status === 'blocked' && blocker ? { state: 'PAUSED', reason: 'Reported unresolved blocker: ' + blocker.slice(0, 768) } : null;
+  if (status !== 'blocked') return null;
+  const field = (name: string) => new RegExp('^[ \\t]*(?:[-*][ \\t]*)?(?:\\*\\*)?' + name +
+    '(?:\\*\\*)?[ \\t]*:[ \\t]*(\\S[^\\r\\n]*)', 'im').exec(text)?.[1]?.trim();
+  const blocker = field('blocker');
+  const kind = field('blocker type')?.toLowerCase();
+  const recovery = field('recovery attempted');
+  const action = field('external action required');
+  if (blocker && kind && EXTERNAL_BLOCKER_TYPES.has(kind) && recovery && action)
+    return { state: 'PAUSED', reason: `External blocker (${kind}): ${blocker.slice(0, 320)}. ` +
+      `Recovery attempted: ${recovery.slice(0, 256)}. External action required: ${action.slice(0, 256)}` };
+  return { recovery: "The goal file reports a blocker without a complete external-dependency report. " +
+    "Diagnose it and continue all work that remains possible." };
 }
 
 /**
@@ -176,7 +201,7 @@ export function decideAutoGoalContinuation(options: {
     };
     const { dir } = location(cwd);
     const outcome = goalFileOutcome(dir, state.goal);
-    if (outcome) return blocked(outcome.state, outcome.reason);
+    if (outcome && 'state' in outcome) return blocked(outcome.state, outcome.reason);
     if (!options.withinTurnBudget)
       return blocked("PAUSED", "Caller max-turns boundary reached before objective acceptance. Increase the caller limit explicitly, then /goal --resume.");
     if (state.maxContinuations !== null && state.continuations >= state.maxContinuations)
@@ -195,9 +220,7 @@ export function decideAutoGoalContinuation(options: {
       "Preserve checkpoints and avoid duplicate external jobs. Respect all permission prompts, " +
       "cost limits, and immutable acceptance checks. Once independently verified, mark " +
       ".future-code/goal.md with Status: completed for operator REVIEW. " +
-      "For a recoverable obstacle, diagnose and try another supported approach. If no safe approach remains, " +
-      "write Status: blocked and Blocker: <specific cause and attempted recovery> to .future-code/goal.md, " +
-      "then report the blocker and next action to the user." };
+      AUTO_GOAL_BLOCKER_GUIDANCE + (outcome && 'recovery' in outcome ? "\n" + outcome.recovery : "") };
   } catch (error) {
     // Fail closed, but NEVER silently treat a corrupt or unwritable state as
     // a completed goal; the parent query must display this diagnostic.

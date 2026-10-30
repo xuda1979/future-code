@@ -345,8 +345,18 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
   const report = () => {
     const row = assertOwner(); if (!row.run || !onProgress) return;
     const health = runHealth(store, row.run);
-    try { onProgress({ ...health, status: row.state, tasks: health.tasks.length ? health.tasks : row.reason ?
-      [{ id: "objective", status: row.state, stage: "integration", activityAgeMs: null, progressAgeMs: null, checkAgeMs: null, deadline: null, wakeAt: null, reason: row.reason }] : [] }); }
+    const recovery = row.reason ? store.db.prepare(
+      "SELECT state,detail,retry_at FROM swarm_recovery_attempts WHERE objective=? AND run=?"
+    ).get(input.id, row.run) : null;
+    const reason = row.reason ? String(row.reason) + (recovery ?
+      ` Recovery ${recovery.state}: ${recovery.detail}.` : configuredReplans === 0 ?
+      " Automatic replanning is disabled by the configured maxReplans=0 limit." : "") : null;
+    // Put the objective diagnostic FIRST: formatHealth displays only eight task
+    // rows. Failed workers must never hide the error preventing the whole goal.
+    const tasks = reason ? [{ id: "objective", status: row.state, stage: "supervision", activityAgeMs: null,
+      progressAgeMs: null, checkAgeMs: null, deadline: null, wakeAt: recovery?.retry_at ?? null, reason },
+      ...health.tasks] : health.tasks;
+    try { onProgress({ ...health, status: row.state, tasks }); }
     catch { store.event("observer.error", { reason: "objective observer threw" }, row.run); }
   };
   const unresolvedRemoteJobs = (run: string): number => {
@@ -354,7 +364,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     const actions = actionEvidenceGate(store, run, undefined, input.id);
     return (exists ? Number(store.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE run=? AND result_hash IS NULL").get(run)!.n) : 0) + actions.unresolved + actions.invalid;
   };
-  const adoptPreparedRecovery = (row: any, recovery: any): boolean => {
+  const adoptPreparedRecovery = (row: any, recovery: any, checkAdmission?: () => void): boolean => {
     invariant(recovery?.state === "PREPARED" && typeof recovery.new_run === "string", "invalid prepared recovery");
     const revision = store.db.prepare("SELECT plan,run,reason FROM swarm_objective_revisions WHERE objective=? AND revision=?")
       .get(input.id, recovery.revision);
@@ -369,6 +379,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     new Scheduler(store).start(tasks, source.recipe, Date.now(), recovery.new_run);
     store.transaction(() => {
       const current = assertOwner(); invariant(current.run === row.run, "objective changed during recovery adoption");
+      checkAdmission?.();
       const now = Date.now();
       store.db.prepare("UPDATE swarm_objectives SET plan=?,run=?,state='RUNNING',reason=NULL,updated=? WHERE id=?")
         .run(revision.plan, recovery.new_run, now, input.id);
@@ -379,10 +390,10 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     });
     return true;
   };
-  const attemptRecovery = async (reason: string): Promise<boolean> => {
+  const attemptRecovery = async (reason: string, checkAdmission?: () => void): Promise<boolean> => {
     const row = assertOwner(); if (!row.run) return false;
     const existing = store.db.prepare("SELECT * FROM swarm_recovery_attempts WHERE objective=? AND run=?").get(input.id, row.run);
-    if (existing?.state === "PREPARED") return adoptPreparedRecovery(row, existing);
+    if (existing?.state === "PREPARED") return adoptPreparedRecovery(row, existing, checkAdmission);
     if (existing?.state === "STARTED" && existing.retry_at != null && existing.retry_at > Date.now()) return false;
     const maxReplans = configuredReplans;
     if (!planner || maxReplans === 0) return false;
@@ -449,6 +460,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       // Hold the ownership fence through proposal persistence and admission.
       // A late reply cannot write even a rejection over a successor's work.
       const decision = ownedRun(row.run, () => {
+        checkAdmission?.();
         const envelope = submitProposal(store, "RECOVERY", proposal!, String(row.run), `recovery:${input.id}:${revision}`);
         const admission = decideProposal(store, envelope, proposal => {
           keys(proposal, ["reason", "tasks"], ["addressedFindings"]);
@@ -491,6 +503,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       // Any crash from this point is reconciled through adoptPreparedRecovery().
       store.transaction(() => {
         const current = assertOwner(); invariant(current.run === row.run, "objective changed during recovery planning");
+        checkAdmission?.();
         const now = Date.now();
         store.db.prepare("INSERT INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
           .run(input.id, revision, newPlan, newRun, proposal!.reason.slice(0, 2048), now);
@@ -501,7 +514,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
           revision, plan: newPlan, reflectionHash: reflected.hash, addressedFindings }, row.run);
       });
       new Scheduler(store).start(proposal.tasks, source.recipe, Date.now(), newRun);
-      return adoptPreparedRecovery(row, { state: "PREPARED", new_run: newRun, revision });
+      return adoptPreparedRecovery(row, { state: "PREPARED", new_run: newRun, revision }, checkAdmission);
     } catch (e) {
       if (controller.signal.aborted) throw e;
       const prepared = ownedRun(row.run, () => {
@@ -528,6 +541,19 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       if (prepared) throw e; // preserve PREPARED for deterministic adoption on restart
       return false;
     }
+  };
+  const recoverEvidenceGap = async (gate: ObjectiveEvidenceGate, reason: string): Promise<boolean> => {
+    // Rebuilding missing acceptance evidence can be automated. A replacement
+    // run must never erase contradictory/stale evidence or unknown effects;
+    // those require adjudication/reconciliation in their authoritative ledger.
+    const run = String(assertOwner().run);
+    const safe = (current: ObjectiveEvidenceGate) => current.status === "BLOCKED" &&
+      !current.openConflicts && !current.openClaimConflicts && !current.staleClaims &&
+      !current.unresolvedExternalJobs && !current.externalActions?.unresolved && !current.externalActions?.invalid &&
+      !unresolvedRemoteJobs(run);
+    if (!safe(gate)) return false;
+    return attemptRecovery(reason, () => invariant(safe(objectiveEvidenceGate(store, run, input.id)),
+      "Acceptance evidence changed during recovery; recheck conflicts, claims and external effects before replacing this run"));
   };
   try {
     let row = assertOwner();
@@ -569,6 +595,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
           if (preGate.status !== "PASS") {
             const reason = `Objective evidence gate blocked: ${preGate.verifiedTasks}/${preGate.taskCount} tasks have durable accepted evidence; ${preGate.openConflicts + preGate.openClaimConflicts} unresolved conflict(s); ${preGate.staleClaims} stale claim(s); ${preGate.unresolvedExternalJobs} unresolved external job(s).${preGate.scientificBlocker ? ` Scientific acceptance: ${preGate.scientificBlocker}.` : ""} Resolve/adjudicate evidence and reconcile external effects before completion.`;
             transition("NEEDS_ATTENTION", reason);
+            if (await recoverEvidenceGap(preGate, reason)) { report(); continue; }
           } else {
             transition("VERIFYING"); report();
             try {
@@ -580,6 +607,7 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
               if (finalGate.status !== "PASS") {
                 const reason = `Objective evidence gate blocked: ${finalGate.verifiedTasks}/${finalGate.taskCount} tasks have durable accepted evidence; ${finalGate.openConflicts + finalGate.openClaimConflicts} unresolved conflict(s); ${finalGate.staleClaims} stale claim(s); ${finalGate.unresolvedExternalJobs} unresolved external job(s).${finalGate.scientificBlocker ? ` Scientific acceptance: ${finalGate.scientificBlocker}.` : ""} Resolve/adjudicate evidence and reconcile external effects before completion.`;
                 transition("NEEDS_ATTENTION", reason);
+                if (await recoverEvidenceGap(finalGate, reason)) { report(); continue; }
               } else {
                 const integration = JSON.parse(canonical(receipt)) as Json;
                 const attestation = recordObjectiveCompletion(store, input.id, assertOwner(), integration, finalGate);
