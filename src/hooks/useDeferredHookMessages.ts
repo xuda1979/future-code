@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { HookResultMessage, Message } from '../types/message.js'
+import { DeferredHookGate } from '../utils/foregroundPreparation.js'
+import { logError } from '../utils/log.js'
 
 /**
  * Manages deferred SessionStart hook messages so the REPL can render
@@ -12,35 +14,18 @@ import type { HookResultMessage, Message } from '../types/message.js'
 export function useDeferredHookMessages(
   pendingHookMessages: Promise<HookResultMessage[]> | undefined,
   setMessages: (action: React.SetStateAction<Message[]>) => void,
-): () => Promise<void> {
-  const pendingRef = useRef(pendingHookMessages ?? null)
-  const resolvedRef = useRef(!pendingHookMessages)
+  onError: (error: unknown) => void = logError,
+): (signal?: AbortSignal) => Promise<void> {
+  const gateRef = useRef<DeferredHookGate<HookResultMessage> | null>(null)
+  if (!gateRef.current) gateRef.current = new DeferredHookGate(pendingHookMessages)
+  const gate = gateRef.current
+  const publish = useCallback((msgs: HookResultMessage[]) => {
+    setMessages(prev => [...msgs, ...prev])
+  }, [setMessages])
 
   useEffect(() => {
-    const promise = pendingRef.current
-    if (!promise) return
-    let cancelled = false
-    promise.then(msgs => {
-      if (cancelled) return
-      resolvedRef.current = true
-      pendingRef.current = null
-      if (msgs.length > 0) {
-        setMessages(prev => [...msgs, ...prev])
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [setMessages])
+    return gate.observe(publish, onError)
+  }, [gate, publish, onError])
 
-  return useCallback(async () => {
-    if (resolvedRef.current || !pendingRef.current) return
-    const msgs = await pendingRef.current
-    if (resolvedRef.current) return
-    resolvedRef.current = true
-    pendingRef.current = null
-    if (msgs.length > 0) {
-      setMessages(prev => [...msgs, ...prev])
-    }
-  }, [setMessages])
+  return useCallback((signal?: AbortSignal) => gate.wait(publish, { signal }), [gate, publish])
 }

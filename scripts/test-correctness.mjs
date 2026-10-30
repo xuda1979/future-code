@@ -23,6 +23,8 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/remote-response-liveness.test.ts",
   "tests/correctness/query-activity.test.ts", "tests/correctness/model-stream-liveness.test.ts",
   "tests/correctness/queue-wakeup.test.ts", "tests/correctness/working-context.test.ts",
+  "tests/correctness/foreground-preparation.test.ts",
+  "tests/correctness/foreground-repl.test.ts",
   "tests/correctness/tool-result-budget.test.ts",
   "tests/correctness/permission-delivery.test.ts",
   "tests/correctness/token-estimation-anchor.test.ts",
