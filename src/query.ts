@@ -120,7 +120,7 @@ import {
 } from './bootstrap/state.js'
 import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
-import { shouldRecoverSilentResponse, hasVisibleAssistantText } from './utils/responseLiveness.js'
+import { shouldRecoverSilentResponse, hasVisibleAssistantText, modelApiFailureReason } from './utils/responseLiveness.js'
 import { decideAutoGoalContinuation, parkActiveAutoGoal, isAutoGoalMainThread, readAutoGoal, shouldPauseGoalAfterTerminal } from './commands/goal/auto.js'
 import { notifyQueryActivity, type QueryActivityEvent } from './utils/queryActivity.js'
 import { hasMainThreadQueuedCommand } from './utils/queueWakeup.js'
@@ -1401,9 +1401,10 @@ async function* queryLoop(
       // error → hook blocking → retry → error → …
       if (lastMessage?.isApiErrorMessage) {
         void executeStopFailureHooks(lastMessage, toolUseContext)
-        const blocked = parkGoal('Model API returned an error; inspect credentials, quotas and provider availability.')
+        const reason = modelApiFailureReason(lastMessage)
+        const blocked = parkGoal(reason)
         if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
-        return { reason: 'completed' }
+        return { reason: 'model_error', error: new Error(reason) }
       }
 
       activity({ kind: 'phase', phase: 'stop-hooks' })
