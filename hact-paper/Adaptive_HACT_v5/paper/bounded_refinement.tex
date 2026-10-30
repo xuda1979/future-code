@@ -34,9 +34,14 @@ Independent literal-tree enumeration checks tiny cases. Every leaf remains
 present exactly once and all packet arities remain feasible.
 
 The primary frozen cap is $s=32$; $64$ is a secondary sensitivity.
-A nominal cap of 32 often refines only eight-leaf subtrees of a compact8
-tree, because its next ancestors have 64 leaves. Reporting the actual largest
-subproblem prevents describing a locality restriction as global optimization.
+A full compact8 ancestor above eight eight-leaf blocks covers $8^2=64$
+leaves. With $s=32$, its blocks are solved separately: no replacement can
+cross a block boundary, merge adjacent blocks or change that ancestor.
+Cap64 opens this first cross-block topology decision. Ragged boundary
+subtrees can have other sizes; the actual largest solved interval is reported.
+This interaction explains why cap32 often ties while the prespecified cap64
+sensitivity improves. It does not change the frozen primary endpoint or
+isolate a higher-order causal effect.
 Dense pairwise ordering still has quadratic storage and approximately
 $O(n^2\log n)$ heap work. It can dominate bounded refinement and is admitted
 separately under the resource budget.

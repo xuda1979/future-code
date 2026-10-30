@@ -10,6 +10,7 @@ audit/check_v11_compiler.py
 audit/check_v12.py
 audit/check_v13.py
 audit/check_v14.py
+audit/check_v15.py
 audit/check_v3.py
 audit/check_v4.py
 audit/check_v5.py
@@ -106,6 +107,10 @@ docs/V14_REFEREE_REVIEW.md
 docs/V14_REPRODUCE.md
 docs/V14_REVISION_CONTRACT.md
 docs/V14_VALIDATION.md
+docs/V15_REPRODUCE.md
+docs/V15_REVIEW_PROTOCOL.md
+docs/V15_REVIEW_RESPONSE.md
+docs/V15_VALIDATION.md
 docs/V3_EXPERIMENT_CONTRACT.json
 docs/V3_FRESH_CHECKER_PLAN.json
 docs/V3_HARNESS_PLAN.json
@@ -168,6 +173,8 @@ experiments_v13/report.py
 experiments_v13/summary_span.py
 experiments_v14/exchangeable_study.py
 experiments_v14/report.py
+experiments_v15/report.py
+experiments_v15/review_followups.py
 experiments_v3/bench.py
 experiments_v3/figures.py
 experiments_v3/harness.py
@@ -1345,6 +1352,7 @@ ichact/layout.py
 ichact/online.py
 ichact/practical.py
 ichact/pytest_probe.py
+ichact/sparse.py
 ichact/tls_probe.py
 ichact/token_budget.py
 ichact/window.py
@@ -1358,6 +1366,7 @@ paper/adoption_summary.tex
 paper/appendices.tex
 paper/availability.tex
 paper/bounded_refinement.tex
+paper/calibration_practicality.tex
 paper/compiler_ablation.tex
 paper/delivery.tex
 paper/discussion.tex
@@ -1418,7 +1427,11 @@ paper/v12_followup_results.tex
 paper/v12_journal_results.tex
 paper/v13_results.tex
 paper/v14_results.tex
+paper/v15_review_results.tex
+paper/v15_review_supplement.tex
 paper/v7_comparison.tex
+paper/wave_diagram.tex
+paper/witness_diagram.tex
 pyproject.toml
 requirements-test.txt
 requirements-v11.txt
@@ -1952,6 +1965,12 @@ results/v13/historical/initial_adoption_diagnostics.json
 results/v13/historical/pre_streaming_adoption.json
 results/v13/summary_span.json
 results/v14/exchangeable.json
+results/v15/FREEZE.json
+results/v15/POST_RUN_CONTEXT.json
+results/v15/cap64_dispatch.json
+results/v15/cpu_profile.json
+results/v15/manuscript_numbers.json
+results/v15/sparse_packaging.json
 results/v3/fresh_checker_summary.json
 results/v3/fresh_checkers/future/approved-contract.json
 results/v3/fresh_checkers/future/baseline/certificate_packets.bin
@@ -2705,6 +2724,9 @@ tests_v13/test_summary_span.py
 tests_v14/test_exchangeable.py
 tests_v14/test_observation_transport.py
 tests_v14/test_v14_audit.py
+tests_v15/test_review_evidence_audit.py
+tests_v15/test_review_followups.py
+tests_v15/test_sparse.py
 tests_v3/test_adaptive_guard.py
 tests_v3/test_audit.py
 tests_v3/test_bridge.py

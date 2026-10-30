@@ -1,15 +1,29 @@
-# Journal target and submission status
+# V15 journal review checkpoint
 
-**Current target:** IEEE Transactions on Software Engineering, regular research article, subject to final author and journal-portal review. The paper makes a theory-and-systems contribution about limits of pairwise completion information and safe adaptation of verification evidence, with a reproducible study that retains negative transfer and service results. This is a fit judgment, not an acceptance prediction. The authors should decide whether the significance and scope are sufficient for TSE.
+IEEE Transactions on Software Engineering remains the intended theory-led
+venue. The 13-page primary article retains the information lower bounds,
+conditional safety/adoption results and all negative service comparisons.
+The new sparse compact replay addresses one engineering scalability limit;
+it does not establish natural hierarchical consumer utility or a service
+speedup. That practical-value question remains a material review risk.
 
-A TSE-format package is prepared: a 12-page attributed primary article, 7-page technical supplement, 1-page cover letter, and flat LaTeX source archive. Current IEEE Computer Society guidance says TSE does not offer double-anonymous review and that journal page limits vary by journal. The abstract is 186 words and follows the general 100–200-word, citation-free, equation-free guidance. No TSE page limit has been inferred from general publication length or historical drafts; verify current portal instructions after sign-in.
+The current TSE author guidance expects regular papers to remain under 16
+pages, requires supplements as separate files and sets no supplement page
+limit. This packet has a 13-page primary article, nine-page technical
+supplement, one-page cover letter and flat source archive. The 195-word
+abstract is within the 100--200-word general requirement. The unmodified
+IEEEtran Computer Society class is used. Accepted final layouts exceeding
+12 pages may incur overlength charges; no paid option or charge has been
+accepted. Portal validation and IEEE LaTeX Analyzer checks remain pending.
 
-The Publishing Portal is at its login step. No submission draft, upload, manuscript ID, fee choice or declaration has been created. The public GitHub artifact includes an earlier manuscript version; its exact commit is recorded in the submission metadata and should be disclosed where requested.
+The new revision awaits author review. The last verified account checkpoint
+was a successful IEEE login followed by the journal service's agreement
+consent screen. No journal draft, upload or submission has been completed.
+Author declarations remain unknown where recorded as null, including
+coauthor approval, funding/conflicts and related submissions. The public
+repository versions must be disclosed where requested.
 
-JSS-format alternatives are retained as historical alternatives and are not included as concurrent submissions. `paper/main.pdf` is extended historical analysis and must not be presented as a second manuscript. No journal has received this submission.
-
-Author-only factual fields still require completion: ORCIDs if used, contribution roles, funding, conflicts, related submissions/publications, coauthor approval and any required employer clearance. Da Xu is the corresponding author; Fei Wang is second author. Both email addresses are recorded in SUBMISSION_METADATA.json. The author-attributed manuscript and cover letter are drafts for review; the assistant has made no originality, exclusivity or author-consent attestation.
-
-## Historical venue assessments
-
-Older JSS recommendations and TSE significance reviews below are preserved as revision history. They do not supersede the current TSE preparation status and should be read alongside the latest manuscript and referee review.
+Start with `paper/journal.pdf`, `paper/tse_supplement.pdf`,
+`docs/V15_REVIEW_RESPONSE.md` and `docs/V15_REPRODUCE.md`. The full v14 analysis
+and JSS format alternatives remain historical; they are not additional TSE
+manuscripts or current submission companions.

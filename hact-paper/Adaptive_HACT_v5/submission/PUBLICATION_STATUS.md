@@ -1,3 +1,13 @@
+# Current review revision: v15
+
+V15 adds the sparse compact replay, cap64 dispatch reanalysis and exclusive
+CPU profiles described in `docs/V15_REVIEW_RESPONSE.md`. All 522 archived
+observations and their archive/index remain unchanged. The derived v12
+projection-audit receipt is refreshed for the Off/On table-column presentation;
+the prior receipt is available in the immutable parent commit. This is a
+review PR, not a journal submission or author-attestation record. The prior
+public archive authorization is documented below.
+
 # HACT v14 public evidence release
 
 PR #76 contains the manuscript, source, tests and complete observation inputs

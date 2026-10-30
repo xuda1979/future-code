@@ -5,6 +5,7 @@
 \usepackage{amsmath,amssymb,amsthm,booktabs,array,tabularx}
 \usepackage[hidelinks]{hyperref}
 \usepackage{xurl}
+\usepackage{tikz}
 \newtheorem{theorem}{Theorem}
 \newtheorem{proposition}[theorem]{Proposition}
 \newtheorem{lemma}[theorem]{Lemma}
@@ -16,7 +17,7 @@
 \newcommand{\PASS}{\mathsf{PASS}}
 \newcommand{\UNKNOWN}{\mathsf{UNKNOWN}}
 \title{Technical Supplement to\\Adaptive HACT: Information Limits and Safe Adaptation of Verification Evidence}
-\author{Da Xu and Fei Wang\\China Mobile Research Institute\\
+\author{Da Xu and Fei Wang\\China Mobile Research Institute, Beijing, China\\
 \small Corresponding author: \href{mailto:xudayj@chinamobile.com}{xudayj@chinamobile.com}}
 \date{}
 \hypersetup{pdftitle={Adaptive HACT: Technical Supplement},pdfauthor={Da Xu and Fei Wang}}
@@ -26,7 +27,8 @@ This supplement accompanies the primary manuscript. It supplies the full
 complete-epoch orbit certificate, fixed-width padding proof and a practical
 route through the reproducibility artifact. It is supporting material for
 one submission. All numerical observations retain their original provenance;
-no new checker campaign, consumer study or agent evaluation is introduced.
+the v15 additions are separate compiler replays and CPU diagnostics, not new
+checker executions, consumer studies or agent evaluations.
 
 \section{Notation and scope}
 A rooted tree represents a registry of $n$ distinct checks. Internal arities
@@ -42,12 +44,14 @@ complete-epoch and fixed-width extensions.
 
 \section{Complete-epoch separation and orbit certificate}
 \input{strict_separation.tex}
+\input{wave_diagram.tex}
 
 \section{Fixed-width padding and rank equivalence}
 \input{fixed_batch_separation.tex}
 
 \section{Exact scoring and conditional adoption}
 \input{adoption_rule.tex}
+\input{calibration_practicality.tex}
 
 \section{Using the full-registry weights in the symmetric optimizer}
 For declared batch sizes $w_1,\ldots,w_q$ summing to $n$, every node uses
@@ -155,11 +159,14 @@ controls. The retained v12 audit report is
 No missing observation should be repaired by changing its expected hash or
 regenerating a measured record. A fresh computation goes to a new output path.
 
-\section*{AI assistance}
+\input{v15_review_supplement.tex}
+\section*{AI assistance and model provenance}
 OpenAI Codex (October 2026) assisted with this supplement's text, the
 derivations and proof presentation, the worked example, and the associated
 code and automated checks. These checks are distinct from human peer review.
-The authors retain responsibility for the content.
+The authors retain responsibility for the content. Historical experiment
+manifests do not identify immutable model snapshots; no current model label
+is retrospectively assigned to those runs.
 \begin{thebibliography}{2}
 \bibitem{hoeffding} W. Hoeffding. Probability Inequalities for Sums of
 Bounded Random Variables. \emph{Journal of the American Statistical
@@ -169,5 +176,8 @@ Association}, 58(301):13--30, 1963.
 M. I. Jordan, and L. Lei. Learn then Test: Calibrating Predictive
 Algorithms to Achieve Risk Control. arXiv:2110.01052v5, 2022.
 \url{https://arxiv.org/abs/2110.01052v5}.
+\bibitem{maurerpontil} A. Maurer and M. Pontil. Empirical Bernstein Bounds
+and Sample Variance Penalization. COLT, 2009, Theorem 4 and Corollary 5.
+\url{https://arxiv.org/abs/0907.3740}.
 \end{thebibliography}
 \end{document}
