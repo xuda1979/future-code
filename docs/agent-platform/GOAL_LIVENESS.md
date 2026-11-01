@@ -21,6 +21,30 @@ question is no longer required to wake an idle queue.
 Urgent input interrupts only the current turn, preserving the active goal for
 the follow-up. An explicit operator cancellation still pauses the goal.
 
+Queued input is acknowledged immediately. The query guard, including its
+dispatch ownership epoch, is the only foreground execution lock. A cancelled
+adapter or completed turn's unfinished bookkeeping promise cannot retain a
+second queue lock. Late failures and cleanup are fenced from newer requests;
+foreground preparation/dispatch errors appear in the conversation.
+
+The whole human instructions `continue`, `resume`, `keep going`, `go on`,
+`继续` and `继续工作` resume a paused durable goal with its existing limit and
+lifetime counter. Repeated instructions do not reset an already-active batch.
+Task notifications and meta messages cannot rearm the root goal. An explicit
+resume acknowledges the existing goal-file report; a fresh report is still
+evaluated, so a stale blocker cannot immediately park resumed work again.
+
+SessionStart hooks run before UserPromptSubmit, under the input's guard
+reservation. Their rejection is observed immediately and their original
+invocation is reused after a timeout. Required hook context is never bypassed
+or injected twice. Startup-hook waiting and read-only system/user context
+loading have a 120-second preparation deadline. Set
+`FUTURE_CODE_PREPARATION_TIMEOUT_MS` to 1000–3600000 ms to tune it. A stalled
+phase displays its name and an error, releases the request and retains the
+goal/checkpoints. This deadline does not govern tools, external jobs or human
+permission decisions. Completion observers run after synchronous turn cleanup
+and cannot keep the next queued request waiting.
+
 While a query runs, its spinner reports preparation, compaction, model/API,
 tool/job execution and stop-hook phases every 15 seconds, with elapsed time,
 time since observed activity and estimated context tokens. These updates are
@@ -101,3 +125,8 @@ Run `node scripts/test-correctness.mjs` and `node scripts/test-commands.mjs` for
 the liveness regressions, plus the standard resilience/Foundry/Swarm gates.
 These offline checks cover runtime policy and recovery, not live-provider R&D
 speed or a packaged CLI certification.
+
+Source changes do not update an already-running executable. Rebuild the CLI
+in a dependency-complete checkout (`./build.sh`), then restart the updated
+executable and resume the saved session in the same project. Preserve the
+project's `.future-code` state and session transcript when doing so.

@@ -29,6 +29,9 @@ import { createSignal } from './signal.ts'
 export class QueryGuard {
   private _status: 'idle' | 'dispatching' | 'running' = 'idle'
   private _generation = 0
+  // Stable across dispatching -> running, unlike generation. Fences late
+  // preparation/cleanup rejections from a cancelled input dispatch.
+  private _epoch = 0
   private _changed = createSignal()
 
   /**
@@ -37,6 +40,7 @@ export class QueryGuard {
    */
   reserve(): boolean {
     if (this._status !== 'idle') return false
+    ++this._epoch
     this._status = 'dispatching'
     this._notify()
     return true
@@ -60,6 +64,7 @@ export class QueryGuard {
    */
   tryStart(): number | null {
     if (this._status === 'running') return null
+    if (this._status === 'idle') ++this._epoch
     this._status = 'running'
     ++this._generation
     this._notify()
@@ -87,6 +92,7 @@ export class QueryGuard {
    */
   forceEnd(): void {
     if (this._status === 'idle') return
+    ++this._epoch
     this._status = 'idle'
     ++this._generation
     this._notify()
@@ -103,6 +109,8 @@ export class QueryGuard {
   get generation(): number {
     return this._generation
   }
+
+  get epoch(): number { return this._epoch }
 
   // --
   // useSyncExternalStore interface

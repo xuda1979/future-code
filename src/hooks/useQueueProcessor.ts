@@ -6,13 +6,14 @@ import {
 } from '../utils/messageQueueManager.js'
 import type { QueryGuard } from '../utils/QueryGuard.js'
 import { processQueueIfReady } from '../utils/queueProcessor.js'
-import { startQueueWakeup, hasMainThreadQueuedCommand } from '../utils/queueWakeup.js'
+import { startGuardedQueueWakeup, hasMainThreadQueuedCommand } from '../utils/queueWakeup.js'
 import { logError } from '../utils/log.js'
 
 type UseQueueProcessorParams = {
   executeQueuedInput: (commands: QueuedCommand[]) => Promise<void>
   hasActiveLocalJsxUI: boolean
   queryGuard: QueryGuard
+  onError?: (error: unknown) => void
 }
 
 /**
@@ -31,15 +32,17 @@ export function useQueueProcessor({
   executeQueuedInput,
   hasActiveLocalJsxUI,
   queryGuard,
+  onError,
 }: UseQueueProcessorParams): void {
-  const latest = useRef({ executeQueuedInput, hasActiveLocalJsxUI })
-  latest.current = { executeQueuedInput, hasActiveLocalJsxUI }
-  const wakeup = useRef<ReturnType<typeof startQueueWakeup> | null>(null)
+  const latest = useRef({ executeQueuedInput, hasActiveLocalJsxUI, onError })
+  latest.current = { executeQueuedInput, hasActiveLocalJsxUI, onError }
+  const wakeup = useRef<ReturnType<typeof startGuardedQueueWakeup> | null>(null)
   useEffect(() => {
-    const pump = startQueueWakeup({
-      isReady: () => !queryGuard.isActive && !latest.current.hasActiveLocalJsxUI &&
+    const pump = startGuardedQueueWakeup({
+      guard: queryGuard,
+      isReady: () => !latest.current.hasActiveLocalJsxUI &&
         hasMainThreadQueuedCommand(getCommandQueueSnapshot()),
-      process: () => {
+      dispatch: () => {
         let completion: Promise<void> | undefined
         processQueueIfReady({ executeInput: commands => {
           completion = latest.current.executeQueuedInput(commands)
@@ -47,8 +50,9 @@ export function useQueueProcessor({
         } })
         return completion
       },
-      subscribe: [queryGuard.subscribe, subscribeToCommandQueue],
-      onError: logError,
+      subscribe: [subscribeToCommandQueue],
+      onError: error => (latest.current.onError ?? logError)(error),
+      onStaleError: logError,
     })
     wakeup.current = pump
     return () => { pump.stop(); if (wakeup.current === pump) wakeup.current = null }

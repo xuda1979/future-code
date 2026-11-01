@@ -46,7 +46,9 @@ const LANES = [
   // Note: tests/harness includes tests/harness/builder/detect.test.ts (its
   // extensionless imports require Bun's resolver, so it has no Node lane).
   { id: "harness",     runner: "bun",  args: ["test", "tests/harness"],                 heavy: false },
-  { id: "api",         runner: "bun",  args: ["test", "tests/api"],                     heavy: false },
+  // Mirrors CI: retry-resilience.test.ts requires the retry-isolation.ts
+  // preload (it stubs sleep so 30s heartbeat tests fit the 5s timeout).
+  { id: "api",         runner: "bun",  args: ["test", "--preload", "./tests/api/retry-isolation.ts", "./tests/api/retry-resilience.test.ts"], heavy: false },
   { id: "hact",        runner: "bun",  args: ["test", "tests/hact"],                    heavy: true },
   { id: "retirement",  runner: "bun",  args: ["test", "tests/retirement"],              heavy: true },
 

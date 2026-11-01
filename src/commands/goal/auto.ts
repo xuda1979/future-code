@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { DECISION_GUIDANCE } from "../../harness/decisionGuidance.ts";
@@ -35,6 +35,7 @@ export interface AutoGoalState {
   maxContinuations: number | null;
   updatedAt: string;
   reason: string | null;
+  ignoredGoalReport?: string | null;
 }
 
 function location(cwd: string): { dir: string; file: string } {
@@ -71,6 +72,7 @@ function validate(value: unknown): AutoGoalState {
       (v.maxContinuations !== null && (!Number.isSafeInteger(v.maxContinuations) ||
         v.maxContinuations < 1 || v.maxContinuations > MAX_AUTO_GOAL_CONTINUATIONS)) ||
       typeof v.updatedAt !== "string" ||
+      (v.ignoredGoalReport != null && (typeof v.ignoredGoalReport !== "string" || !/^[a-f0-9]{64}$/.test(v.ignoredGoalReport))) ||
       (v.reason !== null && typeof v.reason !== "string"))
     throw new Error("Invalid autonomous-goal state (fail closed)");
   return v;
@@ -124,15 +126,35 @@ export function resumeAutoGoal(cwd = process.cwd()): AutoGoalState | null {
   if (!state) return null;
   // Reauthorizing is an explicit user command, never an automatic budget reset.
   return persist(cwd, { ...state, state: "ACTIVE", continuations: 0,
+    ignoredGoalReport: readGoalReport(location(cwd).dir)?.fingerprint ?? null,
     reason: null, updatedAt: new Date().toISOString() });
 }
 
-function goalFileOutcome(dir: string, goal: string): { state: 'REVIEW' | 'PAUSED'; reason: string } | { recovery: string } | null {
+/** Only an explicit, whole human resume instruction re-arms a paused goal.
+ * Child/SDK/background messages cannot reset a budget or change root authority. */
+export function resumeAutoGoalFromInput(input: string, options: { mainThread: boolean; cwd?: string }): AutoGoalState | null {
+  if (!options.mainThread || !/^(?:continue|resume|keep going|go on|继续|继续工作)[.!。！]?$/i.test(input.trim())) return null;
+  const cwd = options.cwd ?? process.cwd();
+  if (readAutoGoal(cwd)?.state !== "PAUSED") return null;
+  return resumeAutoGoal(cwd);
+}
+
+function readGoalReport(dir: string): { text: string; fingerprint: string } | null {
   const path = join(dir, "goal.md");
   if (!existsSync(path)) return null;
-  const stat = lstatSync(path);
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024 * 1024) return null;
+  const stat = lstatSync(path, { bigint: true });
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 1024n * 1024n) return null;
   const text = readFileSync(path, "utf8");
+  // Include the write identity so a fresh report, even with identical text,
+  // is evaluated again. Resume ignores only the report already acknowledged.
+  const fingerprint = createHash("sha256").update(`${stat.ino}:${stat.mtimeNs}:${stat.ctimeNs}:`).update(text).digest("hex");
+  return { text, fingerprint };
+}
+
+function goalFileOutcome(dir: string, goal: string, ignoredReport?: string | null): { state: 'REVIEW' | 'PAUSED'; reason: string } | { recovery: string } | null {
+  const report = readGoalReport(dir);
+  if (!report || report.fingerprint === ignoredReport) return null;
+  const { text } = report;
   // A stale goal from another session must not terminate the current one.
   if (!text.includes(goal)) return null;
   const status = /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?(completed|blocked)(?:\*\*)?\s*$/im.exec(text)?.[1]?.toLowerCase();
@@ -200,7 +222,7 @@ export function decideAutoGoalContinuation(options: {
       return { kind: "BLOCKED", reason };
     };
     const { dir } = location(cwd);
-    const outcome = goalFileOutcome(dir, state.goal);
+    const outcome = goalFileOutcome(dir, state.goal, state.ignoredGoalReport);
     if (outcome && 'state' in outcome) return blocked(outcome.state, outcome.reason);
     if (!options.withinTurnBudget)
       return blocked("PAUSED", "Caller max-turns boundary reached before objective acceptance. Increase the caller limit explicitly, then /goal --resume.");

@@ -9,6 +9,7 @@ import {
   takeAutoGoalContinuation, decideAutoGoalContinuation, parkActiveAutoGoal, AUTO_GOAL_BATCH_LIMIT, MAX_AUTO_GOAL_CONTINUATIONS,
   isAutoGoalMainThread,
   shouldPauseGoalAfterTerminal,
+  resumeAutoGoalFromInput,
 } from "../../src/commands/goal/auto.ts";
 
 function fixture(fn: (dir: string) => void): void {
@@ -190,5 +191,36 @@ test("external blockers display the actual error, attempted recovery and require
   assert.equal(readAutoGoal(dir)?.reason, decision.kind === "BLOCKED" ? decision.reason : null);
   assert.equal(readAutoGoal(dir)?.state, "PAUSED");
   assert.equal(readAutoGoal(dir)?.totalContinuations, 0);
+}));
+
+test("plain continue resumes a paused goal once with its existing budget and lifetime counter", () => fixture(dir => {
+  enableAutoGoal("Finish verified work", dir, 3);
+  take(dir);
+  pauseAutoGoal(dir, "Model API unavailable");
+  assert.equal(resumeAutoGoalFromInput("continue", { mainThread: false, cwd: dir }), null);
+  assert.equal(resumeAutoGoalFromInput("explain the continue statement", { mainThread: true, cwd: dir }), null);
+  const state = resumeAutoGoalFromInput("continue", { mainThread: true, cwd: dir })!;
+  assert.equal(state.state, "ACTIVE");
+  assert.equal(state.maxContinuations, 3);
+  assert.equal(state.totalContinuations, 1);
+  assert.equal(state.continuations, 0);
+  take(dir);
+  assert.equal(resumeAutoGoalFromInput("continue", { mainThread: true, cwd: dir }), null);
+  assert.equal(readAutoGoal(dir)?.continuations, 1, "a second continue cannot reset an active batch");
+}));
+
+test("resume ignores the acknowledged blocker file but a fresh failure still blocks", () => fixture(dir => {
+  enableAutoGoal("Recover executor", dir);
+  const path = join(dir, ".future-code", "goal.md");
+  const report = "# Recover executor\nStatus: blocked\nBlocker: Executor offline\nBlocker type: hardware\n" +
+    "Recovery attempted: Reconnected and probed device health\nExternal action required: Restore device power\n";
+  writeFileSync(path, report);
+  assert.equal(decideAutoGoalContinuation({ cwd: dir, mainThread: true, withinTurnBudget: true }).kind, "BLOCKED");
+  resumeAutoGoalFromInput("continue", { mainThread: true, cwd: dir });
+  assert.match(readAutoGoal(dir)!.ignoredGoalReport!, /^[a-f0-9]{64}$/);
+  assert.ok(take(dir), "the old blocker must not immediately pause the resumed goal");
+  writeFileSync(path, report + "\nFresh probe: executor remains offline\n");
+  assert.equal(decideAutoGoalContinuation({ cwd: dir, mainThread: true, withinTurnBudget: true }).kind, "BLOCKED");
+  assert.equal(readAutoGoal(dir)?.totalContinuations, 1);
 }));
 
