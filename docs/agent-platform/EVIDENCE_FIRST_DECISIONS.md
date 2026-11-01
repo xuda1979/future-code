@@ -140,3 +140,10 @@ Use the [real-project protocol](REAL_PROJECT_EVALUATION.md) for live trials. Mea
 time to the first decision-relevant observation, total time to accepted output,
 wasted external work, actual request/token/cost usage and human interventions.
 Keep task quality and budgets matched; include failed and inconclusive trials.
+
+## Interactive surface decisions
+
+Use a current `SceneFrame` and explicit postconditions for UI actions; see
+[verified interactive surfaces](INTERACTIVE_SURFACES.md). An observed state
+transition supports the declared predicate only. Neither a successful click
+transport nor unrelated animation/network traffic proves task completion.

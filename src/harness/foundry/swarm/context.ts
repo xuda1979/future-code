@@ -1,6 +1,7 @@
 import { canonical, invariant } from "../kernel.ts";
 import type { Json } from "../types.ts";
 import type { DiagnosticContext } from "./diagnostics.ts";
+import { surfaceObservation, surfacePreview } from "../../surface/projection.ts";
 export interface Call { id: string; name: string; arguments: Record<string, Json> }
 export interface Message { role: "user" | "assistant" | "tool"; content: string; calls?: Call[]; callId?: string;
   /** Host-owned receipt; never accepted from an external model response. */
@@ -46,6 +47,7 @@ export function compactHistory(history: Message[], budget: number, progress: Pro
   diagnostics: DiagnosticContext | null = null): Message[] {
   invariant(Number.isSafeInteger(budget) && budget >= 0, "invalid context budget");
   invariant(history.length > 0 && history[0].role === "user", "missing mandatory task message");
+  history = retireSurfaceFrames(history);
   const mandatory = history[0];
   invariant(bytes([mandatory]) <= budget, "CONTEXT_OVERFLOW: mandatory task exceeds budget");
   const isNotice = (m: Message) => m.role === "user" && (m.content.startsWith(NOTICE_MARKER) || m.content === LEGACY_NOTICE);
@@ -96,6 +98,8 @@ export function compactHistory(history: Message[], budget: number, progress: Pro
 }
 export function inlineReceipt(receipt: string, value: Json, limit = 2048): string {
   invariant(Number.isSafeInteger(limit) && limit > 0, "invalid inline receipt limit");
+  const surface = surfaceObservation(value);
+  if (surface) { const preview = surfacePreview(receipt, surface, limit); if (preview) return preview; }
   const text = canonical(value);
   if (Buffer.byteLength(text, "utf8") <= limit) return text;
   const encoded = Buffer.from(text);
@@ -109,6 +113,21 @@ export function inlineReceipt(receipt: string, value: Json, limit = 2048): strin
     if (Buffer.byteLength(wrap(mid), "utf8") <= limit) low = mid; else high = mid - 1;
   }
   return wrap(low);
+}
+
+/** A one-frame ring per session, independent of token pressure. Keep call/result
+ * pairs and owned recall references; immediately retire older spatial states. */
+export function retireSurfaceFrames(history: Message[]): Message[] {
+  const seen = new Set<string>();
+  return history.toReversed().map(m => {
+    if (m.role !== "tool" || !m.receipt || !m.content.includes('"surfaceContext"')) return m;
+    let projection: any;
+    try { projection = JSON.parse(m.content)?.surfaceContext; } catch { return m; }
+    if (projection?.class !== "EPHEMERAL_SURFACE_STATE" || typeof projection.sessionId !== "string") return m;
+    if (!seen.has(projection.sessionId)) { seen.add(projection.sessionId); return m; }
+    return { ...m, content: canonical({ receipt: m.receipt, retired: true, class: "EPHEMERAL_SURFACE_STATE",
+      instruction: "Stale surface frame retired; use only the latest frame marks. Recall retains evidence." }) };
+  }).reverse();
 }
 
 /** If the newest tool batch alone exceeds the envelope, retain its complete

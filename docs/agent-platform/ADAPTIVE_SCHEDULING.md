@@ -47,3 +47,11 @@ long-DAG slices. Evaluate p50/p90 wall time, verified completion rate,
 total model requests, and dollars per verified objective. Guardrail:
 no small-task regression and no acceptance-rate drop. Revert by admitting a
 recipe with `"scheduling": "critical-path"` or `"priority"`.
+
+## Stateful surface leases
+
+An [interactive surface](INTERACTIVE_SURFACES.md) is serialized by its resident
+host and profile lease. Swarm human-intervention waits use the existing durable
+continuation path, releasing the active attempt and its idle timer. Other
+independent tasks remain schedulable. Action identities and frozen project
+checks continue to govern effects; surface memory grants no scheduling authority.

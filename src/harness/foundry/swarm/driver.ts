@@ -13,6 +13,7 @@ import type { Store } from "../store.ts";
 import type { AttemptControl, Capsule, Driver, Json, Verification, WorkerResult, Lease, Measurement } from "../types.ts";
 import { keys, type PinnedSwarm } from "./config.ts";
 import { inlineReceipt, type Call, type ProgressCheckpoint } from "./context.ts";
+import { surfaceObservation } from "../../surface/projection.ts";
 import { HttpBrain } from "./model.ts";
 import { MAX_CONSECUTIVE_RESPONSE_REJECTIONS, type Turn } from "./response.ts";
 import { SessionJournal, type Thread } from "./session.ts";
@@ -355,6 +356,15 @@ export class SwarmDriver implements Driver {
                 invariant(this.operations, "operations not configured");
                 result = await timedTool(() => this.operations!.invoke(c, call.arguments.name as string,
                   call.arguments.input, profile.capabilities ?? [], signal));
+                const surface = surfaceObservation(result);
+                if (surface?.interrupt) {
+                  const receipt = this.journal.receipt(c, result);
+                  this.journal.checkpoint(t, "surface.intervention", { receipt, interrupt: surface.interrupt as unknown as Json });
+                  // The same read call safely reobserves on continuation. Writes
+                  // are reconciled by Operations and are never dispatched twice.
+                  throw new DeferredAttemptError("external-action", Date.now() + this.cfg.operations!.policy.pollMs,
+                    `SIG_SURFACE_INTERVENTION: ${surface.interrupt.reason}; operator handoff required for session ${surface.sessionId}`);
+                }
               } else if (call.name === "read_operations") {
                 invariant(this.operations, "operations not configured"); result = this.operations.snapshot();
               } else if (call.name === "run_job") {

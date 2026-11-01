@@ -153,3 +153,12 @@ node scripts/test-commands.mjs
 
 Use the [real-project protocol](REAL_PROJECT_EVALUATION.md) for matched live runs
 and report verified time-to-goal and cost, including failed or inconclusive probes.
+
+## Silent interactive failures
+
+[Surface receipts](INTERACTIVE_SURFACES.md) classify a falsified UI predicate as
+`SILENT_NO_OP`, `POSTCONDITION_FAILED`, `OCCLUDED`, `STALE_TARGET` or
+`SETTLE_TIMEOUT`. `UNKNOWN` preserves uncertainty after dispatch. These enter
+Swarm diagnostic fixtures as `SURFACE_FAILED`, with owned source receipts.
+Only pre-dispatch scroll/reobserve repair is automatic; uncertain external
+effects cannot be repaired by blind repeated clicks.

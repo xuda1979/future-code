@@ -100,3 +100,11 @@ These statistics are advisory observational policy learning. They do not learn
 model weights, provide causal identification, guarantee productivity or authorize
 an otherwise invalid recovery plan. The host continues to enforce frozen scopes,
 checks, budgets, strategy novelty and objective completion.
+
+## Surface handoff transitions
+
+The [surface journal](INTERACTIVE_SURFACES.md) records
+`SIG_SURFACE_INTERVENTION` and the operator-acknowledged post-intervention frame.
+The pending batch is never blindly continued. Authentication/challenge handling
+is performed by the human; runtime affordance hints are observations rather
+than permission to bypass a gate.

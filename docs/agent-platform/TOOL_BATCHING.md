@@ -70,3 +70,11 @@ cost and verified objective yield require a separate live-provider comparison.
 
 Scope: Foundry/Swarm and its command entrypoint. The terminal query and `/goal`
 runtime have their own tool execution paths.
+
+## Reactive surfaces
+
+`invoke_capability` remains an individual batching boundary. An optional
+[surface capability](INTERACTIVE_SURFACES.md) can carry a guarded microbatch:
+each physical input is followed by bounded settling, a fresh observation and a
+semantic predicate. A failed predicate aborts its entire remaining suffix.
+Interactive actions never join replayable worktree write batches.

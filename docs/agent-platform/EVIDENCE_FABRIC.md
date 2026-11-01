@@ -117,3 +117,12 @@ CLI snapshot boundary. This runtime change establishes no repository-wide licens
 Foundry/Swarm/Evidence-Fabric work into a clean repository with explicit
 provenance and licensing rather than treating the mirrored snapshot as a
 product codebase.
+
+## Interactive surface observations
+
+The optional [surface subsystem](INTERACTIVE_SURFACES.md) produces host-owned
+state-delta receipts. A successful dispatch/adapter exit is not verified UI
+progress. Postcondition failures and silent no-ops enter owned diagnostic
+fixtures as `SURFACE_FAILED`; network or pixel activity alone cannot satisfy a
+semantic guard. These observations do not bypass independent acceptance checks
+or create a second scheduler.

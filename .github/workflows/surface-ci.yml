@@ -1,0 +1,26 @@
+name: interactive-surfaces
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  surface:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+      - name: Pure kernel and resident-host tests
+        run: node scripts/test-surfaces.mjs
+      - name: Install isolated browser test dependencies
+        run: |
+          npm install --prefix "$RUNNER_TEMP/surface" --no-audit --no-fund --ignore-scripts playwright@1.51.1 pngjs@7.0.0
+          ln -s "$RUNNER_TEMP/surface/node_modules" node_modules
+          node "$RUNNER_TEMP/surface/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Real Chromium fixtures
+        run: node scripts/test-surfaces.mjs --browser
