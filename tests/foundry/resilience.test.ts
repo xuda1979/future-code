@@ -50,10 +50,23 @@ for (const count of [2, 12]) test(`${count} deferred episodes do not exhaust one
   assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM attempts WHERE status='FAIL'").get()!.n, 0);
 }));
 test("deferred task releases the only slot and dependency does not run before acceptance", async () => fixture(async s => {
-  const order: string[] = []; let n = 0; const d = driver();
-  d.execute = async c => { order.push(c.task.id); if (c.task.id === "a" && ++n === 1) throw new DeferredAttemptError("remote-job", Date.now() + 60, "training"); return { artifact: c.task.id }; };
-  const result = await runTasks(s, [task("a"), task("b"), task("c", ["a"])], d);
-  assert.equal(result.status, "PASS"); assert.deepEqual(order, ["a", "b", "a", "c"]);
+  const order: string[] = []; let n = 0; const d = driver(); const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    d.execute = async capsule => {
+      order.push(capsule.task.id);
+      if (capsule.task.id === "a" && ++n === 1)
+        throw new DeferredAttemptError("remote-job", Date.now() + 60_000, "training");
+      if (capsule.task.id === "b") s.transaction(() => {
+        const woken = s.db.prepare("UPDATE task_waits SET wake=? WHERE run=? AND task='a'")
+          .run(Date.now(), capsule.runId);
+        assert.equal(woken.changes, 1);
+      });
+      return { artifact: capsule.task.id };
+    };
+    const result = await runTasks(s, [task("a"), task("b"), task("c", ["a"])], d, { signal: controller.signal });
+    assert.equal(result.status, "PASS"); assert.deepEqual(order, ["a", "b", "a", "c"]);
+  } finally { clearTimeout(timeout); }
 }, { parallelism: 1 }));
 test("continuation wakes survive reopening and reject stale ownership", async () => fixture(async s => {
   const q = new Scheduler(s); const id = q.start([task()]); const l = q.claim(id, "first")!;
