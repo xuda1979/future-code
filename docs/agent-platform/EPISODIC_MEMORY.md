@@ -102,3 +102,11 @@ cross-thread ownership, atomic rollback, reopen/rebuild, tamper detection,
 unverified note labels, independent rejection and the short-task fast path.
 Scripted fixtures validate runtime behavior; they do not measure live-model
 R&D productivity.
+
+## Ephemeral spatial state
+
+The [surface controller](INTERACTIVE_SURFACES.md) retains only the current frame
+and one structural delta in hot memory. Replaced frames enter private
+`EPHEMERAL_SURFACE_STATE` journal episodes immediately. Successful interaction
+timing/affordance notes are session-scoped runtime hints, never site rules in
+shared source code or verified acceptance facts.

@@ -169,7 +169,10 @@ export class Operations {
       signal.throwIfAborted();
       throw new DeferredAttemptError("external-action", Date.now() + p.pollMs, "external action UNKNOWN; resources held, inspect before replacement");
     }
-    if (!terminal(reply!.status)) throw new DeferredAttemptError("external-action", Date.now() + p.pollMs, "external action remains unresolved");
+    if (!terminal(reply!.status)) throw new DeferredAttemptError("external-action", Date.now() + p.pollMs,
+      (reply!.result as any)?.surface?.interrupt?.signal === "SIG_SURFACE_INTERVENTION"
+        ? `SIG_SURFACE_INTERVENTION: ${(reply!.result as any).surface.interrupt.reason}; operator handoff required`
+        : "external action remains unresolved");
     return reply as unknown as Json;
   }
   observe(id: string, value: Json, evidence: string, observed: number, expires: number): void {

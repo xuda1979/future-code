@@ -104,3 +104,10 @@ only worker service time. The workers run locally through the real adapter;
 are retained with their original source hashes. The initial bulk-only design
 regressed short-task timing. The final design also coalesces a single edit and
 its snapshot; no preliminary samples are silently excluded from the record.
+
+## Interactive adapter boundary
+
+Browser/GUI input is not a replayable remote command transaction. Use the
+[resident surface host](INTERACTIVE_SURFACES.md) with stable action identities,
+frame-scoped targets and predicate barriers. A lost response is inspected; the
+host must not resend clicks or form submissions to recover transport latency.

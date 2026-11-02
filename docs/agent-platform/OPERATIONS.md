@@ -51,3 +51,11 @@ A separate long-lived service manager (launchd/systemd/Kubernetes) must keep \`-
 - Persistent watchers currently evaluate configured remote responses. Named background-job log streaming, async notifications, target-specific packaged binaries, audit chain verification, and multi-host leader election remain follow-up requirements.
 - Never enable automatic recovery for irreversible commands without audited, server-enforced idempotency and explicit operator policy.
 - Initial deployment requires \`rg\` on PATH for plain compiled binaries unless the build genuinely embeds the rg applet and \`FUTURE_EMBEDDED_RIPGREP=true\` is set.
+
+## Optional interactive surfaces
+
+The [surface host and operations bridge](INTERACTIVE_SURFACES.md) reuse the
+governed `invoke_capability` interface. One process owns a persistent browser
+profile. Worker and operator credentials are distinct. Authentication,
+confirmation and challenge gates produce durable human interrupts; pending
+capabilities defer without consuming further model turns.

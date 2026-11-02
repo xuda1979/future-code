@@ -1,0 +1,11 @@
+import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+const root = fileURLToPath(new URL("../", import.meta.url));
+const flags = process.argv.slice(2);
+if (flags.some(f => f !== "--browser")) throw new Error("only --browser is supported");
+const tests = readdirSync(join(root, "tests/surface")).filter(p => p.endsWith(".test.ts") && (flags.includes("--browser") || p !== "browser.test.ts"));
+const result = spawnSync(process.execPath, ["--experimental-strip-types", "--test", ...tests.map(p => join(root, "tests/surface", p))], { cwd: root, stdio: "inherit" });
+if (result.error) throw result.error;
+process.exitCode = result.status ?? 1;

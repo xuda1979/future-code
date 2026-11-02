@@ -163,3 +163,5 @@ Missing token or dollar measurements remain unknown.
 [Source provenance](docs/SOURCE_PROVENANCE.md) records the imported-source
 boundary. Existing source notices remain applicable; documentation changes do
 not assign ownership or grant a repository-wide license.
+
+Optional [verified browser/GUI surfaces](docs/agent-platform/INTERACTIVE_SURFACES.md) provide frame-scoped targets, guarded input, state-delta receipts and persistent human handoff through the existing operations tools.

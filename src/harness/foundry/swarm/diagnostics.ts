@@ -5,12 +5,13 @@ import type { Call } from "./context.ts";
 import type { SessionJournal, Thread, ThreadState } from "./session.ts";
 import { recordDebugging, systemStateLedger } from "./debugging.ts";
 import { decisionContext, decisionInputKey, recordDecisionObservation } from "./decisions.ts";
+import { surfaceObservation } from "../../surface/projection.ts";
 
 export interface DiagnosticFailure {
   identity: string;
   key: string;
   inputKey: string;
-  kind: "CHECK_FAILED" | "TOOL_ERROR" | "VERIFICATION_FAILED" | "JOB_FAILED";
+  kind: "CHECK_FAILED" | "TOOL_ERROR" | "VERIFICATION_FAILED" | "JOB_FAILED" | "SURFACE_FAILED";
   tool: string;
   check?: string;
   job?: string;
@@ -55,6 +56,8 @@ function synchronize(state: ThreadState): string {
   return current;
 }
 function excerpt(result: Record<string, any>): string {
+  const surface = surfaceObservation(result);
+  if (surface) return `Surface interaction: ${surface.receipts.map(r => r.outcome).join(", ") || surface.interrupt?.reason || "blocked"}; observe and falsify before retrying.`.slice(0, 512);
   const failedJob = ["FAILED", "CANCELLED"].includes(result.status);
   const detail = failedJob && result.result && typeof result.result === "object" && !Array.isArray(result.result)
     ? result.result : result;
@@ -80,6 +83,7 @@ function recordFailure(t: Thread, journal: SessionJournal, cfg: PinnedSwarm,
   const value = result && typeof result === "object" && !Array.isArray(result)
     ? result as Record<string, any> : {};
   const kind = admitted && call.name === "verification" && typeof value.verdict === "string" && value.verdict !== "PASS" ? "VERIFICATION_FAILED" :
+    admitted && call.name === "invoke_capability" && surfaceObservation(result)?.ok === false ? "SURFACE_FAILED" :
     typeof value.error === "string" ? "TOOL_ERROR" :
     admitted && ["run_check", "run_probe"].includes(call.name) && Number.isSafeInteger(value.code) && value.code > 0
       ? "CHECK_FAILED" :
