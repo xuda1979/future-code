@@ -1,0 +1,144 @@
+\section{Learning Layouts Without Changing the Contract}\label{sec:compiler}
+\subsection{Practical catalogue and full-wave selection}\label{sec:catalogue}
+Training waves define counts $N_i$, $N_{ij}$ and affinity
+\begin{equation}a_{ij}=\frac{N_{ij}}{N_i+N_j-N_{ij}},\label{eq:affinity}\end{equation}
+with zero for an unobserved union and zero diagonal. The practical proposal uses
+established average-linkage clustering: join the closest current clusters,
+choose endpoint orientation by cross-boundary affinity, and break ties
+canonically. All semantic IDs, including disconnected and unseen checks, remain
+included exactly once.
+
+Given the learned order, group consecutive leaves into blocks of at most eight,
+promote a singleton unchanged, and repeat upward. This bottom-up compact balanced
+construction does not call a tree optimizer. The catalogue retains the incumbent
+first, includes original-order fixed8 when distinct, and proposes learned-order
+fixed8. Identical layouts are deduplicated. A separate validation cohort scores
+complete completion waves, including initial construction; ties retain the
+incumbent. The API returns an advisory choice, not deployment authorization. The
+registry and packet cap cannot change during selection.
+
+For any proposal $\pi$, training episodes supply interval weights
+\begin{equation}r_\pi(i,j)=1+\frac{1}{m}\sum_{e=1}^{m}\sum_{a}\mathbf 1\{W_{e,a}\cap G_L(i,j)\ne\varnothing\}.\label{eq:weights}\end{equation}
+These weights also define the exact-DP reference below. Pairwise affinity
+proposes an order; it does not replace the full-wave cost. The practical
+catalogue contains at most three candidates and uses no DP. Tree construction is
+$O(n)$ after ordering, not a linear-time claim for affinity construction,
+clustering or validation scoring. The reference implementation retains spectral
+ordering and exact fitting for research comparisons; neither is invoked by the
+practical default.
+
+\subsection{Exact conditional tree synthesis}\label{sec:exact}
+Let $D(i,j)$ be the optimal subtree cost and $F_k(i,j)$ the optimal cost of an
+ordered forest with $k$ nonempty children. With infeasible states equal to
+$+\infty$,
+\begin{align}
+D(i,i)&=0,\label{eq:Dbase}\\
+F_1(i,j)&=D(i,j),\label{eq:F1}\\
+F_k(i,j)&=\min_{i+k-2\le u<j}\bigl\{F_{k-1}(i,u)+D(u+1,j)\bigr\},\label{eq:Forest}\\
+D(i,j)&=\min_{2\le k\le\min(b,\,j-i+1)}\bigl\{r_\pi(i,j)c(k)+F_k(i,j)\bigr\}.\label{eq:D}
+\end{align}
+\begin{theorem}[Exactness conditional on order]\label{thm:exact}
+For a fixed $\pi$, nonnegative interval weights, and the packet model in
+Equation~\eqref{eq:price}, Equation~\eqref{eq:D} returns a minimizing feasible
+tree in $O(bn^3)$ time and $O(bn^2)$ space.
+\end{theorem}
+\begin{proof}
+Every feasible root has an arity and a contiguous partition of its interval. Its
+local contribution depends only on that interval and arity; all remaining
+contributions belong to independent child subtrees. The forest recurrence
+enumerates every such partition. Induction on interval length proves exactness.
+There are $O(bn^2)$ states, each scanning at most $n$ splits. The apparent
+$F_1=D$ dependency is used only on shorter intervals when constructing a forest
+with at least two components. \qed
+\end{proof}
+This is a specialization of classical alphabetic-tree
+optimization~\cite{alphabetic}. The historical three-proposal reference
+multiplies compilation time by a constant, not by $n!$. Dense spectral
+computation can itself cost $O(n^3)$; the reference clustering implementation
+uses $O(n^2\log n)$ heap operations and $O(n^2)$ storage.
+
+\begin{proposition}[Validation after learned ordering]\label{prop:valid}
+Condition on a training set that fixes $K$ complete layouts. For $m$
+independent identically distributed validation epochs with each layout cost in
+$[0,B]$, let $\widehat L$ minimize empirical validation cost. With probability at
+least $1-\delta$,
+\begin{equation}J(\widehat L)\le \min_{L\in\mathcal C}J(L)+2B\sqrt{\frac{\log(2K/\delta)}{2m}}.\label{eq:valid}\end{equation}
+\end{proposition}
+\begin{proof}
+Conditionally, the catalogue is fixed. Hoeffding's inequality and a union bound
+over $K$ layouts bound every empirical mean error by the displayed radius
+without its factor two. Inserting empirical costs on either side of the empirical
+minimizer yields the result. \qed
+\end{proof}
+The guarantee is only relative to the fixed catalogue. It neither justifies
+choosing among learned permutations on their training errors alone nor covers
+distribution shift. We do not report this potentially loose bound as an empirical
+confidence interval; reported intervals use independent experimental seeds.
+
+\subsection{Compiler identity and scope}\label{sec:compiler-scope}
+The practical default has no hidden microtree optimization. Exact DP is a
+reference and optional offline candidate. The block-backbone proposition and
+implementation remain in Appendix~\ref{app:block} solely as an ablation; its
+restricted-class exactness does not override the observed simpler-baseline
+advantage. At 1{,}024 checks, order learning still takes seconds in our
+measurement, so layouts should be cached and compiled away from the agent's
+per-action path. Validation of padded costs does not optimize compressed
+archives or model tokenization; adoption must measure the actual delivery
+representation.
+
+\begin{algorithm}[t]\caption{Deployable evidence control; inference and checking remain separate}\label{alg:control}
+\begin{algorithmic}[1]
+\Require Protected registry, checker and snapshot identities; frozen layout catalogue
+\For{each event}
+\State Choose from past evidence using Equation~\eqref{eq:window}, or keep the frozen layout
+\If{layout changes}
+\State Revoke tickets, increment generation, remap stable IDs, rebuild and price the installation
+\EndIf
+\State Receive trusted completion records for the fixed check schedule
+\State Reject stale, conflicting or malformed records; aggregate bounded packets
+\State Publish only the complete current contract result; otherwise retain \FAIL/\UNKNOWN
+\State Expose a root-status card; retrieve diagnostic packets only when needed
+\State Score the observed event and append its cost vector to the bounded window
+\EndFor
+\end{algorithmic}\end{algorithm}
+
+\section{Practical Online Selection: Price the Window, Not the Promise}\label{sec:online}
+Freeze a compiled catalogue $\mathcal C=\{L_1,\ldots,L_K\}$. At event $t$, choose
+a layout before observing the current completion wave; afterwards score that same
+wave under every catalogue member. This is full-information feedback only because
+the check schedule is held fixed. It is not counterfactual feedback for arbitrary
+agent behavior.
+
+A different layout is installed by serializing its canonical manifest and
+reconstructing its complete certificate tree:
+\begin{equation}M_{ij}=\begin{cases}0,&L_i=L_j,\\ |\mathrm{manifest}(L_j)|+W(L_j),&L_i\ne L_j.\end{cases}
+\qquad L_T=\sum_{t}\ell_t(A_t)+\sum_{t=2}^{T}M_{A_{t-1},A_t}.\label{eq:mig}\end{equation}
+The initial installation is separate. These byte prices match the evaluated
+uncompressed migration protocol. A deployment using compression must measure its
+own priced wire representation; the DP objective is not automatically an optimum
+for a compressed log.
+
+\paragraph{The primary practical rule.}
+Let $\bar\ell_{t,i}$ be the mean cost on the last $\min(w,t-1)$ observed events,
+and $j_t=\argmin_i\bar\ell_{t,i}$ with deterministic ties. Starting from the
+calibrated incumbent $a$, use the frozen rule
+\begin{equation}A_t=\begin{cases} j_t,& w(\bar\ell_{t,a}-\bar\ell_{t,j_t})>M_{a,j_t},\\ a,&\text{otherwise},\end{cases}\qquad w=64.\label{eq:window}\end{equation}
+With no history, keep $a$. A tie in estimated savings does not trigger migration.
+During warm-up, the forecast horizon remains $w$ even if fewer events were
+observed, matching the original baseline. This is an empirical break-even
+forecast, not proof that past savings repay a future switch. It can lose under
+abrupt reversal; preserving the frozen layout is always a legitimate alternative.
+
+The runtime API enforces \texttt{choose()} before \texttt{observe()}, bounds
+history to 64 vectors, rejects nonfinite costs, and checkpoints only at event
+boundaries. Replaying all 80 archived streams, with periodic checkpoint/resume,
+must reproduce the original baseline's full action and byte-cost paths exactly.
+The exercise validates implementation equivalence, not a new performance dataset.
+
+\paragraph{Why fixed-share is no longer primary.}
+On the archived stationary, long-shift and rapid-shift streams, the coupled
+fixed-share policy is more expensive than the priced window. Its standard
+tracking analysis therefore moves to Appendix~\ref{app:fixedshare}, with all
+negative results retained. We do not manufacture an adversarial workload merely
+to make that policy win. Neither the appendix bound nor the empirical window
+result establishes general superiority over other switching-cost policies.

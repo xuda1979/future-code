@@ -1,0 +1,80 @@
+\section{Stable Evidence Through Permutation and Migration}\label{sec:soundness}
+A result token carries $(\text{epoch},g_i,b_i)$, where $b_i$ binds the semantic
+ID to the registry, source snapshot, checker, and environment. It does not carry
+a display position as its identity. A layout-specific kernel maps stable IDs to
+current positions. During migration it rebuilds from canonical trusted records;
+it never transplants an ordinal cache entry into a different permutation.
+
+Publication tickets additionally carry a monotone layout generation and layout
+hash. A layout switch revokes the issued ticket, advances the generation, and
+forces reconstruction. Returning to an earlier tree therefore cannot revive that
+tree's old ticket. An in-flight token may remain valid through a layout-only
+change, but a new candidate epoch fences it. Duplicate identical evidence is
+idempotent. Conflicting final records in one epoch revoke authorization: a
+recorded fail remains a fail; otherwise the obligation becomes unknown.
+Resolution requires a new epoch, not a more persuasive agent summary.
+
+\begin{theorem}[Layout-independent local publication soundness]\label{thm:soundness}
+Assume complete approved predicates and dependency identities, a trusted checker
+executing immutable identified inputs, collision-resistant binding, and atomic
+local epoch/generation checks. For any sequence of valid layout permutations,
+any advisory learning outputs, and any delivered evidence order, authorization
+implies Equation~\eqref{eq:accept}. If each checker is sound for its declared
+predicate, those predicates hold on the authorized candidate.
+\end{theorem}
+\begin{proof}
+A canonical pass requires a current token for the same semantic ID and immutable
+identities. Permutation is a bijection, so rebuilding moves each such record to
+exactly one position without changing its meaning. Exact child partitioning
+preserves coverage and pass/fail/unknown counts by induction up the tree. The
+root can be authorized only with $(n,0,0)$ and matching current registry, epoch,
+generation, and layout. Old tickets fail those checks. Conflicts prevent
+authorization. No choice made by the learner writes trusted outcomes or changes
+the registry. \qed
+\end{proof}
+This is a conditional local guarantee, not remote attestation or distributed
+consensus. An incomplete suite, compromised checker, omitted dependency, or
+nondeterministic external service can invalidate a broader correctness claim. The
+CLI's file copy is not an OS sandbox. An external merge/deployment service must
+atomically compare the verified candidate and integration-head identities at
+commit; a report file alone is not that transaction.
+
+\section{Implementation and Cost Accounting}\label{sec:impl}
+The artifact adds \texttt{practical.py}, \texttt{deployment.py},
+\texttt{token\_budget.py} and \texttt{tls\_probe.py}. The practical CLI produces
+a balanced catalogue without calling either exact or block DP. The historical
+exact and block compilers remain separately callable. The existing stable-ID
+guard, priced window, codec and Future Code bridge are retained. The strict CLI
+compares protected input sets and hashes, detecting added tests or configuration
+files as well as changed and deleted ones. Schema-2 contracts bind the approved
+checker and environment and refuse silent reuse of legacy contracts. Source
+manifests are checked before and after snapshotting and verification; mutation
+of an observed snapshot prevents a pass.
+
+The bridge runs as an ordinary subprocess acceptance gate in the unmodified
+Future Code v1.2 runtime. The supervisor still owns worker leases, private
+attempts, bounded contexts, and serialized integration. Non-pass exits cause
+candidate rejection. Detailed evidence and binary certificate packets live
+outside candidate write scopes; only a bounded JSON result card returns to the
+worker. The plug-in accepts a precompiled layout. The online selector and
+migration guard are separately integrated and stress-tested as a library path; a
+live, self-retuning hosted deployment was not evaluated.
+
+A different scalar objective could combine these quantities only with declared
+unit conversions and observable counterfactual costs. This implementation does
+not optimize unknown model latency or billing. The exact-byte claim also depends
+on the stated padded format; compression defines a different, potentially
+nonseparable objective for which this DP is not claimed exact.
+
+\begin{table}[t]\centering\small
+\caption{Separate ledgers avoid converting byte savings into unsupported latency or token claims.}\label{tab:ledgers}
+\begin{tabularx}{\linewidth}{@{}p{.28\linewidth}p{.44\linewidth}X@{}}\toprule
+Measurement & How obtained & In optimized objective?\\\midrule
+Certificate bytes & Actual padded packets; independently reconstructed from waves & Yes\\
+Migration bytes & Canonical layout manifest plus forced full rebuild & Yes, online traces\\
+Fit and scoring time & Monotonic-clock measurements & Reported separately\\
+Preparation, copying, checking, aggregation & Wrapper timers and outer call duration & Reported separately\\
+Active harness episode & Supervisor startup through completion and shutdown & Reported separately\\
+Prompt bytes and construction time & Captured actual HTTP messages and context builder & Reported; not tokens\\
+Hosted token usage and API billing & No provider inference was run & Unknown, never zero-imputed\\
+\bottomrule\end{tabularx}\end{table}

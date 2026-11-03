@@ -1,0 +1,78 @@
+\section{Model and Trust Boundary}\label{sec:model}
+\subsection{Semantic registry, execution, and display}\label{sec:registry}
+Let $\R=(g_0,\ldots,g_{n-1})$ be a nonempty approved registry of unique check
+IDs. The candidate identity is
+\begin{equation}e=( \text{epoch},\ \text{snapshot},\ \text{checker},\ \text{environment},\ \text{registry}).\end{equation}
+The snapshot covers source and protected acceptance inputs. The checker and
+environment are explicitly bound; an epoch increases even after an ABA return to
+identical source bytes. Only a trusted runner submits final \PASS{}, \FAIL{}, or
+\UNKNOWN{} records. Missing, stale, skipped, incompatible, or timed-out outcomes
+are not passes.
+
+An execution permutation $\sigma_e$ determines when checks run. A layout
+$L=(\pi,T)$ independently maps tree positions to semantic registry indices. For
+a node covering positional interval $[i,j]$, its semantic coverage is
+\begin{equation}G_L(i,j)=\{g_{\pi(i)},\ldots,g_{\pi(j)}\}.\label{eq:coverage}\end{equation}
+The stored layout must contain an exact permutation, and every internal node's
+children must partition its positional interval without gaps or overlaps. The
+task graph is outside this mathematical tree; one worker can discharge many
+checks, and one integration check can cover several workers.
+
+The acceptance predicate is independent of both permutations:
+\begin{equation}A(e)=\mathbf 1\{\text{every }g_i\in\R\text{ has trusted, matching, current \PASS{} evidence for }e\}.\label{eq:accept}\end{equation}
+An observed fail permits rejection before all checks finish. It does not assert
+coverage of the unexecuted remainder. Acceptance is relative to the approved
+predicates, not proof of all program behavior.
+
+\subsection{Packet and lifecycle costs}\label{sec:packet}
+Each internal node of arity $d$ emits a fixed-width packet
+\begin{equation}c(d)=H+Sd,\qquad 2\le d\le b=\left\lfloor (C-H)/S\right\rfloor.\label{eq:price}\end{equation}
+Here $H=512$, $S=320$, and $C=3072$ bytes, so $b=8$. A mandatory field that
+exceeds its slot is rejected, not silently truncated. The cap applies to one
+certificate packet, not to all project memory, an entire registry manifest, or
+every LLM prompt. A manifest is a referenced control-plane artifact; its measured
+size is charged on migration.
+
+Let $W_{e,1},\ldots,W_{e,q_e}$ be the semantic IDs whose final records become
+available between successive refreshes. For a strict new candidate epoch, the
+observed cost is
+\begin{equation}\ell_e(L)=W(L)+\sum_{a=1}^{q_e}\sum_{v\in\mathrm{int}(T)}c(d_v)\,\mathbf 1\{W_{e,a}\cap G_L(v)\ne\varnothing\},
+\qquad W(L)=\sum_{v}c(d_v).\label{eq:lcost}\end{equation}
+The first term constructs the full initially unknown tree. The CLI batches an
+executed prefix into groups of eight, flushing its final partial group. A
+successful strict epoch runs the whole registry. This conservative
+implementation does not reuse a pass across distinct source snapshots.
+
+We separately study persistent-state refresh traces that omit $W(L)$ at each
+tick, as in a cache with correctly specified incremental dependencies. Each
+topology installation is still cold and explicitly priced. These traces evaluate
+the controller's cost model; they are not the strict candidate-gate timing
+experiment. They do not demonstrate safe dependency inference from arbitrary
+code.
+
+\subsection{Why more than invalidation or pairwise similarity is needed}\label{sec:why}
+A classical result shows that marginal check activation cannot identify the best
+aggregation tree under joint invalidation (Appendix~\ref{app:sep}). A further
+result shows that even the full initial invalidation distribution cannot identify
+optimal progressive verification: early rejection and completion batching change
+the update sequence. Both distinctions remain relevant after allowing
+permutations.
+
+\begin{proposition}[Pairwise affinity is insufficient for full-wave scoring]\label{prop:pairwise}
+There exist two distributions with identical singleton and pairwise co-activity
+probabilities, hence identical Jaccard affinities, but different activation
+probabilities for the same three-check subtree.
+\end{proposition}
+\begin{proof}
+On IDs $\{0,1,2\}$, let $P$ be uniform on $\varnothing,\{0,1\},\{0,2\},\{1,2\}$
+and $Q$ uniform on $\{0\},\{1\},\{2\},\{0,1,2\}$. Every singleton has
+probability $1/2$, every pair has joint probability $1/4$, and its Jaccard
+affinity is $1/3$. Yet the probability that the triple is hit is $3/4$ under $P$
+and $1$ under $Q$. Thus a packet emitted on that interval has different expected
+cost. \qed
+\end{proof}
+This elementary parity construction is not a new fact about higher-order
+statistics. Its implication for the compiler is specific: a pairwise clustering
+objective cannot substitute for scoring recorded completion hyperedges. It does
+not, by itself, prove that these two distributions have different globally
+optimal layouts.
