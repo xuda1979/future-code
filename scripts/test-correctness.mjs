@@ -27,6 +27,7 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/foreground-repl.test.ts",
   "tests/correctness/tool-result-budget.test.ts",
   "tests/correctness/permission-delivery.test.ts",
+  "tests/correctness/permission-defaults.test.ts",
   "tests/correctness/token-estimation-anchor.test.ts",
   "tests/correctness/provider-retry-policy.test.ts"], 900000);
 const python = process.env.PYTHON ?? "python3";

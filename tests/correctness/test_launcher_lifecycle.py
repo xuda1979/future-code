@@ -67,7 +67,7 @@ class LauncherLifecycle(unittest.TestCase):
         self.assert_proxy_stopped(stderr)
 
     def test_wrapper_forwards_signals_waits_for_child_and_reaps_proxy(self):
-        for sig in (signal.SIGINT, signal.SIGTERM):
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             with self.subTest(signal=sig.name):
                 self.child.unlink(missing_ok=True)
                 self.record.unlink(missing_ok=True)
@@ -75,7 +75,7 @@ class LauncherLifecycle(unittest.TestCase):
                         "def stop(sig, frame):\n"
                         f"    Path({str(self.record)!r}).write_text(str(sig))\n"
                         "    raise SystemExit(128+sig)\n"
-                        "signal.signal(signal.SIGINT,stop)\nsignal.signal(signal.SIGTERM,stop)\n"
+                        "signal.signal(signal.SIGINT,stop)\nsignal.signal(signal.SIGTERM,stop)\nsignal.signal(signal.SIGHUP,stop)\n"
                         f"Path({str(self.child)!r}).write_text(json.dumps(os.getpid()))\n"
                         "while True: time.sleep(0.02)\n")
                 proc = self.launch(code)
