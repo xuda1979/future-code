@@ -11,6 +11,9 @@ set -uo pipefail
 # Usage:
 #   future-code --print "hi"   # headless one-shot
 #   future-code                # interactive session
+#   future-code --sessions     # list persistent sessions
+#   future-code --attach ID    # reconnect after a terminal disconnect
+#   future-code --detach -- COMMAND...  # persistent unattended command
 #   future-code --list-models  # list all CMRI + Huanxin models
 #                               # (default: cmri GLM-5.3)
 # --------------------------------------------------------------------------- #
@@ -34,6 +37,35 @@ case "$SOURCE_FILE" in
   *) SOURCE_FILE="$PWD/$SOURCE_FILE" ;;
 esac
 SCRIPT_DIR="$(cd "$(dirname "$SOURCE_FILE")" && pwd -P)"
+
+# Session control runs before model configuration: reconnect/inspect/stop still
+# work if credentials expire. The session owns this wrapper AND its API proxy.
+if [[ "${FUTURE_CODE_SESSION_CHILD:-}" != 1 ]]; then
+  case "${1:-}" in
+    --persist|--detach|--sessions|--attach|--session-status|--session-log|--stop-session)
+      exec python3 "$SCRIPT_DIR/src/terminal/sessions.py" "$SOURCE_FILE" "$@"
+      ;;
+    --foreground)
+      shift
+      ;;
+    *)
+      PERSIST_SESSION=1
+      for arg in "$@"; do
+        case "$arg" in
+          -p|--print|--help|-h|--version|-v|-V|--list-models|--models|--ops|--input-format|--input-format=*|--output-format|--output-format=*)
+            PERSIST_SESSION=0 ;;
+        esac
+      done
+      # Protect every interactive terminal, including browser shells which may
+      # not advertise SSH_CONNECTION. Existing tmux/screen sessions already own
+      # their PTY; pipes and structured/headless IO retain their exact behavior.
+      if [[ "$PERSIST_SESSION" == 1 && "${FUTURE_CODE_PERSIST:-1}" != 0 &&
+            -t 0 && -t 1 && -z "${TMUX:-}" && -z "${STY:-}" ]]; then
+        exec python3 "$SCRIPT_DIR/src/terminal/sessions.py" "$SOURCE_FILE" --persist "$@"
+      fi
+      ;;
+  esac
+fi
 
 # ─── 1. Load config (URL + API key live in this folder) ──────────────────── #
 CONFIG_FILE="${FUTURE_CODE_CONFIG_FILE:-${SCRIPT_DIR}/deepseek.env}"
@@ -206,10 +238,11 @@ forward_signal() {
 }
 trap 'forward_signal INT' INT
 trap 'forward_signal TERM' TERM
+trap 'forward_signal HUP' HUP
 (
   # Async shell commands otherwise inherit SIGINT ignored. Preserve normal
   # terminal signals and explicitly retain stdin for the interactive REPL.
-  trap - INT TERM
+  trap - INT TERM HUP
   exec "$BIN" --model "$MODEL" --effort "$EFFORT" "$@"
 ) <&0 &
 BIN_PID=$!

@@ -27,6 +27,7 @@ import {
 } from './PermissionMode.js'
 import { applyPermissionRulesToPermissionContext } from './permissions.js'
 import { loadAllPermissionRulesFromDisk } from './permissionsLoader.js'
+import { defaultPermissionMode } from './defaultPermissionMode.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const autoModeStateModule = feature('TRANSCRIPT_CLASSIFIER')
@@ -772,6 +773,10 @@ export function initialPermissionModeFromCLI({
     }
   }
 
+  // Apply the unattended default last. Explicit CLI/settings modes still win,
+  // and the same organization/settings killswitch below applies to this mode.
+  orderedModes.push(defaultPermissionMode())
+
   let result: { mode: PermissionMode; notification?: string } | undefined
 
   for (const mode of orderedModes) {
@@ -793,10 +798,6 @@ export function initialPermissionModeFromCLI({
 
     result = { mode, notification } // Use the first valid mode
     break
-  }
-
-  if (!result) {
-    result = { mode: 'default', notification }
   }
 
   if (!result) {

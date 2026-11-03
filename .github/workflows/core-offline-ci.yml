@@ -53,3 +53,17 @@ jobs:
           ln -s "$RUNNER_TEMP/api-retry/node_modules" node_modules
       - name: Terminal API retry regression
         run: bun test --preload ./tests/api/retry-isolation.ts ./tests/api/retry-resilience.test.ts
+  terminal-sessions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install terminal runtime
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tmux
+      - name: Real disconnect, reattach, proxy lifetime and exit-status regression
+        env:
+          FUTURE_CODE_REQUIRE_TERMINAL_TESTS: "1"
+        run: python3 -m unittest discover -s tests/correctness -p test_terminal_sessions.py -v
