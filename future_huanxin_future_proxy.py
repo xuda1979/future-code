@@ -595,8 +595,32 @@ def _default_context_window(server: ThreadingHTTPServer) -> str:
     return "202752" if _is_glm53(server) else "131072"
 
 
+def request_routes_to_dp4(body: dict[str, Any]) -> bool:
+    """True when THIS request asks for the 'dp4' model and a dp4 side-route
+    is configured in the proxy's environment. Lets a single proxy instance
+    (e.g. the default cmri/GLM-5.3 one) send 'dp4' turns to the aihuanxin
+    DeepSeek-V4 subscription instead of the gateway that would 404 on it.
+    The upstream model id itself is remapped separately via
+    HUANXIN_DP4_UPSTREAM_MODEL (see build_upstream_body)."""
+    model = body.get("model")
+    if not (isinstance(model, str) and model.strip().lower() == "dp4"):
+        return False
+    return bool(os.environ.get("HUANXIN_DP4_BASE_URL", "").strip()) and bool(
+        os.environ.get("HUANXIN_DP4_API_KEY", "").strip()
+    )
+
+
 def build_upstream_body(server: ThreadingHTTPServer, body: dict[str, Any], force_stream: bool | None = None) -> dict[str, Any] | None:
-    messages = compact_messages(convert_messages(body), int(getattr(server, "max_input_chars", 24000)))
+    # dp4 turns get their own (much larger) input budget: the aihuanxin
+    # DeepSeek-V4 subscription accepts far more input than the proxy-wide
+    # default (--max-input-chars, e.g. 24000 for the cmri GLM-5.3 default).
+    max_input_chars = int(getattr(server, "max_input_chars", 24000))
+    if request_routes_to_dp4(body):
+        try:
+            max_input_chars = int(os.environ.get("HUANXIN_DP4_MAX_INPUT_CHARS", str(max_input_chars)))
+        except ValueError:
+            pass
+    messages = compact_messages(convert_messages(body), max_input_chars)
     if not messages:
         return None
 
@@ -705,7 +729,20 @@ def build_upstream_body(server: ThreadingHTTPServer, body: dict[str, Any], force
     return upstream_body
 
 
-def build_upstream_request(server: ThreadingHTTPServer, upstream_body: dict[str, Any]) -> urllib.request.Request:
+def build_upstream_request(server: ThreadingHTTPServer, upstream_body: dict[str, Any], body: dict[str, Any] | None = None) -> urllib.request.Request:
+    # Per-request dp4 side-route: override the proxy-wide upstream URL and
+    # auth with the aihuanxin DeepSeek-V4 endpoint (Bearer key, no appcode).
+    if body is not None and request_routes_to_dp4(body):
+        headers = {
+            "Authorization": "Bearer %s" % os.environ["HUANXIN_DP4_API_KEY"].strip(),
+            "Content-Type": "application/json",
+        }
+        return urllib.request.Request(
+            os.environ["HUANXIN_DP4_BASE_URL"].strip().rstrip("/") + "/v1/chat/completions",
+            data=json.dumps(upstream_body).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
     headers = {
         "Authorization": server.upstream_token,  # type: ignore[attr-defined]
         "Content-Type": "application/json",
@@ -862,7 +899,7 @@ def upstream_chat(server: ThreadingHTTPServer, body: dict[str, Any]) -> tuple[in
             }
         }
 
-    request = build_upstream_request(server, upstream_body)
+    request = build_upstream_request(server, upstream_body, body)
 
     tries, base = _retry_config()
     status, payload = HTTPStatus.BAD_GATEWAY, {"error": {"message": "no attempt", "type": "upstream_connection_error"}}
@@ -1363,7 +1400,7 @@ class Handler(BaseHTTPRequestHandler):
         if upstream_body is None:
             write_json(self, HTTPStatus.BAD_REQUEST, {"error": {"message": "missing messages", "type": "invalid_request_error"}})
             return True
-        request = build_upstream_request(server, upstream_body)
+        request = build_upstream_request(server, upstream_body, body)
         context, insecure = upstream_context(server)
 
         # Retry transient upstream failures (HTTP 500 "Window limit exceeded", nginx

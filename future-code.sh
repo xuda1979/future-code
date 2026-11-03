@@ -64,6 +64,35 @@ case "$EFFORT" in
     ;;
 esac
 
+# ─── 1b. Per-request dp4 side-route env (optional) ───────────────────────── #
+# The proxy can reroute individual `dp4` requests to the aihuanxin DeepSeek-V4
+# subscription (see request_routes_to_dp4 in future_huanxin_future_proxy.py).
+# It needs HUANXIN_DP4_BASE_URL + HUANXIN_DP4_API_KEY (plus the optional
+# HUANXIN_DP4_UPSTREAM_MODEL / HUANXIN_DP4_MAX_INPUT_CHARS) in its own env.
+# Pull them from ~/.codex/secrets/huanxin.env WITHOUT clobbering vars the
+# caller may already have exported: parse the file with a subshell awk and
+# only export values for names that are not already set.
+if [[ -f "${HOME}/.codex/secrets/huanxin.env" ]]; then
+  while IFS='=' read -r _dp4_var _dp4_val; do
+    [[ -z "$_dp4_var" ]] && continue
+    # Strip one pair of surrounding double quotes, if present.
+    _dp4_val="${_dp4_val#\"}"
+    _dp4_val="${_dp4_val%\"}"
+    if [[ -z "${!_dp4_var:-}" ]]; then
+      export "${_dp4_var}=${_dp4_val}"
+    fi
+  done < <(
+    awk '
+      /^export[[:space:]]+HUANXIN_DP4_/ {
+        line = $0
+        sub(/^export[[:space:]]+/, "", line)
+        print line
+      }
+    ' "${HOME}/.codex/secrets/huanxin.env"
+  )
+fi
+unset _dp4_var _dp4_val
+
 if [[ -z "$API_KEY" ]]; then
   echo "error: API key is not set in $CONFIG_FILE" >&2
   exit 2
