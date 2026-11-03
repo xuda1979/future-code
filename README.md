@@ -9,6 +9,15 @@ controls execution authority; independent checks determine acceptance.
 
 **Models propose. Evidence decides. Future-Code enforces.**
 
+The installed interactive `future-code` command now uses persistent terminal
+sessions by default (Python 3 and tmux required). Closing an SSH/browser terminal
+leaves the application and its model proxy running. Use `future-code --sessions`
+and `future-code --attach ID` after reconnecting; `--foreground` opts out.
+Ordinary CLI sessions also default to permission bypass. Explicit
+`--permission-mode default` / `plan`, configured permission modes, and managed
+policy take precedence; `FUTURE_CODE_SKIP_PERMISSIONS=0` restores the prompted
+fallback. See [remote sessions and defaults](docs/agent-platform/REMOTE_SESSIONS.md).
+
 ## Architecture
 
 ```mermaid
@@ -117,6 +126,7 @@ Missing token or dollar measurements remain unknown.
 | Topic | Guide |
 |---|---|
 | Architectural principles and trust boundaries | [Sovereign kernel](docs/agent-platform/SOVEREIGN_KERNEL.md) |
+| Disconnect survival, terminal sessions and permission defaults | [Remote sessions](docs/agent-platform/REMOTE_SESSIONS.md) |
 | Claims, evidence, conflicts and adjudication | [Knowledge protocol](docs/agent-platform/KNOWLEDGE_PROTOCOL.md) |
 | Human requests, skills, knowledge and autonomous experience accumulation | [Project knowledge](docs/agent-platform/PROJECT_KNOWLEDGE.md) |
 | Continuous external work, capability grants, resources, deadlines and service commands | [Project-neutral operations](docs/agent-platform/PROJECT_OPERATIONS.md) |

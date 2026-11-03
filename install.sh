@@ -28,6 +28,20 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 echo "==> future-code installer"
 echo "==> Platform: $(uname -s)/$(uname -m)"
 
+# The installed interactive launcher keeps its terminal and model proxy alive
+# independently of SSH/browser clients. Fail before an expensive build if the
+# default runtime prerequisites are missing; headless-only installs can opt out.
+if [[ "${FUTURE_CODE_PERSIST:-1}" != 0 ]]; then
+  for required_command in python3 tmux; do
+    if ! command -v "$required_command" >/dev/null 2>&1; then
+      echo "error: persistent sessions require '$required_command'." >&2
+      echo "       Install python3 and tmux (apt-get/dnf/brew), then re-run." >&2
+      echo "       Headless-only installation: FUTURE_CODE_PERSIST=0 ./install.sh" >&2
+      exit 2
+    fi
+  done
+fi
+
 # ─── 0. Prerequisites ────────────────────────────────────────────────────── #
 if ! command -v curl >/dev/null 2>&1 && ! command -v bun >/dev/null 2>&1; then
   echo "error: 'curl' is required (the Bun installer needs it). Install it first." >&2
@@ -171,6 +185,8 @@ echo ""
 echo "    Usage:"
 echo "      future-code --print \"hi\"   # headless one-shot"
 echo "      future-code                 # interactive session"
+echo "      future-code --sessions      # list sessions after reconnecting"
+echo "      future-code --attach ID     # reattach the running session"
 if [[ "$(id -u)" -ne 0 ]]; then
   echo ""
   echo "    Note: open a new shell (or log out/in) if '$BIN_DIR' was not on PATH yet."
