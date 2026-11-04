@@ -29,7 +29,7 @@ export const help = `Foundry Swarm: durable coding agents on the existing Foundr
   init --spec FILE --allow-exec
   run --tasks FILE --allow-exec
   resume --run ID --allow-exec
-  supervise --objective ID [--goal FILE --tasks FILE] --allow-exec
+  supervise --objective ID [--goal FILE --tasks FILE] [--supersede] --allow-exec
   objective --objective ID
   episode --objective ID
   research-strategy --run ID
@@ -77,10 +77,10 @@ function file(path: string): any { invariant(statSync(path).size <= 32 * 1024 * 
 export async function handleSwarm(argv: string[], signal: AbortSignal = new AbortController().signal, onProgress: HealthObserver = r => console.error(formatHealth(r))): Promise<Json> {
   if (argv[0] === "operations") return handleOperations(argv.slice(1), signal);
   const cmd = argv[0] ?? "help"; if (cmd === "help") return { help };
-  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--claim", "--version", "--reason", "--evidence", "--finding", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit", "--query", "--phase", "--file", "--id", "--kind", "--trigger", "--conditions", "--source", "--tags"]);
+  const opts = new Map<string, string>(); const allowed = new Set(["--root", "--spec", "--tasks", "--run", "--task", "--after", "--task-after", "--hash", "--offset", "--length", "--objective", "--goal", "--job-key", "--resolution", "--allow-exec", "--supersede", "--claim", "--version", "--reason", "--evidence", "--finding", "--memory-kind", "--before", "--patch", "--failure-signature", "--limit", "--query", "--phase", "--file", "--id", "--kind", "--trigger", "--conditions", "--source", "--tags"]);
   for (let i = 1; i < argv.length; i++) {
     const k = argv[i]; invariant(allowed.has(k) && !opts.has(k), `unknown/duplicate option ${k}`);
-    if (k === "--allow-exec") opts.set(k, "true");
+    if (k === "--allow-exec" || k === "--supersede") opts.set(k, "true");
     else { const v = argv[++i]; invariant(v && !v.startsWith("--"), `missing ${k}`); opts.set(k, v); }
   }
   const need = (k: string) => { const value = opts.get(k); invariant(value, `required ${k}`); return value; };
@@ -97,7 +97,8 @@ export async function handleSwarm(argv: string[], signal: AbortSignal = new Abor
         if (goalPath) invariant(statSync(goalPath).size <= 16384, "goal file exceeds 16 KiB");
         return await superviseSwarm(store, { id: need("--objective"),
           ...(goalPath ? { goal: readFileSync(goalPath, "utf8") } : {}),
-          ...(opts.has("--tasks") ? { tasks: file(need("--tasks")) as Task[] } : {}) }, signal, onProgress);
+          ...(opts.has("--tasks") ? { tasks: file(need("--tasks")) as Task[] } : {}),
+          ...(opts.has("--supersede") ? { supersede: true } : {}) }, signal, onProgress);
       }
       case "objective": return objectiveStatus(store, need("--objective"));
       case "episode": return readObjectiveEpisode(store, need("--objective"));

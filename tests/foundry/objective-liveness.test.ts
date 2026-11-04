@@ -111,3 +111,41 @@ test("objective errors and failed recovery stay visible ahead of truncated worke
   spec.recipe.attempts = 1;
   spec.supervision = { maxReplans: 1, reportEveryMs: 10, checkpointEveryMs: 600000 };
 }));
+
+test("superviseSwarm with supersede:true transitions an unfinished objective to a new goal and task plan without drifting to the old run", { timeout: 30000 }, async () => fixture(async s => {
+  const ctl = new AbortController();
+  const patchB = () => reply("", [{ name: "write_file", arguments: { path: "src/a.txt", content: "42\n" } }]);
+  const script = scripted([() => reply("incomplete attempt"), patchB, () => reply()]);
+
+  const first: any = await superviseSwarm(
+    s,
+    { id: "evolvable-objective", goal: "Initial objective v1", tasks: [task("a")] },
+    ctl.signal,
+    health => { if (health.status === "NEEDS_ATTENTION") ctl.abort(); },
+    script.fetcher,
+  );
+  assert.equal(first.status, "PAUSED");
+  assert.equal(first.objective.goal, "Initial objective v1");
+
+  // Without supersede:true, changing the goal still fails closed
+  await assert.rejects(
+    superviseSwarm(s, { id: "evolvable-objective", goal: "Updated objective v2", tasks: [task("a")] }, signal(), undefined, script.fetcher),
+    /objective goal changed/,
+  );
+
+  // With supersede:true, the objective cleanly transitions to the new goal and task plan
+  const second: any = await superviseSwarm(
+    s,
+    { id: "evolvable-objective", goal: "Updated objective v2", tasks: [{ ...task("a"), goal: "Execute updated objective v2" }], supersede: true },
+    signal(),
+    undefined,
+    script.fetcher,
+  );
+  assert.equal(second.status, "PASS");
+  assert.equal(second.objective.goal, "Updated objective v2");
+  assert.notEqual(second.objective.run, first.objective.run);
+  assert.equal(second.objective.revision, 1);
+}, spec => {
+  spec.recipe.attempts = 1;
+  spec.supervision = { maxReplans: 0, reportEveryMs: 10, checkpointEveryMs: 600000 };
+}));

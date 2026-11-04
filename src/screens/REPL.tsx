@@ -2926,9 +2926,21 @@ export function REPL({
       const resumedGoal = input && humanResume ? resumeAutoGoalFromInput(input, { mainThread: true }) : null;
       if (resumedGoal) {
         const resumeMessage = createUserMessage({ isMeta: true, content:
-          '[Host] Resume the durable goal with its configured limits preserved: ' + resumedGoal.goal +
-          '. Recheck the previous blocker, update .future-code/goal.md to Status: in_progress as work resumes, ' +
-          'and continue verified work. A stale blocker report is not a new failure.' });
+          resumedGoal.transition === 'superseded'
+            ? '[Host] Active objective updated to: ' + resumedGoal.goal +
+              (resumedGoal.previousGoal ? ' (supersedes previous objective: ' + resumedGoal.previousGoal + ')' : '') +
+              '. Update .future-code/goal.md to Status: in_progress for this new objective, ' +
+              'discard superseded objective plans, and continue verified work automatically until completion or an external blocker.'
+            : resumedGoal.transition === 'steered'
+              ? '[Host] Active objective steering recorded for: ' + resumedGoal.goal +
+                (resumedGoal.activeSteering?.length ? ' (latest constraint: ' + resumedGoal.activeSteering.at(-1) + ')' : '') +
+                '. Preserve this constraint in .future-code/goal.md and continue verified work automatically.'
+              : resumedGoal.transition === 'armed'
+                ? '[Host] Autonomous goal armed: ' + resumedGoal.goal +
+                  '. Record this objective in .future-code/goal.md with Status: in_progress and continue verified work automatically until completion or an external blocker requiring human help.'
+                : '[Host] Resume the durable goal with its configured limits preserved: ' + resumedGoal.goal +
+                  '. Recheck the previous blocker, update .future-code/goal.md to Status: in_progress as work resumes, ' +
+                  'and continue verified work. A stale blocker report is not a new failure.' });
         newMessages = [...newMessages, resumeMessage];
         setMessages(oldMessages => [...oldMessages, resumeMessage]);
       }

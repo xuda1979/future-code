@@ -207,3 +207,21 @@ test('failed startup preparation releases the real input reservation and stale c
   assert.equal(controller, null)
   assert.equal(placeholderClears, 1)
 })
+
+test('real REPL updates the active objective when user provides a new objective and prevents drifting to the old objective', async () => {
+  const f = fixture()
+  try {
+    enableAutoGoal('Old objective: legacy module cleanup', f.dir)
+    const run = f.build()
+    const newObjectiveMsg = { type: 'user', message: { content: 'New objective: implement autonomous drift guard and send a PR' } }
+    await run([newObjectiveMsg], new AbortController(), true, [], 'fixture-model', undefined, 'New objective: implement autonomous drift guard and send a PR')
+    assert.equal(f.calls(), 1)
+    const current = readAutoGoal(f.dir)!
+    assert.equal(current.state, 'ACTIVE')
+    assert.equal(current.goal, 'implement autonomous drift guard and send a PR')
+    assert.equal(current.previousGoal, 'Old objective: legacy module cleanup')
+    assert.equal(current.revision, 2)
+    assert.ok(f.messagesRef.current.some(m => m.isMeta && m.message.content.includes('Active objective updated to: implement autonomous drift guard and send a PR')))
+    assert.ok(f.messagesRef.current.some(m => m.isMeta && m.message.content.includes('supersedes previous objective: Old objective: legacy module cleanup')))
+  } finally { f.close() }
+})

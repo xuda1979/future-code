@@ -1,5 +1,6 @@
 import { feature } from 'bun:bundle'
 import type { PartialCompactDirection } from '../../types/message.js'
+import { formatActiveGoalCompactionAnchor, readAutoGoal } from '../../commands/goal/auto.js'
 
 // Dead code elimination: conditional import for proactive mode
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -65,7 +66,7 @@ ${DETAILED_ANALYSIS_INSTRUCTION_BASE}
 
 Your summary should include the following sections:
 
-1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail
+1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail. CRITICAL ANTI-DRIFT RULE: If the user gave a new objective, changed direction, or superseded an earlier task, explicitly distinguish the Current Active Objective (from the latest user instructions) from Superseded/Completed Historical Objectives so work never drifts back to superseded tasks
 2. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.
 3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Pay special attention to the most recent messages and include full code snippets where applicable and include a summary of why this file read or edit is important.
 4. Errors and fixes: List all errors that you ran into, and how you fixed them. Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.
@@ -367,7 +368,25 @@ Continue the conversation from where it left off without asking the user any fur
 You are running in autonomous/proactive mode. This is NOT a first wake-up — you were already working autonomously before compaction. Continue your work loop: pick up where you left off based on the summary above. Do not greet the user or ask what to work on.`
     }
 
+    try {
+      const anchor = formatActiveGoalCompactionAnchor(readAutoGoal())
+      if (anchor) {
+        continuation += `\n\n${anchor}`
+      }
+    } catch {
+      // Ignore state read errors during summary formatting; main loop surfaces diagnostics.
+    }
+
     return continuation
+  }
+
+  try {
+    const anchor = formatActiveGoalCompactionAnchor(readAutoGoal())
+    if (anchor) {
+      return `${baseSummary}\n\n${anchor}`
+    }
+  } catch {
+    // Ignore state read errors during summary formatting.
   }
 
   return baseSummary

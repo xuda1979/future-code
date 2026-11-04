@@ -942,7 +942,11 @@ async function* queryLoop(
             }
           }
         } catch (innerError) {
-          const persistentModelRetry = isPersistentRetryEnabled() && isForegroundRetrySource(querySource)
+          let activeGoalOnStall = false
+          if (mainGoalThread) {
+            try { activeGoalOnStall = readAutoGoal()?.state === 'ACTIVE' } catch { /* handled at continuation boundary */ }
+          }
+          const persistentModelRetry = (isPersistentRetryEnabled() || activeGoalOnStall) && isForegroundRetrySource(querySource)
           const stallAction = modelStallAction(toolUseBlocks.length, modelStallRecoveries, toolUseContext.abortController.signal.aborted, persistentModelRetry)
           if (innerError instanceof ModelStreamStalledError && stallAction === 'collect') {
             // Complete already-admitted tools and use their actual results in

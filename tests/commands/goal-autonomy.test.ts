@@ -10,6 +10,11 @@ import {
   isAutoGoalMainThread,
   shouldPauseGoalAfterTerminal,
   resumeAutoGoalFromInput,
+  supersedeAutoGoal,
+  recordGoalSteering,
+  classifyGoalHorizon,
+  formatActiveGoalCompactionAnchor,
+  extractExplicitNewObjective,
 } from "../../src/commands/goal/auto.ts";
 
 function fixture(fn: (dir: string) => void): void {
@@ -224,3 +229,129 @@ test("resume ignores the acknowledged blocker file but a fresh failure still blo
   assert.equal(readAutoGoal(dir)?.totalContinuations, 1);
 }));
 
+
+test("telling future-code a new objective supersedes the old objective and prevents drift in continuations and goal.md", () => fixture(dir => {
+  enableAutoGoal("Build legacy XML parser", dir);
+  mkdirSync(join(dir, ".future-code"), { recursive: true });
+  writeFileSync(join(dir, ".future-code", "goal.md"), "# Build legacy XML parser\nStatus: in_progress\n");
+  take(dir);
+  assert.equal(readAutoGoal(dir)?.totalContinuations, 1);
+
+  const updated = resumeAutoGoalFromInput(
+    "New objective: Implement distributed raft consensus engine and pass all tests",
+    { mainThread: true, cwd: dir },
+  )!;
+  assert.ok(updated);
+  assert.equal(updated.goal, "Implement distributed raft consensus engine and pass all tests");
+  assert.equal(updated.previousGoal, "Build legacy XML parser");
+  assert.equal(updated.revision, 2);
+  assert.equal(updated.continuations, 0);
+  assert.equal(updated.state, "ACTIVE");
+  assert.equal(updated.transition, "superseded");
+
+  // Verify stale .future-code/goal.md was immediately overwritten with the new objective
+  const goalMd = readFileSync(join(dir, ".future-code", "goal.md"), "utf8");
+  assert.match(goalMd, /# Implement distributed raft consensus engine and pass all tests/);
+  assert.match(goalMd, /Supersedes: Build legacy XML parser/);
+
+  // Verify continuation prompt locks onto the new objective and warns against drifting back
+  const prompt = take(dir)!;
+  assert.match(prompt, /Goal: Implement distributed raft consensus engine and pass all tests/);
+  assert.match(prompt, /Anti-drift lock \(Revision 2\): Current objective supersedes \[Build legacy XML parser\]/);
+}));
+
+test("model drifting back to a superseded objective in goal.md is detected, repaired, and corrected automatically", () => fixture(dir => {
+  enableAutoGoal("Old objective: migrate v1 database", dir);
+  supersedeAutoGoal("New objective: build WebGPU compute shader pipeline", dir);
+
+  // Simulate the model drifting and writing the old objective back into .future-code/goal.md
+  writeFileSync(
+    join(dir, ".future-code", "goal.md"),
+    "# Old objective: migrate v1 database\nStatus: completed\n",
+  );
+
+  // Must NOT transition to REVIEW on the drifted objective; must detect drift, repair goal.md, and continue!
+  const decision = decideAutoGoalContinuation({ cwd: dir, mainThread: true, withinTurnBudget: true });
+  assert.equal(decision.kind, "CONTINUE");
+  if (decision.kind === "CONTINUE") {
+    assert.match(decision.prompt, /OBJECTIVE DRIFT DETECTED/);
+    assert.match(decision.prompt, /New objective: build WebGPU compute shader pipeline/);
+  }
+  assert.equal(readAutoGoal(dir)?.state, "ACTIVE");
+  const repairedMd = readFileSync(join(dir, ".future-code", "goal.md"), "utf8");
+  assert.match(repairedMd, /# New objective: build WebGPU compute shader pipeline/);
+  assert.match(repairedMd, /Status: in_progress/);
+}));
+
+test("actionable user directives automatically arm or supersede objectives while preserving mid-flight steering constraints", () => fixture(dir => {
+  // 1. Auto-arming when no goal exists yet
+  const armed = resumeAutoGoalFromInput(
+    "Implement end-to-end authentication flow and verify all unit tests pass",
+    { mainThread: true, cwd: dir },
+  )!;
+  assert.ok(armed);
+  assert.equal(armed.state, "ACTIVE");
+  assert.equal(armed.transition, "armed");
+  assert.equal(armed.goal, "Implement end-to-end authentication flow and verify all unit tests pass");
+
+  // 2. Mid-flight steering on the same objective records constraints without losing the core objective
+  const steered = resumeAutoGoalFromInput(
+    "Also make sure authentication tokens expire after 15 minutes",
+    { mainThread: true, cwd: dir },
+  )!;
+  assert.ok(steered);
+  assert.equal(steered.transition, "steered");
+  assert.equal(steered.goal, "Implement end-to-end authentication flow and verify all unit tests pass");
+  assert.deepEqual(steered.activeSteering, ["Also make sure authentication tokens expire after 15 minutes"]);
+
+  const continuation = take(dir)!;
+  assert.match(continuation, /Active user constraints: Also make sure authentication tokens expire after 15 minutes/);
+
+  // 3. A distinct actionable directive supersedes the old objective automatically
+  const pivoted = resumeAutoGoalFromInput(
+    "Refactor the billing invoice PDF generator and add regression tests",
+    { mainThread: true, cwd: dir },
+  )!;
+  assert.ok(pivoted);
+  assert.equal(pivoted.transition, "superseded");
+  assert.equal(pivoted.goal, "Refactor the billing invoice PDF generator and add regression tests");
+  assert.equal(pivoted.previousGoal, "Implement end-to-end authentication flow and verify all unit tests pass");
+}));
+
+test("self-recoverable code/test blockers and 'say continue' excuses are rejected so execution continues automatically", () => fixture(dir => {
+  enableAutoGoal("Ship verified compiler optimization", dir);
+  const path = join(dir, ".future-code", "goal.md");
+
+  for (const fakeBlocker of [
+    "# Ship verified compiler optimization\nStatus: blocked\nBlocker: Unit tests failed in optimizer\nBlocker type: external_dependency\nRecovery attempted: Ran test suite once\nExternal action required: Fix the failing test in src/opt.ts\n",
+    "# Ship verified compiler optimization\nStatus: blocked\nBlocker: Need confirmation\nBlocker type: permissions\nRecovery attempted: Checked files\nExternal action required: Please say continue to proceed\n",
+    "# Ship verified compiler optimization\nStatus: blocked\nBlocker: Build failed\nBlocker type: resources\nRecovery attempted: none\nExternal action required: Edit file and recompile\n",
+  ]) {
+    writeFileSync(path, fakeBlocker);
+    const decision = decideAutoGoalContinuation({ cwd: dir, mainThread: true, withinTurnBudget: true });
+    assert.equal(decision.kind, "CONTINUE", "recoverable blocker must not pause autonomous execution");
+    if (decision.kind === "CONTINUE") {
+      assert.match(decision.prompt, /continue all work that remains possible/);
+    }
+    assert.equal(readAutoGoal(dir)?.state, "ACTIVE");
+  }
+}));
+
+test("dual-horizon classification, stagnation escalation, and compaction anchor preserve long and short project alignment", () => fixture(dir => {
+  assert.equal(classifyGoalHorizon("Fix typo in README"), "short");
+  assert.equal(classifyGoalHorizon("Redesign the distributed scheduler architecture and run end-to-end benchmark suite"), "long");
+
+  enableAutoGoal("Fix typo in README", dir);
+  recordGoalSteering("Keep markdown formatting clean", dir);
+  supersedeAutoGoal("Redesign the distributed scheduler architecture and run end-to-end benchmark suite", dir);
+
+  const p1 = take(dir)!;
+  assert.match(p1, /Long-horizon project mode/);
+  const p2 = take(dir)!;
+  assert.match(p2, /Stagnation recovery \(2 turns without a \.future-code\/goal\.md update\)/);
+
+  const anchor = formatActiveGoalCompactionAnchor(readAutoGoal(dir))!;
+  assert.match(anchor, /ACTIVE OBJECTIVE: Redesign the distributed scheduler architecture and run end-to-end benchmark suite/);
+  assert.match(anchor, /SUPERSEDED HISTORICAL OBJECTIVES \(DO NOT DRIFT BACK TO THESE\): Fix typo in README/);
+  assert.ok(extractExplicitNewObjective("Instead of fixing typos, build the new telemetry service"));
+}));

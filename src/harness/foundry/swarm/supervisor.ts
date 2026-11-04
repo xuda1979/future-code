@@ -23,7 +23,7 @@ import { diagnosticContext, type DiagnosticContext } from "./diagnostics.ts";
 import { assertRunScientificAcceptance, assertScientificObligations, objectiveScientificObligations,
   type ScientificObligation } from "./scientificAcceptance.ts";
 
-export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[] }
+export interface ObjectiveInput { id: string; goal?: string; tasks?: Task[]; supersede?: boolean }
 export interface RecoveryContext {
   objectiveId: string; goal: string; runId: string; reason: string; revision: number;
   tasks: Task[]; failures: { id: string; status: string; error: string | null; diagnostics?: DiagnosticContext }[];
@@ -303,10 +303,25 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
     const row = store.db.prepare("SELECT * FROM swarm_objectives WHERE id=?").get(input.id); const now = Date.now();
     if (row) {
       invariant(row.cfg === digest(cfg), "objective configuration drift");
-      invariant(input.goal === undefined || row.goal === input.goal, "objective goal changed; create a new objective");
-      invariant(plan === null || row.plan === plan, "objective plan changed; create a new objective");
       invariant(!row.owner || row.lease <= now, "objective already supervised");
-      store.db.prepare("UPDATE swarm_objectives SET owner=?,lease=?,updated=? WHERE id=?").run(owner, now + ttl, now, input.id);
+      const goalChanged = input.goal !== undefined && row.goal !== input.goal;
+      const planChanged = plan !== null && row.plan !== plan;
+      if (goalChanged || planChanged) {
+        invariant(input.supersede === true, goalChanged ? "objective goal changed; create a new objective" : "objective plan changed; create a new objective");
+        invariant(row.state !== "COMPLETE", "completed objective is immutable; create a new objective");
+        const nextGoal = input.goal ?? row.goal;
+        const nextPlan = plan ?? row.plan;
+        if (row.run) {
+          const effects = externalEffectSnapshot(store, String(row.run), input.id);
+          invariant(effects.unresolved === 0, "cannot supersede objective with unresolved external jobs");
+        }
+        store.db.prepare("DELETE FROM swarm_objective_completions WHERE objective=?").run(input.id);
+        store.db.prepare("UPDATE swarm_objectives SET goal=?,plan=?,run=NULL,state='RUNNING',reason=NULL,owner=?,lease=?,updated=? WHERE id=?")
+          .run(nextGoal, nextPlan, owner, now + ttl, now, input.id);
+        store.event("objective.superseded", { id: input.id, previousGoal: row.goal, goal: nextGoal, fromRun: row.run, plan: nextPlan }, row.run);
+      } else {
+        store.db.prepare("UPDATE swarm_objectives SET owner=?,lease=?,updated=? WHERE id=?").run(owner, now + ttl, now, input.id);
+      }
     } else {
       invariant(input.goal && plan, "new objective requires --goal and --tasks");
       store.db.prepare("INSERT INTO swarm_objectives VALUES(?,?,?,?,NULL,'RUNNING',NULL,?,?,?)")
@@ -562,9 +577,11 @@ export async function superviseSwarm(store: Store, input: ObjectiveInput, signal
       const run = new Scheduler(store).start(store.readArtifact(row.plan) as unknown as Task[]);
       store.transaction(() => {
         const current = assertOwner();
+        const maxRev = store.db.prepare("SELECT MAX(revision) AS n FROM swarm_objective_revisions WHERE objective=?").get(input.id)?.n;
+        const nextRev = maxRev == null ? 0 : Number(maxRev) + 1;
         store.db.prepare("UPDATE swarm_objectives SET run=? WHERE id=?").run(run, input.id);
         store.db.prepare("INSERT OR IGNORE INTO swarm_objective_revisions VALUES(?,?,?,?,?,?)")
-          .run(input.id, 0, current.plan, run, "initial admitted plan", Date.now());
+          .run(input.id, nextRev, current.plan, run, nextRev === 0 ? "initial admitted plan" : "superseded admitted plan", Date.now());
       });
     }
     transition("RUNNING"); report();

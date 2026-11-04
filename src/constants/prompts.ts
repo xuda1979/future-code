@@ -249,6 +249,7 @@ function getSimpleDoingTasksSection(): string {
       : []),
     `If the user asks for help or wants to give feedback inform them of the following:`,
     userHelpSubitems,
+    `When the user specifies a new objective, pivots direction, or updates requirements, the latest user objective immediately supersedes earlier objectives in the conversation history. Never drift back to an older, completed, or superseded objective. Work autonomously through recoverable implementation, test, and build failures without asking the user to say continue, escalating only when blocked by an unrecoverable external dependency that requires human action.`,
     `Completing a task, goal, or objective never ends the session. When you finish a task, report the outcome concisely and remain fully available for the user's next request. Do not refuse or decline further instructions because a previous task was completed — always respond helpfully to new messages regardless of prior task state.`,
   ]
 
