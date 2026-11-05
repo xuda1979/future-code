@@ -174,6 +174,53 @@ function extractGoalHeading(reportText: string): string | null {
   return heading && Buffer.byteLength(heading) <= MAX_GOAL_BYTES ? heading : null;
 }
 
+export interface GoalMilestone {
+  done: boolean;
+  text: string;
+  index: number; // 1-based position in the ledger
+}
+
+/**
+ * Parses the machine-readable milestone ledger from goal.md.
+ * Ledger items are GitHub-style checkboxes optionally wrapped in a
+ * "## Milestones" section; items outside any "Status:" line qualify.
+ * Each item looks like:
+ *   - [ ] Fix notation clash between L (range) and L (lattice)
+ *   - [x] Replace separator sentence — evidence: review_update.md §2
+ */
+export function parseMilestoneLedger(reportText: string): GoalMilestone[] {
+  const milestones: GoalMilestone[] = [];
+  const seen = new Set<string>();
+  const pattern = /^\s*(?:[-*+]|\d+\.)\s+\[( |x|X)\]\s*(.+?)\s*$/gm;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(reportText)) !== null) {
+    const text = match[2]!.trim();
+    if (!text || text.length > 512) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    milestones.push({ done: match[1] !== " ", text, index: milestones.length + 1 });
+  }
+  return milestones;
+}
+
+/** Reads and parses the milestone ledger from .future-code/goal.md. */
+export function readMilestoneLedger(cwd = process.cwd()): GoalMilestone[] {
+  const { dir } = location(cwd);
+  if (!checkDirectory(dir, false)) return [];
+  const report = readGoalReport(dir);
+  return report ? parseMilestoneLedger(report.text) : [];
+}
+
+/**
+ * Chooses the next actionable milestone: the first unchecked item in ledger
+ * order. Ledgers are written dependency-ordered, so the first open item is
+ * the frontier.
+ */
+export function nextOpenMilestone(milestones: GoalMilestone[]): GoalMilestone | null {
+  return milestones.find(m => !m.done) ?? null;
+}
+
 function goalMatchesReport(reportText: string, goal: string, supersededGoals: string[] = []): boolean {
   if (reportText.includes(goal) || normalizeGoalText(reportText).includes(normalizeGoalText(goal))) {
     const heading = extractGoalHeading(reportText);
@@ -657,7 +704,7 @@ function goalFileOutcome(
  * Formats an authoritative post-compaction anchor for the current active goal
  * so context compaction never causes the agent to drift back to earlier tasks.
  */
-export function formatActiveGoalCompactionAnchor(state: AutoGoalState | null): string | null {
+export function formatActiveGoalCompactionAnchor(state: AutoGoalState | null, cwd = process.cwd()): string | null {
   if (!state || state.state !== "ACTIVE") return null;
   const superseded = [
     ...(state.previousGoal ? [state.previousGoal] : []),
@@ -675,6 +722,15 @@ export function formatActiveGoalCompactionAnchor(state: AutoGoalState | null): s
   }
   if (state.activeSteering && state.activeSteering.length > 0) {
     lines.push(`ACTIVE USER CONSTRAINTS / STEERING: ${state.activeSteering.join(" | ")}`);
+  }
+  const ledger = readMilestoneLedger(cwd);
+  if (ledger.length > 0) {
+    const open = ledger.filter(m => !m.done);
+    const next = nextOpenMilestone(ledger);
+    lines.push(
+      `MILESTONE LEDGER: ${ledger.length - open.length}/${ledger.length} complete. ` +
+      (next ? `NEXT MILESTONE (#${next.index}): ${next.text}` : "All milestones checked; verify completion evidence."),
+    );
   }
   lines.push(
     `Continue executing ONLY the ACTIVE OBJECTIVE above automatically until independently verified completion or an unrecoverable external blocker requiring human intervention.`,

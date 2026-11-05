@@ -15,6 +15,9 @@ import {
   classifyGoalHorizon,
   formatActiveGoalCompactionAnchor,
   extractExplicitNewObjective,
+  parseMilestoneLedger,
+  readMilestoneLedger,
+  nextOpenMilestone,
 } from "../../src/commands/goal/auto.ts";
 
 function fixture(fn: (dir: string) => void): void {
@@ -354,4 +357,99 @@ test("dual-horizon classification, stagnation escalation, and compaction anchor 
   assert.match(anchor, /ACTIVE OBJECTIVE: Redesign the distributed scheduler architecture and run end-to-end benchmark suite/);
   assert.match(anchor, /SUPERSEDED HISTORICAL OBJECTIVES \(DO NOT DRIFT BACK TO THESE\): Fix typo in README/);
   assert.ok(extractExplicitNewObjective("Instead of fixing typos, build the new telemetry service"));
+}));
+
+// ─── Milestone ledger ────────────────────────────────────────────────────────
+
+test("parseMilestoneLedger extracts checked and unchecked checkboxes", () => {
+  const text = [
+    "# Fix notation",
+    "Status: in_progress",
+    "## Milestones",
+    "- [ ] Fix L clash between range and lattice",
+    "- [x] Replace separator sentence — evidence: review_update.md §2",
+    "* [ ] State Theorem 3.2 with distinct lattice constant",
+    "Some prose in between that is not a milestone.",
+    "1. [x] Done numbered item",
+  ].join("\n");
+  const ledger = parseMilestoneLedger(text);
+  assert.equal(ledger.length, 4);
+  assert.equal(ledger[0]!.done, false);
+  assert.equal(ledger[1]!.done, true);
+  assert.match(ledger[1]!.text, /separator sentence/);
+  assert.equal(ledger[3]!.done, true);
+  assert.equal(ledger[3]!.index, 4);
+});
+
+test("parseMilestoneLedger deduplicates identical items and skips oversized ones", () => {
+  const text = [
+    "- [ ] same item",
+    "- [ ] same item",
+    `- [ ] ${"x".repeat(600)}`,
+  ].join("\n");
+  const ledger = parseMilestoneLedger(text);
+  assert.equal(ledger.length, 1);
+  assert.equal(ledger[0]!.text, "same item");
+});
+
+test("nextOpenMilestone returns the first unchecked item in ledger order", () => {
+  const ledger = parseMilestoneLedger([
+    "- [x] one",
+    "- [ ] two",
+    "- [x] three",
+    "- [ ] four",
+  ].join("\n"));
+  const next = nextOpenMilestone(ledger);
+  assert.ok(next);
+  assert.equal(next.index, 2);
+  assert.equal(next.text, "two");
+});
+
+test("nextOpenMilestone returns null when all milestones are done", () => {
+  const ledger = parseMilestoneLedger("- [x] a\n- [x] b");
+  assert.equal(nextOpenMilestone(ledger), null);
+});
+
+test("nextOpenMilestone returns null for an empty ledger", () => {
+  assert.equal(nextOpenMilestone([]), null);
+});
+
+test("readMilestoneLedger reads from .future-code/goal.md on disk", () => fixture(dir => {
+  enableAutoGoal("Revise quantum LDPC paper", dir);
+  mkdirSync(join(dir, ".future-code"), { recursive: true });
+  writeFileSync(join(dir, ".future-code", "goal.md"), [
+    "# Revise quantum LDPC paper",
+    "Status: in_progress",
+    "## Milestones",
+    "- [x] Define geometric locality precisely",
+    "- [ ] Add coarse-graining derivation with tracked constants",
+    "- [ ] Reposition novelty for D>2 or retitle as exposition",
+  ].join("\n") + "\n");
+  const ledger = readMilestoneLedger(dir);
+  assert.equal(ledger.length, 3);
+  const next = nextOpenMilestone(ledger);
+  assert.ok(next);
+  assert.equal(next.text, "Add coarse-graining derivation with tracked constants");
+}));
+
+test("compaction anchor surfaces milestone frontier when a ledger exists", () => fixture(dir => {
+  enableAutoGoal("Finish A1 paper revision", dir);
+  mkdirSync(join(dir, ".future-code"), { recursive: true });
+  writeFileSync(join(dir, ".future-code", "goal.md"), [
+    "# Finish A1 paper revision",
+    "Status: in_progress",
+    "## Milestones",
+    "- [x] item one",
+    "- [ ] item two",
+    "- [ ] item three",
+  ].join("\n") + "\n");
+  const anchor = formatActiveGoalCompactionAnchor(readAutoGoal(dir), dir)!;
+  assert.match(anchor, /MILESTONE LEDGER: 1\/3 complete\./);
+  assert.match(anchor, /NEXT MILESTONE \(#2\): item two/);
+}));
+
+test("compaction anchor omits ledger line when no milestones exist", () => fixture(dir => {
+  enableAutoGoal("Plain short goal", dir);
+  const anchor = formatActiveGoalCompactionAnchor(readAutoGoal(dir))!;
+  assert.ok(!/MILESTONE LEDGER/.test(anchor));
 }));

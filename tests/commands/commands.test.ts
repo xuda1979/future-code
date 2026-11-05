@@ -53,7 +53,12 @@ async function goalDirectory<T>(fn: () => Promise<T>): Promise<T> {
   finally { process.chdir(previous); rmSync(dir, { recursive: true, force: true }); }
 }
 async function invokeCommand(cmd: { getPromptForCommand: (args: string, ...rest: never[]) => Promise<unknown> }, args: string): Promise<unknown> {
-  return cmd === goal ? goalDirectory(() => cmd.getPromptForCommand(args)) : cmd.getPromptForCommand(args);
+  // goalDirectory is re-entrant when the caller has already entered it: nested
+  // wraps would chdir to a fresh temp dir and hide the caller's goal.md.
+  if (cmd === goal && !process.cwd().includes('goal-command-')) {
+    return goalDirectory(() => cmd.getPromptForCommand(args));
+  }
+  return cmd.getPromptForCommand(args);
 }
 
 test('plain /goal is continuous; explicit limits and pause/resume are durable', async () => goalDirectory(async () => {
@@ -88,7 +93,7 @@ test("goal command getPromptForCommand returns set-goal prompt when args provide
   assert.ok(prompt.includes("Build a REST API for user management"));
   assert.ok(prompt.includes("GOAL:"));
   assert.ok(prompt.includes(".future-code/goal.md"));
-  assert.ok(prompt.includes("checklist"));
+  assert.ok(prompt.includes("milestone ledger"));
   assert.ok(prompt.includes("uncertainty that could change the next action"));
   assert.ok(prompt.includes("in_progress"));
 });
@@ -634,3 +639,48 @@ test("REGRESSION: framework normalizer in processSlashCommand accepts string fal
   );
 });
 
+
+test("goal --next returns guidance without a ledger", async () => {
+  await goalDirectory(async () => {
+    await goal.getPromptForCommand('--auto Set up research project');
+    const blocks = await promptBlocks(goal, '--next');
+    const text = (blocks as { text: string }[]).map(b => b.text).join('');
+    assert.ok(text.includes('milestone ledger'), '--next without ledger must mention the ledger');
+  });
+});
+
+test("goal --next surfaces the open milestone frontier", async () => {
+  await goalDirectory(async () => {
+    await goal.getPromptForCommand('--auto Revise A1 quantum LDPC paper');
+    mkdirSync(join(process.cwd(), '.future-code'), { recursive: true });
+    writeFileSync(join(process.cwd(), '.future-code', 'goal.md'), [
+      '# Revise A1 quantum LDPC paper',
+      'Status: in_progress',
+      '## Milestones',
+      '- [x] Define locality precisely',
+      '- [ ] Add coarse-graining derivation',
+      '- [ ] Reposition novelty',
+    ].join('\n') + '\n');
+    const blocks = await promptBlocks(goal, '--next');
+    const text = (blocks as { text: string }[]).map(b => b.text).join('');
+    assert.ok(text.includes('1/3 complete'), text);
+    assert.ok(text.includes('NEXT MILESTONE (#2): Add coarse-graining derivation'), text);
+  });
+});
+
+test("goal --next reports completion when all milestones are ticked", async () => {
+  await goalDirectory(async () => {
+    await goal.getPromptForCommand('--auto Revise A1 quantum LDPC paper');
+    mkdirSync(join(process.cwd(), '.future-code'), { recursive: true });
+    writeFileSync(join(process.cwd(), '.future-code', 'goal.md'), [
+      '# Revise A1 quantum LDPC paper',
+      'Status: in_progress',
+      '## Milestones',
+      '- [x] Define locality precisely',
+      '- [x] Add derivation',
+    ].join('\n') + '\n');
+    const blocks = await promptBlocks(goal, '--next');
+    const text = (blocks as { text: string }[]).map(b => b.text).join('');
+    assert.ok(text.includes('All 2 milestones are checked'), text);
+  });
+});
