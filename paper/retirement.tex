@@ -101,7 +101,7 @@ reported as audit-failing and cannot be promoted.
 
 \subsection{Results}\label{sec:retire-results}
 
-\begin{table}[t]\centering\small
+\begin{table*}[t]\centering\small
 \caption{Frozen v2 cohort at $S=\mathrm{fixed}$: 84 cells $\times$ 7
 retention policies. Regime-B bytes and regime-O cost are per accepted
 run; ops are on-demand retrieval operations per accepted run; audit
@@ -117,7 +117,7 @@ Policy & Accepted & Regime-B B/run & Regime-O B/run & Ops/run & A3 & Stale & Los
 \RetwoverifiedboardRow
 \RetwofrontierRow
 \RetwofrontieradaptiveRow
-\bottomrule\end{tabularx}\end{table}
+\bottomrule\end{tabularx}\end{table*}
 
 \paragraph{Lossy conversion fails; typed conversion does not.}
 Periodic summary/reset---the cheapest
@@ -187,7 +187,7 @@ rounds by \RetwoMakespanReduction{} (24{,}471 to 3{,}070 rounds/run
 pooled). Factor contrasts, not arm pairs, carry this claim: every
 $R\times S$ combination was run in every cell.
 
-\begin{table}[t]\centering\small
+\begin{table*}[t]\centering\small
 \caption{Family strata at $S=\mathrm{fixed}$: regime-B bytes and
 regime-O cost per accepted run, and retrieval operations per accepted
 run, masking versus frontier. Global coupling leaves no operations gap
@@ -198,7 +198,7 @@ Family & Masking B/run & Frontier B/run & Regime-O cut & Masking ops & Frontier 
 \RetwoStratumClusteredRow
 \RetwoStratumIndependentRow
 \RetwoStratumGlobalRow
-\bottomrule\end{tabularx}\end{table}
+\bottomrule\end{tabularx}\end{table*}
 
 \paragraph{The operations advantage persists at four times the
 horizon.} In the long-horizon sub-cohort ($n=1{,}024$, 160 episodes),
@@ -212,7 +212,7 @@ the long horizon) even though its raw operations cut narrows
 frontier's savings sits in avoided bytes per fetch, and the
 pooled cut widens to \RetwoLongOpsReduction{}.
 
-\begin{table}[t]\centering\small
+\begin{table*}[t]\centering\small
 \caption{Long-horizon sub-cohort ($n=1{,}024$, 160 episodes, seven
 seeds, $S=\mathrm{fixed}$). Ops and costs are per accepted run. The
 operations advantage persists at $4\times$ horizon; bytes stay
@@ -228,7 +228,7 @@ Family & Policy & Accepted & Ops/run & Regime-O B/run & Regime-B B/run\\\midrule
 \RetwoLongGlobalmaskingRow
 \RetwoLongGlobalfrontierRow
 \RetwoLongGlobalfrontieradaptiveRow
-\bottomrule\end{tabularx}\end{table}
+\bottomrule\end{tabularx}\end{table*}
 
 \paragraph{HACT remains a conditional component, now with a decision
 rule that costs nothing.} The evidence-layout ablation (held-out half,
@@ -346,7 +346,7 @@ frontier's advantage relative to the frozen families, and the
 live cohort remains the only arbiter of whether that survives real
 retrieval.
 
-\begin{table}[t]\centering\small
+\begin{table*}[t]\centering\small
 \caption{Pre-specified exploratory: bounded-hier at the long horizon
 ($n=1{,}024$, 160 episodes, seven seeds, $S=\mathrm{fixed}$; E6d),
 beside the frozen frontier rows of Table~\ref{tab:retire2-long}.
@@ -357,7 +357,7 @@ Family & Policy & Ops/run & Regime-O B/run & Regime-B B/run\\\midrule
 clustered & bounded-hier & \ExpLhBhClusteredOps & \ExpLhBhClusteredO & \ExpLhBhClusteredB\\
 independent & bounded-hier & \ExpLhBhIndependentOps & \ExpLhBhIndependentO & \ExpLhBhIndependentB\\
 global & bounded-hier & \ExpLhBhGlobalOps & \ExpLhBhGlobalO & \ExpLhBhGlobalB\\
-\bottomrule\end{tabularx}\end{table}
+\bottomrule\end{tabularx}\end{table*}
 
 The exploratory results do not change the paper's confirmatory
 claims; they change its deployment advice and its honesty about the

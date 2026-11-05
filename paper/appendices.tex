@@ -1,4 +1,4 @@
-\appendix
+\appendices
 
 \section{Audit and Reproduction}\label{app:repro}
 \subsection{Exact data generation}
@@ -20,8 +20,10 @@ they do not reclassify incomplete work as a completed seed.
 The main commands, from the extracted research root, are:
 \begin{verbatim}
 python -m pytest -q
-python -m experiments.synthetic --family clustered --n 128 --seeds 20
-python -m experiments.executable --seeds 6 --out results/executable_fresh
+python -m experiments.synthetic \
+    --family clustered --n 128 --seeds 20
+python -m experiments.executable \
+    --seeds 6 --out results/executable_fresh
 python -m experiments.sensitivity
 python -m experiments.aggregate
 python -m experiments.validate_results
@@ -75,7 +77,8 @@ $\max_i\ell_t(i)-\min_i\ell_t(i)\le R$. Reject a measurement exceeding it instea
 of clipping the cost. Define $z_{t,i}=(\ell_t(i)-\min_j\ell_t(j))/R$. Starting at
 $p_1(i)=1/K$, update
 \begin{align}q_{t+1}(i)&=\frac{p_t(i)\exp(-\eta z_{t,i})}{\sum_j p_t(j)\exp(-\eta z_{t,j})},\label{eq:fixedshare}\\
-p_{t+1}(i)&=(1-\alpha)q_{t+1}(i)+\alpha/K,\qquad 0<\eta\le1,\ 0\le\alpha<1.\label{eq:mixing}\end{align}
+p_{t+1}(i)&=(1-\alpha)q_{t+1}(i)+\alpha/K,\label{eq:mixing}\\
+&\qquad 0<\eta\le1,\ 0\le\alpha<1.\notag\end{align}
 Independent draws from each new distribution can waste migrations. Instead,
 conditional on $A_t=i$, retain $i$ with probability
 $\min\{1,p_{t+1}(i)/p_t(i)\}$. If it is not retained, sample from the normalized
@@ -88,9 +91,11 @@ algorithm.
 Assume a frozen catalogue, a fixed exogenous sequence of full-information loss
 vectors, spread at most $R$, and $M_{ij}\le M$. For any comparator path $u_{1:T}$
 with $s$ changes and $0<\alpha<1$, the coupled policy satisfies
-\begin{equation}\E[L_T]-\sum_t\ell_t(u_t)\le
-R\!\left(\frac{\log K+s\log(K/\alpha)+(T-1-s)\log(1/(1-\alpha))}{\eta}+\frac{\eta T}{8}\right)
-+M(T-1)(\eta+\alpha).\label{eq:tracking}\end{equation}
+\begin{align}
+\E[L_T]-\sum_t\ell_t(u_t)\le
+\frac{R\,[\log K+s\log(K/\alpha)]}{\eta}\notag\\
++\frac{R\,(T-1-s)\log(1/(1-\alpha))}{\eta}\notag\\
++\frac{R\eta T}{8}+M(T-1)(\eta+\alpha).\label{eq:tracking}\end{align}
 For $\alpha=0$ the stationary-comparator bound has numerator $\log K$ and applies
 only to $s=0$.
 \end{theorem}
@@ -294,7 +299,7 @@ Practical byte reduction & Table~\ref{tab:v5synthetic}; frozen seeds & Clustered
 Source replay reductions & Table~\ref{tab:replay}; 36 replays & Diagnostic, not fresh checks\\
 Root status identical & Equation~\eqref{eq:rootid}; 593--594 bytes & Fixed tokenizer, layout-independent\\
 Break-even accounting & Equations~\eqref{eq:netbenefit}--\eqref{eq:qmin} & Declared $C,E,R$, codec-matched\\
-BPE tokenization gap & \texttt{cl100k\_base}/\texttt{o200k\_base} remain \UNKNOWN{}; admission tool supplied & Vocabulary retrieval failed; no billing claim\\
+BPE tokenization gap & \texttt{cl100k\_base} or \texttt{o200k\_base} remain \UNKNOWN{}; admission tool supplied & Vocabulary retrieval failed; no billing claim\\
 Context-retirement simulator study & Pre-registered, factorial, executed: v2 = 1{,}176 runs + 63 long-horizon, seven retention levels $\times$ scheduler factor, five closures (two proposals rejected by their gates) & Measured in the simulator; live cohort still protocol-only\\
 \bottomrule\end{tabularx}\end{center}
 

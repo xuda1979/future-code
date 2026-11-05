@@ -42,7 +42,9 @@ task graph is outside this mathematical tree; one worker can discharge many
 checks, and one integration check can cover several workers.
 
 The acceptance predicate is independent of both permutations:
-\begin{equation}A(e)=\mathbf 1\{\text{every }g_i\in\R\text{ has trusted, matching, current \PASS{} evidence for }e\}.\label{eq:accept}\end{equation}
+\begin{align}
+A(e)=\mathbf 1\{\text{every }g_i\in\R\text{ has trusted, matching,}\notag\\
+\text{current \PASS{} evidence for }e\}.\label{eq:accept}\end{align}
 An observed fail permits rejection before all checks finish. It does not assert
 coverage of the unexecuted remainder. Acceptance is relative to the approved
 predicates, not proof of all program behavior.
@@ -59,8 +61,9 @@ size is charged on migration.
 Let $W_{e,1},\ldots,W_{e,q_e}$ be the semantic IDs whose final records become
 available between successive refreshes. For a strict new candidate epoch, the
 observed cost is
-\begin{equation}\ell_e(L)=W(L)+\sum_{a=1}^{q_e}\sum_{v\in\mathrm{int}(T)}c(d_v)\,\mathbf 1\{W_{e,a}\cap G_L(v)\ne\varnothing\},
-\qquad W(L)=\sum_{v}c(d_v).\label{eq:lcost}\end{equation}
+\begin{align}
+\ell_e(L)&=W(L)+\sum_{a=1}^{q_e}\sum_{v\in\mathrm{int}(T)}c(d_v)\,\mathbf 1\{W_{e,a}\cap G_L(v)\ne\varnothing\},\notag\\
+W(L)&=\sum_{v}c(d_v).\label{eq:lcost}\end{align}
 The first term constructs the full initially unknown tree. A successful strict
 epoch runs the whole registry. We separately study persistent-state refresh
 traces that omit $W(L)$ at each tick, as in a cache with correctly specified
@@ -173,8 +176,9 @@ agent behavior.
 
 A different layout is installed by serializing its canonical manifest and
 reconstructing its complete certificate tree:
-\begin{equation}M_{ij}=\begin{cases}0,&L_i=L_j,\\ |\mathrm{manifest}(L_j)|+W(L_j),&L_i\ne L_j.\end{cases}
-\qquad L_T=\sum_{t}\ell_t(A_t)+\sum_{t=2}^{T}M_{A_{t-1},A_t}.\label{eq:mig}\end{equation}
+\begin{align}
+M_{ij}&=\begin{cases}0,&L_i=L_j,\\ |\mathrm{manifest}(L_j)|+W(L_j),&L_i\ne L_j,\end{cases}\notag\\
+L_T&=\sum_{t}\ell_t(A_t)+\sum_{t=2}^{T}M_{A_{t-1},A_t}.\label{eq:mig}\end{align}
 The initial installation is separate. These byte prices match the evaluated
 uncompressed migration protocol. A deployment using compression must measure its
 own priced wire representation; the DP objective is not automatically an optimum
@@ -276,7 +280,7 @@ nonseparable objective for which this DP is not claimed exact.
 Costs are accounted in separate ledgers so byte savings are never converted into
 unsupported latency or token claims:
 
-\begin{table}[t]\centering\small
+\begin{table*}[t]\centering\small
 \caption{Separate ledgers avoid converting byte savings into unsupported latency or token claims.}\label{tab:ledgers}
 \begin{tabularx}{\linewidth}{@{}lXX@{}}\toprule
 Quantity & Instrument & Ledger\\ \midrule
@@ -290,4 +294,4 @@ Preparation, copying, checking, aggregation & Wrapper timers and outer call dura
 Active harness episode & Supervisor startup through completion and shutdown & Reported separately\\
 Prompt bytes and construction time & Captured actual HTTP messages and context builder & Reported; not tokens\\
 Hosted token usage and API billing & No provider inference was run & Unknown, never zero-imputed\\
-\bottomrule\end{tabularx}\end{table}
+\bottomrule\end{tabularx}\end{table*}
