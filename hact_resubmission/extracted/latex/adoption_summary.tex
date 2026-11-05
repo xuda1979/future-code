@@ -1,0 +1,79 @@
+\subsection{Conditional adoption with lifecycle costs}\label{sec:adoption}
+A training-fitted catalogue is frozen before independent calibration.
+All layouts share the registry and packet contract. Relative to incumbent
+$L_0$, aggregate packet-price differences by semantic coverage:
+\[
+a_{jG}=\sum_{v:G_{L_0}(v)=G}c(d_v)
+       -\sum_{v:G_{L_j}(v)=G}c(d_v).
+\]
+Shared packets cancel. If $h_e(G)$ counts intersecting waves, the
+strict-epoch saving $d_j(e)=\ell_e(L_0)-\ell_e(L_j)$ is
+\begin{equation}\label{eq:paired-saving}
+d_j(e)=a_{j0}+\sum_Ga_{jG}h_e(G),\quad a_{j0}=\sum_Ga_{jG}.
+\end{equation}
+For an epoch partitioning $n$ checks into exactly $q$ nonempty waves
+of size at most $w$, with $q\le n\le qw$, a coverage of size $s$ satisfies
+\begin{equation}\label{eq:hit-envelope}
+l_G=\max\{\lceil s/w\rceil,q-(n-s)\}
+ \le h_e(G)\le u_G=\min(s,q).
+\end{equation}
+Every untouched wave needs a distinct check outside $G$; in particular
+$h_e(\mathcal R)=q$. Conservative bounds on the entire declared support are
+\begin{align*}
+A_j&=a_{j0}+\sum_G\min\{a_{jG}l_G,a_{jG}u_G\},\\
+B_j&=a_{j0}+\sum_G\max\{a_{jG}l_G,a_{jG}u_G\}.
+\end{align*}
+Thus $d_j(e)\in[A_j,B_j]$ and $R_j=B_j-A_j$.
+Different coverages' extrema need not be jointly attainable.
+
+\begin{proposition}[Exact population score identification]\label{prop:summary-span}
+On finite epoch support $\Omega$, an interface exposing only
+$\E_P\phi_1,\ldots,\E_P\phi_p$ determines $\E_Pd_j$ for every law $P$
+if and only if $d_j\in\operatorname{span}\{1,\phi_1,\ldots,\phi_p\}$
+on $\Omega$.
+\end{proposition}
+\begin{proof}[Proof sketch; full identification argument in the supplement]
+Span membership gives affine recovery. Otherwise a signed vector
+orthogonal to $1,\phi_1,\ldots,\phi_p$, but not $d_j$, gives two
+normalized nonnegative laws with identical exposed moments and different
+expected scores.
+\end{proof}
+For a frozen catalogue, exact paired scoring needs only each accumulated
+integer score and an epoch count: $O(K)$ counters besides coefficients
+and one epoch's masks. Acceptance records and required raw provenance
+remain separate. Exact score recovery alone does not imply argmin recovery.
+
+\begin{theorem}[Conditional expected lifecycle benefit]\label{thm:adoption}
+Condition on training and the frozen catalogue of $K\ge1$ candidates,
+support, $0<\delta<1$, TV radius $0\le\rho\le1$, horizon $h\ge1$ and
+nonnegative installation costs $I_j$, all specified before calibration.
+Suppose the $m\ge1$ calibration epochs are IID from $P$ and independent
+of fitting. With paired mean $\bar d_j$, define
+\begin{align}
+t_j&=R_j\sqrt{\frac{\log(K/\delta)}{2m}},\nonumber\\
+g_j&=\max\{A_j,\bar d_j-t_j-\rho R_j\}-I_j/h.
+\label{eq:adoption-lower}
+\end{align}
+With probability at least $1-\delta$ over calibration, simultaneously
+for all candidates and every future law $Q$ on the same support with
+$\operatorname{TV}(P,Q)\le\rho$, $h\,\E_Qd_j-I_j\ge h g_j$.
+Adopting only a candidate with $g_j>0$, otherwise retaining $L_0$,
+certifies a conditional positive expected padded-byte benefit.
+\end{theorem}
+\begin{proof}
+One-sided Hoeffding bounds and a union bound give
+$\E_Pd_j\ge\bar d_j-t_j$ simultaneously~\cite{hoeffding,learntest}.
+For $\operatorname{TV}(P,Q)=\sup_E|P(E)-Q(E)|$,
+a function of range width $R_j$ changes expectation by at most
+$\rho R_j$. Also $\E_Qd_j\ge A_j$ on the same support.
+Subtract installation and multiply by $h$. Zero-width scores are
+constant, so the conclusion also holds when $R_j=0$.
+The supplement gives the full argument and implementation contract.
+\end{proof}
+This certifies neither realized savings, elapsed time nor acceptance.
+The sampling design and radius require external justification. Deployment
+outside the support, refitting on calibration, or repeatedly changing
+catalogues needs new accounting. The implementation binds the plan to a
+digest and requires sampling/freeze provenance; missing evidence returns
+$\UNKNOWN$. Installation is charged once; compilation and consumer
+utility remain separate admission tests.

@@ -1,0 +1,519 @@
+\documentclass[10pt,journal,compsoc]{IEEEtran}
+\usepackage[T1]{fontenc}
+\usepackage[nocompress]{cite}
+\usepackage{amsmath,amssymb,amsthm,microtype}
+\usepackage{booktabs,tabularx,array,graphicx,xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\theoremstyle{definition}\newtheorem{definition}[theorem]{Definition}
+\newcommand{\PASS}{\mathsf{PASS}}\newcommand{\FAIL}{\mathsf{FAIL}}\newcommand{\UNKNOWN}{\mathsf{UNKNOWN}}
+\newcommand{\E}{\mathbb E}\newcommand{\ind}{\mathbf 1}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\setlength{\emergencystretch}{2em}
+\hypersetup{pdftitle={Adaptive HACT: Information Limits and Safe Adaptation of Verification Evidence},pdfauthor={Da Xu and Fei Wang}}
+\title{Adaptive HACT: Information Limits and Safe Adaptation of Verification Evidence}
+\author{Da~Xu and Fei~Wang%
+\IEEEcompsocitemizethanks{\IEEEcompsocthanksitem The authors are with China Mobile Research Institute, Beijing, China. Corresponding author: Da Xu. E-mail: xudayj@chinamobile.com; wangfei@chinamobile.com.}}
+\markboth{Manuscript prepared for peer review}{Xu and Wang: Adaptive HACT}
+\begin{document}
+\IEEEtitleabstractindextext{%
+\begin{abstract}
+Adaptive verification evidence raises two questions: which completion
+statistics identify an efficient representation, and how may that
+representation change without weakening acceptance? Adaptive HACT
+(Hyperedge-Aware Certificate Trees) separates a protected semantic registry
+from generation-fenced certificate trees and prices packets touched by joint
+completion sets. We prove that exact singleton and pairwise probabilities
+can leave globally optimal trees unidentified for every fanout of at least
+three and every affine positive-slot packet price, with sharp minimax
+regret. A complete-epoch construction extends this limitation to fixed-eight
+batching within a two-layout class. Under exchangeable complete batches, a
+specialization of established tree optimization provides an exact global
+baseline. A local publication invariant preserves acceptance through
+migration; a conditional adoption rule includes calibration, shift and
+installation costs. A sparse compact compiler admits a 26,948-check registry within 320 MiB
+in a repeated-pattern replay.
+Retrospective scoring finds that the symmetric baseline beats frozen
+full-wave refinement on all 15 item-shuffled traces and loses on all 15
+file-group traces. It costs 21.26--62.13\% more on original holdouts.
+Without byte observers, the tree service takes 1.61--3.54 times the
+maintained-counter ledger's operation time. The results establish
+information limits and conditional adaptation guarantees; service and agent
+speedups remain unproven.
+\end{abstract}
+\begin{IEEEkeywords}
+Verification evidence, software agents, completion hypergraphs, adaptive
+data structures, runtime assurance.
+\end{IEEEkeywords}}
+\maketitle
+\IEEEdisplaynontitleabstractindextext
+\IEEEpeerreviewmaketitle
+
+\IEEEraisesectionheading{\section{Introduction}}
+\IEEEPARstart{S}{oftware} agents navigate repositories, run checks and revise candidates.
+SWE-bench, SWE-agent and OpenHands expose interactions with tooling
+\cite{swebench,sweagent,openhands}, while verification-first approaches bind
+actions to checkable evidence~\cite{aiware,traceassurance}. Even with a fixed
+checker and acceptance criteria, how can an orchestrator reorganize evidence
+without changing what it authorizes?
+
+An indexed ledger can report coverage and failures, replay completion batches
+and serve bounded diagnostic pages. A hierarchy must repay its construction,
+maintenance and adaptation, and a prescribed packet format must serve a
+justified consumer need.
+
+Adaptive HACT (Hyperedge-Aware Certificate Trees) separates a protected semantic
+registry from a replaceable certificate tree. Acceptance requires current
+trusted records for all declared checks. Advisory layouts change only
+representation; a monotone generation fences publication through migration,
+including a return to an earlier layout.
+
+The objective depends on completion \emph{sets}: a packet is emitted once
+when its coverage intersects a set. Pairwise co-activity can miss the
+higher-order event that touches a subtree. We construct identical pairwise
+observations with disjoint globally optimal trees across a family of prices
+and fanouts, and quantify the sharp minimax penalty of pairwise information.
+The fixed-eight extension affects a local refinement decision when every
+check completes once; it does not establish global optimality of the embedded
+layouts. Table~\ref{tab:novelty} distinguishes established ingredients.
+
+Under a uniform completion permutation divided into fixed-size batches,
+expected cost depends only on coverage cardinality. A size-state dynamic
+program optimizes all shapes and permutations in $O(bn^2)$ arithmetic
+operations after computing the weights. This instance of established
+batch-update tree optimization~\cite{graham2007} gives a strong null baseline:
+learning cannot improve expected cost when the future law remains exchangeable
+conditional on training.
+
+Full-wave compilation may offer little improvement over a compact tree, and
+a hierarchical service may lose to maintained ledger counters. We test both
+without treating analytical separation as an execution speedup. Our four
+contributions are:
+\begin{enumerate}
+\item A conditional acceptance invariant covering stable identities,
+conflicts and generation-fenced migration.
+\item A packet-refresh model, parameter-general information lower bound
+with sharp deterministic and randomized regret, and fixed-batch separation.
+\item An exact exchangeable reference, bounded full-wave refinement and an
+adoption rule accounting for paired-cost bounds, calibration and installation.
+\item A reproducible evaluation of historical representation results, new
+test executions and controlled service demand, with strong ledger controls
+and explicit resource failures.
+\end{enumerate}
+We claim no priority for hyperedges or hierarchies generally; the contribution
+is their composition under the stated contract and packet objective.
+
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+ >=Latex,box/.style={draw,rounded corners=2pt,align=center,minimum height=9mm,minimum width=40mm,inner sep=4pt,font=\small},
+ sem/.style={box,fill=blue!4},lay/.style={box,fill=orange!6},
+ arr/.style={->,line width=.7pt},node distance=8mm and 12mm]
+ \node[sem] (contract) {Protected contract\\candidate, checker, environment};
+ \node[sem,right=of contract] (records) {Canonical records\\stable check ID and status};
+ \node[sem,right=of records] (gate) {Acceptance gate\\all required current passes};
+ \draw[arr] (contract)--(records);\draw[arr] (records)--(gate);
+ \node[lay,below=of contract] (waves) {Completion sets\\training and validation};
+ \node[lay,right=of waves] (layout) {Advisory layout compiler\\order and bounded tree};
+ \node[lay,right=of layout] (kernel) {Aggregation and publication\\epoch and generation fence};
+ \draw[arr] (waves)--(layout);\draw[arr] (layout)--(kernel);
+ \draw[arr] (records)--(kernel);
+ \draw[arr,dashed] (kernel)--node[right,font=\scriptsize]{current contract only}(gate);
+ \node[box,below=of layout] (service) {Consumer contract\\status, coverage, failures and replay};
+ \draw[arr] (kernel.south)--++(0,-4mm)-|(service.east);
+ \node[box,left=of service] (ledger) {Independent ledger controls\\indexed and maintained counters};
+ \draw[arr] (ledger)--(service);
+\end{tikzpicture}
+\caption{Semantic authority, adaptive representation and the consumer contract.
+The compiler cannot modify the protected contract or canonical outcomes.
+Both ledger controls and the tree answer the same diagnostic requests.
+The diagram is rendered from the included TikZ source; AI assistance is
+disclosed in the acknowledgments.}
+\label{fig:journal-architecture}
+\end{figure*}
+
+\section{Model and Measurement Contract}\label{sec:jmodel}
+Let $\mathcal R=(g_0,\ldots,g_{n-1})$ be a nonempty registry of unique semantic
+check IDs. A candidate identity
+$e=(\mathrm{epoch},\mathrm{snapshot},\mathrm{checker},\allowbreak
+\mathrm{environment},\mathrm{registry})$
+binds the source and protected acceptance inputs. The epoch increases even
+after a return to identical source bytes. Only a trusted runner can supply
+final $\PASS$, $\FAIL$ or $\UNKNOWN$ records. Missing, stale, skipped,
+incompatible or timed-out evidence does not count as a pass.
+
+A layout $L=(\pi,T)$ maps leaf positions through an exact permutation $\pi$
+of semantic indices. Each internal node's children partition its positional
+interval without overlap or omissions. Its semantic coverage is $G_L(v)$.
+Check execution order is independent of layout order. The acceptance
+predicate is, with $E_e(g_i)$ denoting the current matching trusted status,
+\begin{equation}\label{eq:accept}
+ A(e)=\prod_{g_i\in\mathcal R}\ind\{E_e(g_i)=\PASS\}.
+\end{equation}
+An observed failure permits rejection before the remaining checks execute,
+but supplies no evidence for the unexecuted remainder.
+
+An internal node with $d$ children emits a packet costing
+\begin{equation}\label{eq:packet}
+ c(d)=H+Sd,\qquad 2\le d\le
+ b=\left\lfloor(C-H)/S\right\rfloor.
+\end{equation}
+The implementation uses $H=512$, $S=320$, $C=3072$ bytes and $b=8$.
+Mandatory fields exceeding their slots are rejected. The cap is per packet;
+registry manifests are separate control artifacts whose bytes must be charged.
+
+Let $U_{e,a}$ contain the semantic indices whose final records arrive
+between two refreshes. The strict-epoch padded cost is
+\begin{equation}\label{eq:jcost}
+ \ell_e(L)=W(L)+\sum_a\sum_{v\in\operatorname{int}(T)}
+ c(d_v)\ind\{G_L(v)\cap U_{e,a}\ne\varnothing\},
+\end{equation}
+where $W(L)=\sum_vc(d_v)$ constructs an initially unknown tree.
+We call $U_{e,a}$ a completion hyperedge. This model charges the full initial
+tree and every touched ancestor, rather than using independent activation
+probabilities. Persistent refresh models omit a cold build at each event;
+each actual installation is still cold and priced.
+
+A layout switch from $i$ to $j$ additionally costs
+$M_{ij}=|\mathrm{manifest}(L_j)|+W(L_j)$ when layouts differ.
+This is the evaluated uncompressed installation protocol, not a universal
+network cost. A format using compression or deltas defines a different
+objective and needs its own measurements. Padded packets, compressed
+archives, answer traffic, serialized state, RAM and elapsed time remain
+separate units.
+
+\medskip\noindent\textit{When this objective applies.}
+Neither acceptance nor the evaluated diagnostic API requires a tree.
+For those fixed-group queries, maintained counters are the supported service
+choice. Equation~\eqref{eq:jcost} instead prices a consumer contract that
+explicitly requests refreshed hierarchical capsules with the stated slots.
+A remote incremental auditor subscribing to intermediate subtree counts is
+a possible contract, not a measured use case or a reason that a flat ledger
+cannot emit the same stream. Flat deltas, batching and compressed codecs
+would need equal-service comparisons. HACT's local bindings do not provide
+Merkle membership proofs or enclave attestation; cryptographic or distributed
+consumers require additional protocol design and evidence.
+
+\section{An Information Limit of Pairwise Summaries}
+\begin{proposition}[Pairwise probabilities omit subtree-hit information]\label{prop:pairwise}
+On three leaves, let $P$ be uniform on
+$\varnothing,\{0,1\},\{0,2\},\{1,2\}$ and $Q$ uniform on
+$\{0\},\{1\},\{2\},\{0,1,2\}$. Both have singleton probabilities $1/2$,
+pairwise joint probabilities $1/4$ and Jaccard affinities $1/3$, but the
+triple is touched with probabilities $3/4$ and $1$.
+\end{proposition}
+This parity fact alone does not imply different global optima: another tree
+might dominate in both worlds. The following theorem rules that out under
+the affine packet objective.
+\input{generalized_separation.tex}
+\input{strict_separation_summary.tex}
+\input{fixed_batch_summary.tex}
+
+\section{Semantics Through Adaptation}\label{sec:jsafety}
+A result token carries the candidate epoch, stable ID $g_i$ and a binding
+to the identified registry, source, checker and environment. It does not use
+a display position as identity. A layout-specific kernel maps each stable
+ID to its current position. Migration revokes publication tickets,
+increments a monotone generation and reconstructs from canonical records.
+Reusing an ordinal cache entry under another permutation is disallowed.
+
+Identical duplicate evidence is idempotent. Conflicting final records in an
+epoch revoke authorization: a recorded failure remains a failure, and other
+conflicts become unknown. A new epoch is required to resolve them.
+Publication tickets additionally bind the layout hash and generation.
+Returning to an earlier tree therefore cannot revive its earlier ticket.
+
+\begin{theorem}[Layout-independent local publication]\label{thm:jsafety}
+Assume a complete approved registry and dependency identities, a trusted
+checker executing immutable identified inputs, collision-resistant bindings
+and atomic local epoch/generation checks. For any valid sequence of layouts,
+advisory learning outputs and delivered evidence order, authorization implies
+$A(e)=1$. Two valid layouts reconstructed from the same canonical record set
+have identical root pass/fail/unknown counts.
+\end{theorem}
+\begin{proof}
+A canonical pass requires a current token bound to the same semantic ID and
+immutable identities. A permutation is a bijection, so reconstruction moves
+each record exactly once without changing its status. Exact child partitions
+preserve coverage and counts by induction from leaves to root. Authorization
+requires root counts $(n,0,0)$ together with matching current registry, epoch,
+layout and generation. Old tickets fail those checks; conflicts prevent a
+pass. Advisory layout selection cannot change any canonical outcome or
+approved obligation.
+\end{proof}
+
+The guard implements conflict persistence and tickets; the claim is local
+and conditional. A compromised checker, incomplete suite or omitted
+dependency invalidates broader claims. There is no attestation or OS sandbox;
+an external merge service must atomically bind the verified candidate to its
+integration head.
+
+The implementation hashes protected input \emph{sets} to detect additions,
+changes and deletions, and checks source manifests around snapshotting and
+verification. Snapshots and detailed evidence lie outside the candidate's
+write scope; the worker receives a bounded result card. The artifact tests
+stale tokens, conflicts, migration, coverage and source mutation. Passing
+tests do not establish that predicates cover all program behavior.
+
+\section{Bounded Full-Wave Compilation}\label{sec:jcompiler}
+\subsection{Exact fitting at a fixed order}
+For a fixed order $\pi$, training epochs define interval weights
+\begin{equation}\label{eq:jweights}
+ r_\pi(i,j)=1+\frac1m\sum_{e=1}^m\sum_a
+ \ind\{U_{e,a}\cap G_L(i,j)\ne\varnothing\}.
+\end{equation}
+The one charges construction per strict epoch. In a persistent refresh study
+that term is omitted explicitly.
+Let $D(i,j)$ be the best subtree cost and $F_k(i,j)$ the best ordered
+$k$-component forest. Infeasible states are infinite:
+\begin{align}
+ D(i,i)&=0,\qquad F_1(i,j)=D(i,j),\nonumber\\
+ F_k(i,j)&=\min_{i+k-2\le u<j}
+       \{F_{k-1}(i,u)+D(u+1,j)\},\nonumber\\
+ D(i,j)&=\min_{2\le k\le\min(b,j-i+1)}
+       \{r_\pi(i,j)c(k)+F_k(i,j)\}.\label{eq:dp}
+\end{align}
+The recurrence enumerates every root arity and contiguous partition.
+Induction on interval length proves exactness for the supplied nonnegative
+weights, conditional on order. It uses $O(bn^3)$ time and $O(bn^2)$ space.
+This specializes classical alphabetic-tree optimization~\cite{alphabetic};
+it is not a global permutation optimizer or an optimum for compressed logs.
+
+\input{bounded_refinement.tex}
+\subsection{A bounded sparse ordering proposal}\label{sec:sparse}
+The post-review prototype stores positive Jaccard pair counts from training
+waves and proposes a compact order by a deterministic maximum-spanning
+forest~\cite{kruskal} and depth-first traversal. For $W$ waves of width at most $w$, it
+uses $O(n+E)$ ordering storage, where $E\le W\binom w2$ is the number of
+distinct positive pairs; sorting costs $O(E\log E)$ arithmetic operations.
+An explicit edge budget rejects oversized inputs. This replaces the dense
+ordering heuristic, not the full-wave objective or the verifier. Validation
+chooses between original and sparse compact layouts using exact touched-node
+costs; the separate ancestor-scoring index takes $O(n\,\mathrm{height})$
+references. No cap64 fit is included in the large-registry follow-up.
+\input{exchangeable_optimum.tex}
+\subsection{Validation and adoption}
+Training fixes a finite catalogue containing the incumbent first.
+Validation observes complete waves and selects the minimum padded cost,
+retaining the incumbent on ties. The historical method remains unchanged;
+the refined catalogue is optional.
+
+Empirical validation alone gives no deployment guarantee. The following
+rule uses independent calibration and an explicit shift allowance.
+Repeated suite runs do not establish those sampling assumptions.
+
+\input{adoption_summary.tex}
+
+\begin{table}[t]\centering\footnotesize
+\caption{Established ingredients and the contribution claimed here.}
+\label{tab:novelty}
+\begin{tabularx}{\columnwidth}{@{}p{.31\columnwidth}X@{}}\toprule
+Established ingredient & Claim under the HACT contract\\\midrule
+Alphabetic and batch-update tree DP & Exact fixed-order reference and global size-state optimum under declared exchangeability; both specialize established DP principles.\\
+Pairwise clustering and hypergraphs & Explicit indistinguishable laws with disjoint global optima and sharp regret; fixed-batch local extension.\\
+Epochs, identities and fencing & Conditional composition preserving the approved all-check acceptance predicate during representation migration.\\
+Subtree optimization and validation & Bounded full-wave refinement; conditional paired-cost adoption under externally justified sampling and shift assumptions.\\
+Ledgers, counters and common codecs & Controlled comparison separating representation gains from service costs, including losses.\\\bottomrule
+\end{tabularx}
+\end{table}
+
+Compilation, selection and installation are separately charged. A saving
+of $g$ bytes per epoch repays installation $I$ only when $h g>I$; including
+compilation seconds requires a measured unit conversion. Padded bytes imply
+no token or agent speedup. The supplement's empirical-Bernstein alternative
+has a finite-range term exceeding the constructed mean saving at $m=50$;
+variance sensitivity is not an established remedy in this example.
+
+\section{Evaluation Protocol}\label{sec:jevaluation}
+The evaluation asks four questions:
+\begin{enumerate}
+\item Can the information limit and semantic invariant be checked independently?
+\item Does bounded full-wave refinement improve over compact baselines?
+\item Does a tree repay its full service costs against strong ledgers?
+\item Which observed workload and resource boundaries limit adoption?
+\end{enumerate}
+
+\subsection{Evidence cohorts and frozen decisions}
+Freezes are internal source/input records, not external preregistration;
+cohorts and endpoint roles remain fixed. The compiler study reuses 27 frozen
+synthetic train/validation/held-out cells and twelve archived candidate traces
+from three projects, preserving their provenance.
+
+The public cohort is a declared convenience sample: Click 8.2.1,
+Jinja 3.1.6, Packaging 25.0, Pluggy 1.6.0, attrs 25.3.0 and
+ExceptionGroup 1.3.0. Tags resolve to commits, tracked files are hash-bound,
+and imported modules are checked against clean checkouts. Five fresh runs of
+each unchanged upstream suite are assigned in advance: runs 0--1 training,
+2 validation and 3--4 held out. Final phases and arrival order are recorded;
+at most eight successive completions form a wave, as in the historical protocol.
+These test executions are not independent source changes, natural-bug repairs
+or agent episodes.
+
+The registry is a sorted ID set; collection, scheduling and completion orders
+are retained separately. A collection-order instrumentation correction is
+recorded before cost analysis, with raw inputs preserved. Skips, xfails and
+xpasses remain $\UNKNOWN$; ordinary failures are retained, environmental
+failures disclosed, and exclusions and resource admission explicit.
+
+Methods and receipts are frozen before held-out costs are opened. The six
+requested projects, five admitted to optimization, are case-level units;
+checks, cached requests, repeats and replays do not enlarge the sample.
+We report per-project measurements without population-level superiority tests.
+
+\subsection{Controls, estimands and uncertainty}
+The primary compiler endpoint compares refined and historical compact
+selection on strict-epoch padded bytes, including construction. Original
+and pairwise orders are compared before and after refinement at the
+\emph{same order}, separating topology from ordering without identifying
+higher-order information as the cause of a gain. The exact parity case checks
+use of full waves when pairwise affinities agree; it is analytical conformance.
+
+The service endpoint sums local operations over a retained trajectory:
+construction, eight-completion ingests, query aggregation, encoding and
+decoding. Input snapshot preparation and the independent oracle are outside
+both timers; checker execution is separate. Initial, intermediate and final
+snapshots receive status, failure, unfinished, coverage and replay queries,
+each cold and repeated warm. This layout-independent sequence is a controlled
+integration workload, not observed production demand.
+
+Controls are the original indexed ledger and a stronger ledger maintaining
+fixed-group status counters. Tree and ledger query maintained state; a third
+computation answers from raw records. Answers, missing-obligation sets and
+epochs must match or performance promotion halts. Identical bounded pages
+and deterministic DEFLATE imply equal answer bytes. Serialized state and
+logical update bytes remain separate from wire traffic and resident memory.
+
+Three whole-trajectory executions use seeded randomized arm order. Timings
+describe this host and workload, not additional projects. Paired per-case
+summaries retain unfavorable cases without significance claims from correlated
+queries. Per-arm timeouts remain $\mathrm{UNKNOWN}$, not zero-cost successes.
+
+\input{v12_followup_protocol.tex}
+
+\section{Results and Applicability}\label{sec:jresults}
+\subsection{Theory and semantic conformance}
+The independent rational reference verifies 39 parameter cases for
+Theorem~\ref{thm:pairwise-optimum}. Independently listed literal trees,
+partition-count checks and formula-tampering tests reduce shared-code risk.
+The mathematical proof covers arbitrary admissible fanout and prices;
+finite enumeration checks its implementation and boundary examples, rather
+than substituting for the proof. Semantic regression tests cover stale
+tickets, conflicts, permutations and epoch/generation transitions.
+
+\subsection{Historical representation results and new ablation}
+Frozen clustered synthetic workloads yield held-out padded-byte savings of
+23.43\%, 10.75\% and 5.56\% at 128, 512 and 1,024 checks relative to the
+original balanced baseline. Independent/global controls show essentially
+no systematic benefit. Re-encoding the twelve archived candidates changes
+compressed hierarchical streams by 4.36--41.84\%; these are within-format
+results and do not establish service superiority.
+
+The new bounded-refinement experiment is more restrictive than a global
+optimizer. At cap 32, all 27 historical cells tie the validation-selected
+compact catalogue. At cap 64, 26 tie and one saves 0.00762\% on held-out
+padded bytes. The isolated sensitivity gain is not a practical breakthrough
+or a confirmatory higher-order effect. Independent dictionary-tree
+reconstruction verifies the reported objectives without calling the
+producer's cost helper. The archived direct-wave heuristic also showed
+no gain. These results favor retaining a compact incumbent unless
+independent evidence pays for a more expensive compiler.
+
+\input{v12_journal_results.tex}
+\input{v13_results.tex}
+\input{v14_results.tex}
+\input{v15_review_results.tex}
+
+\section{Related Work}\label{sec:jrelated}
+Test prioritization, regression selection and self-adjusting computation
+optimize executed and recomputed work~\cite{rothermel,ekstazi,acar,build}.
+HACT leaves the registry and schedule to the runner and requires the entire
+declared contract; it claims no superiority to regression selection.
+
+Graham, Li and Yao price touched ancestors in batch-update key trees and
+derive an $O(n)$ solver for independent Bernoulli replacement~\cite{graham2007}.
+Our exact baseline in Section~\ref{sec:symmetry} instead uses fixed-size
+without-replacement batches, affine capped packets and cold-build charges;
+the information separation concerns correlated laws outside that regime.
+Alphabetic trees supply the fixed-order dynamic program~\cite{alphabetic},
+and pairwise seriation supplies an ordering proposal~\cite{atkins}.
+Hierarchical clustering can price pairwise similarities~\cite{dasgupta} or
+three-hypergraph objectives~\cite{hyperhierarchy}; hypergraph partitioning
+also prices collective communication~\cite{hyperpartition}. HACT differs in
+arity prices, touched-node objective, unrestricted shapes and lifecycle costs;
+hardness and approximation guarantees do not automatically transfer.
+
+Authenticated adaptive structures optimize access and proof costs~\cite{hmt};
+HACT's local bindings are not proofs, signatures or attestations.
+Verification-first engineering and trace assurance govern actions and
+checks~\cite{aiware,traceassurance}; HACT isolates their accumulated
+representation. Optional migration policies specialize switching-cost expert
+methods; the historical manuscript retains their assumptions and negative
+comparisons. Batched telemetry and compression remain necessary controls.
+Our adoption rule specializes independent calibration and simultaneous risk
+testing~\cite{learntest} to packet-cost differences, semantic coverage
+cancellation, declared completion support and separately priced installation.
+Its Hoeffding and total-variation arguments are standard.
+
+\section{Threats to Validity and Deployment Guidance}
+The lower bound is a worst case; the exchangeable optimum requires its
+completion law. Bounded refinement depends on its interval class and numerical
+precision. Byte constants, batching, proposal budgets and codecs can change
+the preferred layout. Neither the population argument nor the empirical
+item/file reversal estimates its regime's prevalence.
+
+The six-project convenience sample includes Packaging, which supplies 89.0\%
+of initial executions but is excluded from dense fitting and service replay.
+The compiler cohort has 25 runs and 16,640 checks with repeated completion
+patterns. Dispatch interventions and bug transplants are controlled changes,
+not independent projects or natural agent workflows; environmental failures
+remain disclosed. The sparse follow-up admits Packaging within the memory
+budget, but retains repeated patterns and excludes large-scale service;
+scaling to $10^5$ tests remains untested.
+
+Maintained counters are supported for the evaluated fixed-group requests;
+hierarchical consumers must justify equal-service lifecycle savings. Profiled
+CPU shares are not causal shares of elapsed overhead. Natural demand,
+live-agent productivity, billing and network benefits remain open. The cohorts
+lack independent IID calibration and a justified deployment radius for the
+adoption certificate. Safety requires trusted checking and atomic local
+fencing; test adequacy and an atomic external integration commit remain
+separate obligations.
+
+\section{Conclusion}
+Joint completions contain information exact pairwise summaries can lose;
+under exchangeability, cardinality suffices for a global optimum without
+learning. Adaptive HACT keeps representations outside semantic authority.
+Its symmetric baseline and bounded refiner show complementary strengths on
+dispersed and grouped completions, with unfavorable cases and ledger controls
+retained. The adoption rule accounts for sampling uncertainty, declared
+shift and installation bytes. Retain full completion sets for the stated
+objective and validate expected deployment changes: dispatch losses reject
+universal transfer, while the observer-disabled comparison supports maintained
+counters for the evaluated requests. Retain the incumbent unless independent
+lifecycle evidence justifies a change.
+
+\section*{Data and Code Availability}
+The artifact retains v11--v14 evidence and separately frozen v15 follow-ups,
+versioned observations, references and audits. Historical releases are at
+\url{https://github.com/xuda1979/future-code/tree/main/hact-paper/Adaptive_HACT_v5}.
+The historical release manifest binds its source and PDF bytes; it is not a
+signature. The artifact includes historical analysis, raw execution receipts,
+a reproduction guide and a claim-to-evidence map. A hash-bound offline archive
+restores observation paths for verification and audits, preserving exclusions
+and outcomes.
+\section*{Acknowledgments}
+OpenAI Codex (October 2026) assisted with prose throughout the article,
+proofs and examples in Sections III--V, TikZ source for Figures~\ref{fig:journal-architecture}--\ref{fig:pairwise-witness},
+and experiment, reference and audit code for Sections VI--VII, including
+drafting, derivation, implementation, execution and automated checks.
+Separately implemented checks reduce shared-code risk but are AI-assisted,
+not independent human peer review. The authors remain responsible for the
+content, correctness and citations.
+
+\input{journal_references.tex}
+\end{document}

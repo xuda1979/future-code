@@ -1,0 +1,35 @@
+\subsection{Fixed-width batches retain a local information gap}
+Complete-epoch separation also survives the evaluated flush width.
+The following claim concerns two fixed layouts, rather than a global
+24-check optimum.
+\begin{proposition}[Fixed-eight candidate-class separation]\label{prop:fixed-eight}
+For $b\ge6$ and the price interval of Theorem~\ref{thm:strict-pairwise},
+two laws on complete 24-check execution sequences have identical population
+bivariate completion-rank distributions but opposite preferred choices
+in a two-layout class under consecutive batches of eight. Their wrong-choice
+penalties remain $\Delta_P,\Delta_Q$, and their class-relative sharp
+randomized minimax regret is $\Delta_P\Delta_Q/(\Delta_P+\Delta_Q)$.
+\end{proposition}
+\begin{proof}[Proof sketch; padding identities in the supplement]
+Add 18 distinct fillers to the three-window six-check construction,
+uniformly filling each window to eight checks. The probability that an
+original check shares a window with a named filler, and that two fillers
+share a window, depends only on the original pairwise same-window
+probabilities. Thus these probabilities agree under both laws.
+Randomly permute the three windows and independently shuffle their members.
+For two distinct checks with same-window probability $p$, any specified
+pair of distinct ranks has mass $p/(3\cdot8\cdot7)$ within a batch and
+$(1-p)/(3\cdot2\cdot8^2)$ between batches. All bivariate rank laws agree.
+
+Place the original six-check subtree and an identical filler-only subtree
+under a common root. Compare a flat original subtree with the subtree
+grouping $G$. Root and filler costs cancel within each law, preserving
+both penalties and the two-action minimax calculation. The supplement
+gives the full padding lemma, counting argument and exact conformance
+checks.
+\end{proof}
+At the implemented prices the penalties are 32 and 102.4 bytes, with
+randomized regret $512/21$ bytes. The retained reference checks 600
+complete 24-check sequences. Neither the rank equivalence nor these finite
+checks establish global 24-leaf optimality or equality of joint laws of
+empirical pairwise-summary vectors.
