@@ -558,6 +558,12 @@ def parse_chat_stream(stream_body: str) -> dict[str, Any]:
         if isinstance(chunk.get("model"), str):
             response["model"] = chunk["model"]
         choices = chunk.get("choices")
+        # Capture usage BEFORE the empty-choices early-continue: the terminal
+        # chunk emitted under stream_options.include_usage carries the usage
+        # payload with choices: [] — the old order dropped it on the floor.
+        usage = chunk.get("usage")
+        if isinstance(usage, dict):
+            response["usage"] = usage
         if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
             continue
         delta = choices[0].get("delta")
@@ -566,9 +572,6 @@ def parse_chat_stream(stream_body: str) -> dict[str, Any]:
         finish_reason = choices[0].get("finish_reason")
         if isinstance(finish_reason, str):
             response["choices"][0]["finish_reason"] = finish_reason
-        usage = chunk.get("usage")
-        if isinstance(usage, dict):
-            response["usage"] = usage
     return response
 
 
@@ -726,6 +729,17 @@ def build_upstream_body(server: ThreadingHTTPServer, body: dict[str, Any], force
         upstream_body["logprobs"] = body["logprobs"]
     if body.get("top_logprobs") is not None:
         upstream_body["top_logprobs"] = body["top_logprobs"]
+    if upstream_body.get("stream") and os.environ.get(
+        "HUANXIN_STREAM_INCLUDE_USAGE", "1"
+    ).strip().lower() in _TRUTHY:
+        # Ask OpenAI-compatible upstreams to include a final usage chunk
+        # (choices: [] carrying usage). Without stream_options.include_usage
+        # most upstreams omit usage from streamed responses, so recorded
+        # sessions persist input_tokens=0/output_tokens=0 and every token-
+        # efficiency surface (/insights, /usage, stats-cache) goes blind.
+        # Kill switch for gateways that reject unknown fields:
+        # HUANXIN_STREAM_INCLUDE_USAGE=0.
+        upstream_body["stream_options"] = {"include_usage": True}
     return upstream_body
 
 
