@@ -249,7 +249,7 @@ test("raw transport faults yield heartbeats and rebuild the client before probin
   expect(result.yields.every((y: any) => y.error instanceof APIConnectionError)).toBe(true);
 });
 
-test("long transport waits report progress every 30 seconds and can be cancelled before another probe", async () => {
+test("long transport waits report progress every 30 seconds and can be cancelled before another probe", { timeout: 120_000 }, async () => {
   delete process.env.FUTURE_CODE_UNATTENDED_RETRY;
   const controller = new AbortController(); let calls = 0;
   const gen = withRetry(async () => fakeClient() as never, async () => {

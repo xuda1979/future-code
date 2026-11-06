@@ -58,6 +58,7 @@ import usage from './commands/usage/index.js'
 import theme from './commands/theme/index.js'
 import vim from './commands/vim/index.js'
 import goal from './commands/goal/index.js'
+import sessions from './commands/sessions/index.js'
 import loop from './commands/loop/index.js'
 import retry from './commands/retry/index.js'
 import save from './commands/save/index.js'
@@ -356,6 +357,7 @@ const COMMANDS = memoize((): Command[] => [
   ...(peersCmd ? [peersCmd] : []),
   tasks,
   goal,
+  sessions,
   loop,
   retry,
   save,
