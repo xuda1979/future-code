@@ -12,7 +12,7 @@
 // foundry + commands under Node, and the Bun lane (hact/api/harness) with the
 // retry preload the offline CI uses.
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, lstatSync } from "node:fs";
 import { mkdir, appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -30,6 +30,9 @@ const ledgerFile = join(ledgerDir, "rsi-cycle.jsonl");
 interface SuiteResult {
   msec: number;
   pass: boolean;
+  exitCode: number | null;
+  signal: string | null;
+  error: string | null;
 }
 interface SuiteTimes {
   foundry?: SuiteResult;
@@ -41,7 +44,9 @@ function runSuite(exe: string, args: string[], timeout: number, label: string): 
   const start = Date.now();
   console.error(`[rsi] measuring ${label}...`);
   const res = spawnSync(exe, args, { cwd: root, timeout, stdio: "ignore" });
-  return { msec: Date.now() - start, pass: res.status === 0 && !res.error };
+  const pass = res.status === 0 && !res.error;
+  if (!pass) console.error(`[rsi] ${label} failed: ${res.error?.message ?? `exit=${res.status}, signal=${res.signal ?? "none"}`}`);
+  return { msec: Date.now() - start, pass, exitCode: res.status, signal: res.signal, error: res.error?.message ?? null };
 }
 
 function dirSize(path: string): number {
@@ -51,7 +56,9 @@ function dirSize(path: string): number {
   while (stack.length) {
     const cur = stack.pop()!;
     let st;
-    try { st = statSync(cur); } catch { continue; }
+    // Never follow directory symlinks: lexical seen paths cannot detect a
+    // symlink cycle, and aliases would double-count the same session store.
+    try { st = lstatSync(cur); } catch { continue; }
     if (st.isDirectory()) {
       let entries: string[];
       try { entries = readdirSync(cur); } catch { continue; }
@@ -99,6 +106,7 @@ async function main() {
 
   const git = gitInfo();
   const projects = join(homedir(), ".future", "projects");
+  const storeBytes = existsSync(projects) ? dirSize(projects) : null;
   const record = {
     ts: new Date().toISOString(),
     phase,
@@ -106,15 +114,16 @@ async function main() {
     git_dirty: git.dirty,
     suite: suites,
     wall_msec: wall,
-    session_stores_bytes: existsSync(projects) ? dirSize(projects) : null,
-    session_stores_mb: existsSync(projects)
-      ? Math.round(dirSize(projects) / 1_048_576 * 100) / 100
+    session_stores_bytes: storeBytes,
+    session_stores_mb: storeBytes !== null
+      ? Math.round(storeBytes / 1_048_576 * 100) / 100
       : null,
   };
 
   await mkdir(ledgerDir, { recursive: true });
   await appendFile(ledgerFile, JSON.stringify(record) + "\n", "utf8");
   console.error(`[rsi] appended snapshot (${phase}) to .future/rsi-cycle.jsonl`);
+  if (Object.values(suites).some(s => !s.pass)) process.exitCode = 1;
 }
 
 main().catch(err => { console.error(err); process.exit(1); });

@@ -25,7 +25,7 @@ export class Scheduler {
           WHERE t.run=? AND NOT EXISTS (
             SELECT 1 FROM spawn_edges e WHERE e.run=t.run AND e.child=t.id
           ) ORDER BY t.id`).all(id).map(t => JSON.parse(t.spec));
-        const expected = [...tasks].sort((a, b) => a.id.localeCompare(b.id));
+        const expected = [...tasks].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
         invariant(digest(actual) === digest(expected), "run id task graph drift");
         ensureRunFabric(this.store, id, now);
         return id;

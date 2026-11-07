@@ -1,7 +1,9 @@
 /**
  * Self-improver — the rule-based engine that turns monitor signals into
- * validated, recorded harness changes. Every change is proposed, validated
- * against the retained baseline, and appended to the audit trail. A learned
+ * bounded, recorded harness adjustments. Every change is proposed, checked
+ * against the execution-knob allowlist, and appended to the audit trail. These
+ * heuristics do not measure a retained-baseline improvement; use Foundry's
+ * paired evaluation and admission path for comparative improvement claims. A learned
  * controller is deliberately NOT used until it beats this deterministic
  * policy net of training cost.
  *
