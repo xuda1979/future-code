@@ -171,6 +171,9 @@ export interface Evaluation {
   candidateHash: string;
   protocol: Protocol;
   protocolHash: string;
+  /** Frozen before execution so a crash between arms never loses a run binding.
+   * Absent only on legacy evaluations, which cannot recover unfinished arms. */
+  armRunIds?: { baseline: string; candidate: string }[];
   pairs: { baseline: RunSummary; candidate: RunSummary }[];
   decision: "ADMIT" | "REJECT" | "UNKNOWN";
   reasons: string[];

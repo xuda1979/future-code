@@ -4,6 +4,68 @@ Future-code is being used to improve future-code. This runbook makes the loop
 repeatable and *measured*, so each cycle produces evidence rather than just a
 commit.
 
+## Durable automatic recipe evolution
+
+The Foundry runtime now closes the **bounded execution-policy** loop in code:
+observe recorded work → propose a candidate → run a frozen paired evaluation →
+authenticate the evidence → optionally promote → consider the next hypothesis.
+This works with any project adapter implementing the worker/verifier contract.
+
+```sh
+node --experimental-strip-types src/harness/foundry/cli.ts evolve \
+  --protocol examples/foundry/protocol.json --allow-exec --auto-promote --max-cycles 3
+```
+
+`--max-cycles` defaults to 1 and accepts 1..100. The existing contract ceilings,
+task graph, checks, objective and gain threshold stay fixed. Each cycle resumes
+an unfinished matching evaluation before creating new work. A ready admission
+is reused without another experiment. `--auto-promote` authorizes activation of
+an admitted recipe; it does not authorize deployment or acceptance changes.
+
+Each new evaluation persists all baseline/candidate run IDs **before execution**.
+After a crash or cancellation, rerun the same `evolve` command, or resume its
+specific receipt:
+
+```sh
+node --experimental-strip-types src/harness/foundry/cli.ts evaluation-resume \
+  --evaluation EVALUATION_ID --allow-exec
+```
+
+Completed arms retain their run IDs, artifacts and attempt accounting. In-flight
+tasks use the existing scheduler's lease fencing, reconciliation and retry rules.
+Unmetered work lost to a hard crash remains unknown; recovery does not invent a
+zero cost. A paused arm is never recorded as a complete pair. Resume rejects
+changed protocol, contract, recipe lineage, root tasks or accepted evidence.
+Concurrent resume helpers share runs; a stale receipt writer must reload after
+a compare-and-swap conflict. Direct resume rejects legacy incomplete receipts
+without recoverable arm bindings. Automatic evolution lists these in
+`skippedEvaluations`, preserves the old evidence and can start a new evaluation.
+Complete legacy receipts keep their existing validation path.
+
+Completed trials are remembered for the exact baseline and protocol. A rejected
+or unmeasurable configuration is skipped during the next automatic suggestion,
+allowing another supported hypothesis to run. Explicit `evaluate` remains the
+way to request another trial deliberately. A different frozen protocol has its
+own trial history. `suggest --protocol FILE` exposes this same selection policy.
+
+Dynamic child tasks may differ between arms. Admission compares the exact frozen
+**root** task graph, verifies every accepted child and requires every task in a
+successful run to be complete. Children contribute measured work and cost without
+creating additional root-objective progress.
+
+The command returns `evaluations`, `skippedEvaluations`, `active` and `stopReason`. Stop reasons are
+`no-evidence-backed-change`, `cycle-limit`, `paused`, `unknown-evidence`, and
+`awaiting-promotion`. Exit 130 means interrupted; exit 2 means unknown evidence
+or a bounded call with trials but no admission; exit 0 may mean an admission or
+exhausted hypotheses. Rejected hypotheses remain in the JSON even if a later
+alternative succeeds. A supervisor should inspect `stopReason`, resume paused
+work and wait for new workload evidence after exhaustion rather than busy-loop.
+
+This is measured recipe optimization, not proof of open-ended recursive
+intelligence improvement. General code mutation, hidden cross-project holdouts,
+live-LLM productivity gains and automatic deployment are separate capabilities.
+See [the RSI review](RSI_REVIEW_20261107.md) for scope and remaining gaps.
+
 ## The loop
 
 ```
@@ -46,12 +108,17 @@ One cycle, concretely:
    - `node --experimental-strip-types scripts/rsi-cycle-snapshot.ts after`
    Each appends one JSON line to `.future/rsi-cycle.jsonl` with per-lane suite
    times (pass/fail + msec), git head, and the size of `~/.future/projects`.
-   The diff between the two lines is this cycle's *effect*. `--dry` skips the
+   These rows are telemetry, not an improvement admission: suite timing and
+   store size alone cannot establish causality or a productivity gain. Failed
+   lanes record exit/signal/error details and make the script exit 1 after
+   appending the row. Session-store symlinks are excluded from byte counts.
+   `--dry` skips the
    suites (metadata-only) for a quick smoke check. Run it with **Node**, never
    Bun — the node-lane launchers are Node-only and `process.execPath` would
    resolve to the Bun binary.
-6. **Ship** — commit on `main`, push (`git push`). Then deploy, because a
-   committed fix is not a *used* fix:
+6. **Ship** — commit to a task branch, push, and open a reviewable PR with the
+   relevant checks and evidence. Merge and deployment follow the task's granted
+   authority. For an authorized deployment:
    - `./build.sh` — rebuild `./future-code`
    - `./install.sh` — full install (prompts for credential URLs; safe to re-run,
      idempotent). Rebuild and re-run the session that had the problem, then
@@ -75,7 +142,8 @@ One cycle, concretely:
   future-code bug; track until the upstream token resets.
 - **Known deploy drift:** the machine's `~/.local/bin/future-code-bin` was
   holding stale processes (fixed binaries are stale-to-nonexistent); a
-  committed change is not a deployed change. Always end with build+install.
+  committed change is not a deployed change. Verify the installed revision when
+  deployment is in scope.
 
 ## Hard rules
 
@@ -86,7 +154,7 @@ One cycle, concretely:
 - When a lane fails for an environmental reason (e.g. no network, wrong
   runtime), record the diagnosis in the runbook notes rather than silently
   skipping the lane. Do not silence a real failure with `--no-verify`.
-- Every cycle should end `git add` + `git commit` + `git push` with a concise
+- A code-changing cycle should end with a task-branch commit and PR with a concise
   subject that names the *effect* (e.g. "Fix heartbeat timeout in canonical
   lane") rather than the mechanism.
 

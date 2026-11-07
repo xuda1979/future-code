@@ -100,11 +100,29 @@ node --experimental-strip-types src/harness/foundry/cli.ts evolve --protocol exa
 
 `evolve` performs suggestion plus evaluation but does not promote by default.
 `--auto-promote` explicitly authorizes promotion only if that evaluation admits
-the candidate. A null suggestion, missing cost evidence, or failed comparison
+the candidate. `--max-cycles N` bounds automatic search across supported
+hypotheses (default 1, maximum 100). It resumes matching unfinished evaluations
+and reuses ready admissions before proposing new work. Completed rejected or
+unmeasurable candidates are skipped for the same baseline/protocol; an alternate
+execution knob may then be tried. Missing evidence pauses that invocation with
+an explicit reason. Inspect `evaluations`, `active` and `stopReason` in the output.
+A null suggestion, missing cost evidence, or failed comparison
 never becomes a successful change. This is rule-based recipe optimization,
 not arbitrary runtime rewriting, model training, or open-ended code evolution.
 
-Only `parallelism`, `attempts`, `contextBytes`, and `timeoutMs` are mutable.
+Evaluations persist arm run IDs before any work. Resume a receipt after a process
+restart with `evaluation-resume --evaluation ID --allow-exec`, or rerun `evolve`
+with the same protocol. Completed arms are reused, paused arms remain incomplete,
+and missing crash-time cost remains unknown. Concurrent helpers cannot overwrite
+a newer evaluation receipt. Legacy unfinished receipts lack these arm bindings;
+automatic evolution lists them in `skippedEvaluations` and preserves them while
+starting a new evaluation. Direct resume rejects them. Dynamic children remain
+independently verified; only the frozen root graph defines the objective task set.
+
+Only validated recipe execution knobs are mutable: `parallelism`, `attempts`,
+`contextBytes`, `timeoutMs`, and the optional context/scheduling/progress controls
+accepted by `validateRecipe`. Automatic suggestion currently proposes increased
+parallelism or priority-based context allocation.
 A candidate cannot delete a required check, relax an SLO, replace the verifier,
 raise the contract's resource ceilings, or modify the acceptance conditions.
 An authorized contract revision needs a new harness root and a new baseline.

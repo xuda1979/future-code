@@ -90,7 +90,8 @@ export class Store {
         run TEXT NOT NULL, parent TEXT NOT NULL, child TEXT NOT NULL, request_key TEXT NOT NULL,
         depth INTEGER NOT NULL, created REAL NOT NULL, PRIMARY KEY(run,child));
       CREATE INDEX IF NOT EXISTS spawn_edges_parent ON spawn_edges(run,parent,child);
-      CREATE TABLE IF NOT EXISTS evaluations(id TEXT PRIMARY KEY, json TEXT NOT NULL, hash TEXT NOT NULL, promoted INTEGER NOT NULL DEFAULT 0);`);
+      CREATE TABLE IF NOT EXISTS evaluations(id TEXT PRIMARY KEY, json TEXT NOT NULL, hash TEXT NOT NULL, promoted INTEGER NOT NULL DEFAULT 0);
+      CREATE INDEX IF NOT EXISTS evaluations_protocol ON evaluations(json_extract(json,'$.baselineHash'),json_extract(json,'$.protocolHash'));`);
     const runCols = new Set(db.prepare("PRAGMA table_info(runs)").all().map(r => String(r.name)));
     if (!runCols.has("graph_version")) db.exec("ALTER TABLE runs ADD COLUMN graph_version INTEGER NOT NULL DEFAULT 0");
     const metaCols = new Set(db.prepare("PRAGMA table_info(scheduler_index_meta)").all().map(r => String(r.name)));

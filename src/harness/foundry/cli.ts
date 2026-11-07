@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CommandDriver, commandVerifierId, pinCommand } from "./commands.ts";
 import { canonical, digest, invariant } from "./kernel.ts";
-import { evaluate, loadEvaluation, promote, rollback, suggest } from "./evolution.ts";
+import { evaluate, evolve, loadEvaluation, promote, resumeEvaluation, rollback, suggest } from "./evolution.ts";
 import { runTasks } from "./runtime.ts";
 import { Scheduler } from "./scheduler.ts";
 import { Store } from "./store.ts";
@@ -18,12 +18,13 @@ const usage = `Future Code Harness Foundry (single host)
   status   [--run ID]
   events   [--after SEQUENCE]
   propose  --changes FILE
-  suggest
+  suggest  [--protocol FILE]
   evaluate --candidate HASH --protocol FILE --allow-exec
+  evaluation-resume --evaluation ID --allow-exec
   inspect  --evaluation ID
   promote  --evaluation ID --confirm
   rollback --to HASH --confirm
-  evolve   --protocol FILE --allow-exec [--auto-promote]
+  evolve   --protocol FILE --allow-exec [--auto-promote] [--max-cycles 1..100]
   discovery-init --spec FILE (dedicated state root)
   discovery-run --allow-exec (new search or resume)
   discovery-status
@@ -32,7 +33,7 @@ Command workers are trusted executables, not sandboxed untrusted plugins.`;
 function args(argv: string[]): { command: string; options: Map<string, string> } {
   const command = argv[0] ?? "help"; const options = new Map<string, string>();
   const flags = new Set(["--allow-exec", "--confirm", "--auto-promote"]);
-  const known = new Set(["--root", "--spec", "--tasks", "--run", "--after", "--changes", "--candidate", "--protocol", "--evaluation", "--to", ...flags]);
+  const known = new Set(["--root", "--spec", "--tasks", "--run", "--after", "--changes", "--candidate", "--protocol", "--evaluation", "--to", "--max-cycles", ...flags]);
   for (let i = 1; i < argv.length; i++) {
     const key = argv[i]; invariant(known.has(key) && !options.has(key), `unknown/duplicate option ${key}`);
     if (flags.has(key)) options.set(key, "true");
@@ -88,20 +89,26 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         print({ items, nextAfter: items.length ? items[items.length - 1].seq : after }); break;
       }
       case "propose": print({ candidate: store.propose(json(need("--changes")) as Partial<Recipe>), active: store.active() }); break;
-      case "suggest": print({ candidate: suggest(store), active: store.active() }); break;
+      case "suggest": print({ candidate: suggest(store, options.has("--protocol") ? json(need("--protocol")) : undefined), active: store.active() }); break;
       case "evaluate": {
         const e = await evaluate(store, need("--candidate"), json(need("--protocol")), driver(), controller.signal);
-        print(e); if (e.decision !== "ADMIT") process.exitCode = 2; break;
+        print(e); if (e.decision !== "ADMIT") process.exitCode = controller.signal.aborted ? 130 : 2; break;
+      }
+      case "evaluation-resume": {
+        const e = await resumeEvaluation(store, need("--evaluation"), driver(), controller.signal);
+        print(e); if (e.decision !== "ADMIT") process.exitCode = controller.signal.aborted ? 130 : 2; break;
       }
       case "inspect": print(loadEvaluation(store, need("--evaluation"))); break;
       case "promote": need("--confirm"); print({ active: promote(store, need("--evaluation")) }); break;
       case "rollback": need("--confirm"); rollback(store, need("--to")); print({ active: store.active() }); break;
       case "evolve": {
-        const d = driver(); const candidate = suggest(store);
-        if (!candidate) { print({ proposed: false, reason: "no evidence-backed change available" }); break; }
-        const e = await evaluate(store, candidate, json(need("--protocol")), d, controller.signal);
-        const active = e.decision === "ADMIT" && options.has("--auto-promote") ? promote(store, e.id) : store.active();
-        print({ evaluation: e, active }); if (e.decision !== "ADMIT") process.exitCode = 2; break;
+        const result = await evolve(store, json(need("--protocol")), driver(), { signal: controller.signal,
+          autoPromote: options.has("--auto-promote"), maxCycles: Number(options.get("--max-cycles") ?? 1) });
+        print({ ...result, proposed: result.evaluations.length > 0, evaluation: result.evaluations.at(-1) ?? null });
+        if (controller.signal.aborted) process.exitCode = 130;
+        else if (result.stopReason === "unknown-evidence" || (result.evaluations.length > 0 &&
+          !result.evaluations.some(e => e.decision === "ADMIT"))) process.exitCode = 2;
+        break;
       }
       default: throw new Error(`unknown command ${command}\n${usage}`);
     }
