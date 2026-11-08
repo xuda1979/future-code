@@ -126,6 +126,7 @@ import { getGlobExclusionsForPluginCache } from './utils/plugins/orphanedPluginF
 import { getPluginSeedDirs } from './utils/plugins/pluginDirectories.js';
 import { countFilesRoundedRg } from './utils/ripgrep.js';
 import { processSessionStartHooks, processSetupHooks } from './utils/sessionStart.js';
+import { armSelfImproveScheduler } from './services/selfImprove/scheduler.js';
 import { cacheSessionTitle, getSessionIdFromLog, loadTranscriptFromFile, saveAgentSetting, saveMode, searchSessionsByCustomTitle, sessionIdExists } from './utils/sessionStorage.js';
 import { ensureMdmSettingsLoaded } from './utils/settings/mdm/settings.js';
 import { getInitialSettings, getManagedSettingsKeysForLogging, getSettingsForSource, getSettingsWithErrors } from './utils/settings/settings.js';
@@ -2438,6 +2439,14 @@ async function run(): Promise<CommanderCommand> {
       agentType: mainThreadAgentDefinition?.agentType,
       model: resolvedInitialModel
     });
+
+    // Arm the background self-improvement loop for interactive sessions:
+    // while this session runs, periodically spawn analysis subagents over
+    // the future-code repo (see src/services/selfImprove/). No-op unless
+    // selfImprove.enabled and the ledger interval has elapsed.
+    if (!isNonInteractiveSession) {
+      armSelfImproveScheduler();
+    }
 
     // MCP never blocks REPL render OR turn 1 TTFT. useManageMCPConnections
     // populates appState.mcp async as servers connect (connectToServer is

@@ -1068,6 +1068,64 @@ export const SettingsSchema = lazySchema(() =>
             'Useful for enterprise administrators to add organization-specific context ' +
             '(e.g., "All plugins from our internal marketplace are vetted and approved.").',
         ),
+      selfImprove: z
+        .object({
+          enabled: z
+            .boolean()
+            .optional()
+            .describe(
+              'While a session is running, periodically spawn background subagents ' +
+                'that analyze future-code itself for bugs and improvements. ' +
+                'Accepted changes are developed on a feature branch, built, tested, ' +
+                'and merged to main. Opt-in: default false.',
+            ),
+          intervalMinutes: z
+            .number()
+            .int()
+            .min(5)
+            .optional()
+            .describe(
+              'Minimum minutes between background self-improvement cycles. ' +
+                'A cycle only starts when a session is running and the interval ' +
+                'has elapsed since the last completed cycle. Default: 45.',
+            ),
+          repoUrl: z
+            .string()
+            .optional()
+            .describe(
+              'Git remote to clone when the running binary was not launched from ' +
+                'a future-code checkout. Default: https://github.com/xuda1979/future-code',
+            ),
+          autoMerge: z
+            .boolean()
+            .optional()
+            .describe(
+              'When true, a change that builds and passes its validation is merged ' +
+                'to main and pushed automatically. When false (default), the change ' +
+                'is left on its feature branch for the operator to review.',
+            ),
+          autoPush: z
+            .boolean()
+            .optional()
+            .describe(
+              'When true (and autoMerge enabled), merged main is pushed to origin. ' +
+                'Default: false.',
+            ),
+          maxConcurrentCycles: z
+            .number()
+            .int()
+            .min(1)
+            .max(4)
+            .optional()
+            .describe(
+              'Upper bound on self-improvement cycles running concurrently across ' +
+                'all sessions on this machine (guarded by a lockfile). Default: 1.',
+            ),
+        })
+        .optional()
+        .describe(
+          'Background self-improvement of future-code while sessions run.',
+        ),
     })
     .passthrough(),
 )

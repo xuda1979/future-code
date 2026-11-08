@@ -31,6 +31,7 @@ import {
 import { getModelStrings } from 'src/utils/model/modelStrings.js'
 import { getAPIProvider } from 'src/utils/model/providers.js'
 import { getIsNonInteractiveSession } from '../../bootstrap/state.js'
+import { markAuthFailureDetected } from '../../utils/authFailureSuppression.js'
 import {
   API_PDF_MAX_PAGES,
   PDF_TARGET_RAW_SIZE,
@@ -423,6 +424,24 @@ export function extractUnknownErrorFormat(value: unknown): string | undefined {
 }
 
 export function getAssistantMessageFromError(
+  error: unknown,
+  model: string,
+  options?: {
+    messages?: Message[]
+    messagesForAPI?: (UserMessage | AssistantMessage)[]
+  },
+): AssistantMessage {
+  const result = getAssistantMessageFromErrorImpl(error, model, options)
+  // Auth-failure transcript suppression (2026-11-08): record that this run
+  // hit an auth wall so shutdown can prune an auth-fail-only transcript in
+  // non-interactive mode. Marking here is idempotent and cheap.
+  if (result.error === 'authentication_failed') {
+    markAuthFailureDetected()
+  }
+  return result
+}
+
+function getAssistantMessageFromErrorImpl(
   error: unknown,
   model: string,
   options?: {

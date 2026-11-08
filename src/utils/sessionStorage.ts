@@ -27,9 +27,11 @@ import {
   getPromptId,
   getSessionId,
   getSessionProjectDir,
+  getIsNonInteractiveSession,
   isSessionPersistenceDisabled,
   switchSession,
 } from '../bootstrap/state.js'
+import { pruneAuthFailOnlyTranscript } from './authFailureSuppression.js'
 import { builtInCommandNames } from '../commands.js'
 import { COMMAND_NAME_TAG, TICK_TAG } from '../constants/xml.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
@@ -458,6 +460,26 @@ function getProject(): Project {
           project?.reAppendSessionMetadata()
         } catch {
           // Best-effort — don't let metadata re-append crash the cleanup
+        }
+        // Auth-failure transcript suppression (2026-11-08): after the flush,
+        // prune the transcript if this non-interactive run was auth-fail-only
+        // (no tool use, no real assistant output). Leaves a one-line marker
+        // in ~/.future/auth-failures.jsonl instead of a ~36KB junk session.
+        // See src/utils/authFailureSuppression.ts for the full rationale.
+        try {
+          const suppressed = pruneAuthFailOnlyTranscript({
+            isNonInteractive: getIsNonInteractiveSession(),
+            transcriptPath: getTranscriptPath(),
+            sessionId: getSessionId(),
+            cwd: getOriginalCwd(),
+          })
+          if (suppressed) {
+            logForDebugging(
+              `Auth-fail-only session transcript pruned: ${suppressed}`,
+            )
+          }
+        } catch {
+          // Best-effort — suppression must never break shutdown.
         }
       })
       cleanupRegistered = true
