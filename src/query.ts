@@ -122,7 +122,7 @@ import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
 import { shouldRecoverSilentResponse, hasVisibleAssistantText, modelApiFailureReason } from './utils/responseLiveness.js'
 import { decideAutoGoalContinuation, parkActiveAutoGoal, isAutoGoalMainThread, readAutoGoal, shouldPauseGoalAfterTerminal } from './commands/goal/auto.js'
-import { appendGoalRequestAnchor, compactGoalContinuations } from './commands/goal/context.js'
+import { appendGoalRequestAnchor, goalExecutionPolicy } from './commands/goal/context.js'
 import { notifyQueryActivity, type QueryActivityEvent } from './utils/queryActivity.js'
 import { hasMainThreadQueuedCommand } from './utils/queueWakeup.js'
 import { watchModelStream, isModelProgress, modelStreamIdleTimeout, ModelStreamStalledError, modelStallAction } from './utils/modelStreamLiveness.js'
@@ -404,7 +404,7 @@ async function* queryLoop(
       queryTracking,
     }
 
-    let messagesForQuery = compactGoalContinuations([...getMessagesAfterCompactBoundary(messages)], mainGoalThread)
+    let messagesForQuery = [...getMessagesAfterCompactBoundary(messages)]
     activity({ kind: 'phase', phase: 'preparing' })
 
     let tracking = autoCompactTracking
@@ -489,6 +489,7 @@ async function* queryLoop(
       messagesForQuery = collapseResult.messages
     }
 
+    const autoGoalPolicy = goalExecutionPolicy(mainGoalThread)
     const fullSystemPrompt = asSystemPrompt(
       appendSystemContext(systemPrompt, systemContext),
     )
@@ -662,6 +663,7 @@ async function* queryLoop(
     const goalRequestMessages = appendGoalRequestAnchor(messagesForQuery, {
       mainThread: mainGoalThread,
       makeMessage: content => createUserMessage({ content, isMeta: true }),
+      executionPolicy: autoGoalPolicy,
     })
     let collapseOwnsIt = false
     if (feature('CONTEXT_COLLAPSE')) {
@@ -1527,6 +1529,7 @@ async function* queryLoop(
       const goalDecision = decideAutoGoalContinuation({
         mainThread: mainGoalThread,
         withinTurnBudget: maxTurns === undefined || turnCount < maxTurns,
+        promptFormat: autoGoalPolicy ? 'delta' : 'full',
       })
       if (goalDecision.kind === 'BLOCKED') {
         yield createSystemMessage('Autonomous goal blocked: ' + goalDecision.reason, 'warning')

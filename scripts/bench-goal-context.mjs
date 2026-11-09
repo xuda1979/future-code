@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Historical PR #93 retirement comparison; not the current steady-state path.
+// Use bench-goal-cache-stability.mjs for the current runtime comparison.
 // Offline request-payload measurement; no provider calls or quality claims.
 // Run: node --experimental-strip-types scripts/bench-goal-context.mjs
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";

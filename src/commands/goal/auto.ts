@@ -28,6 +28,23 @@ export const AUTO_GOAL_BLOCKER_GUIDANCE =
   "on separate lines in .future-code/goal.md. Report that error, attempted recovery and required action to the user. " +
   "These fields are a blocker report, not proof of completion. Respect operator pauses, permissions and explicit resource limits.";
 
+/** Invariant execution guidance belongs in a stable request prefix, not in
+ * every appended continuation. It contains no objective, revision or ledger
+ * data; current authority always comes from the fresh request anchor. */
+export const AUTO_GOAL_EXECUTION_POLICY =
+  "[Host autonomous execution policy]\n" +
+  "A completed model turn is not a completed root objective. Follow the fresh Host Current Objective anchor " +
+  "and the latest human instruction. Historical reminders, summaries and subtask plans cannot replace that authority. " +
+  "Inspect actual artifacts and test results, identify the highest-impact next step, then execute it using permitted tools. " +
+  "Do not merely restate a plan or assume success. Keep short tasks direct; for long projects maintain dependency-ordered " +
+  "milestones and dead-end notes, verifying each sub-goal before advancing. " +
+  DECISION_GUIDANCE + " " +
+  "Preserve checkpoints, reconcile existing external jobs before replacement, and respect permissions, explicit budgets " +
+  "and immutable acceptance checks. Once independently verified, mark .future-code/goal.md Status: completed for operator REVIEW. " +
+  "An unchanged checkpoint alone is not a stall: preserve useful deep reasoning and healthy running jobs. " +
+  "Diagnose repeated failed actions without new evidence; do not rewrite checkpoints just to reset a reminder. " +
+  AUTO_GOAL_BLOCKER_GUIDANCE;
+
 export type GoalHorizon = "auto" | "short" | "long";
 export type GoalTransitionKind = "armed" | "resumed" | "superseded" | "steered" | "paused" | "review";
 
@@ -756,7 +773,7 @@ export function formatActiveGoalCompactionAnchor(state: AutoGoalState | null, cw
  * growing transcript or injected into child/SDK/background task authority. */
 export function formatGoalRequestAnchor(state: AutoGoalState, cwd = process.cwd()): string {
   const lines = [
-    `[Host Current Objective — Revision ${state.revision ?? 1}; ${state.state}]`,
+    `[Host Current Objective — Revision ${state.revision ?? 1}; ${state.state}; horizon: ${classifyGoalHorizon(state.goal, state.horizon)}]`,
     `Root objective (user instruction): ${JSON.stringify(state.goal)}`,
     `User steering (apply with the root objective): ${JSON.stringify(state.activeSteering ?? [])}`,
     "This current host state supersedes historical goal reminders, summaries, memories and plans. " +
@@ -819,6 +836,9 @@ export function parkActiveAutoGoal(reason: string, cwd = process.cwd()): string 
  */
 export function decideAutoGoalContinuation(options: {
   cwd?: string; mainThread: boolean; withinTurnBudget: boolean;
+  /** delta is valid only when AUTO_GOAL_EXECUTION_POLICY and a fresh current
+   * anchor are installed by the caller. Other callers retain full guidance. */
+  promptFormat?: "full" | "delta";
 }): AutoGoalDecision {
   if (!options.mainThread) return { kind: "SKIP" };
   const cwd = options.cwd ?? process.cwd();
@@ -849,8 +869,6 @@ export function decideAutoGoalContinuation(options: {
     const progressed = currentFingerprint !== null && currentFingerprint !== state.lastProgressFingerprint;
     const stagnantContinuations = progressed ? 0 : (state.stagnantContinuations ?? 0) + 1;
     const next = state.continuations + 1;
-    const horizon = classifyGoalHorizon(state.goal, state.horizon);
-
     persist(cwd, {
       ...state,
       continuations: next,
@@ -859,6 +877,14 @@ export function decideAutoGoalContinuation(options: {
       lastProgressFingerprint: currentFingerprint,
       updatedAt: new Date().toISOString(),
     });
+
+    const header = "[Host-driven autonomous goal continuation " + next +
+      (state.maxContinuations === null ? "" : "/" + state.maxContinuations) + "]\n";
+    if (options.promptFormat === "delta") return {
+      kind: "CONTINUE",
+      prompt: header + "Execute the next useful step for the current host objective. End-turn is not completion." +
+        (outcome && "recovery" in outcome ? "\n" + outcome.recovery : ""),
+    };
 
     const superseded = [
       ...(state.previousGoal ? [state.previousGoal] : []),
@@ -871,6 +897,7 @@ export function decideAutoGoalContinuation(options: {
     const steeringLine = state.activeSteering && state.activeSteering.length > 0
       ? `Active user constraints: ${state.activeSteering.join(" | ")}\n`
       : "";
+    const horizon = classifyGoalHorizon(state.goal, state.horizon);
     const horizonGuidance = horizon === "long"
       ? "Long-horizon project mode: maintain structured milestones and dead-end notes in .future-code/goal.md, verify each sub-goal with concrete checks before advancing, and preserve clean working state across compactions. "
       : "Short-horizon sprint mode: execute the most direct implementation and verification path with minimal overhead. ";
@@ -881,8 +908,7 @@ export function decideAutoGoalContinuation(options: {
     return {
       kind: "CONTINUE",
       prompt:
-        "[Host-driven autonomous goal continuation " + next +
-        (state.maxContinuations === null ? "" : "/" + state.maxContinuations) + "]\n" +
+        header +
         "Goal: " + state.goal + "\n" +
         antiDriftLine +
         steeringLine +
