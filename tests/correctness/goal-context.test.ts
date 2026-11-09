@@ -110,4 +110,6 @@ test("production query uses the fresh anchor for both the hard-limit check and m
   const model = source.indexOf("messages: prependUserContext(goalRequestMessages, userContext)");
   assert.ok(compact >= 0 && anchor > compact && model > anchor);
   assert.match(source.slice(anchor, model), /tokenCountWithEstimation\(goalRequestMessages\) - snipTokensFreed/);
+  assert.match(source.slice(anchor, model), /executionPolicy: autoGoalPolicy/);
+  assert.match(source, /promptFormat: autoGoalPolicy \? 'delta' : 'full'/);
 });
