@@ -126,3 +126,16 @@ test('a Bash framework failure cancels dependent siblings without cancelling the
   assert.ok(blocks.every((block: any) => block.is_error));
   assert.equal(f.context.abortController.signal.aborted, false); assert.deepEqual(f.inProgress(), []);
 });
+
+test('a throwing concurrency preflight cannot lose a call before normal tool validation', { timeout: 2000 }, async () => {
+  const f = fixture(async function* (call) {
+    const update = result(call.id, 'schema validation failed');
+    (update.message.message.content[0] as any).is_error = true;
+    yield update;
+  });
+  f.context.options.tools[0]!.inputSchema.safeParse = () => { throw new Error('schema predicate failed'); };
+  assert.doesNotThrow(() => f.add('invalid'));
+  const blocks = await f.drain();
+  assert.equal(blocks.length, 1); assert.equal(blocks[0]!.tool_use_id, 'invalid');
+  assert.equal(blocks[0]!.is_error, true); assert.deepEqual(f.inProgress(), []);
+});

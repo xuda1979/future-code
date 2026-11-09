@@ -103,7 +103,10 @@ export class StreamingToolExecutor {
       return
     }
 
-    const parsedInput = toolDefinition.inputSchema.safeParse(block.input)
+    const parsedInput = (() => {
+      try { return toolDefinition.inputSchema.safeParse(block.input) }
+      catch { return { success: false as const } }
+    })()
     const isConcurrencySafe = parsedInput?.success
       ? (() => {
           try {
