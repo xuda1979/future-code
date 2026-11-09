@@ -49,12 +49,12 @@ jobs:
           bun-version: "1.4.2"
       - name: Install only the public SDK used by the retry boundary
         run: |
-          npm install --prefix "$RUNNER_TEMP/api-retry" --no-audit --no-fund --ignore-scripts '@future/sdk@npm:@anthropic-ai/sdk@0.116.0'
+          npm install --prefix "$RUNNER_TEMP/api-retry" --no-audit --no-fund --ignore-scripts '@future/sdk@npm:@anthropic-ai/sdk@0.116.0' lodash-es
           ln -s "$RUNNER_TEMP/api-retry/node_modules" node_modules
       - name: Terminal API retry regression
         run: bun test --preload ./tests/api/retry-isolation.ts ./tests/api/retry-resilience.test.ts
       - name: Auth-failure suppression regression
-        run: npm install --prefix "$RUNNER_TEMP/auth-fail" --no-audit --no-fund --ignore-scripts lodash-es && cp -r "$RUNNER_TEMP/auth-fail/node_modules" node_modules && bun test tests/correctness/auth-failure-suppression.test.ts
+        run: bun test tests/correctness/auth-failure-suppression.test.ts
   terminal-sessions:
     runs-on: ubuntu-latest
     timeout-minutes: 5
