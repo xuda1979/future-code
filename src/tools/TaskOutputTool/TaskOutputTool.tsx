@@ -29,8 +29,8 @@ import BashToolResultMessage from '../BashTool/BashToolResultMessage.js';
 import { TASK_OUTPUT_TOOL_NAME } from './constants.js';
 const inputSchema = lazySchema(() => z.strictObject({
   task_id: z.string().describe('The task ID to get output from'),
-  block: semanticBoolean(z.boolean().default(true)).describe('Whether to wait for completion'),
-  timeout: z.number().min(0).max(600000).default(30000).describe('Max wait time in ms')
+  block: semanticBoolean(z.boolean().default(true)).describe('Whether to wait for completion. IMPORTANT: while blocked, your entire session is frozen and cannot do other work. Prefer ending your turn — you will be notified automatically when the task completes.'),
+  timeout: z.number().min(0).max(600000).default(30000).describe('Max wait time in ms. Keep this short (<=30s): if the task is still running when it expires, end your turn and wait for the completion notification instead of re-blocking.')
 }));
 type InputSchema = ReturnType<typeof inputSchema>;
 type TaskOutputToolInput = z.infer<InputSchema>;
@@ -175,7 +175,8 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
 - Retrieves output from a running or completed task (background shell, agent, or remote session)
 - Takes a task_id parameter identifying the task
 - Returns the task output along with status information
-- Use block=true (default) to wait for task completion
+- Use block=true (default) to wait for task completion — but ONLY with a short timeout (<=30s). While blocked, your entire session is frozen: no other tools can run, no other work can happen.
+- If a blocking wait expires while the task is still running, do NOT re-block with a longer timeout. End your turn instead (short status message or Sleep tool). You will receive a <task-notification> automatically when the task completes, then Read its output file.
 - Use block=false for non-blocking check of current status
 - Task IDs can be found using the /tasks command
 - Works with all task types: background shells, async agents, and remote sessions`;
@@ -283,6 +284,15 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
   mapToolResultToToolResultBlockParam(data, toolUseID) {
     const parts: string[] = [];
     parts.push(`<retrieval_status>${data.retrieval_status}</retrieval_status>`);
+    if (data.retrieval_status === 'timeout' && data.task) {
+      // A blocking wait expired while the task is still running. Tell the
+      // model how to wait efficiently instead of re-blocking with a longer
+      // timeout (observed: 26 consecutive 600s blocks in one session,
+      // ~1.3M tokens burned on no-op polls).
+      parts.push(
+        `<hint>The blocking wait expired but the task is still running. Do NOT call TaskOutput again with a longer timeout — each blocked call freezes this whole session. Instead: end your turn (e.g. respond with a short status note or use the Sleep tool). You will receive a &lt;task-notification&gt; automatically when this task completes, and you can then Read the output file below. If you need a mid-run progress peek, use block=false.</hint>`,
+      );
+    }
     if (data.task) {
       parts.push(`<task_id>${data.task.task_id}</task_id>`);
       parts.push(`<task_type>${data.task.task_type}</task_type>`);
