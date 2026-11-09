@@ -13,11 +13,21 @@
  */
 
 import { maybeStartSelfImproveCycle } from './cycle.js'
+import { logForDebugging } from '../../utils/debug.js'
 
 const CHECK_INTERVAL_MS = 60_000
 
 let armed = false
 let timer: ReturnType<typeof setInterval> | null = null
+
+function checkCycle(): void {
+  try { maybeStartSelfImproveCycle({}) }
+  catch (error) {
+    // Optional background maintenance must not crash a foreground project
+    // when settings or its ledger cannot be read. The next tick can recover.
+    logForDebugging(`Self-improve scheduler check failed: ${String(error)}`)
+  }
+}
 
 /** Arm the background self-improvement loop for this session (idempotent). */
 export function armSelfImproveScheduler(): void {
@@ -25,11 +35,9 @@ export function armSelfImproveScheduler(): void {
   armed = true
   // First check right away (startup/resume of a session is the signal
   // that a session is running).
-  void maybeStartSelfImproveCycle({})
+  checkCycle()
   // Then keep nudging while the session is alive.
-  timer = setInterval(() => {
-    void maybeStartSelfImproveCycle({})
-  }, CHECK_INTERVAL_MS)
+  timer = setInterval(checkCycle, CHECK_INTERVAL_MS)
   timer.unref?.()
 }
 

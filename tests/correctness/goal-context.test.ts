@@ -106,7 +106,7 @@ test("long-run request payload drops repeated host text without dropping outcome
 test("production query uses the fresh anchor for both the hard-limit check and model request after compaction", () => {
   const source = readFileSync(new URL("../../src/query.ts", import.meta.url), "utf8");
   const compact = source.indexOf("await deps.autocompact(");
-  const anchor = source.indexOf("const goalRequestMessages = appendGoalRequestAnchor(");
+  const anchor = source.indexOf("let goalRequestMessages = appendGoalRequestAnchor(");
   const model = source.indexOf("messages: prependUserContext(goalRequestMessages, userContext)");
   assert.ok(compact >= 0 && anchor > compact && model > anchor);
   assert.match(source.slice(anchor, model), /tokenCountWithEstimation\(goalRequestMessages\) - snipTokensFreed/);

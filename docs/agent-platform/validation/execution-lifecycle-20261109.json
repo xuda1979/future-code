@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "baseCommit": "23768769a765af4bdd01edb911f31b4d463b1c71",
+  "runtimeSourceFingerprint": "bea00fe8e7ea24d2995d077b97ef9fd9e3ff04dab1ee16feeb2624838c626fca",
+  "runtimeSourcePaths": [
+    "src/query.ts",
+    "src/services/tools/StreamingToolExecutor.ts",
+    "src/services/selfImprove/cycle.ts",
+    "src/services/selfImprove/subprocess.ts",
+    "src/services/selfImprove/ledger.ts",
+    "src/services/selfImprove/scheduler.ts",
+    "src/services/selfImprove/prompts.ts"
+  ],
+  "runtime": "Node v24.22.1 on Linux",
+  "focused": {
+    "tests": 37,
+    "pass": 37,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "selectedRegressionCasesOnBase": {
+    "tests": 16,
+    "pass": 0,
+    "fail": 16,
+    "cancelled": 0,
+    "skipped": 0
+  },
+  "gates": [
+    {
+      "command": "node scripts/test-correctness.mjs",
+      "exitCode": 0,
+      "nodeTests": {
+        "tests": 133,
+        "pass": 133,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "pythonSummaries": [
+        "Ran 23 tests in 1.195s",
+        "OK (skipped=5)",
+        "Ran 18 tests in 5.394s",
+        "OK"
+      ]
+    },
+    {
+      "command": "node scripts/test-resilience.mjs",
+      "exitCode": 0,
+      "nodeTests": {
+        "tests": 178,
+        "pass": 178,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "pythonSummaries": [
+        "Ran 18 tests in 5.495s",
+        "OK"
+      ]
+    },
+    {
+      "command": "node scripts/test-foundry.mjs",
+      "exitCode": 0,
+      "nodeTests": {
+        "tests": 872,
+        "pass": 872,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "pythonSummaries": []
+    },
+    {
+      "command": "node scripts/test-swarm.mjs",
+      "exitCode": 0,
+      "nodeTests": {
+        "tests": 557,
+        "pass": 557,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "pythonSummaries": []
+    },
+    {
+      "command": "node scripts/test-commands.mjs",
+      "exitCode": 0,
+      "nodeTests": {
+        "tests": 153,
+        "pass": 153,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "pythonSummaries": []
+    }
+  ],
+  "scope": [
+    "Real executor class with isolated SDK/UI/tool-generator services.",
+    "Actual query recovery blocks executed with instrumented streams.",
+    "Real local Git repos/worktrees, candidate commits, subprocess failures and POSIX timeout cleanup.",
+    "Deterministic model-output/build/test fixtures for self-improvement integration; no live LLM or production repository push."
+  ],
+  "limits": [
+    "Node test counts across suites overlap.",
+    "Five environment-dependent local terminal/tmux checks skipped.",
+    "Full packaged CLI, live-provider throughput/token cost and intelligence gains not certified.",
+    "Private worktrees/process groups are not an OS security sandbox.",
+    "Self-improvement ledger remains advisory, not a machine-wide transactional quota scheduler."
+  ]
+}

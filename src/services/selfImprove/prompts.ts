@@ -64,6 +64,7 @@ Rules:
 - Implement the change described. Keep the diff minimal and focused on this one finding — no drive-by refactors, no unrelated formatting.
 - If the proposal turns out to be wrong or impossible to implement safely, make NO changes and explain why in your final message.
 - Add or update a test only if the change's behavior is unit-testable without heroics.
+- For automatic promotion, add focused regression tests in new files; baseline tests, build scripts, dependency/CI configuration and validation runners are frozen. Proposals that change those inputs are retained for independent review and cannot certify themselves.
 - Do NOT run the full build or full test suite (the loop validates after you finish). A quick targeted check (e.g. bun tsc --noEmit on touched files, or a single test file) is fine.
 - Do NOT git commit, branch, merge, or push. The loop handles git.
 - Your final message: one paragraph summarizing what changed (or why nothing changed).`

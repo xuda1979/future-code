@@ -27,60 +27,59 @@ export type HeadlessResult = {
 }
 
 /** Run one headless future-code session and return its final text. */
-export function runHeadlessFuture(
+export async function runHeadlessFuture(
   prompt: string,
   cwd: string,
   timeoutMs: number = 20 * 60_000,
   maxPromptBytes: number = 100_000,
 ): Promise<string> {
+  if (!Number.isSafeInteger(maxPromptBytes) || maxPromptBytes <= 0) throw new Error('Invalid self-improvement prompt byte budget');
+  if (Buffer.byteLength(prompt) > maxPromptBytes) throw new Error('Self-improvement prompt exceeds its byte budget');
   const command = headlessFutureCommand()
   const args = [
     '--print',
     '--output-format',
     'text',
-    prompt.slice(0, maxPromptBytes),
+    prompt,
   ]
-  return new Promise<string>(resolve => {
-    let output = ''
-    let settled = false
-    const child = spawn(command, args, {
-      cwd,
-      env: {
-        ...process.env,
-        [SELF_IMPROVE_MARKER_ENV]: '1',
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true
-        child.kill('SIGKILL')
-        resolve(output || '')
+  const result = await runSelfImproveProcess([command, ...args], cwd, timeoutMs, 400_000)
+  if (result.code !== 0) throw new Error(`Headless session exit ${result.code}: ${result.stderr.slice(-1000)}`)
+  return result.stdout.trim()
+}
+
+/** Bounded capture with separate stdout/stderr. Wait for group shutdown before
+ * returning; otherwise timed-out children can still edit a replacement tree. */
+export function runSelfImproveProcess(argv: string[], cwd: string, timeoutMs: number, maxBytes = 200_000):
+Promise<{ code: number; stdout: string; stderr: string }> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isSafeInteger(maxBytes) || maxBytes <= 0)
+    return Promise.reject(new Error('Invalid self-improvement process budget'))
+  return new Promise((resolve, reject) => {
+    const child = spawn(argv[0]!, argv.slice(1), { cwd, shell: false, detached: process.platform !== 'win32',
+      env: { ...process.env, [SELF_IMPROVE_MARKER_ENV]: '1' }, stdio: ['ignore', 'pipe', 'pipe'] })
+    const stdout: Buffer[] = [], stderr: Buffer[] = []
+    let bytes = 0, failure: Error | null = null
+    const kill = () => {
+      if (process.platform !== 'win32' && child.pid) {
+        try { process.kill(-child.pid, 'SIGKILL'); return } catch { /* child may have exited */ }
       }
-    }, timeoutMs)
-    child.stdout?.on('data', chunk => {
-      output += String(chunk)
-      if (output.length > 400_000) output = output.slice(-200_000)
-    })
-    child.stderr?.on('data', chunk => {
-      // Keep stderr for diagnostics but never let it dominate.
-      output += String(chunk)
-      if (output.length > 400_000) output = output.slice(-200_000)
-    })
-    child.on('error', error => {
-      if (!settled) {
-        settled = true
-        clearTimeout(timer)
-        resolve('')
-      }
-      void error
-    })
-    child.on('close', () => {
-      if (!settled) {
-        settled = true
-        clearTimeout(timer)
-        resolve(output.trim())
-      }
+      child.kill('SIGKILL')
+    }
+    const timer = setTimeout(() => { failure ??= new Error('Self-improvement process deadline exceeded'); kill() }, timeoutMs)
+    const collect = (chunk: Buffer, target: Buffer[]) => {
+      bytes += chunk.length
+      if (bytes > maxBytes) { failure ??= new Error('Self-improvement process output exceeded byte budget'); kill() }
+      else target.push(Buffer.from(chunk))
+    }
+    child.stdout?.on('data', chunk => collect(chunk, stdout))
+    child.stderr?.on('data', chunk => collect(chunk, stderr))
+    child.on('error', error => { failure ??= error })
+    child.on('exit', () => { if (process.platform !== 'win32') kill() })
+    child.on('close', code => {
+      // Also stop descendants that inherited pipes or outlived the leader.
+      clearTimeout(timer)
+      if (failure) return reject(failure)
+      if (!Number.isInteger(code)) return reject(new Error('Self-improvement process exited without a status'))
+      resolve({ code: code!, stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8') })
     })
   })
 }

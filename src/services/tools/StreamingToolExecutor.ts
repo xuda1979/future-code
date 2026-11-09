@@ -62,11 +62,13 @@ export class StreamingToolExecutor {
   }
 
   /**
-   * Discards all pending and in-progress tools. Called when streaming fallback
-   * occurs and results from the failed attempt should be abandoned.
-   * Queued tools won't start, and in-progress tools will receive synthetic errors.
+   * Abandon a model attempt only before it admits any tools. Once a call has
+   * been admitted its actual outcome must be collected before replacement work.
    */
   discard(): void {
+    if (this.tools.length > 0) {
+      throw new Error('Cannot discard admitted tools; collect their actual results before retrying the model')
+    }
     this.discarded = true
   }
 
@@ -120,7 +122,7 @@ export class StreamingToolExecutor {
       pendingProgress: [],
     })
 
-    void this.processQueue()
+    this.processQueue()
   }
 
   /**
@@ -137,12 +139,12 @@ export class StreamingToolExecutor {
   /**
    * Process the queue, starting tools when concurrency conditions allow
    */
-  private async processQueue(): Promise<void> {
+  private processQueue(): void {
     for (const tool of this.tools) {
       if (tool.status !== 'queued') continue
 
       if (this.canExecuteTool(tool.isConcurrencySafe)) {
-        await this.executeTool(tool)
+        this.executeTool(tool)
       } else {
         // Can't execute this tool yet, and since we need to maintain order for non-concurrent tools, stop here
         if (!tool.isConcurrencySafe) break
@@ -262,18 +264,16 @@ export class StreamingToolExecutor {
   /**
    * Execute a tool and collect its results
    */
-  private async executeTool(tool: TrackedTool): Promise<void> {
+  private executeTool(tool: TrackedTool): void {
     tool.status = 'executing'
-    this.toolUseContext.setInProgressToolUseIDs(prev =>
-      new Set(prev).add(tool.id),
-    )
-    this.updateInterruptibleState()
 
     const messages: Message[] = []
     const contextModifiers: Array<(context: ToolUseContext) => ToolUseContext> =
       []
 
     const collectResults = async () => {
+      this.toolUseContext.setInProgressToolUseIDs(prev => new Set(prev).add(tool.id))
+      this.updateInterruptibleState()
       // If already aborted (by error or user), generate synthetic error block instead of running the tool
       const initialAbortReason = this.getAbortReason(tool)
       if (initialAbortReason) {
@@ -286,8 +286,6 @@ export class StreamingToolExecutor {
         )
         tool.results = messages
         tool.contextModifiers = contextModifiers
-        tool.status = 'completed'
-        this.updateInterruptibleState()
         return
       }
 
@@ -345,7 +343,7 @@ export class StreamingToolExecutor {
         }
 
         const isErrorResult =
-          update.message.type === 'user' &&
+          update.message?.type === 'user' &&
           Array.isArray(update.message.message.content) &&
           update.message.message.content.some(
             _ => _.type === 'tool_result' && _.is_error === true,
@@ -382,8 +380,10 @@ export class StreamingToolExecutor {
       }
       tool.results = messages
       tool.contextModifiers = contextModifiers
-      tool.status = 'completed'
-      this.updateInterruptibleState()
+      if (!messages.some(message => message.type === 'user' && Array.isArray(message.message.content) &&
+        message.message.content.some(block => block.type === 'tool_result' && block.tool_use_id === tool.id))) {
+        throw new Error('Tool stream ended without a result for the admitted call')
+      }
 
       // NOTE: we currently don't support context modifiers for concurrent
       //       tools. None are actively being used, but if we want to use
@@ -395,13 +395,49 @@ export class StreamingToolExecutor {
       }
     }
 
-    const promise = collectResults()
+    const promise = collectResults().catch(error => {
+      this.recordExecutionFailure(tool, messages, error)
+    }).then(() => {
+      tool.contextModifiers = contextModifiers
+      tool.status = 'completed'
+      try { this.updateInterruptibleState() }
+      catch (error) { this.recordExecutionFailure(tool, messages, error) }
+      this.progressAvailableResolve?.()
+      this.progressAvailableResolve = undefined
+    })
     tool.promise = promise
 
-    // Process more queue when done
-    void promise.finally(() => {
-      void this.processQueue()
-    })
+    // Observe rejection too: a detached finally() would create an unhandled
+    // rejection. Normal tool/stream failures above become paired diagnostics.
+    void promise.then(() => this.processQueue(), () => this.processQueue())
+  }
+
+  private recordExecutionFailure(tool: TrackedTool, messages: Message[], error: unknown): void {
+    const detail = (error instanceof Error ? error.message : String(error)).slice(0, 1000)
+    const diagnostic = `Tool result processing failed: ${detail}. External effects may already exist; inspect and reconcile them before retrying.`
+    let paired = false
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i]!
+      if (message.type !== 'user' || !Array.isArray(message.message.content)) continue
+      const content = message.message.content.map(block => {
+        if (block.type !== 'tool_result' || block.tool_use_id !== tool.id) return block
+        paired = true
+        return { ...block, is_error: true as const, content: typeof block.content === 'string'
+          ? block.content + '\n\n' + diagnostic
+          : [...(block.content ?? []), { type: 'text' as const, text: diagnostic }] }
+      })
+      messages[i] = { ...message, message: { ...message.message, content } }
+    }
+    if (!paired) messages.push(createUserMessage({
+      content: [{ type: 'tool_result', tool_use_id: tool.id, is_error: true, content: diagnostic }],
+      toolUseResult: diagnostic, sourceToolAssistantUUID: tool.assistantMessage.uuid,
+    }))
+    tool.results = messages
+    if (tool.block.name === BASH_TOOL_NAME) {
+      this.hasErrored = true
+      this.erroredToolDescription = this.getToolDescription(tool)
+      this.siblingAbortController.abort('sibling_error')
+    }
   }
 
   /**
@@ -456,7 +492,7 @@ export class StreamingToolExecutor {
     }
 
     while (this.hasUnfinishedTools()) {
-      await this.processQueue()
+      this.processQueue()
 
       for (const result of this.getCompletedResults()) {
         yield result
