@@ -66,7 +66,7 @@ ${DETAILED_ANALYSIS_INSTRUCTION_BASE}
 
 Your summary should include the following sections:
 
-1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail. CRITICAL ANTI-DRIFT RULE: If the user gave a new objective, changed direction, or superseded an earlier task, explicitly distinguish the Current Active Objective (from the latest user instructions) from Superseded/Completed Historical Objectives so work never drifts back to superseded tasks
+1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail. Preserve the root objective together with follow-up subtasks and constraints; a subtask or requirement update does not replace it. CRITICAL ANTI-DRIFT RULE: If the user explicitly replaced the objective or changed direction, distinguish the Current Active Objective from Superseded/Completed Historical Objectives. The current host objective anchor is authoritative over historical summaries and reminders
 2. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.
 3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Pay special attention to the most recent messages and include full code snippets where applicable and include a summary of why this file read or edit is important.
 4. Errors and fixes: List all errors that you ran into, and how you fixed them. Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.
