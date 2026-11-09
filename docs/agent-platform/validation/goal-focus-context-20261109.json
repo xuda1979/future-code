@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "measurement": "offline-synthetic-goal-request-view",
+  "sourceFingerprint": "9de615758ff52fc2080c2e27a97dda211df6acb4bc9edd42e93dc92b2d4f9c37",
+  "runtime": "v24.22.1",
+  "baseline": "same transcript including all host continuation reminders",
+  "candidate": "same human messages and tool evidence; latest host continuation plus fresh goal anchor",
+  "limitation": "Internal message JSON bytes before provider normalization and local projection time only. No measured HTTP bytes, live-provider latency, task throughput, reasoning or intelligence measurement. A one-continuation task adds anchor bytes.",
+  "measurements": [
+    {
+      "continuations": 1,
+      "baselineBytes": 3619,
+      "candidateBytes": 4603,
+      "reductionPercent": -27.19,
+      "retainedToolPairs": 1,
+      "droppedHumanMessages": 0,
+      "droppedToolResults": 0,
+      "projectionMedianMs": 0.0769
+    },
+    {
+      "continuations": 8,
+      "baselineBytes": 31200,
+      "candidateBytes": 10967,
+      "reductionPercent": 64.85,
+      "retainedToolPairs": 8,
+      "droppedHumanMessages": 0,
+      "droppedToolResults": 0,
+      "projectionMedianMs": 0.04
+    },
+    {
+      "continuations": 32,
+      "baselineBytes": 125608,
+      "candidateBytes": 31315,
+      "reductionPercent": 75.07,
+      "retainedToolPairs": 32,
+      "droppedHumanMessages": 0,
+      "droppedToolResults": 0,
+      "projectionMedianMs": 0.0317
+    },
+    {
+      "continuations": 128,
+      "baselineBytes": 503414,
+      "candidateBytes": 112809,
+      "reductionPercent": 77.59,
+      "retainedToolPairs": 128,
+      "droppedHumanMessages": 0,
+      "droppedToolResults": 0,
+      "projectionMedianMs": 0.0408
+    }
+  ]
+}

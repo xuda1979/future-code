@@ -9,9 +9,9 @@ export const AUTO_GOAL_BATCH_LIMIT = 32;
 // Larger budgets require explicit per-goal operator authorization.
 export const MAX_AUTO_GOAL_CONTINUATIONS = 100_000;
 const MAX_GOAL_BYTES = 4096;
-const MAX_STATE_BYTES = 32768;
+const MAX_STATE_BYTES = 512 * 1024;
 const MAX_SUPERSEDED_GOALS = 8;
-const MAX_STEERING_NOTES = 8;
+const MAX_STEERING_NOTES = 64;
 
 // A model may report a dependency failure, but an ordinary implementation or
 // test failure is work to do, not permission to retire the objective.
@@ -142,12 +142,14 @@ export function readAutoGoal(cwd = process.cwd()): AutoGoalState | null {
 
 function persist(cwd: string, state: AutoGoalState): AutoGoalState {
   validate(state);
+  const encoded = JSON.stringify(state, null, 2) + "\n";
+  if (Buffer.byteLength(encoded) > MAX_STATE_BYTES) throw new Error("Autonomous-goal state too large; preserve and consolidate constraints before continuing");
   const { dir, file } = location(cwd);
   checkDirectory(dir, true);
   checkFile(file);
   const tmp = join(dir, ".goal-autonomy-" + randomUUID() + ".tmp");
   try {
-    writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n", { encoding: "utf8", flag: "wx", mode: 0o600 });
+    writeFileSync(tmp, encoded, { encoding: "utf8", flag: "wx", mode: 0o600 });
     renameSync(tmp, file);
   } catch (error) {
     rmSync(tmp, { force: true });
@@ -156,7 +158,7 @@ function persist(cwd: string, state: AutoGoalState): AutoGoalState {
   return state;
 }
 
-function readGoalReport(dir: string): { text: string; fingerprint: string } | null {
+function readGoalReport(dir: string): { text: string; fingerprint: string; contentFingerprint: string } | null {
   const path = join(dir, "goal.md");
   if (!existsSync(path)) return null;
   const stat = lstatSync(path, { bigint: true });
@@ -165,7 +167,7 @@ function readGoalReport(dir: string): { text: string; fingerprint: string } | nu
   // Include the write identity so a fresh report, even with identical text,
   // is evaluated again. Resume ignores only the report already acknowledged.
   const fingerprint = createHash("sha256").update(`${stat.ino}:${stat.mtimeNs}:${stat.ctimeNs}:`).update(text).digest("hex");
-  return { text, fingerprint };
+  return { text, fingerprint, contentFingerprint: createHash("sha256").update(text).digest("hex") };
 }
 
 function extractGoalHeading(reportText: string): string | null {
@@ -206,10 +208,16 @@ export function parseMilestoneLedger(reportText: string): GoalMilestone[] {
 
 /** Reads and parses the milestone ledger from .future-code/goal.md. */
 export function readMilestoneLedger(cwd = process.cwd()): GoalMilestone[] {
+  const state = readAutoGoal(cwd);
+  if (!state) return [];
+  return milestoneLedgerForGoal(state.goal, cwd);
+}
+
+function milestoneLedgerForGoal(goal: string, cwd: string): GoalMilestone[] {
   const { dir } = location(cwd);
   if (!checkDirectory(dir, false)) return [];
   const report = readGoalReport(dir);
-  return report ? parseMilestoneLedger(report.text) : [];
+  return report && goalMatchesReport(report.text, goal) ? parseMilestoneLedger(report.text) : [];
 }
 
 /**
@@ -221,17 +229,13 @@ export function nextOpenMilestone(milestones: GoalMilestone[]): GoalMilestone | 
   return milestones.find(m => !m.done) ?? null;
 }
 
-function goalMatchesReport(reportText: string, goal: string, supersededGoals: string[] = []): boolean {
-  if (reportText.includes(goal) || normalizeGoalText(reportText).includes(normalizeGoalText(goal))) {
-    const heading = extractGoalHeading(reportText);
-    if (heading && normalizeGoalText(heading) !== normalizeGoalText(goal) &&
-        !normalizeGoalText(heading).includes(normalizeGoalText(goal)) &&
-        supersededGoals.some(old => normalizeGoalText(heading) === normalizeGoalText(old))) {
-      return false;
-    }
-    return true;
-  }
-  return false;
+function goalMatchesReport(reportText: string, goal: string): boolean {
+  // A mention in "Supersedes", notes, or a different goal's body is not a
+  // binding. Multi-line objectives retain their first line as the H1, with
+  // the remaining objective text immediately below it.
+  const heading = extractGoalHeading(reportText);
+  return heading !== null && normalizeGoalText(heading) === normalizeGoalText(goal.split(/\r?\n/)[0]!) &&
+    normalizeGoalText(reportText).includes(normalizeGoalText(goal));
 }
 
 function syncGoalMarkdownFile(
@@ -245,11 +249,18 @@ function syncGoalMarkdownFile(
   checkDirectory(dir, true);
   if (existsSync(goalMd)) {
     const stat = lstatSync(goalMd);
-    if (!stat.isFile() || stat.isSymbolicLink()) return;
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("Unsafe goal report file");
     if (!forceOverwrite) {
       const existing = readFileSync(goalMd, "utf8");
-      if (goalMatchesReport(existing, goal, previousGoal ? [previousGoal] : [])) return;
+      if (goalMatchesReport(existing, goal)) return;
     }
+    // Preserve the old work before repairing/superseding its ledger. An
+    // archive is historical evidence, never the active instruction source.
+    const report = readGoalReport(dir);
+    if (!report) throw new Error("Cannot safely archive mismatched goal report");
+    const archive = `goal-report-${randomUUID()}.md`;
+    writeFileSync(join(dir, archive), report.text, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    appendGoalHistory(cwd, { at: new Date().toISOString(), event: "goal_report_archived", archive });
   } else if (!forceOverwrite) {
     return;
   }
@@ -265,8 +276,9 @@ function syncGoalMarkdownFile(
   try {
     writeFileSync(tmp, lines.join("\n") + "\n", { encoding: "utf8", flag: "wx", mode: 0o600 });
     renameSync(tmp, goalMd);
-  } catch {
+  } catch (error) {
     rmSync(tmp, { force: true });
+    throw error;
   }
 }
 
@@ -327,9 +339,10 @@ export function enableAutoGoal(
     : 1;
   const now = new Date().toISOString();
 
-  // If a stale goal.md from a previous objective exists on disk, overwrite it
-  // immediately so the model cannot read stale instructions and drift back.
-  if (existingReport && !goalMatchesReport(existingReport.text, text, supersededGoals)) {
+  // Initialize the binding ourselves; the model should spend its first tool
+  // call on useful work, not recreating host-known goal/status metadata.
+  // Preserve a matching ledger, and archive any mismatched prior report.
+  if (!existingReport || !goalMatchesReport(existingReport.text, text)) {
     syncGoalMarkdownFile(cwd, text, previousGoal, options?.preserveSteering ? (existing?.activeSteering ?? []) : [], true);
   }
 
@@ -354,7 +367,7 @@ export function enableAutoGoal(
     ...(activeSteering.length > 0 ? { activeSteering } : {}),
     horizon,
     stagnantContinuations: 0,
-    lastProgressFingerprint: currentReport?.fingerprint ?? null,
+    lastProgressFingerprint: currentReport?.contentFingerprint ?? null,
     transition,
   });
 
@@ -387,14 +400,16 @@ export function recordGoalSteering(
   cwd = process.cwd(),
 ): AutoGoalState | null {
   const note = steeringNote.trim();
-  if (!note || Buffer.byteLength(note) > MAX_GOAL_BYTES) return null;
+  if (!note) return null;
+  if (Buffer.byteLength(note) > MAX_GOAL_BYTES) throw new Error("Goal steering exceeds 4096 bytes; split the instruction without discarding constraints");
   const state = readAutoGoal(cwd);
   if (!state) return null;
   const existingNotes = state.activeSteering ?? [];
   const deduped = [
     ...existingNotes.filter(item => normalizeGoalText(item) !== normalizeGoalText(note)),
     note,
-  ].slice(-MAX_STEERING_NOTES);
+  ];
+  if (deduped.length > MAX_STEERING_NOTES) throw new Error("Goal steering limit reached; consolidate constraints explicitly instead of discarding earlier instructions");
   const { dir } = location(cwd);
   return persist(cwd, {
     ...state,
@@ -469,12 +484,21 @@ export function goalTokenOverlap(goalA: string, goalB: string): number {
   return shared / Math.min(tokensA.length, tokensB.length);
 }
 
+function actionDirectiveText(input: string): string {
+  return input.trim().replace(/^(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:help\s+me\s+)?|i\s+(?:want|need|would\s+like)\s+(?:you\s+)?to\s+)/i, "");
+}
+
+const ACTION_DIRECTIVE = /^(?:(?:please|now|next|first)\s+)?(?:fix|implement|build|create|refactor|develop|design|optimize|migrate|add|remove|replace|rewrite|update|upgrade|integrate|resolve|repair|patch|write|complete|finish|deliver|ship|support|architect|overhaul|redesign|automate|improve|enhance|verify|debug|construct|configure|deploy|change)\b/i;
+
 function isReadOnlyQuestionOrChat(input: string): boolean {
   const text = input.trim();
   if (!text) return true;
   if (/^(?:hi|hello|hey|thanks|thank you|ok|okay|yes|no|yep|nope|cool|great|good|nice|got it|understood|你好|谢谢|好的|收到|明白)[.!。！?？]*$/i.test(text)) {
     return true;
   }
+  // "Could you fix ...?" is a request to act. Its punctuation must not
+  // leave a stale objective authoritative while the model handles the fix.
+  if (ACTION_DIRECTIVE.test(actionDirectiveText(text))) return false;
   // Questions or pure explanation/inspection requests must not overwrite an objective or auto-arm
   if (/^(?:explain|what\b|why\b|how\b|where\b|when\b|who\b|which\b|can you explain|could you explain|tell me\b|describe\b|show me\b|list\b|status\b|is there\b|are there\b|do we\b|does\b|did\b|为什么|怎么|如何|什么是|解释一下|告诉我|查看|列出)/i.test(text)) {
     return true;
@@ -489,7 +513,7 @@ export function extractExplicitNewObjective(input: string): string | null {
   const text = input.trim();
   if (!text || text.startsWith("/")) return null;
   const patterns: RegExp[] = [
-    /^(?:(?:my|the|our)\s+)?(?:new\s+)?(?:objective|goal|mission|target)\s*(?:is|now\s+is|:|-|->)\s*(.+)$/is,
+    /^(?:(?:my|the|our)\s+)?(?:new\s+)?(?:objective|goal|mission|target|task)\s*(?:is|now\s+is|:|-|->)\s*(.+)$/is,
     /^(?:please\s+)?(?:switch|change|update|set|replace|shift|pivot)\s+(?:the\s+|our\s+|my\s+)?(?:current\s+)?(?:objective|goal|task|focus|direction)\s+(?:to|with|into|:)\s*(.+)$/is,
     /^(?:instead\s+of\s+[^,.\n]+[,:]?\s*|forget\s+(?:that|the\s+(?:previous|old|prior|earlier)\s+(?:goal|objective|task))[,.;:]?\s*|(?:stop|drop|abandon)\s+(?:working\s+on\s+)?(?:that|the\s+(?:previous|old|prior)\s+(?:goal|objective|task))\s+(?:and\s+)?)(.+)$/is,
     /^(?:now\s+)?(?:let'?s|we\s+need\s+to|i\s+want\s+you\s+to|i\s+need\s+you\s+to)\s+(?:switch\s+to|pivot\s+to|work\s+on\s+a\s+new\s+(?:objective|goal|task)\s*[:,-]?\s*)(.+)$/is,
@@ -509,7 +533,7 @@ export function extractExplicitNewObjective(input: string): string | null {
 
 function isRefinementDirective(input: string): boolean {
   const text = input.trim();
-  return /^(?:also\b|and\s+also\b|make\s+sure\b|please\s+also\b|don'?t\s+forget\b|remember\s+to\b|keep\s+in\s+mind\b|in\s+addition\b|for\s+this\s+(?:goal|task|objective)\b|use\s+\S+\s+instead\b|另外|同时|还要|确保|注意|顺便)/i.test(text);
+  return /^(?:also\b|and\s+also\b|make\s+sure\b|please\s+also\b|don'?t\b|do\s+not\b|without\b|remember\s+to\b|keep\s+in\s+mind\b|in\s+addition\b|for\s+this\s+(?:goal|task|objective)\b|use\s+\S+\s+instead\b|另外|同时|还要|确保|注意|顺便|不要|不能)/i.test(text);
 }
 
 function isActionableObjectiveDirective(input: string): boolean {
@@ -520,7 +544,7 @@ function isActionableObjectiveDirective(input: string): boolean {
   const hasCjk = /[\u4e00-\u9fff]{4,}/.test(text);
   if (words.length < 3 && !hasCjk) return false;
   if (text.length < 12 && !hasCjk) return false;
-  return /^(?:(?:please|now|next|first)\s+)?(?:fix|implement|build|create|refactor|develop|design|optimize|migrate|add|remove|replace|rewrite|update|upgrade|integrate|resolve|repair|patch|write|complete|finish|deliver|ship|support|architect|overhaul|redesign|automate|improve|enhance|verify|debug|construct|configure|deploy|change)\b/i.test(text) ||
+  return ACTION_DIRECTIVE.test(actionDirectiveText(text)) ||
     /\b(?:and\s+send\s+a\s+pr|until\s+all\s+tests\s+pass|and\s+run\s+(?:the\s+)?tests|fix\s+it|change\s+the\s+code)\b/i.test(text) ||
     /^(?:请|现在|接下来)?\s*(?:修复|实现|构建|创建|重构|开发|设计|优化|迁移|添加|删除|替换|重写|更新|升级|集成|解决|修补|编写|完成|交付|支持|改进|增强|调试|部署|修改)/.test(text);
 }
@@ -530,9 +554,9 @@ function isActionableObjectiveDirective(input: string): boolean {
  * 1. Explicit resume instructions ("continue", "resume", "keep going", "go on", "继续", "继续工作")
  *    re-arm a PAUSED goal with its existing budget and lifetime counter.
  * 2. Explicit pause instructions ("pause", "pause goal", "stop goal", "暂停") pause an ACTIVE goal.
- * 3. Explicit or actionable new objective instructions supersede a prior goal (preventing
- *    objective drift back to stale goals), or record steering refinements when aligned with
- *    the active objective, or automatically arm autonomous execution for new objectives.
+ * 3. Explicit replacements supersede the root goal. Other follow-ups steer the
+ *    unfinished root goal; vocabulary overlap cannot decide root authority.
+ *    Actionable requests automatically arm a goal when none is unfinished.
  * Child/SDK/background messages cannot reset a budget or change root authority.
  */
 export function resumeAutoGoalFromInput(
@@ -584,15 +608,11 @@ export function resumeAutoGoalFromInput(
   // 6. Actionable engineering/research directive
   if (isActionableObjectiveDirective(trimmed)) {
     if (current) {
-      const overlap = goalTokenOverlap(current.goal, trimmed);
-      // If the goal is currently ACTIVE or PAUSED and the user is providing a
-      // refinement or closely overlapping instruction, record it as steering
-      // rather than discarding the core objective.
-      if (current.state !== "REVIEW" && (isRefinementDirective(trimmed) || overlap >= 0.35)) {
+      // A necessary subtask can share no words with the larger objective.
+      // Preserve that objective until the human explicitly replaces it.
+      if (current.state !== "REVIEW") {
         return recordGoalSteering(trimmed, cwd);
       }
-      // Otherwise the user is giving a new objective: supersede the old objective
-      // so future-code never drifts back to current.goal!
       return enableAutoGoal(trimmed, cwd, current.maxContinuations, {
         transition: "superseded",
       });
@@ -602,6 +622,10 @@ export function resumeAutoGoalFromInput(
       return enableAutoGoal(trimmed, cwd, null, { transition: "armed" });
     }
   }
+
+  // Trusted corrections/context need not start with a verb we predicted.
+  // Retain them across compaction without turning them into a new root goal.
+  if (current && current.state !== "REVIEW") return recordGoalSteering(trimmed, cwd);
 
   return null;
 }
@@ -636,30 +660,20 @@ function goalFileOutcome(
   cwd: string,
 ): { state: "REVIEW" | "PAUSED"; reason: string } | { recovery: string } | null {
   const report = readGoalReport(dir);
-  if (!report || report.fingerprint === state.ignoredGoalReport) return null;
+  if (!report) return null;
   const { text } = report;
-  const supersededList = [
-    ...(state.previousGoal ? [state.previousGoal] : []),
-    ...(state.supersededGoals ?? []),
-  ];
-
-  // Check if the goal file matches the current active objective
-  if (!goalMatchesReport(text, state.goal, supersededList)) {
-    // Detect if the model drifted back to a superseded objective in .future-code/goal.md!
-    const driftedTo = supersededList.find(old =>
-      old && (text.includes(old) || normalizeGoalText(text).includes(normalizeGoalText(old)))
-    );
-    if (driftedTo) {
-      syncGoalMarkdownFile(cwd, state.goal, state.previousGoal ?? driftedTo, state.activeSteering ?? [], true);
-      return {
-        recovery:
-          `OBJECTIVE DRIFT DETECTED: .future-code/goal.md referenced superseded objective "${driftedTo}". ` +
-          `The active objective is "${state.goal}". .future-code/goal.md has been reset to the active objective; ` +
-          `immediately align all actions to "${state.goal}" and continue all work that remains possible.`,
-      };
-    }
-    return null;
+  // Also repair entirely unrelated objectives, not just previously known ones.
+  // A mention of the active goal in the body cannot authorize a stale H1.
+  if (!goalMatchesReport(text, state.goal)) {
+    syncGoalMarkdownFile(cwd, state.goal, state.previousGoal ?? null, state.activeSteering ?? [], true);
+    return {
+      recovery:
+        `OBJECTIVE DRIFT DETECTED: .future-code/goal.md did not belong to the active objective. ` +
+        `Its previous contents were archived and the active ledger restored for "${state.goal}". ` +
+        `Align the next action to this objective and continue all work that remains possible.`,
+    };
   }
+  if (report.fingerprint === state.ignoredGoalReport) return null;
 
   const status = /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?(completed|blocked)(?:\*\*)?\s*$/im.exec(text)?.[1]?.toLowerCase();
   if (status === "completed") {
@@ -723,7 +737,7 @@ export function formatActiveGoalCompactionAnchor(state: AutoGoalState | null, cw
   if (state.activeSteering && state.activeSteering.length > 0) {
     lines.push(`ACTIVE USER CONSTRAINTS / STEERING: ${state.activeSteering.join(" | ")}`);
   }
-  const ledger = readMilestoneLedger(cwd);
+  const ledger = milestoneLedgerForGoal(state.goal, cwd);
   if (ledger.length > 0) {
     const open = ledger.filter(m => !m.done);
     const next = nextOpenMilestone(ledger);
@@ -735,6 +749,32 @@ export function formatActiveGoalCompactionAnchor(state: AutoGoalState | null, cw
   lines.push(
     `Continue executing ONLY the ACTIVE OBJECTIVE above automatically until independently verified completion or an unrecoverable external blocker requiring human intervention.`,
   );
+  return lines.join("\n");
+}
+
+/** Fresh request projection, including pause/review state. Never stored as a
+ * growing transcript or injected into child/SDK/background task authority. */
+export function formatGoalRequestAnchor(state: AutoGoalState, cwd = process.cwd()): string {
+  const lines = [
+    `[Host Current Objective — Revision ${state.revision ?? 1}; ${state.state}]`,
+    `Root objective (user instruction): ${JSON.stringify(state.goal)}`,
+    `User steering (apply with the root objective): ${JSON.stringify(state.activeSteering ?? [])}`,
+    "This current host state supersedes historical goal reminders, summaries, memories and plans. " +
+    "Follow the latest user message while preserving the root objective unless the user explicitly replaces it. " +
+    "Treat subtask completion as progress, not completion of the root objective.",
+  ];
+  if (state.state !== "ACTIVE") {
+    lines.push(`Automatic work is ${state.state === "PAUSED" ? "paused" : "awaiting review"}. Answer the latest user message; do not resume this objective without user authorization.`);
+  } else {
+    const ledger = milestoneLedgerForGoal(state.goal, cwd);
+    const next = nextOpenMilestone(ledger);
+    if (next) lines.push(`Unverified milestone frontier (#${next.index}): ${JSON.stringify(next.text)}`);
+    lines.push("Choose an action that advances a requested outcome, resolves a relevant uncertainty, or verifies that outcome. " +
+      "Keep goal.md's host-created objective heading when updating notes or milestones. " +
+      "Keep necessary deep reasoning and independent acceptance checks. Batch independent reads/checks only when safe; " +
+      "repeat verification when inputs change, a failure needs diagnosis, or final acceptance requires fresh evidence. " +
+      "A read, plan, checkpoint edit or model claim alone is not verified progress.");
+  }
   return lines.join("\n");
 }
 
@@ -805,7 +845,7 @@ export function decideAutoGoalContinuation(options: {
         state.maxContinuations + " turns). Use /goal --resume or re-arm with /goal --auto --limit N <goal>.");
 
     const currentReport = readGoalReport(dir);
-    const currentFingerprint = currentReport?.fingerprint ?? null;
+    const currentFingerprint = currentReport?.contentFingerprint ?? null;
     const progressed = currentFingerprint !== null && currentFingerprint !== state.lastProgressFingerprint;
     const stagnantContinuations = progressed ? 0 : (state.stagnantContinuations ?? 0) + 1;
     const next = state.continuations + 1;
@@ -835,7 +875,7 @@ export function decideAutoGoalContinuation(options: {
       ? "Long-horizon project mode: maintain structured milestones and dead-end notes in .future-code/goal.md, verify each sub-goal with concrete checks before advancing, and preserve clean working state across compactions. "
       : "Short-horizon sprint mode: execute the most direct implementation and verification path with minimal overhead. ";
     const stagnationLine = stagnantContinuations >= 2
-      ? `\nStagnation recovery (${stagnantContinuations} turns without a .future-code/goal.md update): explicitly identify what failed or stalled, pivot to an alternative implementation strategy or decompose the remaining work into smaller verifiable steps, and update .future-code/goal.md now.`
+      ? `\nCheckpoint unchanged for ${stagnantContinuations} continuations. This alone does not prove a stall: preserve useful deep reasoning and healthy running jobs. If the same failed action is repeating without new evidence, diagnose it and change approach. Record substantive findings when available; do not rewrite the checkpoint just to reset this reminder.`
       : "";
 
     return {

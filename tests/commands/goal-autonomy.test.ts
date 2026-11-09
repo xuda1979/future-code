@@ -286,7 +286,7 @@ test("model drifting back to a superseded objective in goal.md is detected, repa
   assert.match(repairedMd, /Status: in_progress/);
 }));
 
-test("actionable user directives automatically arm or supersede objectives while preserving mid-flight steering constraints", () => fixture(dir => {
+test("actionable directives arm goals; only explicit pivots supersede unfinished root objectives", () => fixture(dir => {
   // 1. Auto-arming when no goal exists yet
   const armed = resumeAutoGoalFromInput(
     "Implement end-to-end authentication flow and verify all unit tests pass",
@@ -310,9 +310,16 @@ test("actionable user directives automatically arm or supersede objectives while
   const continuation = take(dir)!;
   assert.match(continuation, /Active user constraints: Also make sure authentication tokens expire after 15 minutes/);
 
-  // 3. A distinct actionable directive supersedes the old objective automatically
+  // 3. A vocabulary change alone cannot discard the larger objective.
+  const subtask = "Refactor the billing invoice PDF generator and add regression tests";
+  const followup = resumeAutoGoalFromInput(subtask, { mainThread: true, cwd: dir })!;
+  assert.equal(followup.transition, "steered");
+  assert.equal(followup.goal, armed.goal);
+  assert.ok(followup.activeSteering!.includes(subtask));
+
+  // 4. An explicit human pivot does supersede it.
   const pivoted = resumeAutoGoalFromInput(
-    "Refactor the billing invoice PDF generator and add regression tests",
+    "New objective: Refactor the billing invoice PDF generator and add regression tests",
     { mainThread: true, cwd: dir },
   )!;
   assert.ok(pivoted);
@@ -351,7 +358,8 @@ test("dual-horizon classification, stagnation escalation, and compaction anchor 
   const p1 = take(dir)!;
   assert.match(p1, /Long-horizon project mode/);
   const p2 = take(dir)!;
-  assert.match(p2, /Stagnation recovery \(2 turns without a \.future-code\/goal\.md update\)/);
+  assert.match(p2, /Checkpoint unchanged for 2 continuations/);
+  assert.match(p2, /preserve useful deep reasoning and healthy running jobs/);
 
   const anchor = formatActiveGoalCompactionAnchor(readAutoGoal(dir))!;
   assert.match(anchor, /ACTIVE OBJECTIVE: Redesign the distributed scheduler architecture and run end-to-end benchmark suite/);

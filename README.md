@@ -146,6 +146,7 @@ Missing token or dollar measurements remain unknown.
 | Evidence and allocation | [Evidence Fabric](docs/agent-platform/EVIDENCE_FABRIC.md) |
 | Measured self-reflection | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
 | Execution timings, context retirement and resource wakeups | [Execution productivity](docs/agent-platform/EXECUTION_PRODUCTIVITY.md) |
+| Root-objective continuity and reduced repeated prompt instructions | [Objective focus and context efficiency](docs/agent-platform/OBJECTIVE_FOCUS_AND_CONTEXT_EFFICIENCY.md) |
 | Execution review, indexed dispatch and alternate-model recovery | [Dispatch scaling](docs/agent-platform/DISPATCH_SCALING.md) |
 | Parallel reads and replayable edit batches | [Tool batching](docs/agent-platform/TOOL_BATCHING.md) |
 | Scoped literal source search and repository review priorities | [Source search](docs/agent-platform/SOURCE_SEARCH.md) |

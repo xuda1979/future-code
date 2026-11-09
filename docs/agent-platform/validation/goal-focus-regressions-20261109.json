@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "scope": "offline regression evidence; gates overlap and counts are not unique tests",
+  "baseCommit": "fd9df8e0c2911533705ed94698aac615ea7f5715",
+  "runtimeSourceFingerprint": "ad31231238ca9edcbff0ca0345c531d276466076b6051cf9b7a8c97872c5d349",
+  "runtimeSourcePaths": [
+    "src/commands/goal/auto.ts",
+    "src/commands/goal/context.ts",
+    "src/commands/goal/index.ts",
+    "src/query.ts",
+    "src/constants/prompts.ts",
+    "src/services/compact/prompt.ts"
+  ],
+  "nodeVersion": "v24.22.1",
+  "focused": {
+    "tests": 54,
+    "passed": 54,
+    "failed": 0
+  },
+  "newGoalFocusCasesOnBase": {
+    "tests": 14,
+    "passed": 2,
+    "failed": 12
+  },
+  "newGoalFocusCasesOnCandidate": {
+    "tests": 14,
+    "passed": 14,
+    "failed": 0
+  },
+  "gates": [
+    {
+      "command": "node scripts/test-correctness.mjs",
+      "exitCode": 0,
+      "durationSeconds": 14.71,
+      "nodeTests": {
+        "tests": 101,
+        "pass": 101,
+        "fail": 0,
+        "skipped": 0
+      },
+      "pythonSummaries": [
+        "Ran 23 tests in 1.116s",
+        "OK (skipped=5)",
+        "Ran 18 tests in 5.467s",
+        "OK"
+      ]
+    },
+    {
+      "command": "node scripts/test-resilience.mjs",
+      "exitCode": 0,
+      "durationSeconds": 24.58,
+      "nodeTests": {
+        "tests": 178,
+        "pass": 178,
+        "fail": 0,
+        "skipped": 0
+      },
+      "pythonSummaries": [
+        "Ran 18 tests in 5.905s",
+        "OK"
+      ]
+    },
+    {
+      "command": "node scripts/test-foundry.mjs",
+      "exitCode": 0,
+      "durationSeconds": 72.4,
+      "nodeTests": {
+        "tests": 872,
+        "pass": 872,
+        "fail": 0,
+        "skipped": 0
+      },
+      "pythonSummaries": []
+    },
+    {
+      "command": "node scripts/test-swarm.mjs",
+      "exitCode": 0,
+      "durationSeconds": 58.86,
+      "nodeTests": {
+        "tests": 557,
+        "pass": 557,
+        "fail": 0,
+        "skipped": 0
+      },
+      "pythonSummaries": []
+    },
+    {
+      "command": "node scripts/test-commands.mjs",
+      "exitCode": 0,
+      "durationSeconds": 0.37,
+      "nodeTests": {
+        "tests": 147,
+        "pass": 147,
+        "fail": 0,
+        "skipped": 0
+      },
+      "pythonSummaries": []
+    }
+  ],
+  "limitations": [
+    "Five environment-dependent terminal/tmux Python checks were skipped.",
+    "Packaged CLI build blocked at prerequisite check: Bun is not installed.",
+    "No live-provider latency, productivity or intelligence certification."
+  ]
+}

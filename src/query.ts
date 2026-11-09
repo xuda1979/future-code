@@ -122,6 +122,7 @@ import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
 import { shouldRecoverSilentResponse, hasVisibleAssistantText, modelApiFailureReason } from './utils/responseLiveness.js'
 import { decideAutoGoalContinuation, parkActiveAutoGoal, isAutoGoalMainThread, readAutoGoal, shouldPauseGoalAfterTerminal } from './commands/goal/auto.js'
+import { appendGoalRequestAnchor, compactGoalContinuations } from './commands/goal/context.js'
 import { notifyQueryActivity, type QueryActivityEvent } from './utils/queryActivity.js'
 import { hasMainThreadQueuedCommand } from './utils/queueWakeup.js'
 import { watchModelStream, isModelProgress, modelStreamIdleTimeout, ModelStreamStalledError, modelStallAction } from './utils/modelStreamLiveness.js'
@@ -403,7 +404,7 @@ async function* queryLoop(
       queryTracking,
     }
 
-    let messagesForQuery = [...getMessagesAfterCompactBoundary(messages)]
+    let messagesForQuery = compactGoalContinuations([...getMessagesAfterCompactBoundary(messages)], mainGoalThread)
     activity({ kind: 'phase', phase: 'preparing' })
 
     let tracking = autoCompactTracking
@@ -656,6 +657,12 @@ async function* queryLoop(
     // API call and starve both recovery paths. The isAutoCompactEnabled()
     // conjunct preserves the user's explicit "no automatic anything"
     // config — if they set DISABLE_AUTO_COMPACT, they get the preempt.
+    // Refresh after compaction, outside cached system/user context. This is
+    // an ephemeral request view, never part of state.messages/transcripts.
+    const goalRequestMessages = appendGoalRequestAnchor(messagesForQuery, {
+      mainThread: mainGoalThread,
+      makeMessage: content => createUserMessage({ content, isMeta: true }),
+    })
     let collapseOwnsIt = false
     if (feature('CONTEXT_COLLAPSE')) {
       collapseOwnsIt =
@@ -679,7 +686,7 @@ async function* queryLoop(
       !collapseOwnsIt
     ) {
       const { isAtBlockingLimit } = calculateTokenWarningState(
-        tokenCountWithEstimation(messagesForQuery) - snipTokensFreed,
+        tokenCountWithEstimation(goalRequestMessages) - snipTokensFreed,
         toolUseContext.options.mainLoopModel,
       )
       if (isAtBlockingLimit) {
@@ -704,9 +711,9 @@ async function* queryLoop(
           let streamingFallbackOccured = false
           queryCheckpoint('query_api_streaming_start')
           activity({ kind: 'phase', phase: 'model' })
-          if (params.onActivity) activity({ kind: 'context', tokens: tokenCountWithEstimation(messagesForQuery) })
+          if (params.onActivity) activity({ kind: 'context', tokens: tokenCountWithEstimation(goalRequestMessages) })
           for await (const message of watchModelStream(signal => deps.callModel({
-            messages: prependUserContext(messagesForQuery, userContext),
+            messages: prependUserContext(goalRequestMessages, userContext),
             systemPrompt: fullSystemPrompt,
             thinkingConfig: toolUseContext.options.thinkingConfig,
             tools: toolUseContext.options.tools,
