@@ -3,15 +3,14 @@
  * improving itself while sessions run.
  *
  * Flow (one cycle):
- *   1. Guard: config enabled, interval elapsed, no cycle in flight
- *      (all sessions on the machine share one ledger/lock).
- *   2. Locate the future-code source repo (git rev-parse on cwd, else
- *      clone the configured repoUrl into ~/.future/self-improve/repo).
+ *   1. Guard: config enabled, interval/advisory history permits a cycle,
+ *      and no cycle is running in this process.
+ *   2. Locate the configured source in the managed clone. Analysis and
+ *      changes use separate private worktrees pinned to fetched main.
  *   3. Spawn a headless `future-code --print` analysis subagent over that
  *      repo with a strict JSON-findings contract.
- *   4. Gate each finding: dedup against the ledger fingerprint set,
- *      severity floor, and a risk classifier (analysis-only proposals
- *      with no execution semantics change are auto-acceptable).
+ *   4. Bound and deduplicate findings. Finding admission authorizes a
+ *      proposal, never a correctness or acceptance claim.
  *   5. For accepted findings, run the executor: feature branch → change
  *      (another headless session, scoped to the one finding) → build →
  *      targeted test → commit; merge to main and push only when the
@@ -22,10 +21,10 @@
  * cycle-end(status=error).
  */
 
-import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { logForDebugging } from '../../utils/debug.js'
 import {
   appendLedgerEntry,
@@ -33,6 +32,7 @@ import {
   fingerprintFinding,
   readLedger,
   recordedFingerprints,
+  recoverAbandonedCycles,
   shouldStartCycle,
   type LedgerEntry,
 } from './ledger.js'
@@ -42,7 +42,7 @@ import {
   type SelfImproveConfig,
 } from './config.js'
 import { runAnalysisPrompt, runChangePrompt } from './prompts.js'
-import { execGitQuiet, runHeadlessFuture } from './subprocess.js'
+import { execGitQuiet, runHeadlessFuture, runSelfImproveProcess } from './subprocess.js'
 
 /** In-flight guard across async starts within one process. */
 let localCycleRunning = false
@@ -52,35 +52,42 @@ export function getSelfImproveStateDir(): string {
 }
 
 /**
- * Locate the future-code source checkout to analyze. Prefers the repo the
- * current process is running from; falls back to the shared clone under
- * ~/.future/self-improve/repo (cloning on demand).
+ * Use a managed checkout for the configured repository, never the foreground
+ * project's checkout. The current project may be an unrelated src/services repo.
  */
 export function resolveRepoPath(
   config: SelfImproveConfig,
-  startDir: string,
+  _startDir: string,
 ): { repoPath: string | null; cloned: boolean; error?: string } {
-  const gitTop = execGitQuiet(['rev-parse', '--show-toplevel'], startDir)
-  if (gitTop.ok && existsSync(join(gitTop.stdout, 'src', 'services'))) {
-    return { repoPath: gitTop.stdout, cloned: false }
-  }
-  const shared = join(getSelfImproveStateDir(), 'repo')
-  if (existsSync(join(shared, '.git'))) {
-    execGitQuiet(['fetch', 'origin', 'main'], shared)
-    return { repoPath: shared, cloned: false }
-  }
-  const clone = execGitQuiet(
-    ['clone', '--depth', '50', '--branch', 'main', config.repoUrl, shared],
-    getSelfImproveStateDir(),
-  )
-  if (!clone.ok) {
-    return {
-      repoPath: null,
-      cloned: false,
-      error: `clone failed: ${clone.stderr.slice(0, 300)}`,
+  try {
+    mkdirSync(getSelfImproveStateDir(), { recursive: true })
+    const shared = join(getSelfImproveStateDir(), 'repo')
+    if (existsSync(join(shared, '.git'))) {
+      const origin = execGitQuiet(['remote', 'get-url', 'origin'], shared)
+      const identity = (url: string) => url.trim().replace(/^git@github\.com:/, 'https://github.com/').replace(/\/?\.git\/?$/, '').replace(/\/$/, '')
+      if (!origin.ok || identity(origin.stdout) !== identity(config.repoUrl))
+        return { repoPath: null, cloned: false, error: 'Managed self-improvement checkout belongs to a different repository' }
+      const fetched = execGitQuiet(['fetch', 'origin', 'main'], shared)
+      if (!fetched.ok) return { repoPath: null, cloned: false, error: `fetch failed: ${fetched.stderr.slice(-300)}` }
+      if (checkedGit(['branch', '--show-current'], shared) === 'main' && !checkedGit(['status', '--porcelain'], shared))
+        checkedGit(['merge', '--ff-only', 'origin/main'], shared)
+      return { repoPath: shared, cloned: false }
     }
+    const clone = execGitQuiet(
+      ['clone', '--depth', '50', '--branch', 'main', config.repoUrl, shared],
+      getSelfImproveStateDir(),
+    )
+    if (!clone.ok) {
+      return {
+        repoPath: null,
+        cloned: false,
+        error: `clone failed: ${clone.stderr.slice(0, 300)}`,
+      }
+    }
+    return { repoPath: shared, cloned: true }
+  } catch (error) {
+    return { repoPath: null, cloned: false, error: error instanceof Error ? error.message : String(error) }
   }
-  return { repoPath: shared, cloned: true }
 }
 
 export type ParsedFinding = {
@@ -93,7 +100,7 @@ export type ParsedFinding = {
 }
 
 /** Parse the analysis subagent's JSON findings block (tolerant). */
-export function parseFindings(raw: string): ParsedFinding[] {
+export function parseFindings(raw: string, strict = false): ParsedFinding[] {
   const start = raw.indexOf('```json')
   const jsonText = start >= 0 ? raw.slice(start + 7) : raw
   const end = jsonText.indexOf('```')
@@ -102,23 +109,36 @@ export function parseFindings(raw: string): ParsedFinding[] {
   try {
     parsed = JSON.parse(body)
   } catch {
+    if (strict) throw new Error('Analysis did not return valid JSON findings')
     return []
   }
-  if (!Array.isArray(parsed)) return []
+  if (!Array.isArray(parsed)) {
+    if (strict) throw new Error('Analysis findings must be an array')
+    return []
+  }
+  if (strict && parsed.length > 3) throw new Error('Analysis exceeded the three-finding budget')
   const out: ParsedFinding[] = []
   const categories = new Set(['bug', 'improvement', 'efficiency', 'reliability'])
   const severities = new Set(['low', 'medium', 'high', 'critical'])
   for (const item of parsed) {
-    if (typeof item !== 'object' || item === null) continue
+    if (typeof item !== 'object' || item === null) {
+      if (strict) throw new Error('Invalid analysis finding')
+      continue
+    }
     const f = item as Record<string, unknown>
+    if (strict && (!categories.has(String(f.category)) || !severities.has(String(f.severity))))
+      throw new Error('Analysis finding has an invalid category or severity')
     if (
       typeof f.title !== 'string' ||
       typeof f.detail !== 'string' ||
       typeof f.target !== 'string' ||
       typeof f.proposedChange !== 'string'
     ) {
+      if (strict) throw new Error('Analysis finding is missing required text fields')
       continue
     }
+    if (strict && [f.title, f.detail, f.target, f.proposedChange].some(value => !(value as string).trim()))
+      throw new Error('Analysis finding contains an empty required field')
     out.push({
       title: f.title.slice(0, 200),
       category: (categories.has(String(f.category))
@@ -131,8 +151,48 @@ export function parseFindings(raw: string): ParsedFinding[] {
       target: f.target.slice(0, 300),
       proposedChange: f.proposedChange.slice(0, 4000),
     })
+    if (out.length === 3) break
   }
   return out
+}
+
+function checkedGit(args: string[], cwd: string): string {
+  const result = execGitQuiet(args, cwd)
+  if (!result.ok) throw new Error(`git ${args[0]} failed: ${result.stderr.slice(-500)}`)
+  return result.stdout.trim()
+}
+
+interface ImprovementWorkspace { path: string; parent: string; base: string }
+function prepareWorkspace(repoPath: string, ledgerPath: string, branch?: string, frozenCommit?: string): ImprovementWorkspace {
+  if (!frozenCommit) checkedGit(['fetch', 'origin', 'main'], repoPath)
+  const base = checkedGit(['rev-parse', '--verify', `${frozenCommit ?? 'origin/main'}^{commit}`], repoPath)
+  const parent = join(dirname(ledgerPath), 'worktrees')
+  mkdirSync(parent, { recursive: true })
+  const unique = mkdtempSync(join(parent, 'cycle-'))
+  const path = join(unique, 'checkout')
+  checkedGit(['worktree', 'add', ...(branch ? ['-b', branch] : ['--detach']), path, base], repoPath)
+  return { path, parent: unique, base }
+}
+
+function releaseWorkspace(repoPath: string, workspace: ImprovementWorkspace, log: (text: string) => void): void {
+  const removed = execGitQuiet(['worktree', 'remove', workspace.path], repoPath)
+  if (removed.ok) rmSync(workspace.parent, { recursive: true, force: true })
+  else log(`Preserved worktree for inspection: ${workspace.path}`)
+}
+
+/** Candidates cannot rewrite the baseline commands/checks that certify them.
+ * New regression tests are allowed; changes to existing verifiers need review. */
+function changedVerificationInputs(repoPath: string, base: string, commit: string): string[] {
+  const parts = checkedGit(['diff', '--no-renames', '--name-status', '-z', base, commit], repoPath).split('\0')
+  const protectedPaths: string[] = []
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const status = parts[i]!, path = parts[i + 1]!
+    if (path.startsWith('scripts/') || path.startsWith('.github/') ||
+      (path.startsWith('tests/') && status !== 'A') ||
+      ['AGENTS.md', 'build.sh', 'package.json', 'bun.lock', 'bun.lockb', 'bunfig.toml', 'tsconfig.json', '.gitignore', '.gitattributes', '.gitmodules'].includes(path))
+      protectedPaths.push(path)
+  }
+  return protectedPaths
 }
 
 /** Gate a single finding. Returns null to drop it, else the decision. */
@@ -160,8 +220,9 @@ export function gateFinding(
 
 /**
  * Decide whether a background self-improvement cycle should start now.
- * Reads the shared ledger, so the interval/collision guard is global
- * across every future-code session on this machine.
+ * Reads shared advisory history; the local flag prevents overlap in this
+ * process. Unique worktrees and checked promotion protect cross-process Git
+ * state. This is not a transactional cross-process token/quota scheduler.
  */
 export function maybeStartSelfImproveCycle(options: {
   force?: boolean
@@ -203,8 +264,8 @@ export function maybeStartSelfImproveCycle(options: {
 }
 
 /**
- * Run one full self-improvement cycle. Never throws — all failures are
- * recorded in the ledger and returned.
+ * Run one cycle. Execution failures are recorded and returned. Persistence
+ * failures may still reject and are contained by the scheduler boundary.
  */
 export async function runSelfImproveCycle(options: {
   config: SelfImproveConfig
@@ -239,6 +300,7 @@ export async function runSelfImproveCycle(options: {
     ['rev-parse', '--abbrev-ref', 'HEAD'],
     repoPath,
   )
+  recoverAbandonedCycles(ledgerPath)
   appendLedgerEntry(
     {
       kind: 'cycle-start',
@@ -247,14 +309,14 @@ export async function runSelfImproveCycle(options: {
       cycleId,
       repoPath,
       repoBranch: branchInfo.stdout.trim() || 'unknown',
+      pid: process.pid,
     },
     ledgerPath,
   )
 
+  let analysisWorkspace: ImprovementWorkspace | undefined
   try {
-    // Freshen from main so analysis sees current code (per operator rule:
-    // git pull main before any feature-branch work).
-    execGitQuiet(['pull', '--ff-only', 'origin', 'main'], repoPath)
+    analysisWorkspace = prepareWorkspace(repoPath, ledgerPath)
 
     const known = recordedFingerprints(
       options.entries ?? readLedger(ledgerPath),
@@ -267,9 +329,11 @@ export async function runSelfImproveCycle(options: {
     log(`analyzing ${repoPath}`)
     const analysis = await runHeadlessFuture(
       runAnalysisPrompt(recentTitles),
-      repoPath,
+      analysisWorkspace.path,
     )
-    const findings = parseFindings(analysis)
+    if (checkedGit(['status', '--porcelain'], analysisWorkspace.path))
+      throw new Error('Read-only analysis modified its private worktree; preserved for inspection')
+    const findings = parseFindings(analysis, true)
     let accepted = 0
     for (const finding of findings) {
       const gate = gateFinding(finding, known)
@@ -342,6 +406,8 @@ export async function runSelfImproveCycle(options: {
       ledgerPath,
     )
     return { status: 'error', findings: 0, accepted: 0, error: message }
+  } finally {
+    if (analysisWorkspace) releaseWorkspace(repoPath, analysisWorkspace, log)
   }
 }
 
@@ -361,8 +427,8 @@ export function recentFindingTitles(
 /**
  * Execute one accepted finding: feature branch → change → build → test →
  * commit → (optionally) merge to main → push. Each step is recorded in
- * the ledger. Per the operator's rule, `git pull origin main` runs before
- * the branch is cut.
+ * the ledger. Proposals start from a pinned fetched base in private worktrees;
+ * foreground checkouts are never switched or used to assemble a candidate.
  */
 export async function executeFindingChange(options: {
   cycleId: string
@@ -380,6 +446,7 @@ export async function executeFindingChange(options: {
   merged: boolean
   pushed: boolean
   note?: string
+  worktreePath?: string
 }> {
   const { cycleId, finding, fingerprint, repoPath, config, ledgerPath, log } =
     options
@@ -389,16 +456,7 @@ export async function executeFindingChange(options: {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '')
       .slice(0, 40) || 'finding'
-  const branch = `self-improve/${slug}`
-
-  // Start from a current main.
-  execGitQuiet(['fetch', 'origin', 'main'], repoPath)
-  execGitQuiet(['checkout', 'main'], repoPath)
-  execGitQuiet(['pull', '--ff-only', 'origin', 'main'], repoPath)
-  execGitQuiet(
-    ['checkout', '-B', branch, 'origin/main'],
-    repoPath,
-  )
+  const branch = `self-improve/${slug}-${randomUUID().slice(0, 8)}`
 
   let commit: string | undefined
   let built = false
@@ -406,53 +464,81 @@ export async function executeFindingChange(options: {
   let merged = false
   let pushed = false
   let note: string | undefined
+  let workspace: ImprovementWorkspace | undefined
+  let verificationWorkspace: ImprovementWorkspace | undefined
 
   try {
+    workspace = prepareWorkspace(repoPath, ledgerPath, branch)
+    const changePath = workspace.path
     // Change session: a headless future-code run scoped to this finding.
-    const changeOutput = await runHeadlessFuture(
+    await runHeadlessFuture(
       runChangePrompt(finding),
-      repoPath,
+      changePath,
     )
-    const dirty = execGitQuiet(['status', '--porcelain'], repoPath)
-    if (dirty.stdout.trim() === '') {
+    const dirty = checkedGit(['status', '--porcelain'], changePath)
+    if (!dirty) {
       note = 'change session produced no diff — skipped'
     } else {
-      execGitQuiet(['add', '-A'], repoPath)
-      execGitQuiet(
+      checkedGit(['add', '-A'], changePath)
+      checkedGit(
         [
           'commit',
           '-m',
           `${finding.title}\n\nSelf-improvement cycle ${cycleId}.\nCategory: ${finding.category}; severity: ${finding.severity}.`,
         ],
-        repoPath,
+        changePath,
       )
-      const head = execGitQuiet(['rev-parse', 'HEAD'], repoPath)
-      commit = head.stdout.trim() || undefined
+      commit = checkedGit(['rev-parse', 'HEAD'], changePath)
+      if (commit === workspace.base) throw new Error('Change session did not create a candidate commit')
 
       // Build + targeted test validation before any merge.
-      built = await validateBuild(repoPath, log)
-      tested = built && (await validateTests(repoPath, log))
+      const changedChecks = changedVerificationInputs(changePath, workspace.base, commit)
+      if (changedChecks.length) {
+        note = `Baseline verification inputs changed; independent review required: ${changedChecks.join(', ')}`
+      } else {
+        // Rebuild evidence from the committed candidate in a fresh tree;
+        // never accept the proposer's ignored files or exploratory caches.
+        verificationWorkspace = prepareWorkspace(repoPath, ledgerPath, undefined, commit)
+        const verificationPath = verificationWorkspace.path
+        const buildPassed = await validateBuild(verificationPath, log)
+        if (checkedGit(['status', '--porcelain'], verificationPath)) throw new Error('Build changed the frozen candidate source')
+        built = buildPassed
+        if (built) {
+          const checksPassed = await validateTests(verificationPath, log)
+          if (checkedGit(['status', '--porcelain'], verificationPath)) throw new Error('Verification changed the frozen candidate source')
+          tested = checksPassed
+        }
+      }
 
       if (built && tested && config.autoMerge) {
-        execGitQuiet(['checkout', 'main'], repoPath)
-        const merge = execGitQuiet(['merge', '--no-ff', branch, '-m', `Merge ${branch} (self-improve ${cycleId})`], repoPath)
-        merged = merge.ok
-        if (merged && config.autoPush) {
-          const push = execGitQuiet(['push', 'origin', 'main'], repoPath)
-          pushed = push.ok
+        checkedGit(['fetch', 'origin', 'main'], repoPath)
+        if (resolve(repoPath) !== resolve(join(getSelfImproveStateDir(), 'repo')) ||
+          checkedGit(['branch', '--show-current'], repoPath) !== 'main' ||
+          checkedGit(['status', '--porcelain'], repoPath) ||
+          checkedGit(['rev-parse', 'HEAD'], repoPath) !== workspace.base ||
+          checkedGit(['rev-parse', 'origin/main'], repoPath) !== workspace.base) {
+          note = 'Managed main is in use, changed, or advanced; candidate preserved for review'
+        } else {
+          checkedGit(['merge', '--ff-only', commit], repoPath)
+          merged = true
+          if (config.autoPush) {
+            checkedGit(['push', 'origin', `${commit}:refs/heads/main`], repoPath)
+            pushed = true
+          }
         }
       } else if (built && tested) {
         note = 'autoMerge disabled — change left on feature branch for review'
-      } else {
+      } else if (!note) {
         note = 'validation failed — change left on feature branch'
       }
     }
   } catch (error) {
     note = `executor error: ${String(error).slice(0, 200)}`
   } finally {
-    // Leave the repo on a clean main so the next cycle starts fresh.
-    execGitQuiet(['checkout', 'main'], repoPath)
+    if (workspace) releaseWorkspace(repoPath, workspace, log)
+    if (verificationWorkspace) releaseWorkspace(repoPath, verificationWorkspace, log)
   }
+  const worktreePath = [workspace, verificationWorkspace].find(tree => tree && existsSync(tree.path))?.path
 
   appendLedgerEntry(
     {
@@ -468,10 +554,11 @@ export async function executeFindingChange(options: {
       merged,
       pushed,
       note,
+      worktreePath,
     },
     ledgerPath,
   )
-  return { branch, commit, built, tested, merged, pushed, note }
+  return { branch, commit, built, tested, merged, pushed, note, worktreePath }
 }
 
 /** Build the repo (build.sh) to validate a change compiles into a binary. */
@@ -487,67 +574,31 @@ export async function validateBuild(
   return result.ok
 }
 
-/** Run the repo's fast test lane to validate a change doesn't regress. */
+/** Run the required offline gates and stop at the first failing lane. */
 export async function validateTests(
   repoPath: string,
   log: (message: string) => void,
 ): Promise<boolean> {
   log('running test lane')
-  const result = await runCommand(
-    ['bun', 'test', 'tests/'],
-    repoPath,
-    10 * 60_000,
-  )
-  if (!result.ok) {
-    log(`tests failed: ${result.output.slice(-400)}`)
+  for (const gate of ['correctness', 'resilience', 'foundry', 'swarm', 'commands']) {
+    const result = await runCommand(['node', `scripts/test-${gate}.mjs`], repoPath, 15 * 60_000)
+    if (!result.ok) { log(`${gate} tests failed: ${result.output.slice(-400)}`); return false }
   }
-  return result.ok
+  return true
 }
 
 /** Promise wrapper around child_process.spawn with timeout + capture. */
-export function runCommand(
+export async function runCommand(
   command: string[],
   cwd: string,
   timeoutMs: number,
 ): Promise<{ ok: boolean; output: string }> {
-  return new Promise(resolve => {
-    let output = ''
-    let settled = false
-    const child = spawn(command[0], command.slice(1), {
-      cwd,
-      env: { ...process.env, [SELF_IMPROVE_MARKER_ENV]: '1' },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true
-        child.kill('SIGKILL')
-        resolve({ ok: false, output: output + '\n[timeout]' })
-      }
-    }, timeoutMs)
-    child.stdout?.on('data', chunk => {
-      output += String(chunk)
-      if (output.length > 200_000) output = output.slice(-100_000)
-    })
-    child.stderr?.on('data', chunk => {
-      output += String(chunk)
-      if (output.length > 200_000) output = output.slice(-100_000)
-    })
-    child.on('error', error => {
-      if (!settled) {
-        settled = true
-        clearTimeout(timer)
-        resolve({ ok: false, output: output + String(error) })
-      }
-    })
-    child.on('close', code => {
-      if (!settled) {
-        settled = true
-        clearTimeout(timer)
-        resolve({ ok: code === 0, output })
-      }
-    })
-  })
+  try {
+    const result = await runSelfImproveProcess(command, cwd, timeoutMs)
+    return { ok: result.code === 0, output: result.stdout + result.stderr }
+  } catch (error) {
+    return { ok: false, output: error instanceof Error ? error.message : String(error) }
+  }
 }
 
 /** Status snapshot for /self-improve status. */

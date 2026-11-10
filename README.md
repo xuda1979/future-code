@@ -147,6 +147,7 @@ Missing token or dollar measurements remain unknown.
 | Measured self-reflection | [R&D reflection](docs/agent-platform/RND_REFLECTION.md) |
 | Execution timings, context retirement and resource wakeups | [Execution productivity](docs/agent-platform/EXECUTION_PRODUCTIVITY.md) |
 | Root-objective continuity and reduced repeated prompt instructions | [Objective focus and context efficiency](docs/agent-platform/OBJECTIVE_FOCUS_AND_CONTEXT_EFFICIENCY.md) |
+| Effect-safe model fallback and isolated self-improvement | [Execution lifecycle review](docs/agent-platform/EXECUTION_LIFECYCLE_REVIEW.md) |
 | Execution review, indexed dispatch and alternate-model recovery | [Dispatch scaling](docs/agent-platform/DISPATCH_SCALING.md) |
 | Parallel reads and replayable edit batches | [Tool batching](docs/agent-platform/TOOL_BATCHING.md) |
 | Scoped literal source search and repository review priorities | [Source search](docs/agent-platform/SOURCE_SEARCH.md) |

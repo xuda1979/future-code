@@ -660,7 +660,7 @@ async function* queryLoop(
     // config — if they set DISABLE_AUTO_COMPACT, they get the preempt.
     // Refresh after compaction, outside cached system/user context. This is
     // an ephemeral request view, never part of state.messages/transcripts.
-    const goalRequestMessages = appendGoalRequestAnchor(messagesForQuery, {
+    let goalRequestMessages = appendGoalRequestAnchor(messagesForQuery, {
       mainThread: mainGoalThread,
       makeMessage: content => createUserMessage({ content, isMeta: true }),
       executionPolicy: autoGoalPolicy,
@@ -769,6 +769,11 @@ async function* queryLoop(
             // We could.. but then we'd have to merge assistant messages
             // with different ids and double up on full the tool_results
             if (streamingFallbackOccured) {
+              streamingFallbackOccured = false
+              if (toolUseBlocks.length > 0) {
+                yield createSystemMessage('Model stream fell back after tool admission; collecting actual tool results before continuing.', 'warning')
+                break
+              }
               // Yield tombstones for orphaned messages so they're removed from UI and transcript.
               // These partial messages (especially thinking blocks) have invalid signatures
               // that would cause "thinking blocks cannot be modified" API errors.
@@ -988,6 +993,17 @@ async function* queryLoop(
           if (innerError instanceof FallbackTriggeredError && fallbackModel) {
             // Fallback was triggered - switch model and retry
             currentModel = fallbackModel
+            toolUseContext.options.mainLoopModel = fallbackModel
+            if (toolUseBlocks.length > 0) {
+              if (process.env.USER_TYPE === 'ant') {
+                messagesForQuery = stripSignatureBlocks(messagesForQuery)
+                const sanitized = stripSignatureBlocks(assistantMessages)
+                assistantMessages.splice(0, assistantMessages.length,
+                  ...sanitized.filter((message): message is AssistantMessage => message.type === 'assistant'))
+              }
+              yield createSystemMessage('Model fallback requested after tool admission; collecting actual results before using the fallback model.', 'warning')
+              break
+            }
             attemptWithFallback = true
 
             // Clear assistant messages since we'll retry the entire request
@@ -1020,6 +1036,11 @@ async function* queryLoop(
             // Strip before retry so the fallback model gets clean history.
             if (process.env.USER_TYPE === 'ant') {
               messagesForQuery = stripSignatureBlocks(messagesForQuery)
+              goalRequestMessages = appendGoalRequestAnchor(messagesForQuery, {
+                mainThread: mainGoalThread,
+                makeMessage: content => createUserMessage({ content, isMeta: true }),
+                executionPolicy: autoGoalPolicy,
+              })
             }
 
             // Log the fallback event
@@ -1042,6 +1063,12 @@ async function* queryLoop(
             )
 
             continue
+          }
+          if (toolUseBlocks.length > 0 && !toolUseContext.abortController.signal.aborted) {
+            const detail = innerError instanceof Error ? innerError.message : String(innerError)
+            yield createSystemMessage('Model stream failed after tool admission: ' + detail.slice(0, 500) +
+              '; collecting actual tool results before continuing.', 'warning')
+            break
           }
           throw innerError
         }

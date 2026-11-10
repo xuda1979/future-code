@@ -23,6 +23,7 @@ export type LedgerEntry =
       cycleId: string
       repoPath: string
       repoBranch: string
+      pid?: number
     }
   | {
       kind: 'cycle-end'
@@ -60,6 +61,7 @@ export type LedgerEntry =
       merged: boolean
       pushed: boolean
       note?: string
+      worktreePath?: string
     }
 
 export function defaultLedgerDir(): string {
@@ -148,16 +150,23 @@ export function shouldStartCycle(
   intervalMs: number,
   force = false,
 ): { start: boolean; reason: string } {
-  let openCycleId: string | null = null
+  const openCycles = new Map<string, Extract<LedgerEntry, { kind: 'cycle-start' }>>()
   for (const e of entries) {
-    if (e.kind === 'cycle-start') openCycleId = e.cycleId
-    else if (e.kind === 'cycle-end' && e.cycleId === openCycleId) {
-      openCycleId = null
+    if (e.kind === 'cycle-start') openCycles.set(e.cycleId, e)
+    else if (e.kind === 'cycle-end') openCycles.delete(e.cycleId)
+  }
+  for (const [id, cycle] of openCycles) {
+    // Legacy/unknown owners remain conservative. Only a kernel-confirmed
+    // absent process can release a stranded advisory marker after a crash.
+    if (!Number.isSafeInteger(cycle.pid) || cycle.pid! <= 0)
+      return { start: false, reason: `cycle ${id} still in flight (owner unknown)` }
+    try { process.kill(cycle.pid!, 0); return { start: false, reason: `cycle ${id} still in flight` } }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH')
+        return { start: false, reason: `cycle ${id} owner could not be reconciled` }
     }
   }
-  if (openCycleId !== null) {
-    return { start: false, reason: `cycle ${openCycleId} still in flight` }
-  }
+  if (openCycles.size) return { start: true, reason: 'recovering an abandoned cycle after its owner exited' }
   const lastEnd = lastCycleEndTs(entries)
   if (lastEnd === null) return { start: true, reason: 'no prior cycle' }
   const elapsed = now - lastEnd
@@ -174,4 +183,27 @@ export function shouldStartCycle(
     start: false,
     reason: `only ${Math.round(elapsed / 60_000)}m since last cycle (interval ${Math.round(intervalMs / 60_000)}m)`,
   }
+}
+
+/** Close only stranded advisory records with a kernel-confirmed dead owner.
+ * Record failure, never success; otherwise the same old marker would bypass
+ * the interval forever after every subsequent completed cycle. */
+export function recoverAbandonedCycles(ledgerPath: string, now = Date.now()): number {
+  const open = new Map<string, Extract<LedgerEntry, { kind: 'cycle-start' }>>()
+  for (const entry of readLedger(ledgerPath)) {
+    if (entry.kind === 'cycle-start') open.set(entry.cycleId, entry)
+    else if (entry.kind === 'cycle-end') open.delete(entry.cycleId)
+  }
+  let recovered = 0
+  for (const cycle of open.values()) {
+    if (!Number.isSafeInteger(cycle.pid) || cycle.pid! <= 0) continue
+    try { process.kill(cycle.pid!, 0) }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') continue
+      appendLedgerEntry({ kind: 'cycle-end', version: 1, ts: now, cycleId: cycle.cycleId,
+        status: 'error', findings: 0, accepted: 0, error: 'Recovered abandoned cycle after its owner process exited' }, ledgerPath)
+      recovered++
+    }
+  }
+  return recovered
 }
