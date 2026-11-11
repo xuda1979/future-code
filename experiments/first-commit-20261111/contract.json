@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "experimentId": "FC-FIRST-20261111",
+  "frozenAt": "2026-11-11T10:10:33.360207+00:00",
+  "objective": "Measure defensible productivity-relevant differences against the actual first commit and establish boundaries of whole-agent comparison.",
+  "baseline": "b1f9d186085562947adf682f4c7f65652886ecad",
+  "candidate": "ac3789210d0d58d30f1f9b141ca6d842297f7f94",
+  "sourceMutation": "Neither arm production source modified; evaluation adapters only.",
+  "hypotheses": [
+    "Candidate reduces retained request JSON bytes for real aggregate tool output while preserving exact evidence on disk.",
+    "Candidate preserves paired outcomes and allows safe follow-up work after injected tool-stream failures that disrupt the root executor."
+  ],
+  "metrics": {
+    "primary": [
+      "paired tool-result completeness",
+      "verified safe follow-up completion",
+      "serialized request bytes"
+    ],
+    "guardrails": [
+      "healthy operation parity",
+      "exact-once side effects",
+      "full receipt SHA256 and readback",
+      "small-output context parity",
+      "no artificial sleeps"
+    ]
+  },
+  "experiments": [
+    {
+      "id": "context",
+      "workloads": "Frozen sorted first 12 Foundry *.test.ts files, each run as real Node TAP command. Grouped small (1), medium(4), large(12), plus first-arm legacy flag-on control. Individual 50K persistence applied before batch enforcement to BOTH arms.",
+      "repetitions": 4,
+      "order": "ABBA/B A A B alternating; paired exact command outputs",
+      "scope": "production tool result persistence and aggregate budget, not token billing or model task performance"
+    },
+    {
+      "id": "executor",
+      "workloads": [
+        "healthy",
+        "ordinary-error-result",
+        "stream-throw-before-result",
+        "stream-throw-after-effect",
+        "empty-stream-after-effect",
+        "context-modifier-throw",
+        "schema-preflight-throw"
+      ],
+      "repetitions": 4,
+      "order": "ABBA over 4 repetitions for each scenario",
+      "acceptance": "Each admitted call must have a paired success/error outcome; real external artifact contents checked; later independent Read must return actual contents; injected framework errors must not masquerade as success.",
+      "timeoutMs": 8000,
+      "scope": "controlled fault recovery not natural failure rates or speedup estimate"
+    },
+    {
+      "id": "public-benchmark",
+      "workloads": "HumanEval canonical solution replay if dataset accessible; official tests, identical known-correct programs both arms; generation score intentionally not reported",
+      "scope": "benchmark-backed execution/recovery control, not HumanEval pass@1"
+    }
+  ],
+  "liveModel": {
+    "status": "UNKNOWN",
+    "reason": "No public inference key in environment; available CLI initialization fails on read-only runtime directory; no fabricated model responses used as live calls"
+  },
+  "budgets": {
+    "wallMinutes": 60,
+    "paidModelCalls": 0,
+    "gpuMinutes": 0,
+    "maxDiskMB": 100
+  },
+  "analysis": "Publish every arm including failure/tie. Descriptive medians for timing only. Repeated deterministic injected faults are repetitions, not independent tasks. No universal productivity multiplier inferred.",
+  "stopConditions": [
+    "Any receipt mismatch invalidates arm",
+    "Any source not matching pinned commit invalidates arm",
+    "Stop unchanged infrastructure retry after one changed-environment diagnosis"
+  ],
+  "authorization": "User authorizes experiments and current-code improvements; no manager messages, no merge or deployment required."
+}
