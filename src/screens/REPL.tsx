@@ -35,6 +35,7 @@ import { logForDebugging } from '../utils/debug.js';
 import { QueryGuard } from '../utils/QueryGuard.js';
 import { waitForForegroundPreparation } from '../utils/foregroundPreparation.js';
 import { parkActiveAutoGoal, resumeAutoGoalFromInput } from '../commands/goal/auto.js';
+import { runWithAutoGoalSession } from '../utils/autoGoalSession.js';
 import { isEnvTruthy } from '../utils/envUtils.js';
 import { formatTokens, truncateToWidth } from '../utils/format.js';
 import { consumeEarlyInput } from '../utils/earlyInput.js';
@@ -49,7 +50,7 @@ import { registerLeaderToolUseConfirmQueue, unregisterLeaderToolUseConfirmQueue,
 import { endInteractionSpan } from '../utils/telemetry/sessionTracing.js';
 import { useLogMessages } from '../hooks/useLogMessages.js';
 import { useReplBridge } from '../hooks/useReplBridge.js';
-import { type Command, type CommandResultDisplay, type ResumeEntrypoint, getCommandName, isCommandEnabled } from '../commands.js';
+import { type Command, type CommandResultDisplay, type ResumeEntrypoint, findCommand, getCommandName, isCommandEnabled } from '../commands.js';
 import type { PromptInputMode, QueuedCommand, VimMode } from '../types/textInputTypes.js';
 import { MessageSelector, selectableUserMessagesFilter, messagesAfterAreOnlySynthetic } from '../components/MessageSelector.js';
 import { useIdeLogging } from '../hooks/useIdeLogging.js';
@@ -2879,7 +2880,7 @@ export function REPL({
     const completedMessages = messagesRef.current;
     void Promise.resolve().then(() => onTurnComplete?.(completedMessages)).catch(reportRequestError);
   }, [initialMcpClients, resetLoadingState, getToolUseContext, toolPermissionContext, setAppState, customSystemPrompt, onTurnComplete, appendSystemPrompt, canUseTool, mainThreadAgentDefinition, onQueryEvent, sessionTitle, titleDisabled, reportRequestError]);
-  const onQuery = useCallback(async (newMessages: MessageType[], abortController: AbortController, shouldQuery: boolean, additionalAllowedTools: string[], mainLoopModelParam: string, onBeforeQueryCallback?: (input: string, newMessages: MessageType[]) => Promise<boolean>, input?: string, effort?: EffortValue): Promise<void> => {
+  const onQuery = useCallback(async (newMessages: MessageType[], abortController: AbortController, shouldQuery: boolean, additionalAllowedTools: string[], mainLoopModelParam: string, onBeforeQueryCallback?: (input: string, newMessages: MessageType[]) => Promise<boolean>, input?: string, effort?: EffortValue, trustedHumanInputs?: string[]): Promise<void> => runWithAutoGoalSession(async () => {
     // If this is a teammate, mark them as active when starting a turn
     if (isAgentSwarmsEnabled()) {
       const teamName = getTeamName();
@@ -2922,24 +2923,32 @@ export function REPL({
       setMessages(oldMessages => [...oldMessages, ...newMessages]);
       // A human's plain "continue" is an explicit resume instruction too.
       // It preserves the configured batch limit and lifetime accounting.
-      const humanResume = shouldQuery && newMessages.some(m => isHumanTurn(m) && m.origin === undefined);
-      const resumedGoal = input && humanResume ? resumeAutoGoalFromInput(input, { mainThread: true }) : null;
-      if (resumedGoal) {
+      // The input dispatcher carries original human provenance across slash
+      // expansion. A cron's visible command metadata cannot grant authority.
+      const goalInputs = shouldQuery ? trustedHumanInputs ??
+        (input && newMessages.some(m => isHumanTurn(m) && m.origin === undefined) ? [input] : []) : [];
+      const selectedLoop = goalInputs.some(value => /^\/loop(?:\s|$)/.test(value.trim()))
+        ? findCommand('loop', commands) : undefined;
+      const loopMode = selectedLoop?.type === 'prompt' &&
+        (selectedLoop.source === 'builtin' || selectedLoop.source === 'bundled') ? selectedLoop.source : undefined;
+      for (const humanInput of goalInputs) {
+        const resumedGoal = resumeAutoGoalFromInput(humanInput, { mainThread: true, loopMode });
+        if (!resumedGoal) continue;
         const resumeMessage = createUserMessage({ isMeta: true, content:
           resumedGoal.transition === 'superseded'
             ? '[Host] Active objective updated to: ' + resumedGoal.goal +
               (resumedGoal.previousGoal ? ' (supersedes previous objective: ' + resumedGoal.previousGoal + ')' : '') +
-              '. Update .future-code/goal.md to Status: in_progress for this new objective, ' +
+              '. Update the session goal report at the path in the current objective anchor to Status: in_progress for this new objective, ' +
               'discard superseded objective plans, and continue verified work automatically until completion or an external blocker.'
             : resumedGoal.transition === 'steered'
               ? '[Host] Active objective steering recorded for: ' + resumedGoal.goal +
                 (resumedGoal.activeSteering?.length ? ' (latest constraint: ' + resumedGoal.activeSteering.at(-1) + ')' : '') +
-                '. Preserve this constraint in .future-code/goal.md and continue verified work automatically.'
+                '. Preserve this constraint in the session goal report at the path in the current objective anchor and continue verified work automatically.'
               : resumedGoal.transition === 'armed'
                 ? '[Host] Autonomous goal armed: ' + resumedGoal.goal +
-                  '. Record this objective in .future-code/goal.md with Status: in_progress and continue verified work automatically until completion or an external blocker requiring human help.'
+                  '. Record this objective in the session goal report at the path in the current objective anchor with Status: in_progress and continue verified work automatically until completion or an external blocker requiring human help.'
                 : '[Host] Resume the durable goal with its configured limits preserved: ' + resumedGoal.goal +
-                  '. Recheck the previous blocker, update .future-code/goal.md to Status: in_progress as work resumes, ' +
+                  '. Recheck the previous blocker, update the session goal report at the path in the current objective anchor to Status: in_progress as work resumes, ' +
                   'and continue verified work. A stale blocker report is not a new failure.' });
         newMessages = [...newMessages, resumeMessage];
         setMessages(oldMessages => [...oldMessages, resumeMessage]);
@@ -3094,7 +3103,7 @@ export function REPL({
         }
       }
     }
-  }, [onQueryImpl, setAppState, resetLoadingState, queryGuard, mrOnBeforeQuery, mrOnTurnComplete, awaitPendingHooks, reportRequestError]);
+  }, trustedHumanInputs === undefined), [onQueryImpl, setAppState, resetLoadingState, queryGuard, mrOnBeforeQuery, mrOnTurnComplete, awaitPendingHooks, reportRequestError, commands]);
 
   // Handle initial message (from CLI args or plan mode exit with context clear)
   // This effect runs when isLoading becomes false and there's a pending message

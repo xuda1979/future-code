@@ -123,6 +123,7 @@ import { count } from './utils/array.js'
 import { shouldRecoverSilentResponse, hasVisibleAssistantText, modelApiFailureReason } from './utils/responseLiveness.js'
 import { decideAutoGoalContinuation, parkActiveAutoGoal, isAutoGoalMainThread, readAutoGoal, shouldPauseGoalAfterTerminal, autoGoalTerminalDiagnostic } from './commands/goal/auto.js'
 import { appendGoalRequestAnchor, goalExecutionPolicy } from './commands/goal/context.js'
+import { hasAutonomyQuestionRejection } from './query/autonomyQuestions.js'
 import { notifyQueryActivity, type QueryActivityEvent } from './utils/queryActivity.js'
 import { hasMainThreadQueuedCommand } from './utils/queueWakeup.js'
 import { createHash } from 'node:crypto'
@@ -359,6 +360,8 @@ async function* queryLoop(
   // sites.
   let taskBudgetRemaining: number | undefined = undefined
   let portableContextRepairPending = false
+  let goalToolActivity = false
+  let rejectedAutonomyQuestions = 0
 
   // Snapshot immutable env/statsig/session state once at entry. See QueryConfig
   // for what's included and why feature() gates are intentionally excluded.
@@ -1611,7 +1614,49 @@ async function* queryLoop(
         return { reason: 'completed' }
       }
 
-      if (feature('TOKEN_BUDGET')) {
+      // A completed model turn is not a completed explicitly opted-in R&D goal.
+      // Never override stop hooks, tool permission gates, API errors, or a
+      // caller's explicit maxTurns boundary. Explicit continuation limits and
+      // durable accounting remain in force across CLI restarts.
+      const goalDecision = decideAutoGoalContinuation({
+        mainThread: mainGoalThread,
+        withinTurnBudget: maxTurns === undefined || turnCount < maxTurns,
+        promptFormat: autoGoalPolicy ? 'delta' : 'full',
+        assistantText: assistantMessages.filter(message => !message.isApiErrorMessage)
+          .flatMap(message => message.message.content.flatMap(block => block.type === 'text' ? [block.text] : []))
+          .join('\n'),
+        toolActivity: goalToolActivity,
+      })
+      goalToolActivity = false
+      if (goalDecision.kind === 'BLOCKED') {
+        yield createSystemMessage('Autonomous goal blocked: ' + goalDecision.reason, 'warning')
+        return { reason: 'completed' }
+      }
+      if (goalDecision.kind === 'CONTINUE') {
+        activity({ kind: 'phase', phase: 'continuing' })
+        state = {
+          messages: [
+            ...messagesForQuery,
+            ...assistantMessages,
+            createUserMessage({ content: goalDecision.prompt, isMeta: true }),
+          ],
+          toolUseContext,
+          autoCompactTracking: tracking,
+          maxOutputTokensRecoveryCount: 0,
+          silentResponseRecoveryCount: 0,
+          hasAttemptedReactiveCompact: false,
+          maxOutputTokensOverride: undefined,
+          pendingToolUseSummary: undefined,
+          stopHookActive: undefined,
+          turnCount: turnCount + 1,
+          transition: { reason: 'goal_auto_continuation' } as Continue,
+        }
+        continue
+      }
+
+      // Durable goal authority decides completion before any optional
+      // spend-the-token-budget nudge. A paused/review goal cannot be revived.
+      if (feature('TOKEN_BUDGET') && !(mainGoalThread && readAutoGoal())) {
         const decision = checkTokenBudget(
           budgetTracker!,
           toolUseContext.agentId,
@@ -1661,39 +1706,6 @@ async function* queryLoop(
         }
       }
 
-      // A completed model turn is not a completed explicitly opted-in R&D goal.
-      // Never override stop hooks, tool permission gates, API errors, or a
-      // caller's explicit maxTurns boundary. Explicit continuation limits and
-      // durable accounting remain in force across CLI restarts.
-      const goalDecision = decideAutoGoalContinuation({
-        mainThread: mainGoalThread,
-        withinTurnBudget: maxTurns === undefined || turnCount < maxTurns,
-        promptFormat: autoGoalPolicy ? 'delta' : 'full',
-      })
-      if (goalDecision.kind === 'BLOCKED') {
-        yield createSystemMessage('Autonomous goal blocked: ' + goalDecision.reason, 'warning')
-      }
-      if (goalDecision.kind === 'CONTINUE') {
-        activity({ kind: 'phase', phase: 'continuing' })
-        state = {
-          messages: [
-            ...messagesForQuery,
-            ...assistantMessages,
-            createUserMessage({ content: goalDecision.prompt, isMeta: true }),
-          ],
-          toolUseContext,
-          autoCompactTracking: tracking,
-          maxOutputTokensRecoveryCount: 0,
-          silentResponseRecoveryCount: 0,
-          hasAttemptedReactiveCompact: false,
-          maxOutputTokensOverride: undefined,
-          pendingToolUseSummary: undefined,
-          stopHookActive: undefined,
-          turnCount: turnCount + 1,
-          transition: { reason: 'goal_auto_continuation' } as Continue,
-        }
-        continue
-      }
       return { reason: 'completed' }
     }
 
@@ -1860,6 +1872,39 @@ async function* queryLoop(
     // If a hook indicated to prevent continuation, stop here
     if (shouldPreventContinuation) {
       return { reason: 'hook_stopped' }
+    }
+
+    // Only completed successful tool results count as action. A rejected
+    // question/validation error cannot reset the no-action recovery guard.
+    goalToolActivity ||= toolResults.some(message => message.type === 'user' &&
+      Array.isArray(message.message.content) && message.message.content.some(block =>
+        block.type === 'tool_result' && !block.is_error))
+
+    // A rejected question is model feedback, never productive tool work.
+    // Bound repeated dialog attempts even when every turn emits tool_use and
+    // therefore never reaches the ordinary end-turn continuation decision.
+    if (goalToolActivity) rejectedAutonomyQuestions = 0
+    if (hasAutonomyQuestionRejection(toolUseBlocks, toolResults)) {
+      if (mainGoalThread && hasMainThreadQueuedCommand(getCommandQueueSnapshot())) return { reason: 'completed' }
+      const questionDecision = decideAutoGoalContinuation({
+        mainThread: mainGoalThread,
+        withinTurnBudget: maxTurns === undefined || turnCount < maxTurns,
+        promptFormat: autoGoalPolicy ? 'delta' : 'full',
+        routineQuestionRejected: true,
+        toolActivity: goalToolActivity,
+      })
+      goalToolActivity = false
+      if (questionDecision.kind === 'BLOCKED') {
+        yield createSystemMessage('Autonomous goal blocked: ' + questionDecision.reason, 'warning')
+        return { reason: 'completed' }
+      }
+      if (questionDecision.kind === 'CONTINUE') {
+        toolResults.push(createUserMessage({ content: questionDecision.prompt, isMeta: true }))
+      } else if (++rejectedAutonomyQuestions > 2) {
+        const failure = 'Model execution contract failure: a delegated model repeatedly attempted a user decision dialog after two host corrections.'
+        yield createAssistantAPIErrorMessage({ content: failure })
+        return { reason: 'model_error', error: new Error(failure) }
+      }
     }
 
     if (tracking?.compacted) {

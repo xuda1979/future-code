@@ -4,14 +4,18 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { stripTypeScriptTypes } from 'node:module'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { QueryGuard } from '../../src/utils/QueryGuard.ts'
 import { QueryActivityMonitor, formatQueryActivity } from '../../src/utils/queryActivity.ts'
 import { isHumanTurn } from '../../src/utils/messagePredicates.ts'
 import { DeferredHookGate, waitForForegroundPreparation } from '../../src/utils/foregroundPreparation.ts'
-import { enableAutoGoal, parkActiveAutoGoal, readAutoGoal, resumeAutoGoalFromInput } from '../../src/commands/goal/auto.ts'
+import { autoGoalReportPath, decideAutoGoalContinuation, enableAutoGoal, parkActiveAutoGoal, readAutoGoal, resumeAutoGoalFromInput } from '../../src/commands/goal/auto.ts'
+import { runWithAutoGoalSession } from '../../src/utils/autoGoalSession.ts'
+import { trustedGoalInputs } from '../../src/commands/goal/input.ts'
+import { configureAutoGoalSession, getAutoGoalSessionId } from '../../src/utils/autoGoalSession.ts'
+import { runWithWorkload, WORKLOAD_CRON, getWorkload } from '../../src/utils/workloadContext.ts'
 
 const source = readFileSync(new URL('../../src/screens/REPL.tsx', import.meta.url), 'utf8')
 const noop = () => {}
@@ -34,6 +38,8 @@ function fixture() {
   let modelCalls = 0, currentController: AbortController | null = null
   const setMessages = (update: (messages: any[]) => any[]) => { messagesRef.current = update(messagesRef.current) }
   const scope: Record<string, any> = {
+    runWithAutoGoalSession, commands: [{ name: 'loop', type: 'prompt', source: 'builtin' }],
+    findCommand: (name: string, commands: any[]) => commands.find(command => command.name === name),
     isAgentSwarmsEnabled: () => false, queryGuard: guard, QueryActivityMonitor, formatQueryActivity,
     queryActivityRef: { current: null }, setQueryActivityStatus: noop, resetTimingRefs: noop,
     setMessages, messagesRef, responseLengthRef: { current: 0 }, apiMetricsRef: { current: [] },
@@ -76,6 +82,7 @@ function fixture() {
 const human = (content = 'continue') => ({ type: 'user', message: { content } })
 
 function inputExecutor(scope: Record<string, unknown>): (params: any) => Promise<void> {
+  scope = { runWithAutoGoalSession, runWithWorkload, trustedGoalInputs, ...scope }
   const inputSource = readFileSync(new URL('../../src/utils/handlePromptSubmit.ts', import.meta.url), 'utf8')
   const start = inputSource.indexOf('async function executeUserInput(')
   assert.ok(start >= 0)
@@ -208,6 +215,58 @@ test('failed startup preparation releases the real input reservation and stale c
   assert.equal(placeholderClears, 1)
 })
 
+test('new human input clears inherited cron scope before startup failure parking', async () => {
+  const f = fixture()
+  let selected = 'old-session'
+  configureAutoGoalSession(() => selected)
+  try {
+    enableAutoGoal('Old session objective', f.dir)
+    const execute = inputExecutor({ createAbortController: () => new AbortController(), runWithWorkload,
+      isAutoGoalMainThread: (source: string) => source === 'repl_main_thread', errorMessage: String,
+      parkActiveAutoGoal: (reason: string) => parkActiveAutoGoal(reason, f.dir) })
+    await runWithAutoGoalSession(async () => {
+      selected = 'new-session'
+      runWithAutoGoalSession(() => enableAutoGoal('New session objective', f.dir), true)
+      await runWithWorkload(WORKLOAD_CRON, async () => {
+        await assert.rejects(execute({ queryGuard: f.guard, querySource: 'repl_main_thread',
+          queuedCommands: [{ mode: 'prompt', value: 'continue' }], setAbortController: noop,
+          setUserInputOnProcessing: noop, prepareForInput: async () => {
+            assert.equal(getWorkload(), undefined)
+            assert.equal(getAutoGoalSessionId(), 'new-session')
+            throw new Error('human startup failed')
+          } }), /human startup failed/)
+      })
+      assert.equal(readAutoGoal(f.dir)?.state, 'ACTIVE', 'outgoing session is unaffected')
+    })
+    assert.equal(readAutoGoal(f.dir)?.state, 'PAUSED')
+    assert.match(readAutoGoal(f.dir)!.reason!, /human startup failed/)
+  } finally { configureAutoGoalSession(undefined); f.close() }
+})
+
+test('actual queue batching separates scheduled ticks from unrelated human status questions', async () => {
+  const source = readFileSync(new URL('../../src/utils/queueProcessor.ts', import.meta.url), 'utf8')
+  const code = stripTypeScriptTypes(source.slice(source.indexOf('type ProcessQueueParams'))
+    .replace(/export function /g, 'function '), { mode: 'transform' })
+  for (const cronFirst of [true, false]) {
+    const human = { mode: 'prompt', value: 'What is the status?' }, cron = { mode: 'prompt', value: 'monitor saved task',
+      workload: WORKLOAD_CRON, isMeta: true }
+    let pending = cronFirst ? [cron, human] : [human, cron]
+    const calls: any[][] = []
+    const scope = { peek: (match: (value: any) => boolean) => pending.find(match),
+      dequeue: (match: (value: any) => boolean) => pending.splice(pending.findIndex(match), 1)[0],
+      dequeueAllMatching: (match: (value: any) => boolean) => {
+        const batch = pending.filter(match); pending = pending.filter(value => !match(value)); return batch
+      }, hasCommandsInQueue: () => pending.length > 0 }
+    const process = new Function(...Object.keys(scope), `${code}\nreturn processQueueIfReady;`)(...Object.values(scope))
+    const executeInput = async (batch: any[]) => { calls.push(batch) }
+    assert.equal(process({ executeInput }).processed, true)
+    assert.equal(pending.length, 1)
+    assert.equal(process({ executeInput }).processed, true)
+    assert.deepEqual(calls, cronFirst ? [[cron], [human]] : [[human], [cron]])
+    assert.equal(pending.length, 0)
+  }
+})
+
 test('real REPL updates the active objective when user provides a new objective and prevents drifting to the old objective', async () => {
   const f = fixture()
   try {
@@ -225,3 +284,55 @@ test('real REPL updates the active objective when user provides a new objective 
     assert.ok(f.messagesRef.current.some(m => m.isMeta && m.message.content.includes('supersedes previous objective: Old objective: legacy module cleanup')))
   } finally { f.close() }
 })
+
+test('the real input-to-REPL path replaces stale REVIEW with the typed monitoring loop', async () => {
+  const f = fixture()
+  try {
+    enableAutoGoal('test arg', f.dir)
+    writeFileSync(autoGoalReportPath(f.dir), '# test arg\nStatus: completed\n')
+    decideAutoGoalContinuation({ cwd: f.dir, mainThread: true, withinTurnBudget: true })
+    assert.equal(readAutoGoal(f.dir)?.state, 'REVIEW')
+    const loop = '/loop continue: monitor quantum-gpt and all sessions; improve, test, build, commit, push and resume'
+    const execute = inputExecutor({
+      createAbortController: () => new AbortController(), queryCheckpoint: noop,
+      runWithWorkload: (_: unknown, run: () => Promise<void>) => run(),
+      processUserInput: async () => ({ messages: [human('<command-name>/loop</command-name>'),
+        { ...human('expanded loop task'), isMeta: true }], shouldQuery: true }),
+      fileHistoryEnabled: () => false, isAutoGoalMainThread: () => false, errorMessage: String,
+    })
+    await execute({ queryGuard: f.guard, messages: [], mainLoopModel: 'fixture-model',
+      queuedCommands: [{ value: loop, mode: 'prompt' }], setAbortController: noop,
+      setUserInputOnProcessing: noop, getToolUseContext: () => ({}), setToolJSX: noop,
+      resetHistory: noop, onQuery: f.build() })
+    assert.equal(f.calls(), 1)
+    assert.equal(readAutoGoal(f.dir)?.goal, loop)
+    assert.equal(readAutoGoal(f.dir)?.state, 'ACTIVE')
+    assert.equal(readAutoGoal(f.dir)?.loop?.kind, 'continuous')
+  } finally { f.close() }
+})
+
+for (const mode of ['scheduled', 'mixed', 'blocked-human'] as const) {
+  test('real input provenance after slash expansion: ' + mode, async () => {
+    const f = fixture()
+    try {
+      enableAutoGoal('Paused operator experiment', f.dir)
+      parkActiveAutoGoal('operator pause', f.dir)
+      const scheduled = { value: '/loop inspect scheduled job', mode: 'prompt', isMeta: true }
+      const requested = '/loop monitor quantum-gpt and improve all future-code sessions'
+      const commands = mode === 'scheduled' ? [scheduled] : [scheduled, { value: requested, mode: 'prompt' }]
+      const execute = inputExecutor({
+        createAbortController: () => new AbortController(), queryCheckpoint: noop,
+        runWithWorkload: (_: unknown, run: () => Promise<void>) => run(),
+        processUserInput: async ({ input }: { input: string }) => ({ messages: [human('visible slash metadata')],
+          shouldQuery: !(mode === 'blocked-human' && input === requested) }),
+        fileHistoryEnabled: () => false, isAutoGoalMainThread: () => false, errorMessage: String,
+      })
+      await execute({ queryGuard: f.guard, messages: [], mainLoopModel: 'fixture-model', queuedCommands: commands,
+        setAbortController: noop, setUserInputOnProcessing: noop, getToolUseContext: () => ({}),
+        setToolJSX: noop, resetHistory: noop, onQuery: f.build() })
+      assert.equal(f.calls(), 1)
+      assert.equal(readAutoGoal(f.dir)?.goal, mode === 'mixed' ? requested : 'Paused operator experiment')
+      assert.equal(readAutoGoal(f.dir)?.state, mode === 'mixed' ? 'ACTIVE' : 'PAUSED')
+    } finally { f.close() }
+  })
+}

@@ -1,4 +1,5 @@
 import type { Command } from '../../commands.js'
+import { autoGoalReportPath } from '../goal/auto.ts'
 
 const save: Command = {
   type: 'prompt',
@@ -18,7 +19,7 @@ INSTRUCTIONS:
 1. Create a snapshot file at .future-code/snapshots/${name}.md (create the directory if needed).
 2. The snapshot should include:
    - Date/time of the snapshot
-   - Current goal (from .future-code/goal.md if it exists)
+   - Current goal (from ${JSON.stringify(autoGoalReportPath())} if it exists)
    - Summary of what has been accomplished so far in this session
    - Key files that were modified or created
    - Current state: what's in progress, what's blocked

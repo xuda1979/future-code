@@ -33,6 +33,8 @@ import { queryCheckpoint, startQueryProfile } from './queryProfiler.js'
 import { runWithWorkload } from './workloadContext.js'
 import { isAutoGoalMainThread, parkActiveAutoGoal } from '../commands/goal/auto.js'
 import { errorMessage } from './errors.js'
+import { runWithAutoGoalSession } from './autoGoalSession.js'
+import { trustedGoalInputs } from '../commands/goal/input.js'
 
 function exit(): void {
   gracefulShutdownSync(0)
@@ -71,6 +73,7 @@ type BaseExecutionParams = {
     onBeforeQuery?: (input: string, newMessages: Message[]) => Promise<boolean>,
     input?: string,
     effort?: EffortValue,
+    trustedHumanInputs?: string[],
   ) => Promise<void>
   setAppState: (updater: (prev: AppState) => AppState) => void
   onBeforeQuery?: (input: string, newMessages: Message[]) => Promise<boolean>
@@ -405,6 +408,18 @@ export async function handlePromptSubmit(
  * get `skipAttachments` to avoid duplicating turn-level context.
  */
 async function executeUserInput(params: ExecuteUserInputParams): Promise<void> {
+  const commands = params.queuedCommands ?? []
+  const firstWorkload = commands[0]?.workload
+  const turnWorkload = firstWorkload !== undefined && commands.every(command => command.workload === firstWorkload)
+    ? firstWorkload : undefined
+  // A UI callback can inherit the outgoing turn's async context. New input
+  // captures the selected identity and clears an inherited cron workload
+  // before startup hooks or their failure handling can touch goal state.
+  return runWithWorkload(turnWorkload, () =>
+    runWithAutoGoalSession(() => executeUserInputForSession(params), true))
+}
+
+async function executeUserInputForSession(params: ExecuteUserInputParams): Promise<void> {
   const {
     messages,
     mainLoopModel,
@@ -456,6 +471,7 @@ async function executeUserInput(params: ExecuteUserInputParams): Promise<void> {
     queryCheckpoint('query_process_user_input_start')
 
     const newMessages: Message[] = []
+    const preparedGoalInputs: string[] = []
     let shouldQuery = false
     let allowedTools: string[] | undefined
     let model: string | undefined
@@ -514,6 +530,7 @@ async function executeUserInput(params: ExecuteUserInputParams): Promise<void> {
         })
         abortController.signal.throwIfAborted()
         if (queryGuard.epoch !== dispatchEpoch) throw new Error('Input dispatch superseded by a newer request')
+        if (result.shouldQuery) preparedGoalInputs.push(...trustedGoalInputs([cmd]))
         // Stamp origin here rather than threading another arg through
         // processUserInput → processUserInputBase → processTextPrompt → createUserMessage.
         // Derive origin from mode for task-notifications — mirrors the origin
@@ -588,6 +605,7 @@ async function executeUserInput(params: ExecuteUserInputParams): Promise<void> {
           shouldCallBeforeQuery ? onBeforeQuery : undefined,
           primaryInput,
           effort,
+          preparedGoalInputs,
         )
       } else {
         // Local slash commands that skip messages (e.g., /model, /theme).

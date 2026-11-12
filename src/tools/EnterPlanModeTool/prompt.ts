@@ -164,7 +164,10 @@ User: "Fix the typo in the README"
 }
 
 export function getEnterPlanModeToolPrompt(): string {
-  return process.env.USER_TYPE === 'ant'
+  const interactivePrompt = process.env.USER_TYPE === 'ant'
     ? getEnterPlanModeToolPromptAnt()
     : getEnterPlanModeToolPromptExternal()
+  return 'For an active autonomous goal, plan, investigate and choose an approach within the current execution mode. ' +
+    'Do not enter an approval phase or ask for design decisions unless the user explicitly requested that interaction. ' +
+    'The interactive workflow below applies when that interaction is appropriate.\n\n' + interactivePrompt
 }

@@ -314,3 +314,25 @@ test("constants encode the intended health policy", () => {
   assert.equal(STALE_SESSION_MS, 24 * 60 * 60 * 1000);
   assert.equal(STUCK_GOAL_STALE_MS, 6 * 60 * 60 * 1000);
 });
+
+test("health reports prefer the latest session namespace and never borrow a foreign REVIEW", () => fixture(root => {
+  const projectPath = join(root, 'checkout');
+  const projectsDir = makeStore(root, [{ dirName: '-checkout', projectPath,
+    sessions: [{ id: 'monitor-session', ageHours: 0 }], goal: { goal: 'test arg', state: 'REVIEW' } }]);
+  assert.equal(scanProjectHealth({ projectsDir })[0]!.project.goalScope, 'legacy-unowned');
+  assert.match(formatProjectHealthReport(scanProjectHealth({ projectsDir })), /legacy goal \(session unknown\)/);
+  const ownDir = join(projectPath, '.future-code/goals/monitor-session');
+  mkdirSync(ownDir, { recursive: true });
+  let health = scanProjectHealth({ projectsDir })[0]!.project;
+  assert.equal(health.activeGoal, null, 'unowned legacy data is not the new session goal');
+  writeFileSync(join(ownDir, 'goal-autonomy.json'), JSON.stringify({ goal: 'Monitor quantum-gpt', state: 'ACTIVE',
+    continuations: 4, totalContinuations: 10, revision: 2 }));
+  const foreign = join(projectPath, '.future-code/goals/test-session');
+  mkdirSync(foreign, { recursive: true });
+  writeFileSync(join(foreign, 'goal-autonomy.json'), JSON.stringify({ goal: 'test arg', state: 'REVIEW' }));
+  health = scanProjectHealth({ projectsDir })[0]!.project;
+  assert.equal(health.activeGoal, 'Monitor quantum-gpt');
+  assert.equal(health.goalState, 'ACTIVE');
+  assert.equal(health.goalScope, 'session');
+  assert.deepEqual(health.goalContinuations, { continuations: 4, totalContinuations: 10 });
+}));

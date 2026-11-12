@@ -1,7 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { DECISION_GUIDANCE } from "../../harness/decisionGuidance.ts";
+import { AUTONOMOUS_QUESTION_REDIRECT, executionProse, isRoutineDecisionHandoff } from "../../harness/autonomyPolicy.ts";
+import { getAutoGoalSessionId, isAutoGoalBackgroundTurn } from "../../utils/autoGoalSession.ts";
+import { parseLoopTask } from "../loop/task.ts";
 
 // A /goal authorizes continued work until REVIEW, an explicit pause, or a
 // concrete blocker. Optional operator limits remain durable across restarts.
@@ -12,6 +15,7 @@ const MAX_GOAL_BYTES = 4096;
 const MAX_STATE_BYTES = 512 * 1024;
 const MAX_SUPERSEDED_GOALS = 8;
 const MAX_STEERING_NOTES = 64;
+const MAX_ROUTINE_DECISION_CORRECTIONS = 2;
 
 // A model may report a dependency failure, but an ordinary implementation or
 // test failure is work to do, not permission to retire the objective.
@@ -25,7 +29,7 @@ export const AUTO_GOAL_BLOCKER_GUIDANCE =
   "Only when further progress requires something outside your available tools and authority, " +
   "write Status: blocked, Blocker: <specific error>, Blocker type: <hardware|network|provider|credentials|permissions|resources|external_dependency>, " +
   "Recovery attempted: <actual diagnostics and recovery results>, and External action required: <what must change before work can resume> " +
-  "on separate lines in .future-code/goal.md. Report that error, attempted recovery and required action to the user. " +
+  "on separate lines in the session goal report at the path in the current objective anchor. Report that error, attempted recovery and required action to the user. " +
   "These fields are a blocker report, not proof of completion. Respect operator pauses, permissions and explicit resource limits.";
 
 /** Invariant execution guidance belongs in a stable request prefix, not in
@@ -40,7 +44,7 @@ export const AUTO_GOAL_EXECUTION_POLICY =
   "milestones and dead-end notes, verifying each sub-goal before advancing. " +
   DECISION_GUIDANCE + " " +
   "Preserve checkpoints, reconcile existing external jobs before replacement, and respect permissions, explicit budgets " +
-  "and immutable acceptance checks. Once independently verified, mark .future-code/goal.md Status: completed for operator REVIEW. " +
+  "and immutable acceptance checks. Once independently verified, mark the session goal report at the path in the current objective anchor Status: completed for operator REVIEW. " +
   "An unchanged checkpoint alone is not a stall: preserve useful deep reasoning and healthy running jobs. " +
   "Diagnose repeated failed actions without new evidence; do not rewrite checkpoints just to reset a reminder. " +
   AUTO_GOAL_BLOCKER_GUIDANCE;
@@ -66,16 +70,24 @@ export interface AutoGoalState {
   stagnantContinuations?: number;
   lastProgressFingerprint?: string | null;
   transition?: GoalTransitionKind;
+  routineDecisionRetries?: number;
+  /** Interaction requested by trusted human steering; never an execution grant. */
+  userQuestions?: boolean;
+  /** Frozen standing-work contract; a completed cycle is not loop completion. */
+  loop?: { kind: "continuous" } | { kind: "until"; stopCondition: string };
 }
 
 export interface EnableAutoGoalOptions {
   horizon?: GoalHorizon;
   transition?: GoalTransitionKind;
   preserveSteering?: boolean;
+  loop?: AutoGoalState["loop"];
 }
 
 function location(cwd: string): { dir: string; file: string; goalMd: string; historyFile: string } {
-  const dir = resolve(cwd, ".future-code");
+  const base = resolve(cwd, ".future-code");
+  const sessionId = getAutoGoalSessionId();
+  const dir = sessionId === null ? base : join(base, "goals", sessionId);
   return {
     dir,
     file: join(dir, "goal-autonomy.json"),
@@ -84,7 +96,15 @@ function location(cwd: string): { dir: string; file: string; goalMd: string; his
   };
 }
 
+export function autoGoalReportPath(cwd = process.cwd()): string {
+  return location(cwd).goalMd;
+}
+
 function checkDirectory(dir: string, create: boolean): boolean {
+  // Inspect each existing ancestor before creating anything. Checking only
+  // the leaf would let a symlinked goals/ redirect another session's writes.
+  const parent = resolve(dir, "..");
+  if (basename(dir) !== ".future-code" && parent !== dir && !checkDirectory(parent, create)) return false;
   if (!existsSync(dir)) {
     if (!create) return false;
     mkdirSync(dir, { recursive: true });
@@ -133,6 +153,11 @@ function validate(value: unknown): AutoGoalState {
       typeof v.updatedAt !== "string" ||
       (v.ignoredGoalReport != null && (typeof v.ignoredGoalReport !== "string" || !/^[a-f0-9]{64}$/.test(v.ignoredGoalReport))) ||
       (v.reason !== null && typeof v.reason !== "string") ||
+      (v.userQuestions !== undefined && typeof v.userQuestions !== "boolean") ||
+      (v.loop !== undefined && (!v.loop || typeof v.loop !== "object" ||
+        !["continuous", "until"].includes(v.loop.kind) ||
+        (v.loop.kind === "until" && (typeof v.loop.stopCondition !== "string" || !v.loop.stopCondition.trim() ||
+          Buffer.byteLength(v.loop.stopCondition) > MAX_GOAL_BYTES)))) ||
       (v.revision !== undefined && (!Number.isSafeInteger(v.revision) || v.revision < 1)) ||
       (v.previousGoal != null && (typeof v.previousGoal !== "string" || Buffer.byteLength(v.previousGoal) > MAX_GOAL_BYTES)) ||
       (v.supersededGoals !== undefined && (!Array.isArray(v.supersededGoals) || v.supersededGoals.length > MAX_SUPERSEDED_GOALS ||
@@ -142,12 +167,15 @@ function validate(value: unknown): AutoGoalState {
       (v.horizon !== undefined && !["auto", "short", "long"].includes(v.horizon)) ||
       (v.stagnantContinuations !== undefined && (!Number.isSafeInteger(v.stagnantContinuations) || v.stagnantContinuations < 0)) ||
       (v.lastProgressFingerprint != null && (typeof v.lastProgressFingerprint !== "string" || !/^[a-f0-9]{64}$/.test(v.lastProgressFingerprint))) ||
-      (v.transition !== undefined && !["armed", "resumed", "superseded", "steered", "paused", "review"].includes(v.transition)))
+      (v.transition !== undefined && !["armed", "resumed", "superseded", "steered", "paused", "review"].includes(v.transition)) ||
+      (v.routineDecisionRetries !== undefined && (!Number.isSafeInteger(v.routineDecisionRetries) ||
+        v.routineDecisionRetries < 0 || v.routineDecisionRetries > MAX_ROUTINE_DECISION_CORRECTIONS)))
     throw new Error("Invalid autonomous-goal state (fail closed)");
   return v;
 }
 
 export function readAutoGoal(cwd = process.cwd()): AutoGoalState | null {
+  if (isAutoGoalBackgroundTurn()) return null;
   const { dir, file } = location(cwd);
   if (!checkDirectory(dir, false)) return null;
   checkFile(file);
@@ -158,6 +186,7 @@ export function readAutoGoal(cwd = process.cwd()): AutoGoalState | null {
 }
 
 function persist(cwd: string, state: AutoGoalState): AutoGoalState {
+  if (isAutoGoalBackgroundTurn()) throw new Error("A scheduled task cannot replace the foreground autonomous goal");
   validate(state);
   const encoded = JSON.stringify(state, null, 2) + "\n";
   if (Buffer.byteLength(encoded) > MAX_STATE_BYTES) throw new Error("Autonomous-goal state too large; preserve and consolidate constraints before continuing");
@@ -212,7 +241,8 @@ export function parseMilestoneLedger(reportText: string): GoalMilestone[] {
   const seen = new Set<string>();
   const pattern = /^\s*(?:[-*+]|\d+\.)\s+\[( |x|X)\]\s*(.+?)\s*$/gm;
   let match: RegExpExecArray | null;
-  while ((match = pattern.exec(reportText)) !== null) {
+  const prose = executionProse(reportText, true);
+  while ((match = pattern.exec(prose)) !== null) {
     const text = match[2]!.trim();
     if (!text || text.length > 512) continue;
     const key = text.toLowerCase();
@@ -223,7 +253,7 @@ export function parseMilestoneLedger(reportText: string): GoalMilestone[] {
   return milestones;
 }
 
-/** Reads and parses the milestone ledger from .future-code/goal.md. */
+/** Reads and parses the milestone ledger from the session goal report at the path in the current objective anchor. */
 export function readMilestoneLedger(cwd = process.cwd()): GoalMilestone[] {
   const state = readAutoGoal(cwd);
   if (!state) return [];
@@ -319,6 +349,8 @@ export function enableAutoGoal(
   maxContinuations: number | null = null,
   options?: EnableAutoGoalOptions,
 ): AutoGoalState {
+  // Check before report creation/archive as well as before the state write.
+  if (isAutoGoalBackgroundTurn()) throw new Error("A scheduled task cannot replace the foreground autonomous goal");
   const text = goal.trim();
   if (!text || Buffer.byteLength(text) > MAX_GOAL_BYTES)
     throw new Error("Autonomous goal must be 1-4096 bytes");
@@ -386,6 +418,7 @@ export function enableAutoGoal(
     stagnantContinuations: 0,
     lastProgressFingerprint: currentReport?.contentFingerprint ?? null,
     transition,
+    ...(options?.loop ? { loop: options.loop } : {}),
   });
 
   if (isSuperseding) {
@@ -415,6 +448,7 @@ export function supersedeAutoGoal(
 export function recordGoalSteering(
   steeringNote: string,
   cwd = process.cwd(),
+  options: { resumePaused?: boolean; resetContinuationBudget?: boolean; userQuestions?: boolean } = {},
 ): AutoGoalState | null {
   const note = steeringNote.trim();
   if (!note) return null;
@@ -428,15 +462,18 @@ export function recordGoalSteering(
   ];
   if (deduped.length > MAX_STEERING_NOTES) throw new Error("Goal steering limit reached; consolidate constraints explicitly instead of discarding earlier instructions");
   const { dir } = location(cwd);
+  const preservePause = state.state === "PAUSED" && options.resumePaused === false;
   return persist(cwd, {
     ...state,
-    state: "ACTIVE",
-    continuations: state.state === "PAUSED" ? 0 : state.continuations,
-    ignoredGoalReport: state.state === "PAUSED"
+    state: preservePause ? "PAUSED" : "ACTIVE",
+    continuations: state.state === "PAUSED" && !preservePause && options.resetContinuationBudget !== false ? 0 : state.continuations,
+    ignoredGoalReport: state.state === "PAUSED" && !preservePause
       ? (readGoalReport(dir)?.fingerprint ?? null)
       : state.ignoredGoalReport,
-    reason: null,
+    reason: preservePause ? state.reason : null,
     activeSteering: deduped,
+    routineDecisionRetries: 0,
+    ...(options.userQuestions === undefined ? {} : { userQuestions: options.userQuestions }),
     transition: "steered",
     updatedAt: new Date().toISOString(),
   });
@@ -465,6 +502,7 @@ export function resumeAutoGoal(cwd = process.cwd()): AutoGoalState | null {
     ignoredGoalReport: readGoalReport(location(cwd).dir)?.fingerprint ?? null,
     reason: null,
     stagnantContinuations: 0,
+    routineDecisionRetries: 0,
     transition: "resumed",
     updatedAt: new Date().toISOString(),
   });
@@ -505,7 +543,7 @@ function actionDirectiveText(input: string): string {
   return input.trim().replace(/^(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:help\s+me\s+)?|i\s+(?:want|need|would\s+like)\s+(?:you\s+)?to\s+)/i, "");
 }
 
-const ACTION_DIRECTIVE = /^(?:(?:please|now|next|first)\s+)?(?:fix|implement|build|create|refactor|develop|design|optimize|migrate|add|remove|replace|rewrite|update|upgrade|integrate|resolve|repair|patch|write|complete|finish|deliver|ship|support|architect|overhaul|redesign|automate|improve|enhance|verify|debug|construct|configure|deploy|change)\b/i;
+const ACTION_DIRECTIVE = /^(?:(?:please|now|next|first)\s+)?(?:fix|implement|build|create|refactor|develop|design|optimize|migrate|add|remove|replace|rewrite|update|upgrade|integrate|resolve|repair|patch|write|complete|finish|deliver|ship|support|architect|overhaul|redesign|automate|improve|enhance|verify|debug|construct|configure|deploy|change|push|commit|sync|synchronize|pull|rebuild|merge|run|execute|continue|maintain|review|inspect|check|test|evaluate|benchmark|train|research|investigate|analyze|perform)\b/i;
 
 function isReadOnlyQuestionOrChat(input: string): boolean {
   const text = input.trim();
@@ -553,17 +591,30 @@ function isRefinementDirective(input: string): boolean {
   return /^(?:also\b|and\s+also\b|make\s+sure\b|please\s+also\b|don'?t\b|do\s+not\b|without\b|remember\s+to\b|keep\s+in\s+mind\b|in\s+addition\b|for\s+this\s+(?:goal|task|objective)\b|use\s+\S+\s+instead\b|另外|同时|还要|确保|注意|顺便|不要|不能)/i.test(text);
 }
 
+function explicitQuestionPreference(input: string): boolean | null {
+  const text = actionDirectiveText(input);
+  if (/^(?:please\s+)?(?:do not|don't|never|stop|avoid)\s+(?:ask|asking|interrupt|interrupting)\b/i.test(text) ||
+    /^(?:please\s+)?(?:work|continue|proceed|execute)\s+(?:fully\s+)?autonomously\b/i.test(text) ||
+    /^(?:请)?(?:不要问我|别问我|自主执行|自主工作)/.test(text)) return false;
+  if (/^(?:please\s+)?(?:(?:ask|consult)\s+me\b|check\s+with\s+me\b|let\s+me\s+(?:choose|decide)\b)/i.test(text) ||
+    /^(?:请)?(?:先问我|让我选择|让我决定|向我确认)/.test(text)) return true;
+  return null;
+}
+
 function isActionableObjectiveDirective(input: string): boolean {
   const text = input.trim();
   if (!text || text.startsWith("/") || Buffer.byteLength(text) > MAX_GOAL_BYTES) return false;
   if (isReadOnlyQuestionOrChat(text)) return false;
   const words = text.split(/\s+/).filter(Boolean);
   const hasCjk = /[\u4e00-\u9fff]{4,}/.test(text);
+  // Clear short imperatives such as "Run tests" are still work requests.
+  const action = actionDirectiveText(text);
+  if (ACTION_DIRECTIVE.test(action) && action.replace(ACTION_DIRECTIVE, "").trim().length > 1) return true;
   if (words.length < 3 && !hasCjk) return false;
   if (text.length < 12 && !hasCjk) return false;
   return ACTION_DIRECTIVE.test(actionDirectiveText(text)) ||
     /\b(?:and\s+send\s+a\s+pr|until\s+all\s+tests\s+pass|and\s+run\s+(?:the\s+)?tests|fix\s+it|change\s+the\s+code)\b/i.test(text) ||
-    /^(?:请|现在|接下来)?\s*(?:修复|实现|构建|创建|重构|开发|设计|优化|迁移|添加|删除|替换|重写|更新|升级|集成|解决|修补|编写|完成|交付|支持|改进|增强|调试|部署|修改)/.test(text);
+    /^(?:请|现在|接下来)?\s*(?:修复|实现|构建|创建|重构|开发|设计|优化|迁移|添加|删除|替换|重写|更新|升级|集成|解决|修补|编写|完成|交付|支持|改进|增强|调试|部署|修改|运行|执行|提交|推送|同步|拉取|重建|继续|维护|检查|测试|评估|训练|研究)/.test(text);
 }
 
 /**
@@ -578,15 +629,39 @@ function isActionableObjectiveDirective(input: string): boolean {
  */
 export function resumeAutoGoalFromInput(
   input: string,
-  options: { mainThread: boolean; cwd?: string; autoArm?: boolean },
+  options: { mainThread: boolean; cwd?: string; autoArm?: boolean; loopMode?: "builtin" | "bundled" },
 ): AutoGoalState | null {
   if (!options.mainThread) return null;
   const trimmed = input.trim();
-  if (!trimmed || trimmed.startsWith("/")) return null;
+  if (!trimmed) return null;
   const cwd = options.cwd ?? process.cwd();
+  const loopCommand = /^\/loop(?:\s+([\s\S]*))?$/.exec(trimmed);
+  if (loopCommand && options.loopMode) {
+    const parsed = parseLoopTask(loopCommand[1] ?? "");
+    if (!parsed) return null;
+    // This is an explicit human command, not expanded skill/cron text. Keep
+    // every requested constraint, including stop/cadence and follow-on work.
+    const goalText = "/loop " + parsed.goalText;
+    const current = readAutoGoal(cwd);
+    if (current && normalizeGoalText(current.goal) === normalizeGoalText(goalText)) {
+      // Repeating an active command is not a fresh resource budget. An
+      // explicit paused-loop restart resumes its work with accounting intact.
+      if (current.state === "ACTIVE") return current;
+      return recordGoalSteering(trimmed, cwd, { resetContinuationBudget: false });
+    }
+    return enableAutoGoal(goalText, cwd, current?.maxContinuations ?? null, {
+      transition: current ? "superseded" : "armed",
+      ...(options.loopMode === "builtin" ? { loop: parsed.stopCondition
+        ? { kind: "until", stopCondition: parsed.stopCondition }
+        : { kind: "continuous" } } : {}),
+    });
+  }
+  // Other commands own their own semantics. A plugin named /loop is not the
+  // built-in loop contract and cannot inherit authority by its name alone.
+  if (trimmed.startsWith("/")) return null;
 
   // 1. Whole human resume instruction
-  if (/^(?:continue|resume|keep going|go on|继续|继续工作)[.!。！]?$/i.test(trimmed)) {
+  if (/^(?:continue|resume|keep going|go on|go(?: for both)?|do both|proceed|继续|继续工作|继续执行|两个都做)[.!。！]?$/i.test(trimmed)) {
     let current: AutoGoalState | null = null;
     try { current = readAutoGoal(cwd); } catch { return null; }
     if (current?.state !== "PAUSED") return null;
@@ -603,11 +678,16 @@ export function resumeAutoGoalFromInput(
     return null;
   }
 
-  // 3. Read-only questions/explanations never overwrite or re-arm an objective
-  if (isReadOnlyQuestionOrChat(trimmed)) return null;
-
   let current: AutoGoalState | null = null;
   try { current = readAutoGoal(cwd); } catch { return null; }
+  const userQuestions = explicitQuestionPreference(trimmed);
+  if (current && current.state !== "REVIEW" && userQuestions !== null) {
+    return recordGoalSteering(trimmed, cwd, {
+      resumePaused: false, resetContinuationBudget: false, userQuestions,
+    });
+  }
+  // 3. Read-only questions/explanations never overwrite or re-arm an objective.
+  if (isReadOnlyQuestionOrChat(trimmed)) return null;
 
   // 4. Explicit new objective / pivot statement ("New objective: ...", "Instead of X, do Y", etc.)
   const explicitNew = extractExplicitNewObjective(trimmed);
@@ -619,7 +699,7 @@ export function resumeAutoGoalFromInput(
 
   // 5. Mid-flight steering/refinement on an active or paused objective
   if (current && current.state !== "REVIEW" && isRefinementDirective(trimmed)) {
-    return recordGoalSteering(trimmed, cwd);
+    return recordGoalSteering(trimmed, cwd, { resumePaused: false, resetContinuationBudget: false });
   }
 
   // 6. Actionable engineering/research directive
@@ -628,7 +708,7 @@ export function resumeAutoGoalFromInput(
       // A necessary subtask can share no words with the larger objective.
       // Preserve that objective until the human explicitly replaces it.
       if (current.state !== "REVIEW") {
-        return recordGoalSteering(trimmed, cwd);
+        return recordGoalSteering(trimmed, cwd, { resetContinuationBudget: false });
       }
       return enableAutoGoal(trimmed, cwd, current.maxContinuations, {
         transition: "superseded",
@@ -642,7 +722,12 @@ export function resumeAutoGoalFromInput(
 
   // Trusted corrections/context need not start with a verb we predicted.
   // Retain them across compaction without turning them into a new root goal.
-  if (current && current.state !== "REVIEW") return recordGoalSteering(trimmed, cwd);
+  if (current && current.state !== "REVIEW") return recordGoalSteering(trimmed, cwd, {
+    // Supplied prerequisite evidence can resume a genuine external blocker,
+    // but an observation cannot cancel an operator pause or replenish a limit.
+    resumePaused: current.reason?.startsWith("External blocker (") ?? false,
+    resetContinuationBudget: false,
+  });
 
   return null;
 }
@@ -653,6 +738,13 @@ function isSelfRecoverableBlocker(
   recovery: string,
   action: string,
 ): boolean {
+  const combinedFailure = blocker + " " + action;
+  // A routine question never grants a genuinely missing or denied capability.
+  // Native access controls remain authoritative even if the report says "go".
+  if (/\b(?:denied|forbidden|HTTP\s*(?:401|403)|not\s+(?:authorized|permitted|granted)|ungranted|revoked|expired)\b/i.test(combinedFailure) ||
+      (/\b(?:force[- ]?push|production\s+(?:deploy|release|publish)|purchase|spend)\b/i.test(combinedFailure) &&
+        /\b(?:approval|authorize|authorization|permission)\b/i.test(combinedFailure))) return false;
+  if (isRoutineDecisionHandoff(action)) return true;
   // Asking the human to type "continue" or "resume" is never a valid external blocker
   if (/\b(?:say|type|reply|run|enter|tell\s+me\s+to)\s+['"`]?(?:continue|resume|keep\s+going|go\s+on)\b/i.test(action)) {
     return true;
@@ -675,25 +767,36 @@ function goalFileOutcome(
   dir: string,
   state: AutoGoalState,
   cwd: string,
-): { state: "REVIEW" | "PAUSED"; reason: string } | { recovery: string } | null {
+): { state: "REVIEW" | "PAUSED"; reason: string } | { recovery: string; routineHandoff?: boolean } | null {
   const report = readGoalReport(dir);
   if (!report) return null;
   const { text } = report;
+  const controlText = executionProse(text, true);
   // Also repair entirely unrelated objectives, not just previously known ones.
   // A mention of the active goal in the body cannot authorize a stale H1.
   if (!goalMatchesReport(text, state.goal)) {
     syncGoalMarkdownFile(cwd, state.goal, state.previousGoal ?? null, state.activeSteering ?? [], true);
     return {
       recovery:
-        `OBJECTIVE DRIFT DETECTED: .future-code/goal.md did not belong to the active objective. ` +
+        `OBJECTIVE DRIFT DETECTED: the session goal report at the path in the current objective anchor did not belong to the active objective. ` +
         `Its previous contents were archived and the active ledger restored for "${state.goal}". ` +
         `Align the next action to this objective and continue all work that remains possible.`,
     };
   }
   if (report.fingerprint === state.ignoredGoalReport) return null;
 
-  const status = /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?(completed|blocked)(?:\*\*)?\s*$/im.exec(text)?.[1]?.toLowerCase();
+  const status = /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?(completed|blocked)(?:\*\*)?\s*$/im.exec(controlText)?.[1]?.toLowerCase();
   if (status === "completed") {
+    if (state.loop?.kind === "continuous") return {
+      recovery: "This is a standing loop. A completed cycle cannot retire it. Reconcile the previous cycle's effects, " +
+        "inspect current evidence, and continue the next useful cycle without requesting another go. " +
+        "Respect operator stops, actual external failures, resource limits, and healthy running jobs.",
+    };
+    const open = nextOpenMilestone(parseMilestoneLedger(text));
+    if (open) return {
+      recovery: "The completion report still has an unfinished milestone (#" + open.index + "): " +
+        open.text + ". Continue this requested work in dependency order; a completed subtask cannot retire the standing objective.",
+    };
     return {
       state: "REVIEW",
       reason: "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
@@ -703,7 +806,7 @@ function goalFileOutcome(
 
   const field = (name: string) =>
     new RegExp("^[ \\t]*(?:[-*][ \\t]*)?(?:\\*\\*)?" + name + "(?:\\*\\*)?[ \\t]*:[ \\t]*(\\S[^\\r\\n]*)", "im")
-      .exec(text)?.[1]?.trim();
+      .exec(controlText)?.[1]?.trim();
   const blocker = field("blocker");
   const kind = field("blocker type")?.toLowerCase();
   const recovery = field("recovery attempted");
@@ -712,6 +815,7 @@ function goalFileOutcome(
   if (blocker && kind && EXTERNAL_BLOCKER_TYPES.has(kind) && recovery && action) {
     if (isSelfRecoverableBlocker(blocker, kind, recovery, action)) {
       return {
+        routineHandoff: isRoutineDecisionHandoff(action),
         recovery:
           "The goal file reports a blocker that is recoverable within your own tools and authority without human help. " +
           "Diagnose it, switch implementation strategy, and continue all work that remains possible.",
@@ -745,6 +849,7 @@ export function formatActiveGoalCompactionAnchor(state: AutoGoalState | null, cw
   const lines = [
     `[Host Active Objective Anchor — Revision ${state.revision ?? 1} (${horizon}-horizon project)]`,
     `ACTIVE OBJECTIVE: ${state.goal}`,
+    `Goal report for this session: ${JSON.stringify(autoGoalReportPath(cwd))}`,
   ];
   if (superseded.length > 0) {
     lines.push(
@@ -776,10 +881,17 @@ export function formatGoalRequestAnchor(state: AutoGoalState, cwd = process.cwd(
     `[Host Current Objective — Revision ${state.revision ?? 1}; ${state.state}; horizon: ${classifyGoalHorizon(state.goal, state.horizon)}]`,
     `Root objective (user instruction): ${JSON.stringify(state.goal)}`,
     `User steering (apply with the root objective): ${JSON.stringify(state.activeSteering ?? [])}`,
+    `Goal report for this session: ${JSON.stringify(autoGoalReportPath(cwd))}. Use this path, not a different session's report.`,
     "This current host state supersedes historical goal reminders, summaries, memories and plans. " +
     "Follow the latest user message while preserving the root objective unless the user explicitly replaces it. " +
     "Treat subtask completion as progress, not completion of the root objective.",
   ];
+  if (state.loop) lines.push(state.loop.kind === "continuous"
+    ? "Standing loop: continue across successful cycles until an operator stop, an actual external blocker, or an explicit resource boundary. A cycle completing is not the objective completing."
+    : `Loop stop condition (user instruction): ${JSON.stringify(state.loop.stopCondition)}. Verify it before reporting final completion.`);
+  if (state.userQuestions === true) {
+    lines.push("The user explicitly requested decision interaction in the active steering. Honor that requested interaction; it grants no new execution permission.");
+  }
   if (state.state !== "ACTIVE") {
     lines.push(`Automatic work is ${state.state === "PAUSED" ? "paused" : "awaiting review"}. Answer the latest user message; do not resume this objective without user authorization.`);
   } else {
@@ -839,6 +951,12 @@ export function decideAutoGoalContinuation(options: {
   /** delta is valid only when AUTO_GOAL_EXECUTION_POLICY and a fresh current
    * anchor are installed by the caller. Other callers retain full guidance. */
   promptFormat?: "full" | "delta";
+  /** Current assistant prose only, never human text or tool-result contents. */
+  assistantText?: string;
+  /** Host-observed completed tool execution since the previous goal decision. */
+  toolActivity?: boolean;
+  /** Set only from a matched host-generated rejected question receipt. */
+  routineQuestionRejected?: boolean;
 }): AutoGoalDecision {
   if (!options.mainThread) return { kind: "SKIP" };
   const cwd = options.cwd ?? process.cwd();
@@ -856,14 +974,35 @@ export function decideAutoGoalContinuation(options: {
       return { kind: "BLOCKED", reason };
     };
     const { dir } = location(cwd);
-    const outcome = goalFileOutcome(dir, state, cwd);
-    if (outcome && "state" in outcome) return blocked(outcome.state, outcome.reason);
+    let outcome = goalFileOutcome(dir, state, cwd);
+    // A complete external failure report outranks a prose classifier. No
+    // generated instruction or answer can overrule a real denied capability.
+    if (outcome && "state" in outcome && outcome.state === "PAUSED") return blocked(outcome.state, outcome.reason);
+    const handoff = options.routineQuestionRejected === true || isRoutineDecisionHandoff(options.assistantText ?? "") ||
+      !!(outcome && "routineHandoff" in outcome && outcome.routineHandoff);
+    if (outcome && "state" in outcome) {
+      if (!handoff) return blocked(outcome.state, outcome.reason);
+      outcome = { recovery: "A reply that hands requested next steps back to the user is not objective completion." };
+    }
     if (!options.withinTurnBudget)
       return blocked("PAUSED", "Caller max-turns boundary reached before objective acceptance. Increase the caller limit explicitly, then /goal --resume.");
     if (state.maxContinuations !== null && state.continuations >= state.maxContinuations)
       return blocked("PAUSED", "Authorized autonomous continuation budget exhausted (" +
         state.maxContinuations + " turns). Use /goal --resume or re-arm with /goal --auto --limit N <goal>.");
 
+    if (state.userQuestions === true && options.routineQuestionRejected !== true &&
+      isRoutineDecisionHandoff(options.assistantText ?? "")) return { kind: "SKIP" };
+
+    const previousCorrections = options.toolActivity ? 0 : (state.routineDecisionRetries ?? 0);
+    if (handoff && previousCorrections >= MAX_ROUTINE_DECISION_CORRECTIONS) {
+      return blocked("PAUSED", "Model execution contract failure: the model repeatedly returned routine decision requests " +
+        "without a tool action after two automatic corrections. No user decision or 'go' is required. " +
+        "The unfinished objective and evidence are preserved; diagnose or replace the noncompliant model configuration.");
+    }
+    const recoveryGuidance = [
+      outcome && "recovery" in outcome ? outcome.recovery : "",
+      handoff ? AUTONOMOUS_QUESTION_REDIRECT : "",
+    ].filter(Boolean).join("\n");
     const currentReport = readGoalReport(dir);
     const currentFingerprint = currentReport?.contentFingerprint ?? null;
     const progressed = currentFingerprint !== null && currentFingerprint !== state.lastProgressFingerprint;
@@ -875,6 +1014,7 @@ export function decideAutoGoalContinuation(options: {
       totalContinuations: state.totalContinuations + 1,
       stagnantContinuations,
       lastProgressFingerprint: currentFingerprint,
+      routineDecisionRetries: handoff ? previousCorrections + 1 : 0,
       updatedAt: new Date().toISOString(),
     });
 
@@ -883,7 +1023,7 @@ export function decideAutoGoalContinuation(options: {
     if (options.promptFormat === "delta") return {
       kind: "CONTINUE",
       prompt: header + "Execute the next useful step for the current host objective. End-turn is not completion." +
-        (outcome && "recovery" in outcome ? "\n" + outcome.recovery : ""),
+        (recoveryGuidance ? "\n" + recoveryGuidance : ""),
     };
 
     const superseded = [
@@ -899,7 +1039,7 @@ export function decideAutoGoalContinuation(options: {
       : "";
     const horizon = classifyGoalHorizon(state.goal, state.horizon);
     const horizonGuidance = horizon === "long"
-      ? "Long-horizon project mode: maintain structured milestones and dead-end notes in .future-code/goal.md, verify each sub-goal with concrete checks before advancing, and preserve clean working state across compactions. "
+      ? "Long-horizon project mode: maintain structured milestones and dead-end notes in the session goal report at the path in the current objective anchor, verify each sub-goal with concrete checks before advancing, and preserve clean working state across compactions. "
       : "Short-horizon sprint mode: execute the most direct implementation and verification path with minimal overhead. ";
     const stagnationLine = stagnantContinuations >= 2
       ? `\nCheckpoint unchanged for ${stagnantContinuations} continuations. This alone does not prove a stall: preserve useful deep reasoning and healthy running jobs. If the same failed action is repeating without new evidence, diagnose it and change approach. Record substantive findings when available; do not rewrite the checkpoint just to reset this reminder.`
@@ -909,7 +1049,7 @@ export function decideAutoGoalContinuation(options: {
       kind: "CONTINUE",
       prompt:
         header +
-        "Goal: " + state.goal + "\n" +
+        "Goal: " + state.goal + "\nGoal report: " + JSON.stringify(autoGoalReportPath(cwd)) + "\n" +
         antiDriftLine +
         steeringLine +
         "The previous assistant turn ended but the durable goal is not yet complete. " +
@@ -919,10 +1059,10 @@ export function decideAutoGoalContinuation(options: {
         DECISION_GUIDANCE + " " +
         "Preserve checkpoints and avoid duplicate external jobs. Respect all permission prompts, " +
         "cost limits, and immutable acceptance checks. Once independently verified, mark " +
-        ".future-code/goal.md with Status: completed for operator REVIEW. " +
+        "the session goal report at the path in the current objective anchor with Status: completed for operator REVIEW. " +
         AUTO_GOAL_BLOCKER_GUIDANCE +
         stagnationLine +
-        (outcome && "recovery" in outcome ? "\n" + outcome.recovery : ""),
+        (recoveryGuidance ? "\n" + recoveryGuidance : ""),
     };
   } catch (error) {
     // Fail closed, but NEVER silently treat a corrupt or unwritable state as
@@ -957,7 +1097,7 @@ export function autoGoalTerminalDiagnostic(reason: string, error?: unknown): str
 
 /** Output styles change presentation, never the main thread's goal contract. */
 export function isAutoGoalMainThread(querySource: string, agentId?: string, nonInteractive = false): boolean {
-  return !agentId && !nonInteractive &&
+  return !agentId && !nonInteractive && !isAutoGoalBackgroundTurn() &&
     (querySource === "repl_main_thread" || querySource.startsWith("repl_main_thread:outputStyle:"));
 }
 

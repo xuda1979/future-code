@@ -37,7 +37,7 @@ function isSlashCommand(cmd: QueuedCommand): boolean {
  * one at a time so each goes through the executeInput path individually.
  * Bash commands need individual processing to preserve per-command error
  * isolation, exit codes, and progress UI. Other non-slash commands are
- * batched: all items **with the same mode** as the highest-priority item
+ * batched: all items with the same mode and workload as the highest-priority item
  * are drained at once and passed as a single array to executeInput — each
  * becomes its own user message with its own UUID. Different modes
  * (e.g. prompt vs task-notification) are never mixed because they are
@@ -73,10 +73,13 @@ export function processQueueIfReady({
     return { processed: true }
   }
 
-  // Drain all non-slash-command items with the same mode at once.
+  // Keep native scheduled ticks separate from human conversation authority.
+  // Mixing a status question and a tick would attach the foreground goal's
+  // pause/review anchor to an independently authorized scheduled task.
   const targetMode = next.mode
+  const targetWorkload = next.workload
   const commands = dequeueAllMatching(
-    cmd => isMainThread(cmd) && !isSlashCommand(cmd) && cmd.mode === targetMode,
+    cmd => isMainThread(cmd) && !isSlashCommand(cmd) && cmd.mode === targetMode && cmd.workload === targetWorkload,
   )
   if (commands.length === 0) {
     return { processed: false }
