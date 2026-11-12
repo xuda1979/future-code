@@ -5,9 +5,15 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 
 export async function load(url, context, nextLoad) {
-  if (/\/src\/utils\/(?:CircularBuffer|fsOperations|stringUtils)\.ts$/.test(url)) return {
-    format: 'module', source: stripTypeScriptTypes(readFileSync(new URL(url), 'utf8'), { mode: 'transform' }), shortCircuit: true,
-  };
+  if (/\/src\/utils\/(?:CircularBuffer|fsOperations|stringUtils)\.ts$/.test(url)) {
+    let source = readFileSync(new URL(url), 'utf8')
+    if (url.endsWith('/fsOperations.ts')) {
+      source = source.replace(/^(\s*)using (_ = slowLogging`[^`]*`)/gm, '$1const $2')
+    }
+    return {
+      format: 'module', source: stripTypeScriptTypes(source, { mode: 'transform' }), shortCircuit: true,
+    }
+  }
   return nextLoad(url, context);
 }
 
