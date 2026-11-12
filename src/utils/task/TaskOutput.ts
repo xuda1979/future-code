@@ -9,6 +9,9 @@ import { DiskTaskOutput, getTaskOutputPath } from './diskOutput.js'
 const DEFAULT_MAX_MEMORY = 8 * 1024 * 1024 // 8MB
 const POLL_INTERVAL_MS = 1000
 const PROGRESS_TAIL_BYTES = 4096
+// All readers need at most 100 lines. Retaining 1000 duplicated up to ~4MB
+// of pipe output per task without making any additional output available.
+const MAX_PROGRESS_LINES = 100
 
 type ProgressCallback = (
   lastLines: string,
@@ -37,7 +40,7 @@ export class TaskOutput {
   #stdoutBuffer = ''
   #stderrBuffer = ''
   #disk: DiskTaskOutput | null = null
-  #recentLines = new CircularBuffer<string>(1000)
+  #recentLines = new CircularBuffer<string>(MAX_PROGRESS_LINES)
   #totalLines = 0
   #totalBytes = 0
   #maxMemory: number
@@ -46,6 +49,7 @@ export class TaskOutput {
   #outputFileRedundant = false
   /** Set by getStdout() — total file size in bytes. */
   #outputFileSize = 0
+  #pollPending = false
 
   // --- Shared poller state ---
 
@@ -104,16 +108,22 @@ export class TaskOutput {
 
   /**
    * Shared tick: reads the file tail for every actively-polled task.
-   * Non-async body (.then) to avoid stacking if I/O is slow.
+   * Allow at most one in-flight read per task. A .then() alone does not
+   * prevent interval ticks from retaining more reads while I/O is slow.
    */
   static #tick(): void {
     for (const [, entry] of TaskOutput.#activePolling) {
-      if (!entry.#onProgress) {
+      if (!entry.#onProgress || entry.#pollPending) {
         continue
       }
+      entry.#pollPending = true
       void tailFile(entry.path, PROGRESS_TAIL_BYTES).then(
         ({ content, bytesRead, bytesTotal }) => {
-          if (!entry.#onProgress) {
+          entry.#pollPending = false
+          if (
+            !entry.#onProgress ||
+            TaskOutput.#activePolling.get(entry.taskId) !== entry
+          ) {
             return
           }
           // Always call onProgress even when content is empty, so the
@@ -157,6 +167,7 @@ export class TaskOutput {
           )
         },
         () => {
+          entry.#pollPending = false
           // File may not exist yet
         },
       )
@@ -206,8 +217,6 @@ export class TaskOutput {
    */
   #updateProgress(data: string): void {
     const MAX_PROGRESS_BYTES = 4096
-    const MAX_PROGRESS_LINES = 100
-
     let lineCount = 0
     const lines: string[] = []
     let extractedBytes = 0
