@@ -23,6 +23,7 @@ import {
 } from '../settings/constants.js'
 import { plural } from '../stringUtils.js'
 import { permissionModeTitle } from './PermissionMode.js'
+import { getMandatorySafetyCheck, hasExplicitAskRule } from './PermissionResult.js'
 import type {
   PermissionAskDecision,
   PermissionDecision,
@@ -531,7 +532,7 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
       // because the tool's own checkPermissions still returns 'ask'.
       if (
         result.decisionReason?.type === 'safetyCheck' &&
-        !result.decisionReason.classifierApprovable
+        result.decisionReason.classifierApprovable !== true
       ) {
         if (appState.toolPermissionContext.shouldAvoidPermissionPrompts) {
           return {
@@ -1057,6 +1058,18 @@ function handleDenialLimitExceeded(
   }
 }
 
+/** Sensitivity is an auto-edit heuristic, not a new authority boundary when
+ * the operator already selected full access. Structural guards never qualify. */
+function canBypassSensitiveFileCheck(
+  result: PermissionResult,
+  context: ToolPermissionContext,
+): boolean {
+  return result.behavior === 'ask' && result.decisionReason?.type === 'safetyCheck' &&
+    result.decisionReason.classifierApprovable === true &&
+    (context.mode === 'bypassPermissions' ||
+      (context.mode === 'plan' && context.isBypassPermissionsModeAvailable))
+}
+
 /**
  * Check only the rule-based steps of the permission pipeline — the subset
  * that bypassPermissions mode respects (everything that fires before step 2a).
@@ -1133,20 +1146,19 @@ export async function checkRuleBasedPermissions(
 
   // 1f. Content-specific ask rules from tool.checkPermissions
   // (e.g. Bash(npm publish:*) → {ask, type:'rule', ruleBehavior:'ask'})
-  if (
-    toolPermissionResult?.behavior === 'ask' &&
-    toolPermissionResult.decisionReason?.type === 'rule' &&
-    toolPermissionResult.decisionReason.rule.ruleBehavior === 'ask'
-  ) {
+  const mandatorySafety = getMandatorySafetyCheck(toolPermissionResult)
+  if (mandatorySafety) return mandatorySafety
+  if (hasExplicitAskRule(toolPermissionResult)) {
     return toolPermissionResult
   }
 
-  // 1g. Safety checks (e.g. .git/, .future/, .vscode/, shell configs) are
-  // bypass-immune — they must prompt even when a PreToolUse hook returned
-  // allow. checkPathSafetyForAutoEdit returns {type:'safetyCheck'} for these.
+  // 1g. Explicit restrictions above always win. Full access already grants
+  // sensitive-file access; structural safety decisions remain mandatory.
+  // Read the latest mode after the awaited tool check, including hook paths.
   if (
     toolPermissionResult?.behavior === 'ask' &&
-    toolPermissionResult.decisionReason?.type === 'safetyCheck'
+    toolPermissionResult.decisionReason?.type === 'safetyCheck' &&
+    !canBypassSensitiveFileCheck(toolPermissionResult, context.getAppState().toolPermissionContext)
   ) {
     return toolPermissionResult
   }
@@ -1241,20 +1253,19 @@ async function hasPermissionsToUseToolInner(
   // checkPermissions returns {behavior:'ask', decisionReason:{type:'rule',
   // rule:{ruleBehavior:'ask'}}}. This must be respected even in bypass mode,
   // just as deny rules are respected at step 1d.
-  if (
-    toolPermissionResult?.behavior === 'ask' &&
-    toolPermissionResult.decisionReason?.type === 'rule' &&
-    toolPermissionResult.decisionReason.rule.ruleBehavior === 'ask'
-  ) {
+  const mandatorySafety = getMandatorySafetyCheck(toolPermissionResult)
+  if (mandatorySafety) return mandatorySafety
+  if (hasExplicitAskRule(toolPermissionResult)) {
     return toolPermissionResult
   }
 
-  // 1g. Safety checks (e.g. .git/, .future/, .vscode/, shell configs) are
-  // bypass-immune — they must prompt even in bypassPermissions mode.
-  // checkPathSafetyForAutoEdit returns {type:'safetyCheck'} for these paths.
+  // 1g. Sensitivity alone cannot request the same grant again in full-access
+  // mode. Deny/ask rules and required interaction were checked first; this
+  // does not exempt structural safety or manufacture additional authority.
   if (
     toolPermissionResult?.behavior === 'ask' &&
-    toolPermissionResult.decisionReason?.type === 'safetyCheck'
+    toolPermissionResult.decisionReason?.type === 'safetyCheck' &&
+    !canBypassSensitiveFileCheck(toolPermissionResult, context.getAppState().toolPermissionContext)
   ) {
     return toolPermissionResult
   }

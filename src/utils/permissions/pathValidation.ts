@@ -131,12 +131,10 @@ const getResolvedSandboxConfigPath = memoize(getPathsForPermissionCheck)
  * Checks if a resolved path is allowed for the given operation type.
  *
  * @param precomputedPathsToCheck - Optional cached result of
- *   `getPathsForPermissionCheck(resolvedPath)`. When `resolvedPath` is the
- *   output of `realpathSync` (canonical path, all symlinks resolved), this
- *   is trivially `[resolvedPath]` and passing it here skips 5 redundant
- *   syscalls per inner check. Do NOT pass this for non-canonical paths
- *   (nonexistent files, UNC paths, etc.) — parent-directory symlink
- *   resolution is still required for those.
+ *   `getPathsForPermissionCheck(originalPath)`. For a successful realpath,
+ *   pass both the original absolute path and its canonical target to retain
+ *   restrictions on either spelling without resolving symlinks again.
+ *   Nonexistent files and UNC paths still need parent-directory resolution.
  */
 export function isPathAllowed(
   resolvedPath: string,
@@ -147,18 +145,21 @@ export function isPathAllowed(
   // Determine which permission type to check based on operation
   const permissionType = operationType === 'read' ? 'read' : 'edit'
 
-  // 1. Check deny rules first (they take precedence)
-  const denyRule = matchingRuleForInput(
-    resolvedPath,
-    context,
-    permissionType,
-    'deny',
-  )
-  if (denyRule !== null) {
-    return {
-      allowed: false,
-      decisionReason: { type: 'rule', rule: denyRule },
-    }
+  // Restrictions apply before internal-path, sensitivity and sandbox shortcuts.
+  // Evaluate every resolved form, and all denies before any explicit ask.
+  const pathsToCheck = precomputedPathsToCheck ?? getPathsForPermissionCheck(resolvedPath)
+  for (const path of pathsToCheck) {
+    const rule = matchingRuleForInput(path, context, permissionType, 'deny')
+    if (rule) return { allowed: false, decisionReason: { type: 'rule', rule } }
+  }
+  const safetyCheck = operationType === 'read' ? { safe: true as const }
+    : checkPathSafetyForAutoEdit(resolvedPath, pathsToCheck)
+  if (!safetyCheck.safe && safetyCheck.classifierApprovable !== true) {
+    return { allowed: false, decisionReason: { type: 'safetyCheck', reason: safetyCheck.message, classifierApprovable: false } }
+  }
+  for (const path of pathsToCheck) {
+    const rule = matchingRuleForInput(path, context, permissionType, 'ask')
+    if (rule) return { allowed: false, decisionReason: { type: 'rule', rule } }
   }
 
   // 2. For write/create operations, check internal editable paths (plan files, scratchpad, agent memory, job dirs)
@@ -179,10 +180,6 @@ export function isPathAllowed(
   // This MUST come before checking working directory to prevent bypass via acceptEdits mode
   // Checks: Windows patterns, Future config files, dangerous files (on original + symlink paths)
   if (operationType !== 'read') {
-    const safetyCheck = checkPathSafetyForAutoEdit(
-      resolvedPath,
-      precomputedPathsToCheck,
-    )
     if (!safetyCheck.safe) {
       return {
         allowed: false,
@@ -201,7 +198,7 @@ export function isPathAllowed(
   const isInWorkingDir = pathInAllowedWorkingPath(
     resolvedPath,
     context,
-    precomputedPathsToCheck,
+    pathsToCheck,
   )
   if (isInWorkingDir) {
     if (operationType === 'read' || context.mode === 'acceptEdits') {
@@ -285,7 +282,7 @@ export function validateGlobPattern(
       resolvedPath,
       toolPermissionContext,
       operationType,
-      isCanonical ? [resolvedPath] : undefined,
+      isCanonical ? [...new Set([absolutePath, resolvedPath])] : getPathsForPermissionCheck(absolutePath),
     )
     return {
       allowed: result.allowed,
@@ -306,7 +303,7 @@ export function validateGlobPattern(
     resolvedPath,
     toolPermissionContext,
     operationType,
-    isCanonical ? [resolvedPath] : undefined,
+    isCanonical ? [...new Set([absolutePath, resolvedPath])] : getPathsForPermissionCheck(absolutePath),
   )
   return {
     allowed: result.allowed,
@@ -475,7 +472,7 @@ export function validatePath(
     resolvedPath,
     toolPermissionContext,
     operationType,
-    isCanonical ? [resolvedPath] : undefined,
+    isCanonical ? [...new Set([absolutePath, resolvedPath])] : getPathsForPermissionCheck(absolutePath),
   )
   return {
     allowed: result.allowed,

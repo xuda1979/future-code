@@ -37,6 +37,7 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/tool-result-budget.test.ts",
   "tests/correctness/permission-delivery.test.ts",
   "tests/correctness/permission-defaults.test.ts",
+  "tests/correctness/sensitive-file-permissions.test.ts",
   "tests/correctness/token-estimation-anchor.test.ts",
   "tests/correctness/provider-retry-policy.test.ts",
   "tests/correctness/system-resources.test.ts"], 900000);
