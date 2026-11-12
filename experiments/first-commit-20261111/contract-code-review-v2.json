@@ -1,0 +1,35 @@
+{
+  "experimentId": "FC-FIRST-CODE-REVIEW-20261111-V2",
+  "frozenAt": "2026-11-11T10:18:14.968626+00:00",
+  "baseline": "b1f9d186085562947adf682f4c7f65652886ecad",
+  "candidate": "ac3789210d0d58d30f1f9b141ca6d842297f7f94",
+  "files": [
+    "src/query.ts",
+    "src/services/tools/StreamingToolExecutor.ts",
+    "src/utils/tokens.ts",
+    "src/utils/toolResultStorage.ts",
+    "src/utils/providerRetryPolicy.ts",
+    "src/commands/goal/auto.ts",
+    "src/commands/goal/context.ts",
+    "src/harness/foundry/swarm/model.ts",
+    "src/harness/foundry/swarm/driver.ts",
+    "src/harness/foundry/runtime.ts",
+    "src/harness/foundry/scheduler.ts",
+    "src/harness/foundry/acceptance.ts"
+  ],
+  "workload": "One real git diff --no-color per listed production file. Deliberately covers multi-file architecture review. No fabricated or repeated output lines. Same frozen results for both arms; individual persistence applied to both first.",
+  "selection": "Named core and control-plane files chosen before A/B output measurement; intended large-output stress coverage, not representative distribution.",
+  "repetitions": 4,
+  "order": "AB BA BA AB",
+  "primary": "Serialized request JSON bytes",
+  "guardrails": [
+    "Per-tool30K persistence on both arms",
+    "Exact raw receipt recovery",
+    "Unchanged original transcript",
+    "Small-input control",
+    "Legacy remote flag-on control"
+  ],
+  "scope": "Context efficiency, no live-model productivity or quality inference.",
+  "supersedes": "FC-FIRST-CODE-REVIEW-20261111",
+  "correction": "Use actual Bash declared per-tool maxResultSizeChars=30000 from both pinned sources; earlier50000 cap is not production Bash faithful and is excluded from headline results."
+}
