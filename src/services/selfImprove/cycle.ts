@@ -6,7 +6,8 @@
  *   1. Guard: config enabled, interval/advisory history permits a cycle,
  *      and no cycle is running in this process.
  *   2. Locate the configured source in the managed clone. Analysis and
- *      changes use separate private worktrees pinned to fetched main.
+ *      changes use private worktrees pinned to fetched main plus authenticated
+ *      local promotions, so successful in-session improvements accumulate.
  *   3. Spawn a headless `future-code --print` analysis subagent over that
  *      repo with a strict JSON-findings contract.
  *   4. Bound and deduplicate findings. Finding admission authorizes a
@@ -43,6 +44,7 @@ import {
 } from './config.js'
 import { runAnalysisPrompt, runChangePrompt } from './prompts.js'
 import { execGitQuiet, runHeadlessFuture, runSelfImproveProcess } from './subprocess.js'
+import { recentProjectSignals } from './projectSignals.js'
 
 /** In-flight guard across async starts within one process. */
 let localCycleRunning = false
@@ -163,9 +165,42 @@ function checkedGit(args: string[], cwd: string): string {
 }
 
 interface ImprovementWorkspace { path: string; parent: string; base: string }
-function prepareWorkspace(repoPath: string, ledgerPath: string, branch?: string, frozenCommit?: string): ImprovementWorkspace {
-  if (!frozenCommit) checkedGit(['fetch', 'origin', 'main'], repoPath)
-  const base = checkedGit(['rev-parse', '--verify', `${frozenCommit ?? 'origin/main'}^{commit}`], repoPath)
+function repositoryIdentity(url: string): string {
+  return url.trim().replace(/^git@github\.com:/, 'https://github.com/').replace(/\/?\.git\/?$/, '').replace(/\/$/, '')
+}
+function authenticatedWorkspaceBase(repoPath: string, ledgerPath: string, repoUrl?: string): string {
+  const managed = resolve(repoPath) === resolve(join(getSelfImproveStateDir(), 'repo'))
+  if (managed) {
+    if (repoUrl && repositoryIdentity(checkedGit(['remote', 'get-url', 'origin'], repoPath)) !== repositoryIdentity(repoUrl))
+      throw new Error('Managed self-improvement checkout belongs to a different repository')
+    if (checkedGit(['branch', '--show-current'], repoPath) !== 'main' || checkedGit(['status', '--porcelain'], repoPath))
+      throw new Error('Managed self-improvement main must be clean before extending it')
+  }
+  checkedGit(['fetch', 'origin', 'main'], repoPath)
+  const remote = checkedGit(['rev-parse', '--verify', 'origin/main^{commit}'], repoPath)
+  // An explicit, unmanaged checkout is only a Git object source. Never consume
+  // or switch its foreground branch, dirty files, index or local commits.
+  if (!managed) return remote
+  const head = checkedGit(['rev-parse', 'HEAD'], repoPath)
+  if (head === remote) return head
+  if (execGitQuiet(['merge-base', '--is-ancestor', head, remote], repoPath).ok) {
+    checkedGit(['merge', '--ff-only', remote], repoPath)
+    return remote
+  }
+  if (!execGitQuiet(['merge-base', '--is-ancestor', remote, head], repoPath).ok)
+    throw new Error('Managed self-improvement main diverged from origin/main; candidate history preserved')
+  const ahead = checkedGit(['rev-list', '--max-count=129', `${remote}..${head}`], repoPath).split('\n')
+  const admitted = new Set(readLedger(ledgerPath).flatMap(entry => entry.kind === 'change' &&
+    entry.built === true && entry.tested === true && entry.merged === true &&
+    typeof entry.commit === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(entry.commit) ? [entry.commit] : []))
+  if (ahead.length > 128 || ahead.some(commit => !admitted.has(commit)))
+    throw new Error('Managed local history is not authenticated by completed build/test/promotion receipts')
+  return head
+}
+function prepareWorkspace(repoPath: string, ledgerPath: string, branch?: string, frozenCommit?: string, repoUrl?: string): ImprovementWorkspace {
+  const base = frozenCommit
+    ? checkedGit(['rev-parse', '--verify', `${frozenCommit}^{commit}`], repoPath)
+    : authenticatedWorkspaceBase(repoPath, ledgerPath, repoUrl)
   const parent = join(dirname(ledgerPath), 'worktrees')
   mkdirSync(parent, { recursive: true })
   const unique = mkdtempSync(join(parent, 'cycle-'))
@@ -316,7 +351,7 @@ export async function runSelfImproveCycle(options: {
 
   let analysisWorkspace: ImprovementWorkspace | undefined
   try {
-    analysisWorkspace = prepareWorkspace(repoPath, ledgerPath)
+    analysisWorkspace = prepareWorkspace(repoPath, ledgerPath, undefined, undefined, config.repoUrl)
 
     const known = recordedFingerprints(
       options.entries ?? readLedger(ledgerPath),
@@ -328,7 +363,7 @@ export async function runSelfImproveCycle(options: {
 
     log(`analyzing ${repoPath}`)
     const analysis = await runHeadlessFuture(
-      runAnalysisPrompt(recentTitles),
+      runAnalysisPrompt(recentTitles, recentProjectSignals(join(dirname(ledgerPath), 'project-feedback.jsonl'))),
       analysisWorkspace.path,
     )
     if (checkedGit(['status', '--porcelain'], analysisWorkspace.path))
@@ -468,7 +503,7 @@ export async function executeFindingChange(options: {
   let verificationWorkspace: ImprovementWorkspace | undefined
 
   try {
-    workspace = prepareWorkspace(repoPath, ledgerPath, branch)
+    workspace = prepareWorkspace(repoPath, ledgerPath, branch, undefined, config.repoUrl)
     const changePath = workspace.path
     // Change session: a headless future-code run scoped to this finding.
     await runHeadlessFuture(
@@ -516,7 +551,8 @@ export async function executeFindingChange(options: {
           checkedGit(['branch', '--show-current'], repoPath) !== 'main' ||
           checkedGit(['status', '--porcelain'], repoPath) ||
           checkedGit(['rev-parse', 'HEAD'], repoPath) !== workspace.base ||
-          checkedGit(['rev-parse', 'origin/main'], repoPath) !== workspace.base) {
+          !execGitQuiet(['merge-base', '--is-ancestor', 'origin/main', workspace.base], repoPath).ok ||
+          repositoryIdentity(checkedGit(['remote', 'get-url', 'origin'], repoPath)) !== repositoryIdentity(config.repoUrl)) {
           note = 'Managed main is in use, changed, or advanced; candidate preserved for review'
         } else {
           checkedGit(['merge', '--ff-only', commit], repoPath)

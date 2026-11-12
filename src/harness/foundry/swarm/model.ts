@@ -130,7 +130,7 @@ export class HttpBrain {
   readonly journal: SessionJournal; readonly fetcher: typeof fetch;
   constructor(journal: SessionJournal, fetcher: typeof fetch = fetch) { this.journal = journal; this.fetcher = fetcher; }
   private project(profile: AgentProfile, history: Message[], budget: SwarmBudget, contextBytes: number, progress: ProgressCheckpoint | null = null,
-    diagnostics: DiagnosticContext | null = null): { projection: Message[]; body: Json } {
+    diagnostics: DiagnosticContext | null = null, legacy = false): { projection: Message[]; body: Json } {
     let projection = refreshDiagnosticNotice(history, progress, diagnostics);
     let body = requestBody(profile, projection, budget);
     // All routes share one history projection and logical replay key. Reserve
@@ -138,14 +138,34 @@ export class HttpBrain {
     const routeExtra = Math.max(0, ...(profile.fallbacks ?? []).map(route => bytes(route.model) - bytes(profile.model)));
     // Enforce the actual provider input, including system and tool definitions.
     if (bytes(body) + routeExtra > contextBytes) {
-      const overhead = bytes(requestBody(profile, [], budget));
-      const remaining = Math.max(0, contextBytes - overhead - routeExtra - 512);
-      try { projection = compactHistory(projection, remaining, progress, diagnostics); }
+      // Retain the established conservative projection whenever it fits: its
+      // exact body may already have a durably journaled provider response.
+      const remaining = Math.max(0, contextBytes - bytes(requestBody(profile, [], budget)) - routeExtra - 512);
+      const measure = (messages: Message[]) => bytes(requestBody(profile, messages, budget)) + routeExtra;
+      const fit = (messages: Message[]): Message[] => {
+        if (legacy) return compactHistory(messages, remaining, progress, diagnostics);
+        try {
+          const conservative = compactHistory(messages, remaining, progress, diagnostics);
+          if (measure(conservative) <= contextBytes) return conservative;
+        } catch (e) {
+          if (!(e instanceof Error) || !e.message.startsWith("CONTEXT_OVERFLOW")) throw e;
+        }
+        // Tool arguments are JSON strings on chat-completions wire and can
+        // escape again. Retry only projection, with exact complete-group costs;
+        // this does not spend or retry a provider request.
+        return compactHistory(messages, contextBytes, progress, diagnostics, measure);
+      };
+      try { projection = fit(projection); }
       catch (e) {
         if (!(e instanceof Error) || !e.message.startsWith("CONTEXT_OVERFLOW")) throw e;
         if (!profile.tools.includes("recall")) throw new FatalAttemptError(
           "CONTEXT_OVERFLOW: retiring tool previews requires the admitted recall capability; split the task or configure recall");
-        try { projection = compactHistory(retireToolPreviews(projection), remaining, progress, diagnostics); }
+        // Replay-only compatibility with pre-upgrade pending responses. Fresh
+        // requests use the size-nonincreasing retirement policy instead.
+        const retired = legacy ? projection.map(m => m.role === "tool" && m.receipt ?
+          { ...m, content: canonical({ receipt: m.receipt, retired: true, instruction: "Use recall for full evidence." }) } : m)
+          : retireToolPreviews(projection);
+        try { projection = fit(retired); }
         catch (e) { throw new FatalAttemptError(e instanceof Error ? e.message : "CONTEXT_OVERFLOW"); }
       }
       body = requestBody(profile, projection, budget);
@@ -153,7 +173,26 @@ export class HttpBrain {
     if (bytes(body) + routeExtra > contextBytes) throw new FatalAttemptError("CONTEXT_OVERFLOW: encoded provider request exceeds admitted context");
     return { projection, body };
   }
-  private readReply(c: Capsule, profile: AgentProfile, projection: Message[], body: Json, step: number): { turn: Turn; history: Message[] } | null {
+  private readReply(c: Capsule, profile: AgentProfile, history: Message[], budget: SwarmBudget, contextBytes: number,
+    step: number, progress: ProgressCheckpoint | null, diagnostics: DiagnosticContext | null,
+    prepared?: { projection: Message[]; body: Json }): { turn: Turn; history: Message[] } | null {
+    const expected = this.journal.replyRequestHash(c, step);
+    if (expected === null) return null;
+    let request = prepared ?? this.project(profile, history, budget, contextBytes, progress, diagnostics);
+    if (digest(request.body) !== expected) {
+      // Never migrate a cached response to a different request. Reconstruct the
+      // previous deterministic projection only for an exact persisted-hash match.
+      try {
+        const legacy = this.project(profile, history, budget, contextBytes, progress, diagnostics, true);
+        if (digest(legacy.body) === expected) request = legacy;
+      } catch (e) {
+        if (!(e instanceof Error) || !e.message.startsWith("CONTEXT_OVERFLOW")) throw e;
+      }
+    }
+    return this.decodeCached(c, profile, request.projection, request.body, step);
+  }
+  private decodeCached(c: Capsule, profile: AgentProfile, projection: Message[], body: Json,
+    step: number): { turn: Turn; history: Message[] } | null {
     const raw = this.journal.cached(c, step, body);
     if (raw === null) return null;
     const turn = decodeResponse(profile.protocol, raw);
@@ -164,9 +203,7 @@ export class HttpBrain {
    * original input. No RPC, reservation, or spend is generated by replay. */
   replay(c: Capsule, profile: AgentProfile, history: Message[], budget: SwarmBudget, contextBytes: number, step: number, progress: ProgressCheckpoint | null = null,
     diagnostics: DiagnosticContext | null = null): { turn: Turn; history: Message[] } | null {
-    if (!this.journal.hasReply(c, step)) return null;
-    const { projection, body } = this.project(profile, history, budget, contextBytes, progress, diagnostics);
-    return this.readReply(c, profile, projection, body, step);
+    return this.readReply(c, profile, history, budget, contextBytes, step, progress, diagnostics);
   }
   private async nextHedged(c: Capsule, profile: AgentProfile, projection: Message[], body: Json,
     budget: SwarmBudget, signal: AbortSignal, step: number): Promise<{ turn: Turn; history: Message[] }> {
@@ -296,7 +333,7 @@ export class HttpBrain {
       const rejected = rejections.sort((a, b) => a.index - b.index)[0]!;
       this.journal.publishReply(rejected.request, step);
       // Another current response may have won while this host was draining.
-      const selected = this.readReply(c, profile, projection, body, step);
+      const selected = this.decodeCached(c, profile, projection, body, step);
       invariant(selected, "rejected response lost its current lease");
       return selected;
     }
@@ -311,7 +348,7 @@ export class HttpBrain {
   async next(c: Capsule, profile: AgentProfile, history: Message[], budget: SwarmBudget, contextBytes: number, signal: AbortSignal, step = 0, progress: ProgressCheckpoint | null = null,
     diagnostics: DiagnosticContext | null = null): Promise<{ turn: Turn; history: Message[] }> {
     const { projection, body } = this.project(profile, history, budget, contextBytes, progress, diagnostics);
-    const replay = this.readReply(c, profile, projection, body, step);
+    const replay = this.readReply(c, profile, history, budget, contextBytes, step, progress, diagnostics, { projection, body });
     if (replay) return replay;
     if (profile.fallbacks?.length) return this.nextHedged(c, profile, projection, body, budget, signal, step);
     const headers: Record<string, string> = { "content-type": "application/json" };

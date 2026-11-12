@@ -935,6 +935,26 @@ export function decideAutoGoalContinuation(options: {
   }
 }
 
+/** Preserve the host's actual terminal category and an actionable repair path.
+ * Recoverable context errors are repaired in the query loop before this
+ * parking boundary. Never reinterpret a hook, cancellation or budget as EOF. */
+export function autoGoalTerminalDiagnostic(reason: string, error?: unknown): string {
+  const guidance: Record<string, string> = {
+    prompt_too_long: "Provider context limit rejected the request. Automatic context repair could not complete within the current policy; inspect the compaction diagnostic and oversized instructions or tool schemas.",
+    blocking_limit: "The working context reached its blocking limit. Check automatic compaction settings and the summary failure diagnostic before resuming.",
+    image_error: "Media input failed validation or exceeded the provider limit. Inspect the original media diagnostic and repair the affected input.",
+    model_error: "Model/runtime failure remained after automatic recovery. Inspect the original error and restore the unavailable dependency.",
+    hook_stopped: "A tool hook stopped execution. Inspect its output and resolve the stated condition; the hook decision remains in force.",
+    stop_hook_prevented: "A stop hook prevented continuation. Inspect its output and resolve the stated condition before resuming.",
+    max_turns: "The explicit caller turn limit was reached. Increase that limit explicitly before resuming the saved objective.",
+    aborted_streaming: "Model execution was interrupted by the user or caller. The saved objective remains paused until it is resumed.",
+    aborted_tools: "Tool execution was interrupted by the user or caller. Reconcile any admitted side effects before resuming the saved objective.",
+  };
+  const detail = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return (guidance[reason] ?? `Execution stopped with runtime reason "${reason}". Diagnose that condition before resuming the saved objective.`) +
+    (detail.trim() ? " Original error: " + detail.trim().slice(0, 640) : "");
+}
+
 /** Output styles change presentation, never the main thread's goal contract. */
 export function isAutoGoalMainThread(querySource: string, agentId?: string, nonInteractive = false): boolean {
   return !agentId && !nonInteractive &&

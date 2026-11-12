@@ -18,7 +18,7 @@ export async function resolve(specifier, context, nextResolve) {
     '../SessionMemory/sessionMemoryUtils.js': 'export const setLastSummarizedMessageId=()=>{};',
     './compact.js': `export const ERROR_MESSAGE_USER_ABORT='user aborted'; export const compactConversation=async(...args)=>{const h=globalThis.__portableCompact; h.calls.push(args); if(h.fail)throw new Error('summary transport failed'); return h.result;};`,
     './postCompactCleanup.js': 'export const runPostCompactCleanup=()=>{};',
-    './sessionMemoryCompact.js': 'export const trySessionMemoryCompaction=async()=>globalThis.__portableCompact.sessionResult;',
+    './sessionMemoryCompact.js': 'export const trySessionMemoryCompaction=async()=>{if(globalThis.__portableCompact.sessionFail)throw new Error("memory snapshot unavailable");return globalThis.__portableCompact.sessionResult;};',
   };
   if (stubs[specifier]) return { url: 'data:text/javascript,' + encodeURIComponent(stubs[specifier]), shortCircuit: true };
   if (specifier.endsWith('.js')) return { url: new URL(specifier.replace(/\.js$/, '.ts'), context.parentURL).href, shortCircuit: true };

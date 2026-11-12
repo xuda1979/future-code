@@ -82,6 +82,15 @@ test('failed portable repair returns its real diagnostic and obeys the existing 
   assert.equal(h.calls.length, 3);
 }));
 
+test('session-memory failure falls back to ordinary summarization without losing the active objective', () => fixture(async (h, ctx, cwd) => {
+  enableAutoGoal('Run and verify the experiment', cwd);
+  h.sessionFail = true;
+  const result = await compact([], ctx, undefined, true);
+  assert.equal(result.wasCompacted, true);
+  assert.equal(result.compactionResult, h.result);
+  assert.equal(h.calls.length, 1);
+}));
+
 test('successful session-memory recovery resets failures like ordinary compaction', () => fixture(async (h, ctx) => {
   h.sessionResult = h.result;
   const result = await compact([], ctx, { consecutiveFailures: 2 }, true);
@@ -103,6 +112,7 @@ test('only at actual compaction, retire repeated host deltas while preserving hu
   const before = structuredClone(messages);
   await compact(messages, ctx, undefined, true);
   assert.deepEqual(h.calls[0][0], [human, notification, call, result, latest]);
+  assert.deepEqual(h.calls[0][2].forkContextMessages, h.calls[0][0], 'forked summary uses the same retired view');
   assert.deepEqual(messages, before, 'durable history cannot be rewritten by the request view');
 }));
 

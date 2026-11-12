@@ -26,6 +26,7 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/model-fallback-effects.test.ts", "tests/correctness/streaming-tool-executor.test.ts",
   "tests/correctness/self-improve-isolation.test.ts",
   "tests/correctness/self-improve-scheduler.test.ts",
+  "tests/correctness/self-improve-project-feedback.test.ts",
   "tests/correctness/queue-wakeup.test.ts", "tests/correctness/working-context.test.ts",
   "tests/correctness/foreground-preparation.test.ts",
   "tests/correctness/foreground-repl.test.ts",

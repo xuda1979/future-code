@@ -13,7 +13,7 @@ function isHostContinuation(message: ContextMessage): boolean {
   const content = body !== null && typeof body === "object" && "content" in body ? body.content : undefined;
   return message.type === "user" && message.isMeta === true && message.origin === undefined &&
     typeof content === "string" &&
-    /^\[Host-driven autonomous goal continuation \d+(?:\/\d+)?\]\nGoal: /.test(content);
+    /^\[Host-driven autonomous goal continuation \d+(?:\/\d+)?\]\n(?:Goal: |Execute the next useful step for the current host objective\. End-turn is not completion\.)/.test(content);
 }
 
 /** Explicit context-retirement utility, not a steady-state request optimizer.

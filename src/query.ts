@@ -121,10 +121,12 @@ import {
 import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
 import { shouldRecoverSilentResponse, hasVisibleAssistantText, modelApiFailureReason } from './utils/responseLiveness.js'
-import { decideAutoGoalContinuation, parkActiveAutoGoal, isAutoGoalMainThread, readAutoGoal, shouldPauseGoalAfterTerminal } from './commands/goal/auto.js'
+import { decideAutoGoalContinuation, parkActiveAutoGoal, isAutoGoalMainThread, readAutoGoal, shouldPauseGoalAfterTerminal, autoGoalTerminalDiagnostic } from './commands/goal/auto.js'
 import { appendGoalRequestAnchor, goalExecutionPolicy } from './commands/goal/context.js'
 import { notifyQueryActivity, type QueryActivityEvent } from './utils/queryActivity.js'
 import { hasMainThreadQueuedCommand } from './utils/queueWakeup.js'
+import { createHash } from 'node:crypto'
+import { recordProjectSignal, type ProjectSignalInput } from './services/selfImprove/projectSignals.js'
 import { watchModelStream, isModelProgress, modelStreamIdleTimeout, ModelStreamStalledError, modelStallAction } from './utils/modelStreamLiveness.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -235,6 +237,17 @@ type State = {
   transition: Continue | undefined
 }
 
+/** Host telemetry contains only hashed project identity and enum/counter facts.
+ * A model completion report is REVIEW, never a verified success signal. */
+function recordGoalObservation(kind: ProjectSignalInput['kind'], errorCategory?: ProjectSignalInput['errorCategory'], durationMs?: number): void {
+  try {
+    const state = readAutoGoal()
+    if (!state) return
+    const projectId = createHash('sha256').update(JSON.stringify([process.cwd(), state.revision ?? 1, state.goal])).digest('hex')
+    recordProjectSignal({ projectId, kind, errorCategory, durationMs })
+  } catch { /* Advisory feedback must never interrupt the foreground query. */ }
+}
+
 export async function* query(
   params: QueryParams,
 ): AsyncGenerator<
@@ -246,6 +259,7 @@ export async function* query(
   Terminal
 > {
   const consumedCommandUuids: string[] = []
+  const queryStartedAt = Date.now()
   const mainGoalThread = isAutoGoalMainThread(params.querySource, params.toolUseContext.agentId,
     params.toolUseContext.options.isNonInteractiveSession)
   let terminal: Terminal
@@ -254,15 +268,27 @@ export async function* query(
   } catch (error) {
     const blocked = mainGoalThread ? parkActiveAutoGoal('Runtime failed before objective acceptance: ' +
       (error instanceof Error ? error.message : String(error)).slice(0, 300)) : null
-    if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
+    if (blocked) {
+      yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
+      recordGoalObservation('goal-blocked', 'unknown', Date.now() - queryStartedAt)
+    }
     throw error
   }
   // Cover every terminal path, including tool cancellation, context overflow,
   // hook prevention and caller limits. Child/SDK turns cannot pause this goal.
   if (mainGoalThread && shouldPauseGoalAfterTerminal(terminal.reason, params.toolUseContext.abortController.signal.reason)) {
-    const blocked = parkActiveAutoGoal('Turn ended before objective acceptance (' + terminal.reason + '). ' +
-      'Inspect this blocker, then use /goal --resume when it is resolved.')
+    const blocked = parkActiveAutoGoal(autoGoalTerminalDiagnostic(terminal.reason,
+      'error' in terminal ? terminal.error : undefined))
     if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
+  }
+  if (mainGoalThread) {
+    try {
+      const state = readAutoGoal()
+      const category = /prompt_too_long|blocking_limit/.test(terminal.reason) ? 'context' :
+        /aborted_tools|hook_stopped/.test(terminal.reason) ? 'tool' : 'unknown'
+      if (state?.state === 'REVIEW') recordGoalObservation('goal-review', undefined, Date.now() - queryStartedAt)
+      else if (state?.state === 'PAUSED') recordGoalObservation('goal-blocked', category, Date.now() - queryStartedAt)
+    } catch { /* Never turn a feedback read failure into a project failure. */ }
   }
   // Only reached if queryLoop returned normally. Skipped on throw (error
   // propagates through yield*) and on .return() (Return completion closes
@@ -330,6 +356,7 @@ async function* queryLoop(
   // trigger point. Loop-local (not on State) to avoid touching the 7 continue
   // sites.
   let taskBudgetRemaining: number | undefined = undefined
+  let portableContextRepairPending = false
 
   // Snapshot immutable env/statsig/session state once at entry. See QueryConfig
   // for what's included and why feature() gates are intentionally excluded.
@@ -497,7 +524,7 @@ async function* queryLoop(
     queryCheckpoint('query_autocompact_start')
     if (params.onActivity) activity({ kind: 'context', tokens: tokenCountWithEstimation(messagesForQuery) - snipTokensFreed })
     activity({ kind: 'phase', phase: 'compacting' })
-    const { compactionResult, consecutiveFailures } = await deps.autocompact(
+    const { compactionResult, consecutiveFailures, failureReason: compactionFailureReason } = await deps.autocompact(
       messagesForQuery,
       toolUseContext,
       {
@@ -678,6 +705,16 @@ async function* queryLoop(
     // it predates the experiment and is already the control-arm baseline.
     const mediaRecoveryEnabled =
       reactiveCompact?.isReactiveCompactEnabled() ?? false
+    // The external build may omit experimental reactive compact entirely.
+    // A real provider overflow can still use the ordinary saved-summary path
+    // once, within the same caller budget. Withhold only while repair is legal.
+    let portableContextRecoveryEnabled = false
+    if (mainGoalThread && !mediaRecoveryEnabled && !hasAttemptedReactiveCompact &&
+      isAutoCompactEnabled() && !toolUseContext.abortController.signal.aborted &&
+      (maxTurns === undefined || turnCount < maxTurns)) {
+      try { portableContextRecoveryEnabled = readAutoGoal()?.state === 'ACTIVE' }
+      catch { /* Fresh anchor / continuation boundary reports corrupt state. */ }
+    }
     if (
       !compactionResult &&
       querySource !== 'compact' &&
@@ -696,7 +733,7 @@ async function* queryLoop(
           content: PROMPT_TOO_LONG_ERROR_MESSAGE,
           error: 'invalid_request',
         })
-        const blocked = parkGoal('Context blocking limit reached; compact or repair context before /goal --resume.')
+        const blocked = parkGoal(autoGoalTerminalDiagnostic('blocking_limit', compactionFailureReason))
         if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: 'blocking_limit' }
       }
@@ -861,6 +898,8 @@ async function* queryLoop(
             // tree-shaking constraint), so the collapse check is nested
             // rather than composed.
             let withheld = false
+            if (portableContextRecoveryEnabled && message.type === 'assistant' &&
+              message.isApiErrorMessage && isPromptTooLongMessage(message)) withheld = true
             if (feature('CONTEXT_COLLAPSE')) {
               if (
                 contextCollapse?.isWithheldPromptTooLong(
@@ -1095,6 +1134,8 @@ async function* queryLoop(
         yield createAssistantAPIErrorMessage({
           content: error.message,
         })
+        const blocked = parkGoal(autoGoalTerminalDiagnostic('image_error', error))
+        if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: 'image_error' }
       }
 
@@ -1117,6 +1158,12 @@ async function* queryLoop(
       const blocked = parkGoal('Model/runtime error: ' + errorMessage.slice(0, 300))
       if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
       return { reason: 'model_error', error }
+    }
+
+    if (portableContextRepairPending && !assistantMessages.some(message => message.isApiErrorMessage) &&
+      (toolUseBlocks.length > 0 || hasVisibleAssistantText(assistantMessages))) {
+      portableContextRepairPending = false
+      recordGoalObservation('recovered', 'context')
     }
 
     // Execute post-sampling hooks after model response is complete
@@ -1243,6 +1290,54 @@ async function* queryLoop(
           }
         }
       }
+      if (isWithheld413 && portableContextRecoveryEnabled) {
+        yield createSystemMessage('Provider context limit reached; attempting automatic context repair for the active objective.', 'warning')
+        const repair = await deps.autocompact(
+          messagesForQuery,
+          toolUseContext,
+          { systemPrompt, userContext, systemContext, toolUseContext, forkContextMessages: messagesForQuery },
+          querySource,
+          tracking,
+          snipTokensFreed,
+          true,
+        )
+        if (repair.compactionResult) {
+          if (params.taskBudget) {
+            const preCompactContext = finalContextTokensFromLastResponse(messagesForQuery)
+            taskBudgetRemaining = Math.max(0, (taskBudgetRemaining ?? params.taskBudget.total) - preCompactContext)
+          }
+          const postCompactMessages = buildPostCompactMessages(repair.compactionResult)
+          for (const msg of postCompactMessages) yield msg
+          // Return queued steering / explicit pauses to the dispatcher before
+          // spending another request. Compaction is not objective acceptance.
+          if (toolUseContext.abortController.signal.aborted ||
+            readAutoGoal()?.state !== 'ACTIVE' || hasMainThreadQueuedCommand(getCommandQueueSnapshot())) {
+            return { reason: 'completed' }
+          }
+          portableContextRepairPending = true
+          state = {
+            messages: postCompactMessages,
+            toolUseContext,
+            autoCompactTracking: undefined,
+            maxOutputTokensRecoveryCount,
+            silentResponseRecoveryCount,
+            hasAttemptedReactiveCompact: true,
+            maxOutputTokensOverride: undefined,
+            pendingToolUseSummary: undefined,
+            stopHookActive: undefined,
+            turnCount,
+            transition: { reason: 'reactive_compact_retry' },
+          }
+          continue
+        }
+        // No unchanged replay after failed repair. Preserve the provider's
+        // diagnostic and compactor failure, rather than generic turn-end text.
+        yield lastMessage
+        const blocked = parkGoal(autoGoalTerminalDiagnostic('prompt_too_long',
+          modelApiFailureReason(lastMessage) + (repair.failureReason ? ' Compaction: ' + repair.failureReason : '')))
+        if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
+        return { reason: 'prompt_too_long' }
+      }
       if ((isWithheld413 || isWithheldMedia) && reactiveCompact) {
         const compacted = await reactiveCompact.tryReactiveCompact({
           hasAttempted: hasAttemptedReactiveCompact,
@@ -1300,6 +1395,9 @@ async function* queryLoop(
         // → retry → error → … (the hook injects more tokens each cycle).
         yield lastMessage
         void executeStopFailureHooks(lastMessage, toolUseContext)
+        const blocked = parkGoal(autoGoalTerminalDiagnostic(isWithheldMedia ? 'image_error' : 'prompt_too_long',
+          modelApiFailureReason(lastMessage)))
+        if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: isWithheldMedia ? 'image_error' : 'prompt_too_long' }
       } else if (feature('CONTEXT_COLLAPSE') && isWithheld413) {
         // reactiveCompact compiled out but contextCollapse withheld and
@@ -1307,6 +1405,8 @@ async function* queryLoop(
         // early-return rationale — don't fall through to stop hooks.
         yield lastMessage
         void executeStopFailureHooks(lastMessage, toolUseContext)
+        const blocked = parkGoal(autoGoalTerminalDiagnostic('prompt_too_long', modelApiFailureReason(lastMessage)))
+        if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')
         return { reason: 'prompt_too_long' }
       }
 
