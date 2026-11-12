@@ -42,18 +42,22 @@ export function refreshDiagnosticNotice(history: Message[], progress: ProgressCh
 /** Exact JSON byte accounting lets us keep the longest recent suffix in O(n)
  * rather than repeatedly serializing progressively shorter histories (O(n^2)).
  * Never cut a tool-result pair, drop the immutable first message or forge PASS.
- * The optional note is replaced with the generic journal pointer when tight. */
+ * The optional note is replaced with the generic journal pointer when tight.
+ * A provider-wire measurement includes protocol wrappers and escaped tool
+ * arguments. It uses a bounded suffix search only at a request overflow; the
+ * default internal-byte path retains linear accounting. */
 export function compactHistory(history: Message[], budget: number, progress: ProgressCheckpoint | null = null,
-  diagnostics: DiagnosticContext | null = null): Message[] {
+  diagnostics: DiagnosticContext | null = null, measure?: (messages: Message[]) => number): Message[] {
   invariant(Number.isSafeInteger(budget) && budget >= 0, "invalid context budget");
   invariant(history.length > 0 && history[0].role === "user", "missing mandatory task message");
   history = retireSurfaceFrames(history);
   const mandatory = history[0];
-  invariant(bytes([mandatory]) <= budget, "CONTEXT_OVERFLOW: mandatory task exceeds budget");
+  const cost = measure ?? bytes;
+  invariant(cost([mandatory]) <= budget, "CONTEXT_OVERFLOW: mandatory task exceeds budget");
   const isNotice = (m: Message) => m.role === "user" && (m.content.startsWith(NOTICE_MARKER) || m.content === LEGACY_NOTICE);
   const alreadyRetired = history.slice(1).some(isNotice);
   const clean = [mandatory, ...history.slice(1).filter(m => !isNotice(m))];
-  if (!alreadyRetired && bytes(clean) <= budget) return clean;
+  if (!alreadyRetired && cost(clean) <= budget) return clean;
 
   const groups: Message[][] = [];
   for (const message of clean.slice(1)) {
@@ -71,6 +75,18 @@ export function compactHistory(history: Message[], budget: number, progress: Pro
   }));
   const mandatorySize = Buffer.byteLength(canonical(mandatory), "utf8");
   function select(notice: Message): number {
+    if (measure) {
+      // Complete exchange suffixes grow monotonically on both supported wire
+      // protocols. Never slice arguments/results to make a provider request fit.
+      let low = 0, high = groups.length - 1, best = -1;
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        if (measure([mandatory, notice, ...groups.slice(mid).flat()]) <= budget) {
+          best = mid; high = mid - 1;
+        } else low = mid + 1;
+      }
+      return best;
+    }
     let count = 2; // immutable task + one retirement notice
     let size = mandatorySize + Buffer.byteLength(canonical(notice), "utf8");
     let best = -1;
@@ -134,6 +150,14 @@ export function retireSurfaceFrames(history: Message[]): Message[] {
  * call/result protocol and retire previews to authenticated recall references.
  * Full evidence remains in the journal; a model never supplies these hashes. */
 export function retireToolPreviews(history: Message[]): Message[] {
-  return history.map(m => m.role === "tool" && m.receipt ?
-    { ...m, content: canonical({ receipt: m.receipt, retired: true, instruction: "Use recall for full evidence." }) } : m);
+  return history.map(m => {
+    if (m.role !== "tool" || !m.receipt) return m;
+    const content = canonical({ receipt: m.receipt, retired: true, instruction: "Use recall for full evidence." });
+    // A concise observation/error can be cheaper and more useful than a pointer.
+    // Fallback retirement must never increase context or hide such diagnostics.
+    const retired = { ...m, content };
+    // JSON embeds quotes/backslashes in content: compare the encoded message,
+    // not raw string bytes, so a near-boundary pointer cannot grow on the wire.
+    return bytes(retired) < bytes(m) ? retired : m;
+  });
 }

@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { constants, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 register('./self-improve-loader.mjs', import.meta.url);
 const cycle = await import('../../src/services/selfImprove/cycle.ts');
 const subprocess = await import('../../src/services/selfImprove/subprocess.ts');
 const ledger = await import('../../src/services/selfImprove/ledger.ts');
+const feedback = await import('../../src/services/selfImprove/projectSignals.ts');
 
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const finding = { title: 'Repair the value', category: 'bug', severity: 'high', target: 'src/value.txt',
@@ -34,7 +35,7 @@ async function fixture(run: (f: any) => Promise<void> | void) {
     const base = git(source, 'rev-parse', 'HEAD');
     const caseFile = join(root, 'case.json'), validationLog = join(root, 'validations.txt'), child = join(root, 'headless');
     writeFileSync(caseFile, JSON.stringify({ mode: 'change' }));
-    writeFileSync(child, `#!${process.execPath}\nconst fs=require('node:fs');const c=JSON.parse(fs.readFileSync(process.env.SELF_TEST_CASE,'utf8'));const p=process.argv.at(-1);if(p.startsWith('Analyze')){process.stderr.write('diagnostic progress\\n');if(c.mode==='analysis-writes')fs.writeFileSync('src/value.txt','unexpected analysis edit');process.stdout.write(c.mode==='invalid-analysis'?'not JSON':'[]');}else{fs.writeFileSync('src/value.txt','candidate fix\\n');if(c.mode==='poison')fs.writeFileSync('poison.cache','exploratory state');if(c.mode==='modify-build')fs.writeFileSync('build.sh','exit 0\\n');process.stdout.write('change complete');if(c.mode==='partial-error'){process.stderr.write('actual child failure');process.exit(7);}}\n`, { mode: 0o755 });
+    writeFileSync(child, `#!${process.execPath}\nconst fs=require('node:fs');const c=JSON.parse(fs.readFileSync(process.env.SELF_TEST_CASE,'utf8'));const p=process.argv.at(-1);if(c.promptFile)fs.writeFileSync(c.promptFile,p);if(p.startsWith('Analyze')){process.stderr.write('diagnostic progress\\n');if(c.mode==='analysis-writes')fs.writeFileSync('src/value.txt','unexpected analysis edit');process.stdout.write(c.mode==='invalid-analysis'?'not JSON':'[]');}else{fs.writeFileSync('src/value.txt',c.value??'candidate fix\\n');if(c.mode==='poison')fs.writeFileSync('poison.cache','exploratory state');if(c.mode==='modify-build')fs.writeFileSync('build.sh','exit 0\\n');process.stdout.write('change complete');if(c.mode==='partial-error'){process.stderr.write('actual child failure');process.exit(7);}}\n`, { mode: 0o755 });
     process.env.FUTURE_SELF_IMPROVE_COMMAND = child; process.env.SELF_TEST_CASE = caseFile;
     process.env.SELF_TEST_VALIDATIONS = validationLog; delete process.env.SELF_TEST_FAIL_GATE;
     delete process.env.SELF_TEST_MUTATE_BUILD;
@@ -205,3 +206,79 @@ test('crash recovery closes dead-owner markers once and still respects live and 
   assert.equal(ledger.shouldStartCycle(entries, now, 0, true).start, false, 'a later completion cannot hide an earlier live cycle');
   assert.equal(ledger.shouldStartCycle([{ ...abandoned, pid: undefined }], now, 0, true).start, false);
 }));
+
+
+test('local verified promotions accumulate across cycles before an optional push', async () => fixture(async f => {
+  const managed = f.managed(); assert.ok(managed)
+  git(managed, 'config', 'user.name', 'Regression Test'); git(managed, 'config', 'user.email', 'test@example.invalid')
+  const options = { ...f.options, repoPath: managed, config: { ...f.config, autoMerge: true } }
+  const first = await cycle.executeFindingChange(options)
+  assert.equal(first.merged, true); assert.equal(first.pushed, false); assert.ok(first.commit)
+  assert.equal(git(f.remote, 'rev-parse', 'refs/heads/main'), f.base)
+  assert.equal(cycle.resolveRepoPath(f.config, f.source).repoPath, managed)
+  writeFileSync(f.caseFile, JSON.stringify({ mode: 'change', value: 'second verified improvement\n' }))
+  const second = await cycle.executeFindingChange({ ...options, fingerprint: 'second-finding' })
+  assert.equal(second.built, true); assert.equal(second.tested, true)
+  assert.equal(second.merged, true); assert.equal(second.pushed, false); assert.ok(second.commit)
+  assert.equal(git(managed, 'rev-parse', second.commit + '^'), first.commit)
+  assert.equal(git(managed, 'show', second.commit + '^:src/value.txt'), 'candidate fix')
+  assert.equal(git(managed, 'show', second.commit + ':src/value.txt'), 'second verified improvement')
+  assert.equal(git(managed, 'rev-parse', 'HEAD'), second.commit)
+  assert.equal(git(f.remote, 'rev-parse', 'refs/heads/main'), f.base)
+  assert.equal(git(f.source, 'rev-parse', 'HEAD'), f.base)
+}))
+
+test('unreceipted managed commits cannot become the next self-improvement baseline', async () => fixture(async f => {
+  const managed = f.managed(); assert.ok(managed)
+  git(managed, 'config', 'user.name', 'Regression Test'); git(managed, 'config', 'user.email', 'test@example.invalid')
+  writeFileSync(join(managed, 'src/value.txt'), 'unverified managed edit\n')
+  git(managed, 'add', '-A'); git(managed, 'commit', '-m', 'no independent validation receipt')
+  const unknown = git(managed, 'rev-parse', 'HEAD')
+  const result = await cycle.executeFindingChange({ ...f.options, repoPath: managed, config: { ...f.config, autoMerge: true } })
+  assert.equal(result.commit, undefined); assert.equal(result.built, false); assert.equal(result.merged, false)
+  assert.match(result.note!, /not authenticated/)
+  assert.equal(git(managed, 'rev-parse', 'HEAD'), unknown)
+  assert.equal(existsSync(f.validationLog), false)
+}))
+
+test('dirty, divergent or wrong-repository managed state is preserved and cannot be extended', async () => fixture(async f => {
+  const managed = f.managed(); assert.ok(managed)
+  git(managed, 'config', 'user.name', 'Regression Test'); git(managed, 'config', 'user.email', 'test@example.invalid')
+  const options = { ...f.options, repoPath: managed, config: { ...f.config, autoMerge: true } }
+  writeFileSync(join(managed, 'src/value.txt'), 'unfinished managed edit\n')
+  const dirty = await cycle.executeFindingChange(options)
+  assert.equal(dirty.commit, undefined); assert.match(dirty.note!, /must be clean/)
+  assert.equal(readFileSync(join(managed, 'src/value.txt'), 'utf8'), 'unfinished managed edit\n')
+  git(managed, 'checkout', '--', 'src/value.txt')
+  const first = await cycle.executeFindingChange(options); assert.equal(first.merged, true)
+  writeFileSync(join(f.source, 'src/value.txt'), 'independent remote advance\n')
+  git(f.source, 'add', '-A'); git(f.source, 'commit', '-m', 'remote advance'); git(f.source, 'push', 'origin', 'main')
+  const divergent = await cycle.executeFindingChange(options)
+  assert.equal(divergent.commit, undefined); assert.match(divergent.note!, /diverged/)
+  assert.equal(git(managed, 'rev-parse', 'HEAD'), first.commit)
+  const other = join(f.root, 'other.git'); git(f.root, 'init', '--bare', other)
+  git(other, 'fetch', f.remote, 'refs/heads/main:refs/heads/main')
+  git(managed, 'remote', 'set-url', 'origin', other)
+  const wrong = await cycle.executeFindingChange(options)
+  assert.equal(wrong.commit, undefined); assert.match(wrong.note!, /different repository/)
+  assert.equal(git(managed, 'rev-parse', 'HEAD'), first.commit)
+}))
+
+test('the live background analyzer receives bounded project feedback as advisory data',
+  { skip: typeof constants.O_NONBLOCK !== 'number' || typeof constants.O_NOFOLLOW !== 'number' }, async () => fixture(async f => {
+  assert.ok(f.managed())
+  const path = join(f.home, '.future', 'self-improve', 'project-feedback.jsonl')
+  assert.equal(feedback.recordProjectSignal({
+    projectId: 'private objective never sent to the improvement child',
+    kind: 'incomplete-turn', errorCategory: 'turn-ended', recoveryAttempts: 2,
+  }, { path, now: Date.now() }), true)
+  const promptFile = join(f.root, 'analysis-prompt.txt')
+  writeFileSync(f.caseFile, JSON.stringify({ mode: 'change', promptFile }))
+  const result = await cycle.runSelfImproveCycle({ config: f.config, ledgerPath: f.ledgerPath })
+  assert.equal(result.status, 'no-findings')
+  const prompt = readFileSync(promptFile, 'utf8')
+  assert.match(prompt, /UNTRUSTED ADVISORY DATA/); assert.match(prompt, /incomplete-turn/)
+  assert.match(prompt, /unchanged independent gates/); assert.match(prompt, /turn-ended/)
+  assert.ok(!prompt.includes('private objective'))
+  assert.equal(git(f.source, 'rev-parse', 'HEAD'), f.base)
+}))

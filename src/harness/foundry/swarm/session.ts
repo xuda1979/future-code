@@ -335,6 +335,15 @@ export class SessionJournal {
     return row?.response ? this.store.readArtifact(String(row.response)) : null;
   }
 
+  /** Host-authenticated replay binding only; callers may choose a deterministic
+   * compatible projection, but cached() still enforces the exact body digest. */
+  replyRequestHash(c: Capsule, step: number): string | null {
+    this.assertLease(c);
+    invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");
+    const row = this.store.db.prepare("SELECT body FROM agent_replies WHERE run=? AND task=? AND step=?")
+      .get(c.runId, c.task.id, step);
+    return row ? String(row.body) : null;
+  }
   hasReply(c: Capsule, step: number): boolean {
     this.assertLease(c);
     invariant(Number.isSafeInteger(step) && step >= 0, "invalid model step");

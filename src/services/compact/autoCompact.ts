@@ -26,6 +26,7 @@ import { runPostCompactCleanup } from './postCompactCleanup.js'
 import { trySessionMemoryCompaction } from './sessionMemoryCompact.js'
 import { isAutoGoalMainThread, readAutoGoal } from '../../commands/goal/auto.js'
 import { workingContextThreshold } from './workingContextPolicy.js'
+import { compactGoalContinuations } from '../../commands/goal/context.js'
 
 // Reserve this many tokens for output during compaction
 // Based on p99.99 of compact summary output being 17,387 tokens.
@@ -247,12 +248,19 @@ export async function autoCompactIfNeeded(
   querySource?: QuerySource,
   tracking?: AutoCompactTrackingState,
   snipTokensFreed?: number,
+  // A real provider overflow can precede the host's estimated threshold.
+  // This bypasses that estimate only, never opt-outs or the failure breaker.
+  force = false,
 ): Promise<{
   wasCompacted: boolean
   compactionResult?: CompactionResult
   consecutiveFailures?: number
+  failureReason?: string
 }> {
-  if (isEnvTruthy(process.env.DISABLE_COMPACT)) {
+  if (isEnvTruthy(process.env.DISABLE_COMPACT) || toolUseContext.abortController.signal.aborted) {
+    return { wasCompacted: false }
+  }
+  if (force && (!isAutoCompactEnabled() || querySource === 'compact' || querySource === 'session_memory')) {
     return { wasCompacted: false }
   }
 
@@ -267,7 +275,7 @@ export async function autoCompactIfNeeded(
   }
 
   const model = toolUseContext.options.mainLoopModel
-  const shouldCompact = await shouldAutoCompact(
+  const shouldCompact = force || await shouldAutoCompact(
     messages,
     model,
     querySource,
@@ -286,12 +294,26 @@ export async function autoCompactIfNeeded(
     querySource,
   }
 
-  // EXPERIMENT: Try session memory compaction first
-  const sessionMemoryResult = await trySessionMemoryCompaction(
-    messages,
-    toolUseContext.agentId,
-    recompactionInfo.autoCompactThreshold,
-  )
+  // Retire redundant host instructions only when we are already compacting.
+  // Steady-state provider prefixes and the durable transcript stay unchanged.
+  const compactMessages = compactGoalContinuations(messages,
+    !!querySource && isAutoGoalMainThread(querySource, toolUseContext.agentId,
+      toolUseContext.options.isNonInteractiveSession))
+
+  // A broken memory snapshot must not prevent the ordinary summary fallback.
+  let sessionMemoryResult: CompactionResult | null = null
+  try {
+    sessionMemoryResult = await trySessionMemoryCompaction(
+      compactMessages,
+      toolUseContext.agentId,
+      recompactionInfo.autoCompactThreshold,
+    )
+  } catch (error) {
+    if (toolUseContext.abortController.signal.aborted || hasExactErrorMessage(error, ERROR_MESSAGE_USER_ABORT)) {
+      return { wasCompacted: false }
+    }
+    logError(error)
+  }
   if (sessionMemoryResult) {
     // Reset lastSummarizedMessageId since session memory compaction prunes messages
     // and the old message UUID will no longer exist after the REPL replaces messages
@@ -308,14 +330,15 @@ export async function autoCompactIfNeeded(
     return {
       wasCompacted: true,
       compactionResult: sessionMemoryResult,
+      consecutiveFailures: 0,
     }
   }
 
   try {
     const compactionResult = await compactConversation(
-      messages,
+      compactMessages,
       toolUseContext,
-      cacheSafeParams,
+      { ...cacheSafeParams, forkContextMessages: compactMessages },
       true, // Suppress user questions for autocompact
       undefined, // No custom instructions for autocompact
       true, // isAutoCompact
@@ -348,7 +371,8 @@ export async function autoCompactIfNeeded(
         { level: 'warn' },
       )
     }
-    return { wasCompacted: false, consecutiveFailures: nextFailures }
+    return { wasCompacted: false, consecutiveFailures: nextFailures,
+      failureReason: (error instanceof Error ? error.message : String(error)).slice(0, 640) }
   }
 }
 
