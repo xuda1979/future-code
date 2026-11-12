@@ -20,6 +20,7 @@ function gate(command, args, timeout) {
 gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurrency=1",
   "tests/correctness/acceptance.test.ts", "tests/correctness/replay.test.ts",
   "tests/correctness/response-liveness.test.ts",
+  "tests/correctness/portable-context-recovery.test.ts",
   "tests/correctness/remote-response-liveness.test.ts",
   "tests/correctness/query-activity.test.ts", "tests/correctness/model-stream-liveness.test.ts",
   "tests/correctness/model-fallback-effects.test.ts", "tests/correctness/streaming-tool-executor.test.ts",
