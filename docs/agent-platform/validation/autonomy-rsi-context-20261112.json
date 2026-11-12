@@ -32,8 +32,192 @@
     "actualFailure": "under-threshold forced compact returns wasCompacted=false"
   },
   "candidateVerification": {
-    "status": "UNKNOWN",
-    "reason": "Implementation about to run in GitHub Actions; local runtime unavailable."
+    "status": "PASS",
+    "testedCommit": "3acfbc0a04821e2c3c710ddaea0d3a249036ae5f",
+    "testedSourceAndTestManifest": [
+      {
+        "path": "scripts/test-correctness.mjs",
+        "gitBlobSha": "7a86f5cbae0f55e7a413ada8a0be186621689ace"
+      },
+      {
+        "path": "src/commands/goal/auto.ts",
+        "gitBlobSha": "443986dbe416f7fa8ccca5096579765335fab3a4"
+      },
+      {
+        "path": "src/commands/goal/context.ts",
+        "gitBlobSha": "204d6cc8ef09ebdd104149a5b1890a2ef7ba4de6"
+      },
+      {
+        "path": "src/harness/foundry/swarm/context.ts",
+        "gitBlobSha": "b188970f72c5241dc5051a1eb560fa068d357623"
+      },
+      {
+        "path": "src/harness/foundry/swarm/model.ts",
+        "gitBlobSha": "79d0093417af323250e46151663996dc22287467"
+      },
+      {
+        "path": "src/harness/foundry/swarm/session.ts",
+        "gitBlobSha": "4b0ece94c14a304ff3968600ed00ea4834a0503e"
+      },
+      {
+        "path": "src/query.ts",
+        "gitBlobSha": "b215a40a3385ac834e20ed5b21cde8a3f1ea651b"
+      },
+      {
+        "path": "src/services/compact/autoCompact.ts",
+        "gitBlobSha": "7a0a40b0971af02888a39b6fcd26effce86c2a29"
+      },
+      {
+        "path": "src/services/selfImprove/cycle.ts",
+        "gitBlobSha": "f01dba385fd16fe79e55146bb7d663ee8b4a095f"
+      },
+      {
+        "path": "src/services/selfImprove/projectSignals.ts",
+        "gitBlobSha": "0c2949d0fad7e37af0243da5c811391e656caf22"
+      },
+      {
+        "path": "src/services/selfImprove/prompts.ts",
+        "gitBlobSha": "538c59b499755efc017bbe24643c48f56ccd117c"
+      },
+      {
+        "path": "tests/commands/goal-recovery.test.ts",
+        "gitBlobSha": "2396e88e5a25f987e44fbbacf49ee27a6c26d2ab"
+      },
+      {
+        "path": "tests/correctness/portable-context-loader.mjs",
+        "gitBlobSha": "c0d3ac08509532709ad8a11ca540ae3993fb18aa"
+      },
+      {
+        "path": "tests/correctness/portable-context-recovery.test.ts",
+        "gitBlobSha": "e51a893ca9631b40fa00ce0b6b597b27104b7dde"
+      },
+      {
+        "path": "tests/correctness/self-improve-isolation.test.ts",
+        "gitBlobSha": "04c3ea0b613923ea8be4116cb3699a205348535e"
+      },
+      {
+        "path": "tests/correctness/self-improve-project-feedback.test.ts",
+        "gitBlobSha": "be09f9a20d05cbb4a56edcf27902d0d0cf593e24"
+      },
+      {
+        "path": "tests/foundry/context-efficiency.test.ts",
+        "gitBlobSha": "d2035b8bb8c86f59c00dc636f9444f482f7e46ce"
+      }
+    ],
+    "environment": {
+      "runner": "GitHub Actions ubuntu-latest",
+      "node": "22.16.0",
+      "python": "3.12",
+      "localRuntimeAvailable": false
+    },
+    "runId": 43156429175,
+    "url": "https://github.com/xuda1979/future-code/actions/runs/43156429175",
+    "coreJobId": 130977328348,
+    "suites": [
+      {
+        "command": "node scripts/test-correctness.mjs",
+        "status": "PASS",
+        "nodeTests": 166,
+        "nodePassed": 165,
+        "nodeSkipped": 1,
+        "pythonSuitesPassed": [
+          23,
+          18
+        ]
+      },
+      {
+        "command": "node scripts/test-resilience.mjs",
+        "status": "PASS",
+        "nodeTests": 178,
+        "nodePassed": 178,
+        "nodeSkipped": 0,
+        "pythonSuitesPassed": [
+          18
+        ]
+      },
+      {
+        "command": "node scripts/test-foundry.mjs",
+        "status": "PASS",
+        "nodeTests": 879,
+        "nodePassed": 879,
+        "nodeSkipped": 0
+      },
+      {
+        "command": "node scripts/test-swarm.mjs",
+        "status": "PASS",
+        "nodeTests": 557,
+        "nodePassed": 557,
+        "nodeSkipped": 0
+      },
+      {
+        "command": "node scripts/test-commands.mjs",
+        "status": "PASS",
+        "nodeTests": 156,
+        "nodePassed": 156,
+        "nodeSkipped": 0
+      }
+    ],
+    "countCaveat": "Suite counts overlap; they must not be summed as unique cases.",
+    "conditionalSkip": {
+      "name": "platforms without safe nonblocking/no-follow reads omit optional feedback",
+      "reason": "Linux runner provides safe flags; unsupported-platform-only case is not applicable."
+    },
+    "timings": [
+      {
+        "name": "Correctness guardrails",
+        "conclusion": "success",
+        "durationSeconds": 29
+      },
+      {
+        "name": "Resilience and remote-job recovery",
+        "conclusion": "success",
+        "durationSeconds": 42
+      },
+      {
+        "name": "Foundry kernel",
+        "conclusion": "success",
+        "durationSeconds": 220
+      },
+      {
+        "name": "Swarm execution",
+        "conclusion": "success",
+        "durationSeconds": 180
+      },
+      {
+        "name": "Command regression suite",
+        "conclusion": "success",
+        "durationSeconds": 1
+      }
+    ],
+    "additionalJobs": [
+      {
+        "name": "api-retry",
+        "status": "PASS",
+        "jobId": 130977328297
+      },
+      {
+        "name": "terminal-sessions",
+        "status": "PASS",
+        "jobId": 130977328080
+      },
+      {
+        "name": "interactive-surfaces",
+        "status": "PASS",
+        "runId": 43156429245
+      }
+    ],
+    "sourceCachePolicy": "A later documentation-only evidence commit may reuse these results only if comparison shows no runtime, test, configuration or launcher changes.",
+    "independentReview": {
+      "status": "PASS",
+      "unresolvedBlockingFindings": 0,
+      "resolved": [
+        "serialized receipt pointer could grow the request",
+        "legacy pending reply digest compatibility",
+        "hedged rejection decoder call",
+        "FIFO/symlink feedback read liveness",
+        "cancellation and changed-authority race during context repair"
+      ]
+    }
   },
   "claimsNotEstablished": [
     "live LLM token savings",
