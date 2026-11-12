@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-11-12T14:34:32.421Z",
+  "baselineCommit": "65828352faa40ca5736d0552e7c0ff71d2894622",
+  "scope": "Synthetic isolated file-cache and pipe-output stress. Heap retention is not total session RSS, model productivity or live-provider performance. Timings are local microbenchmarks; production GC is unchanged.",
+  "runtime": {
+    "node": "v24.22.1",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8573C"
+  },
+  "contract": {
+    "samples": 5,
+    "fileCount": 96,
+    "fileBytes": 1048576,
+    "pipeChunks": 4000,
+    "hotHits": 20000,
+    "pipeSeed": "xorshift32:0x1979",
+    "cacheOutputSha256": "5dd92052a60908585d718353e31d1f8e92c10fbb9a761eebe5e5e378caad5f39",
+    "pipeSeedSha256": "8cbf87c23e4dfb42954be0fa5884a40c3d36d7e66302000c301dcd726d8f3a17",
+    "instrumentation": "Fresh processes, alternating revision order, explicit worker-only GC before/after retention measurement; real files and production modules with session/logging/encoding boundaries isolated."
+  },
+  "sourceManifest": [
+    {
+      "path": "src/utils/fileReadCache.ts",
+      "baselineSha256": "f201286df86c885d85ea887a6112518cd2387fab473c874d234257cfd775d5e1",
+      "candidateSha256": "efc5767f7f09c731ba9f11e65056a8ddf962cd7421344a274ac99391afbbf56e"
+    },
+    {
+      "path": "src/utils/CircularBuffer.ts",
+      "baselineSha256": "25f366b06de5d0f36131635b3a72169401c8e4da1fbee5d1a8bb46692060120e",
+      "candidateSha256": "25f366b06de5d0f36131635b3a72169401c8e4da1fbee5d1a8bb46692060120e"
+    },
+    {
+      "path": "src/utils/fsOperations.ts",
+      "baselineSha256": "e1dcf3bebefb2be5de74a33351884e51c627ef7fdc781f642bea3341fa93d8ce",
+      "candidateSha256": "e1dcf3bebefb2be5de74a33351884e51c627ef7fdc781f642bea3341fa93d8ce"
+    },
+    {
+      "path": "src/utils/stringUtils.ts",
+      "baselineSha256": "e191baf119909a210a9fb1b6f026dd36178eb04d4e05450689bd640ea8305f9c",
+      "candidateSha256": "e191baf119909a210a9fb1b6f026dd36178eb04d4e05450689bd640ea8305f9c"
+    },
+    {
+      "path": "src/utils/task/TaskOutput.ts",
+      "baselineSha256": "77120fb842da83bb24511e5e8d300d0b8c577fe2e719658d9c9c0bf37aa4c5ae",
+      "candidateSha256": "944fb91e89c8e4c8396644c7b9b5c51db29929ca72ae6ec412ad939a51af2628"
+    },
+    {
+      "path": "src/utils/task/diskOutput.ts",
+      "baselineSha256": "759b1e8531c7b14a269347b6dd09b4435bb018fec3028f7f59eb156ba25e2feb",
+      "candidateSha256": "759b1e8531c7b14a269347b6dd09b4435bb018fec3028f7f59eb156ba25e2feb"
+    }
+  ],
+  "harnessManifest": [
+    {
+      "path": "scripts/bench-session-memory.mjs",
+      "sha256": "71d811eed6f4ccb500a08c0141ded65c681ca9b7e714d2da9e5ce27cfbe2e646"
+    },
+    {
+      "path": "tests/correctness/file-read-cache-loader.mjs",
+      "sha256": "839c161c63558e11dc831f0e252f403dcee8fb0bf064ea4187cca25ed8e6bdbe"
+    },
+    {
+      "path": "tests/correctness/task-output-memory-loader.mjs",
+      "sha256": "529cb5cde0206a8f0069603ba370e5dff8f107c0604d66aff9f1fa34473b6f57"
+    }
+  ],
+  "summary": {
+    "cache": {
+      "baseline": {
+        "heapDeltaBytes": 100744312,
+        "retainedEntries": 96,
+        "retainedChargeBytes": 201347692,
+        "scanMs": 698.5334620000001,
+        "hotHits": 20000,
+        "hotHitMs": 78.42707399999995,
+        "hotContentReads": 0
+      },
+      "candidate": {
+        "heapDeltaBytes": 7409864,
+        "retainedEntries": 7,
+        "retainedChargeBytes": 14681604,
+        "scanMs": 490.36767000000003,
+        "hotHits": 20000,
+        "hotHitMs": 39.86955899999998,
+        "hotContentReads": 0
+      }
+    },
+    "pipe": {
+      "baseline": {
+        "heapDeltaBytes": 3179712,
+        "outputBytes": 12058890
+      },
+      "candidate": {
+        "heapDeltaBytes": 442992,
+        "outputBytes": 12058890
+      }
+    }
+  },
+  "runs": [
+    {
+      "revision": "baseline",
+      "sample": 0,
+      "kind": "cache",
+      "outputHash": "5dd92052a60908585d718353e31d1f8e92c10fbb9a761eebe5e5e378caad5f39",
+      "heapDeltaBytes": 100744312,
+      "retainedEntries": 96,
+      "retainedChargeBytes": 201347692,
+      "scanMs": 731.6615850000001,
+      "hotHits": 20000,
+      "hotHitMs": 78.42707399999995,
+      "hotContentReads": 0
+    },
+    {
+      "revision": "baseline",
+      "sample": 0,
+      "kind": "pipe",
+      "heapDeltaBytes": 3179832,
+      "outputHash": "a8cf5043be42cb799f1772268d05c4b7d353e759bdb63fc4ed1cebd99c3f21c5",
+      "outputBytes": 12058890
+    },
+    {
+      "revision": "candidate",
+      "sample": 0,
+      "kind": "cache",
+      "outputHash": "5dd92052a60908585d718353e31d1f8e92c10fbb9a761eebe5e5e378caad5f39",
+      "heapDeltaBytes": 7409864,
+      "retainedEntries": 7,
+      "retainedChargeBytes": 14681604,
+      "scanMs": 456.911162,
+      "hotHits": 20000,
+      "hotHitMs": 51.226422999999954,
+      "hotContentReads": 0
+    },
+    {
+      "revision": "candidate",
+      "sample": 0,
+      "kind": "pipe",
+      "heapDeltaBytes": 442968,
+      "outputHash": "a8cf5043be42cb799f1772268d05c4b7d353e759bdb63fc4ed1cebd99c3f21c5",
+      "outputBytes": 12058890
+    },
+    {
+      "revision": "candidate",
+      "sample": 1,
+      "kind": "cache",
+      "outputHash": "5dd92052a60908585d718353e31d1f8e92c10fbb9a761eebe5e5e378caad5f39",
+      "heapDeltaBytes": 7409864,
+      "retainedEntries": 7,
+      "retainedChargeBytes": 14681604,
+      "scanMs": 538.281991,
+      "hotHits": 20000,
+      "hotHitMs": 37.86079900000004,
+      "hotContentReads": 0
+    },
+    {
+      "revision": "candidate",
+      "sample": 1,
+      "kind": "pipe",
+      "heapDeltaBytes": 442992,
+      "outputHash": "a8cf5043be42cb799f1772268d05c4b7d353e759bdb63fc4ed1cebd99c3f21c5",
+      "outputBytes": 12058890
+    },
+    {
+      "revision": "baseline",
+      "sample": 1,
+      "kind": "cache",
+      "outputHash": "5dd92052a60908585d718353e31d1f8e92c10fbb9a761eebe5e5e378caad5f39",
+      "heapDeltaBytes": 100744568,
+      "retainedEntries": 96,
+      "retainedChargeBytes": 201347692,
+      "scanMs": 993.278885,
+      "hotHits": 20000,
+      "hotHitMs": 166.34824400000002,
+      "hotContentReads": 0
+    },
+    {
+      "revision": "baseline",
+      "sample": 1,
+      "kind": "pipe",
+      "heapDeltaBytes": 3177488,
+      "outputHash": "a8cf5043be42cb799f1772268d05c4b7d353e759bdb63fc4ed1cebd99c3f21c5",
+      "outputBytes": 12058890
+    },
+    {
+      "revision": "baseline",
+      "sample": 2,
+      "kind": "cache",
+      "outputHash": "5dd92052a60908585d718353e31d1f8e92c10fbb9a761eebe5e5e378caad5f39",
+      "heapDeltaBytes": 100744312,
+      "retainedEntries": 96,
+      "retainedChargeBytes": 201347692,
+      "scanMs": 518.7854829999999,
+      "hotHits": 20000,
+      "hotHitMs": 49.82017500000006,
+      "hotContentReads": 0
+    },
+    {
+      "revision": "baseline",
+      "sample": 2,
+      "kind": "pipe",
+      "heapDeltaBytes": 3179808,
+      "outputHash": "a8cf5043be42cb799f1772268d05c4b7d353e759bdb63fc4ed1cebd99c3f21c5",
+      "outputBytes": 12058890
+    },
+    {
+      "revision": "candidate",
+      "sample": 2,
+      "kind": "cache",
+      "outputHash": "5dd92052a60908585d718353e31d1f8e92c10fbb9a761eebe5e5e378caad5f39",
+      "heapDeltaBytes": 7409864,
+      "retainedEntries": 7,
+      "retainedChargeBytes": 14681604,
+      "scanMs": 929.1511309999996,
+      "hotHits": 20000,
+      "hotHitMs": 37.153373999999985,
+      "hotContentReads": 0
+    },
+    {
+      "revision": "candidate",
+      "sample": 2,
+      "kind": "pipe",
+      "heapDeltaBytes": 442656,
+      "outputHash": "a8cf5043be42cb799f1772268d05c4b7d353e759bdb63fc4ed1cebd99c3f21c5",
+      "outputBytes": 12058890
+    },
+    {
+      "revision": "candidate",
+      "sample": 3,
+      "kind": "cache",
+      "outputHash": "5dd92052a60908585d718353e31d1f8e92c10fbb9a761eebe5e5e378caad5f39",
+      "heapDeltaBytes": 7409864,
+      "retainedEntries": 7,
+      "retainedChargeBytes": 14681604,
+      "scanMs": 403.69665900000007,
+      "hotHits": 20000,
+      "hotHitMs": 50.74475200000006,
+      "hotContentReads": 0
+    },
+    {
+      "revision": "candidate",
+      "sample": 3,
+      "kind": "pipe",
+      "heapDeltaBytes": 443768,
+      "outputHash": "a8cf5043be42cb799f1772268d05c4b7d353e759bdb63fc4ed1cebd99c3f21c5",
+      "outputBytes": 12058890
+    },
+    {
+      "revision": "baseline",
+      "sample": 3,
+      "kind": "cache",
+      "outputHash": "5dd92052a60908585d718353e31d1f8e92c10fbb9a761eebe5e5e378caad5f39",
+      "heapDeltaBytes": 100744568,
+      "retainedEntries": 96,
+      "retainedChargeBytes": 201347692,
+      "scanMs": 307.62655199999995,
+      "hotHits": 20000,
+      "hotHitMs": 58.98656499999993,
+      "hotContentReads": 0
+    },
+    {
+      "revision": "baseline",
+      "sample": 3,
+      "kind": "pipe",
+      "heapDeltaBytes": 3178936,
+      "outputHash": "a8cf5043be42cb799f1772268d05c4b7d353e759bdb63fc4ed1cebd99c3f21c5",
+      "outputBytes": 12058890
+    },
+    {
+      "revision": "baseline",
+      "sample": 4,
+      "kind": "cache",
+      "outputHash": "5dd92052a60908585d718353e31d1f8e92c10fbb9a761eebe5e5e378caad5f39",
+      "heapDeltaBytes": 100744312,
+      "retainedEntries": 96,
+      "retainedChargeBytes": 201347692,
+      "scanMs": 698.5334620000001,
+      "hotHits": 20000,
+      "hotHitMs": 120.87136499999997,
+      "hotContentReads": 0
+    },
+    {
+      "revision": "baseline",
+      "sample": 4,
+      "kind": "pipe",
+      "heapDeltaBytes": 3179712,
+      "outputHash": "a8cf5043be42cb799f1772268d05c4b7d353e759bdb63fc4ed1cebd99c3f21c5",
+      "outputBytes": 12058890
+    },
+    {
+      "revision": "candidate",
+      "sample": 4,
+      "kind": "cache",
+      "outputHash": "5dd92052a60908585d718353e31d1f8e92c10fbb9a761eebe5e5e378caad5f39",
+      "heapDeltaBytes": 7409864,
+      "retainedEntries": 7,
+      "retainedChargeBytes": 14681604,
+      "scanMs": 490.36767000000003,
+      "hotHits": 20000,
+      "hotHitMs": 39.86955899999998,
+      "hotContentReads": 0
+    },
+    {
+      "revision": "candidate",
+      "sample": 4,
+      "kind": "pipe",
+      "heapDeltaBytes": 443864,
+      "outputHash": "a8cf5043be42cb799f1772268d05c4b7d353e759bdb63fc4ed1cebd99c3f21c5",
+      "outputBytes": 12058890
+    }
+  ]
+}
