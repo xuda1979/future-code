@@ -5,6 +5,8 @@ import {
   isKairosCronEnabled,
 } from '../../tools/ScheduleCronTool/prompt.js'
 import { registerBundledSkill } from '../bundledSkills.js'
+import { parseLoopTask, type ParsedLoopTask } from '../../commands/loop/task.ts'
+import { AUTONOMOUS_DECISION_GUIDANCE } from '../../harness/autonomyPolicy.ts'
 
 const DEFAULT_INTERVAL = '10m'
 
@@ -22,26 +24,19 @@ Examples:
   /loop check the deploy          (defaults to ${DEFAULT_INTERVAL})
   /loop check the deploy every 20m`
 
-function buildPrompt(args: string): string {
+function buildPrompt(parsed: ParsedLoopTask): string {
+  const interval = parsed.interval ?? DEFAULT_INTERVAL
+  const scheduledPrompt = parsed.stopCondition
+    ? `${parsed.task}\n\nLoop stop condition: ${parsed.stopCondition}\nCheck this condition with current evidence before each execution. Once it is verified, stop this loop and cancel only its actual recorded job ID. Respect operator pauses, explicit budgets and native schedule expiry.`
+    : parsed.task
   return `# /loop — schedule a recurring prompt
 
-Parse the input below into \`[interval] <prompt…>\` and schedule it with ${CRON_CREATE_TOOL_NAME}.
+The host parsed the requested cadence and work below. Schedule it with ${CRON_CREATE_TOOL_NAME}; do not ask for a routine go/continue decision.
 
-## Parsing (in priority order)
-
-1. **Leading token**: if the first whitespace-delimited token matches \`^\\d+[smhd]$\` (e.g. \`5m\`, \`2h\`), that's the interval; the rest is the prompt.
-2. **Trailing "every" clause**: otherwise, if the input ends with \`every <N><unit>\` or \`every <N> <unit-word>\` (e.g. \`every 20m\`, \`every 5 minutes\`, \`every 2 hours\`), extract that as the interval and strip it from the prompt. Only match when what follows "every" is a time expression — \`check every PR\` has no interval.
-3. **Default**: otherwise, interval is \`${DEFAULT_INTERVAL}\` and the entire input is the prompt.
-
-If the resulting prompt is empty, show usage \`/loop [interval] <prompt>\` and stop — do not call ${CRON_CREATE_TOOL_NAME}.
-
-Examples:
-- \`5m /babysit-prs\` → interval \`5m\`, prompt \`/babysit-prs\` (rule 1)
-- \`check the deploy every 20m\` → interval \`20m\`, prompt \`check the deploy\` (rule 2)
-- \`run tests every 5 minutes\` → interval \`5m\`, prompt \`run tests\` (rule 2)
-- \`check the deploy\` → interval \`${DEFAULT_INTERVAL}\`, prompt \`check the deploy\` (rule 3)
-- \`check every PR\` → interval \`${DEFAULT_INTERVAL}\`, prompt \`check every PR\` (rule 3 — "every" not followed by time)
-- \`5m\` → empty prompt → show usage
+REQUESTED WORK AND CONSTRAINTS: ${JSON.stringify(parsed.goalText)}
+INTERVAL: ${JSON.stringify(interval)}
+PROMPT TO SCHEDULE: ${JSON.stringify(scheduledPrompt)}
+${parsed.stopCondition ? `USER STOP CONDITION: ${JSON.stringify(parsed.stopCondition)}. Check it before initial scheduling; if already verified, report the evidence without creating a redundant job.` : ''}
 
 ## Interval → cron
 
@@ -61,14 +56,20 @@ Supported suffixes: \`s\` (seconds, rounded up to nearest minute, min 1), \`m\` 
 
 1. Call ${CRON_CREATE_TOOL_NAME} with:
    - \`cron\`: the expression from the table above
-   - \`prompt\`: the parsed prompt from above, verbatim (slash commands are passed through unchanged)
+   - \`prompt\`: PROMPT TO SCHEDULE above, verbatim (the requested slash command and arguments are preserved)
    - \`recurring\`: \`true\`
 2. Briefly confirm: what's scheduled, the cron expression, the human-readable cadence, that recurring tasks auto-expire after ${DEFAULT_MAX_AGE_DAYS} days, and that they can cancel sooner with ${CRON_DELETE_TOOL_NAME} (include the job ID).
 3. **Then immediately execute the parsed prompt now** — don't wait for the first cron fire. If it's a slash command, invoke it via the Skill tool; otherwise act on it directly.
 
+${AUTONOMOUS_DECISION_GUIDANCE}
+
+This is a scheduled loop, not a continuous foreground iteration loop. After schedule creation and the immediate useful execution, return control so native cron can drive later executions at the requested cadence. Each tick performs its authorized work and returns; do not busy-poll or recursively schedule duplicate jobs. A completed tick is not permission to expand the task. Keep actual caller budgets, permission denials and operator stops. Recurring tasks expire after ${DEFAULT_MAX_AGE_DAYS} days; do not reset or silently renew that boundary. If the stop condition is verified, reconcile the schedule and cancel only this loop's actual job ID with ${CRON_DELETE_TOOL_NAME}. Never infer that all requested work is complete merely because one subtask finished.
+
+If a required scheduler or external dependency is unavailable, report the exact failure, recovery attempted and required external action, and continue independent authorized work. Do not fabricate a scheduled job, a user answer, permission or an experiment result.
+
 ## Input
 
-${args}`
+${parsed.goalText}`
 }
 
 export function registerLoopSkill(): void {
@@ -82,11 +83,13 @@ export function registerLoopSkill(): void {
     userInvocable: true,
     isEnabled: isKairosCronEnabled,
     async getPromptForCommand(args) {
-      const trimmed = args.trim()
-      if (!trimmed) {
+      // Shared prompt expansion is also used by model Skill and workers.
+      // Parsing has no side effects; only trusted user dispatch may bind a goal.
+      const parsed = parseLoopTask(args)
+      if (!parsed) {
         return [{ type: 'text', text: USAGE_MESSAGE }]
       }
-      return [{ type: 'text', text: buildPrompt(trimmed) }]
+      return [{ type: 'text', text: buildPrompt(parsed) }]
     },
   })
 }

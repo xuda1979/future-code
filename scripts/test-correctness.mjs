@@ -31,6 +31,8 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/foreground-preparation.test.ts",
   "tests/correctness/foreground-repl.test.ts",
   "tests/correctness/goal-context.test.ts",
+  "tests/correctness/ask-user-question-autonomy.test.ts",
+  "tests/correctness/goal-decision-flow.test.ts",
   "tests/correctness/goal-prefix-stability.test.ts",
   "tests/correctness/tool-result-budget.test.ts",
   "tests/correctness/permission-delivery.test.ts",

@@ -1,0 +1,881 @@
+{
+  "schema": 1,
+  "date": "2026-11-12",
+  "baselineCommit": "bd410dbbf0f4db1286956580822ce3501db9ba64",
+  "objective": "Execute compatible authorized work autonomously; bind actual user loop intent, isolate session authority and prevent routine question/plan approval handoffs.",
+  "hypothesis": "Missing slash-loop arming, cwd-global goal state, fixed5-cycle prompts, and question/plan UI paths caused needless user handoffs; trusted command reconciliation, session ownership and host decision guards close these paths.",
+  "acceptance": [
+    "exact reported go-for-both case continues existing objective",
+    "known open milestones prevent premature REVIEW",
+    "routine AskUserQuestion validation returns model guidance before UI",
+    "no invented user answers or external permission grants",
+    "explicit pause, caller and durable budgets remain enforced",
+    "rejected-question retries are bounded in main and worker loops",
+    "all five complete repository regression groups pass; retain failures and record file-parallelism controls",
+    "typed monitoring loop displaces unrelated test arg REVIEW without another go",
+    "session-local state/reports/budgets and late cleanup cannot affect another session",
+    "continuous loop survives a completed cycle while finite and scheduled semantics remain distinct",
+    "scheduled/worker/model slash expansions cannot grant human authority",
+    "routine plan approval cannot interrupt an active autonomous goal"
+  ],
+  "budget": {
+    "paidModelCalls": 0,
+    "remoteRepositoryWritesInReproduction": 0,
+    "ciTimeoutMinutes": 30
+  },
+  "scope": [
+    "host goal state and continuation",
+    "action and question instructions",
+    "question validation and matched redirect receipts",
+    "per-session state/report/history and captured asynchronous ownership",
+    "trusted raw input provenance before slash expansion",
+    "continuous/finite/scheduled loop contracts",
+    "autonomous planning before approval UI",
+    "browser-safe identity registration; async context only on Node execution paths",
+    "new human dispatch clears inherited background workload before startup",
+    "native cron ticks isolated from foreground goals and human queue batches"
+  ],
+  "constraints": [
+    "no changes to native permission grants",
+    "no model response accepted as verified completion",
+    "no domain policy",
+    "no production deployment or main push"
+  ],
+  "sourceSha256": {
+    "scripts/reproduce-routine-handoff.mjs": "115c5fd2c018042f323a9811c0495d5c4861b1f3ebb2f74694e0c1f6c5de61f0",
+    "scripts/test-correctness.mjs": "8144e2adf2df0ad8fc83641e6990dec6e023a33033064c3c1bcfca626a1def1a",
+    "src/bootstrap/state.ts": "9829e4bd4e46b1bee0f35a62ccc8fb2f25ab8d81f5f69481d91c19b559b1370b",
+    "src/commands/goal/auto.ts": "9c4a632d4658c32adc105b65e174bf772382c048bb6702b1781ddc3c1f1b6796",
+    "src/commands/goal/index.ts": "4c483de2cff37d1a04961ffabbf41ddb68547cc13d37a78d4b345c32c36042a8",
+    "src/commands/goal/input.ts": "ea3e510c72986d99e464a731bd869ffa70d7cadfc72d52d18ff530843725bc52",
+    "src/commands/loop/index.ts": "b2ab17a2a2bb1925a6107e7c256b3be95a2f4e2c0c4c472166752d38c880c572",
+    "src/commands/loop/task.ts": "2ce105c9e8e8a3fa359da23cbf0f5da1a3f400280e2df6b89cacbaa074e52690",
+    "src/commands/save/index.ts": "eb09ce2d3e647e56f7b77ddd55e7ac3a7948d930e784487bb6742e9f6142a0bb",
+    "src/commands/sessions/sessionsHealth.ts": "a95ca78b2ce2b51cdeeadab8cee7ff00db9d4c1917bcb89a9837f32f387e321a",
+    "src/constants/prompts.ts": "e6eff741775aa3e7d76f5da2be201b1dc45052a678f472be17b6a740f77a683f",
+    "src/harness/autonomyPolicy.ts": "a4d2867255d93f4487c0252fc63f0858a37ed0249fc3e672ad538b48a1fc4c8d",
+    "src/harness/decisionGuidance.ts": "2f28e052363535ab8e8bb2155b3ad28d8d8d4865ccb32e5af8d632564f4b1cac",
+    "src/query.ts": "e6a1ad76a392c8896eaec0dfa826e958aef12332925ad21412091e453de01cc4",
+    "src/query/autonomyQuestions.ts": "de3a28978539e361c298bdbb559ead38bd2a1f873a63701728f0a77049244d9c",
+    "src/screens/REPL.tsx": "a9e01573d069bceb3dfbeb204b79e60b9a9f190f3d42ca6da1b4c419ceb089cc",
+    "src/skills/bundled/loop.ts": "8eebffa01c323c66cdb9ef99205ff3f7603250e5c0eec1edff98d3662bfede20",
+    "src/tools/AskUserQuestionTool/AskUserQuestionTool.tsx": "0aae03a55e95ee58c16a0c4395d3aec0e03997a565e038dc874097ee84916ac1",
+    "src/tools/AskUserQuestionTool/autonomyValidation.ts": "a1966b4c041786bc35f3b948ba88374e112a31113aee7319ad64e9bbf4f6f4fc",
+    "src/tools/AskUserQuestionTool/prompt.ts": "cf956c2925b829862b1b65dabe687ba3aaf37f2ac6781f4f354e3e7d49d1f040",
+    "src/tools/EnterPlanModeTool/EnterPlanModeTool.ts": "49421c819fad4eb9766b72712184dbc2ffab318505f1a9f9bdf06b1b1896ce89",
+    "src/tools/EnterPlanModeTool/prompt.ts": "23b0f9c38912c6ced01c2a3bdc8387faef97e42e1bd7f275eb42eedd56a9e844",
+    "src/utils/autoGoalSession.ts": "d1969432c2fde42691f96368d7e71c2ea3f56e113f91ebb5b932d5e146798b76",
+    "src/utils/autoGoalSessionId.ts": "15ccb9ba56694a51335cb8855ccc1d03ad961e85251393018d0c99aac38c1625",
+    "src/utils/handlePromptSubmit.ts": "c44b8fb05e843d4e3830e0b7c9a58617c2bbbecef1d1aa0d0fcb1f50a347acbe",
+    "src/utils/queueProcessor.ts": "1250bd3fece837bc34923d10edbcb2186f2bcefe3c48710e7025f18ee8aa2176",
+    "tests/commands/commands.test.ts": "9127851177870d8eff3b9241c23de5c9c0ecd2c35a195a27d171e270017dbb14",
+    "tests/commands/goal-decision-autonomy.test.ts": "a3c04f4892f797ba080a08d5639dc6bb9b869d76ccf60304294aaba52d6f157b",
+    "tests/commands/goal-session-autonomy.test.ts": "072b25b7704752be2f41857e823ca075e96aa09de7f3368c88132ac73277c87a",
+    "tests/commands/loop-autonomy.test.ts": "b1f82500054df93e62cd1684ce149927c556387a409b0bc98011549caf07ab2d",
+    "tests/commands/sessions-health.test.ts": "6e569b9d08f8d5ab8fd1db8675ad84f86c043af0b4ea14c93a45d1914fcaf9df",
+    "tests/correctness/ask-user-question-autonomy.test.ts": "71b5ef9884bcd2c67035c75b3d97ae520ae610b7600d55d80ae7e6e92d0a7d6e",
+    "tests/correctness/foreground-repl.test.ts": "985b6bb20efd963353aef932bd4e1dec6c882feeb1f451c21210336c488febf8",
+    "tests/correctness/goal-decision-flow.test.ts": "48246c6444fef0368c91f103bb5e2672dc7680d88ca64abc3da489a5c24f736e"
+  },
+  "reproduction": {
+    "kind": "deterministic-host-control",
+    "script": "scripts/reproduce-routine-handoff.mjs",
+    "baseline": {
+      "schema": 1,
+      "kind": "deterministic-host-control",
+      "liveModel": false,
+      "source": {
+        "src/commands/goal/auto.ts": "1fb4761b8c8f295109d05c1b4bdaa96297d2faabee821a19aa448cda3c3cdb0f",
+        "src/harness/decisionGuidance.ts": "a773252f01faa91bd2d9a9f58e55d1576d67bff3e3113189816b6310b0f2c69c",
+        "src/harness/autonomyPolicy.ts": null,
+        "src/utils/autoGoalSession.ts": null,
+        "src/commands/loop/task.ts": null
+      },
+      "results": [
+        {
+          "id": "authorized-push-arms-execution",
+          "expected": "CONTINUE",
+          "actual": "SKIP",
+          "verdict": "FAIL"
+        },
+        {
+          "id": "open-standing-work-survives-subtask-completion",
+          "expected": "CONTINUE",
+          "actual": "BLOCKED",
+          "verdict": "FAIL"
+        },
+        {
+          "id": "say-go-is-not-an-external-blocker",
+          "expected": "CONTINUE",
+          "actual": "BLOCKED",
+          "verdict": "FAIL"
+        },
+        {
+          "id": "typed-monitoring-loop-supersedes-stale-review",
+          "expected": "CONTINUE",
+          "actual": "SKIP",
+          "verdict": "FAIL"
+        },
+        {
+          "id": "one-completed-cycle-cannot-retire-standing-loop",
+          "expected": "CONTINUE",
+          "actual": "BLOCKED",
+          "verdict": "FAIL"
+        },
+        {
+          "id": "another-session-test-review-cannot-hijack-monitoring",
+          "expected": "CONTINUE",
+          "actual": "FOREIGN_ROOT",
+          "verdict": "FAIL"
+        }
+      ],
+      "verdict": "FAIL"
+    },
+    "candidate": {
+      "schema": 1,
+      "kind": "deterministic-host-control",
+      "liveModel": false,
+      "source": {
+        "src/commands/goal/auto.ts": "9c4a632d4658c32adc105b65e174bf772382c048bb6702b1781ddc3c1f1b6796",
+        "src/harness/decisionGuidance.ts": "2f28e052363535ab8e8bb2155b3ad28d8d8d4865ccb32e5af8d632564f4b1cac",
+        "src/harness/autonomyPolicy.ts": "a4d2867255d93f4487c0252fc63f0858a37ed0249fc3e672ad538b48a1fc4c8d",
+        "src/utils/autoGoalSession.ts": "d1969432c2fde42691f96368d7e71c2ea3f56e113f91ebb5b932d5e146798b76",
+        "src/commands/loop/task.ts": "2ce105c9e8e8a3fa359da23cbf0f5da1a3f400280e2df6b89cacbaa074e52690"
+      },
+      "results": [
+        {
+          "id": "authorized-push-arms-execution",
+          "expected": "CONTINUE",
+          "actual": "CONTINUE",
+          "verdict": "PASS"
+        },
+        {
+          "id": "open-standing-work-survives-subtask-completion",
+          "expected": "CONTINUE",
+          "actual": "CONTINUE",
+          "verdict": "PASS"
+        },
+        {
+          "id": "say-go-is-not-an-external-blocker",
+          "expected": "CONTINUE",
+          "actual": "CONTINUE",
+          "verdict": "PASS"
+        },
+        {
+          "id": "typed-monitoring-loop-supersedes-stale-review",
+          "expected": "CONTINUE",
+          "actual": "CONTINUE",
+          "verdict": "PASS"
+        },
+        {
+          "id": "one-completed-cycle-cannot-retire-standing-loop",
+          "expected": "CONTINUE",
+          "actual": "CONTINUE",
+          "verdict": "PASS"
+        },
+        {
+          "id": "another-session-test-review-cannot-hijack-monitoring",
+          "expected": "CONTINUE",
+          "actual": "CONTINUE",
+          "verdict": "PASS"
+        }
+      ],
+      "verdict": "PASS"
+    }
+  },
+  "focusedVerification": {
+    "command": "node --experimental-strip-types --test tests/commands/goal-decision-autonomy.test.ts tests/commands/goal-session-autonomy.test.ts tests/commands/loop-autonomy.test.ts tests/correctness/foreground-repl.test.ts tests/correctness/goal-decision-flow.test.ts tests/correctness/ask-user-question-autonomy.test.ts tests/commands/sessions-health.test.ts",
+    "node": "24.22.1",
+    "tests": 121,
+    "passed": 121,
+    "failed": 0,
+    "skipped": 0,
+    "independentReview": "PASS: final113-case alternative seven-file set, plus root121-case focused set"
+  },
+  "fullRegressionProtocol": {
+    "requiredCommands": [
+      "node scripts/test-correctness.mjs",
+      "node scripts/test-resilience.mjs",
+      "node scripts/test-foundry.mjs",
+      "node scripts/test-swarm.mjs",
+      "node scripts/test-commands.mjs"
+    ],
+    "authoritativeResults": "Local logs and final review package; public CI not run because public publishing was rejected by automatic approval review.",
+    "scheduling": "Every original test in all5 complete repository groups. No exclusions/assertion/deadline changes; resource-heavy file concurrency2, with scientific-experiments isolated for final Swarm run. Original failures and cancellations retained."
+  },
+  "limits": [
+    "Deterministic host and UI-boundary checks establish control behavior; live model compliance and productivity are not measured.",
+    "A provider/model that repeatedly returns only rejected decision requests after two automated corrections reports an execution-contract failure; it does not ask the user to say go again.",
+    "Explicitly requested human interaction remains possible through trusted main-thread steering, plan mode or paused work; it never grants external execution capability."
+  ],
+  "nativeBuild": {
+    "command": "bash build.sh",
+    "status": "BLOCKED",
+    "exitCode": 2,
+    "diagnostic": "error: bun not found on PATH",
+    "binaryBuilt": false,
+    "liveSessionInstallationTested": false
+  },
+  "fullRegressionStatus": "PASS (all five complete groups, final frozen source; resource isolation recorded)",
+  "legacyState": "Unowned cwd-global goal files preserved, not auto-adopted by a new session. Session health labels older-only state legacy-unowned.",
+  "verificationNotes": {
+    "schema": 1,
+    "scope": "Autonomous decision/loop execution, session state ownership, scheduled tick isolation and requested planning interaction",
+    "externalModelCallsInTests": 0,
+    "realRemotePushesInTests": 0,
+    "diagnosticRuns": [
+      {
+        "stage": "bd410db baseline before repair",
+        "status": "expected FAIL",
+        "evidence": "same deterministic host-control reproduction fails all6 cases",
+        "log": "future-code-handoff-baseline-v2.json"
+      },
+      {
+        "stage": "earlier local54c1436 default Foundry concurrency",
+        "status": "FAIL",
+        "tests": 879,
+        "passed": 878,
+        "failed": 1,
+        "failure": "scientific-experiments interrupted plan validation: child command exceeded unchanged2s deadline",
+        "isolatedCase": "PASS",
+        "isolatedFile": "21/21 PASS",
+        "log": "future-code-final-test-foundry.log"
+      },
+      {
+        "stage": "earlier CPU affinity attempt",
+        "status": "CANCELLED",
+        "detail": "Restricting2 CPUs lowered Node default file concurrency but reduced child compute. Unchanged chip test failed; isolated Python suite passed23 with1 existing Icarus tool skip. Affinity approach abandoned.",
+        "log": "future-code-final-test-foundry-bounded.log"
+      },
+      {
+        "stage": "v2 default resilience run before final edge fixes",
+        "status": "FAIL",
+        "tests": 178,
+        "passed": 177,
+        "failed": 1,
+        "failure": "productivity.test.ts402 child progress fixture startup exceeded unchanged2s deadline",
+        "isolatedCase": "PASS with same deadline",
+        "log": "future-code-v2-test-resilience.log"
+      },
+      {
+        "stage": "initial loop command tests after removing fifth-cycle question",
+        "status": "FAIL then repaired",
+        "detail": "Obsolete5-iteration expectation replaced with continuous/no-confirmation assertions; post-completion availability wording preserved. No production test deadline or acceptance relaxed.",
+        "log": "future-code-loop-command-suite.log"
+      },
+      {
+        "stage": "source-scope extensions",
+        "status": "CANCELLED runs retained",
+        "detail": "Partial runs interrupted when new user examples or audited edge cases required source changes. Final group evidence uses frozen final source; partial runs are not PASS receipts."
+      },
+      {
+        "stage": "final frozen-source complete Swarm at file concurrency2",
+        "status": "FAIL then complete-group resource-isolated PASS",
+        "tests": 557,
+        "passed": 555,
+        "failed": 2,
+        "failure": "unchanged scientific validation child processes hit2s deadlines; final resource-isolated full group passed21+536 with identical assertions/deadlines",
+        "log": "future-code-final-test-swarm-v4.log"
+      }
+    ],
+    "finalMethod": "Every original test in all5 complete repository groups. No exclusions/assertion/deadline changes; resource-heavy file concurrency2, with scientific-experiments isolated for final Swarm run. Original failures and cancellations retained.",
+    "build": {
+      "native": "BLOCKED",
+      "command": "bash build.sh",
+      "exitCode": 2,
+      "diagnostic": "error: 'bun' not found on PATH",
+      "binaryBuilt": false,
+      "browserArtifactBuilt": false,
+      "installedIntoRunningSessions": false
+    },
+    "publication": {
+      "status": "BLOCKED",
+      "destination": "https://github.com/xuda1979/future-code.git",
+      "reason": "Automatic approval review rejected public push twice; ownership verified, explicit publication authorization for this patch required. No alternate write transport attempted."
+    },
+    "limits": [
+      "Host regressions and real UI-boundary methods are tested; no live-model compliance, long-term productivity or token savings measured.",
+      "Legacy cwd-global goal files have no owner identity; preserved as unowned data and not auto-adopted.",
+      "Native binary and running user sessions have not been built/upgraded in this workspace."
+    ]
+  },
+  "fullRegressionResults": [
+    {
+      "suite": "test-correctness",
+      "exitCode": 0,
+      "seconds": 67.948,
+      "log": "/tmp/future-code-final-test-correctness-v4.log",
+      "steps": [
+        {
+          "command": [
+            "node",
+            "scripts/test-correctness.mjs"
+          ],
+          "exitCode": 0
+        }
+      ],
+      "testFiles": null,
+      "fileConcurrency": "repository default",
+      "sourceChangedDuringRun": [],
+      "counts": {
+        "tests": 224,
+        "pass": 223,
+        "fail": 0,
+        "skipped": 1,
+        "pythonRuns": [
+          "23",
+          "18"
+        ]
+      }
+    },
+    {
+      "suite": "test-resilience",
+      "exitCode": 0,
+      "seconds": 111.915,
+      "log": "/tmp/future-code-final-test-resilience-v4.log",
+      "steps": [
+        {
+          "command": [
+            "node",
+            "--experimental-strip-types",
+            "--test",
+            "--test-concurrency=2",
+            "tests/foundry/productivity.test.ts",
+            "tests/foundry/swarm.test.ts",
+            "tests/foundry/swarm-http.test.ts",
+            "tests/foundry/swarm-evidence.test.ts",
+            "tests/foundry/resilience.test.ts",
+            "tests/foundry/job-races.test.ts",
+            "tests/foundry/objective-restart.test.ts",
+            "tests/foundry/rnd-cadence.test.ts",
+            "tests/foundry/resilience-e2e.test.ts"
+          ],
+          "exitCode": 0
+        },
+        {
+          "command": [
+            "python3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests/research-jobs",
+            "-v"
+          ],
+          "exitCode": 0
+        }
+      ],
+      "testFiles": [
+        "tests/foundry/productivity.test.ts",
+        "tests/foundry/swarm.test.ts",
+        "tests/foundry/swarm-http.test.ts",
+        "tests/foundry/swarm-evidence.test.ts",
+        "tests/foundry/resilience.test.ts",
+        "tests/foundry/job-races.test.ts",
+        "tests/foundry/objective-restart.test.ts",
+        "tests/foundry/rnd-cadence.test.ts",
+        "tests/foundry/resilience-e2e.test.ts"
+      ],
+      "fileConcurrency": 2,
+      "sourceChangedDuringRun": [],
+      "counts": {
+        "tests": 178,
+        "pass": 178,
+        "fail": 0,
+        "skipped": 0,
+        "pythonRuns": [
+          "18"
+        ]
+      }
+    },
+    {
+      "suite": "test-foundry",
+      "exitCode": 0,
+      "seconds": 645.524,
+      "log": "/tmp/future-code-final-test-foundry-v4.log",
+      "steps": [
+        {
+          "command": [
+            "node",
+            "--experimental-strip-types",
+            "--test",
+            "--test-concurrency=2",
+            "tests/foundry/adaptive-scheduling.test.ts",
+            "tests/foundry/chip-verification.test.ts",
+            "tests/foundry/cohort-coordination.test.ts",
+            "tests/foundry/commands.test.ts",
+            "tests/foundry/context-efficiency.test.ts",
+            "tests/foundry/context-envelope.test.ts",
+            "tests/foundry/debugging-guardrails.test.ts",
+            "tests/foundry/decision-policy.test.ts",
+            "tests/foundry/deliberation.test.ts",
+            "tests/foundry/dependency-closure.test.ts",
+            "tests/foundry/diagnostic-memory.test.ts",
+            "tests/foundry/discovery-runtime.test.ts",
+            "tests/foundry/discovery.test.ts",
+            "tests/foundry/dispatch-index.test.ts",
+            "tests/foundry/dynamic-dag.test.ts",
+            "tests/foundry/early-feedback.test.ts",
+            "tests/foundry/episodic-memory.test.ts",
+            "tests/foundry/evaluation-cadence.test.ts",
+            "tests/foundry/evidence-fabric.test.ts",
+            "tests/foundry/evolution-cli.test.ts",
+            "tests/foundry/evolution.test.ts",
+            "tests/foundry/execution-loop.test.ts",
+            "tests/foundry/experiment-batch.test.ts",
+            "tests/foundry/experiment-design.test.ts",
+            "tests/foundry/experiment-pipeline.test.ts",
+            "tests/foundry/generalization.test.ts",
+            "tests/foundry/human-knowledge.test.ts",
+            "tests/foundry/indepth.test.ts",
+            "tests/foundry/job-evidence.test.ts",
+            "tests/foundry/job-preflight.test.ts",
+            "tests/foundry/job-races.test.ts",
+            "tests/foundry/kernel.test.ts",
+            "tests/foundry/lifecycle.test.ts",
+            "tests/foundry/multihost.test.ts",
+            "tests/foundry/objective-liveness.test.ts",
+            "tests/foundry/objective-restart.test.ts",
+            "tests/foundry/operation-events.test.ts",
+            "tests/foundry/operations-swarm.test.ts",
+            "tests/foundry/operations.test.ts",
+            "tests/foundry/productivity.test.ts",
+            "tests/foundry/progress-memory.test.ts",
+            "tests/foundry/progress.test.ts",
+            "tests/foundry/project-evaluation.test.ts",
+            "tests/foundry/project-knowledge-selection.test.ts",
+            "tests/foundry/project-knowledge.test.ts",
+            "tests/foundry/project-pack.test.ts",
+            "tests/foundry/provider-recovery.test.ts",
+            "tests/foundry/recovery-planning.test.ts",
+            "tests/foundry/remote-tool-batching.test.ts",
+            "tests/foundry/research-frontier.test.ts",
+            "tests/foundry/research-programme.test.ts",
+            "tests/foundry/research-strategy.test.ts",
+            "tests/foundry/research.test.ts",
+            "tests/foundry/resilience-e2e.test.ts",
+            "tests/foundry/resilience.test.ts",
+            "tests/foundry/response-repair.test.ts",
+            "tests/foundry/rnd-cadence.test.ts",
+            "tests/foundry/rsi-snapshot.test.ts",
+            "tests/foundry/scheduler-index.test.ts",
+            "tests/foundry/scientific-acceptance.test.ts",
+            "tests/foundry/scientific-experiments.test.ts",
+            "tests/foundry/source-search.test.ts",
+            "tests/foundry/sovereignty.test.ts",
+            "tests/foundry/surface.test.ts",
+            "tests/foundry/swarm-evidence.test.ts",
+            "tests/foundry/swarm-http.test.ts",
+            "tests/foundry/swarm-research-frontier.test.ts",
+            "tests/foundry/swarm-theory.test.ts",
+            "tests/foundry/swarm.test.ts",
+            "tests/foundry/theory.test.ts",
+            "tests/foundry/tool-batching.test.ts",
+            "tests/foundry/verification-batching.test.ts",
+            "tests/foundry/verifier-audit.test.ts",
+            "tests/foundry/workflow-policy.test.ts"
+          ],
+          "exitCode": 0
+        }
+      ],
+      "testFiles": [
+        "tests/foundry/adaptive-scheduling.test.ts",
+        "tests/foundry/chip-verification.test.ts",
+        "tests/foundry/cohort-coordination.test.ts",
+        "tests/foundry/commands.test.ts",
+        "tests/foundry/context-efficiency.test.ts",
+        "tests/foundry/context-envelope.test.ts",
+        "tests/foundry/debugging-guardrails.test.ts",
+        "tests/foundry/decision-policy.test.ts",
+        "tests/foundry/deliberation.test.ts",
+        "tests/foundry/dependency-closure.test.ts",
+        "tests/foundry/diagnostic-memory.test.ts",
+        "tests/foundry/discovery-runtime.test.ts",
+        "tests/foundry/discovery.test.ts",
+        "tests/foundry/dispatch-index.test.ts",
+        "tests/foundry/dynamic-dag.test.ts",
+        "tests/foundry/early-feedback.test.ts",
+        "tests/foundry/episodic-memory.test.ts",
+        "tests/foundry/evaluation-cadence.test.ts",
+        "tests/foundry/evidence-fabric.test.ts",
+        "tests/foundry/evolution-cli.test.ts",
+        "tests/foundry/evolution.test.ts",
+        "tests/foundry/execution-loop.test.ts",
+        "tests/foundry/experiment-batch.test.ts",
+        "tests/foundry/experiment-design.test.ts",
+        "tests/foundry/experiment-pipeline.test.ts",
+        "tests/foundry/generalization.test.ts",
+        "tests/foundry/human-knowledge.test.ts",
+        "tests/foundry/indepth.test.ts",
+        "tests/foundry/job-evidence.test.ts",
+        "tests/foundry/job-preflight.test.ts",
+        "tests/foundry/job-races.test.ts",
+        "tests/foundry/kernel.test.ts",
+        "tests/foundry/lifecycle.test.ts",
+        "tests/foundry/multihost.test.ts",
+        "tests/foundry/objective-liveness.test.ts",
+        "tests/foundry/objective-restart.test.ts",
+        "tests/foundry/operation-events.test.ts",
+        "tests/foundry/operations-swarm.test.ts",
+        "tests/foundry/operations.test.ts",
+        "tests/foundry/productivity.test.ts",
+        "tests/foundry/progress-memory.test.ts",
+        "tests/foundry/progress.test.ts",
+        "tests/foundry/project-evaluation.test.ts",
+        "tests/foundry/project-knowledge-selection.test.ts",
+        "tests/foundry/project-knowledge.test.ts",
+        "tests/foundry/project-pack.test.ts",
+        "tests/foundry/provider-recovery.test.ts",
+        "tests/foundry/recovery-planning.test.ts",
+        "tests/foundry/remote-tool-batching.test.ts",
+        "tests/foundry/research-frontier.test.ts",
+        "tests/foundry/research-programme.test.ts",
+        "tests/foundry/research-strategy.test.ts",
+        "tests/foundry/research.test.ts",
+        "tests/foundry/resilience-e2e.test.ts",
+        "tests/foundry/resilience.test.ts",
+        "tests/foundry/response-repair.test.ts",
+        "tests/foundry/rnd-cadence.test.ts",
+        "tests/foundry/rsi-snapshot.test.ts",
+        "tests/foundry/scheduler-index.test.ts",
+        "tests/foundry/scientific-acceptance.test.ts",
+        "tests/foundry/scientific-experiments.test.ts",
+        "tests/foundry/source-search.test.ts",
+        "tests/foundry/sovereignty.test.ts",
+        "tests/foundry/surface.test.ts",
+        "tests/foundry/swarm-evidence.test.ts",
+        "tests/foundry/swarm-http.test.ts",
+        "tests/foundry/swarm-research-frontier.test.ts",
+        "tests/foundry/swarm-theory.test.ts",
+        "tests/foundry/swarm.test.ts",
+        "tests/foundry/theory.test.ts",
+        "tests/foundry/tool-batching.test.ts",
+        "tests/foundry/verification-batching.test.ts",
+        "tests/foundry/verifier-audit.test.ts",
+        "tests/foundry/workflow-policy.test.ts"
+      ],
+      "fileConcurrency": 2,
+      "sourceChangedDuringRun": [],
+      "counts": {
+        "tests": 879,
+        "pass": 879,
+        "fail": 0,
+        "skipped": 0,
+        "pythonRuns": []
+      }
+    },
+    {
+      "suite": "test-swarm",
+      "testFiles": [
+        "tests/foundry/productivity.test.ts",
+        "tests/foundry/swarm.test.ts",
+        "tests/foundry/swarm-http.test.ts",
+        "tests/foundry/multihost.test.ts",
+        "tests/foundry/remote-tool-batching.test.ts",
+        "tests/foundry/provider-recovery.test.ts",
+        "tests/foundry/cohort-coordination.test.ts",
+        "tests/foundry/execution-loop.test.ts",
+        "tests/foundry/dispatch-index.test.ts",
+        "tests/foundry/dependency-closure.test.ts",
+        "tests/foundry/context-envelope.test.ts",
+        "tests/foundry/tool-batching.test.ts",
+        "tests/foundry/source-search.test.ts",
+        "tests/foundry/response-repair.test.ts",
+        "tests/foundry/workflow-policy.test.ts",
+        "tests/foundry/verification-batching.test.ts",
+        "tests/foundry/early-feedback.test.ts",
+        "tests/foundry/verifier-audit.test.ts",
+        "tests/foundry/deliberation.test.ts",
+        "tests/foundry/diagnostic-memory.test.ts",
+        "tests/foundry/progress-memory.test.ts",
+        "tests/foundry/debugging-guardrails.test.ts",
+        "tests/foundry/decision-policy.test.ts",
+        "tests/foundry/evaluation-cadence.test.ts",
+        "tests/foundry/job-preflight.test.ts",
+        "tests/foundry/experiment-pipeline.test.ts",
+        "tests/foundry/scientific-experiments.test.ts",
+        "tests/foundry/generalization.test.ts",
+        "tests/foundry/research-strategy.test.ts",
+        "tests/foundry/experiment-design.test.ts",
+        "tests/foundry/research-frontier.test.ts",
+        "tests/foundry/swarm-research-frontier.test.ts",
+        "tests/foundry/theory.test.ts",
+        "tests/foundry/swarm-theory.test.ts",
+        "tests/foundry/scientific-acceptance.test.ts",
+        "tests/foundry/objective-restart.test.ts",
+        "tests/foundry/objective-liveness.test.ts",
+        "tests/foundry/recovery-planning.test.ts",
+        "tests/foundry/research.test.ts",
+        "tests/foundry/research-programme.test.ts",
+        "tests/foundry/job-evidence.test.ts",
+        "tests/foundry/job-races.test.ts",
+        "tests/foundry/episodic-memory.test.ts",
+        "tests/foundry/project-knowledge.test.ts",
+        "tests/foundry/project-knowledge-selection.test.ts",
+        "tests/foundry/human-knowledge.test.ts",
+        "tests/foundry/project-pack.test.ts",
+        "tests/foundry/operations.test.ts",
+        "tests/foundry/operation-events.test.ts",
+        "tests/foundry/operations-swarm.test.ts",
+        "tests/foundry/surface.test.ts"
+      ],
+      "fullGroup": true,
+      "allFilesExactlyOnce": true,
+      "steps": [
+        {
+          "command": [
+            "node",
+            "--experimental-strip-types",
+            "--test",
+            "--test-concurrency=1",
+            "tests/foundry/scientific-experiments.test.ts"
+          ],
+          "exitCode": 0,
+          "log": "/tmp/future-code-final-swarm-scientific-isolated.log"
+        },
+        {
+          "command": [
+            "node",
+            "--experimental-strip-types",
+            "--test",
+            "--test-concurrency=2",
+            "tests/foundry/productivity.test.ts",
+            "tests/foundry/swarm.test.ts",
+            "tests/foundry/swarm-http.test.ts",
+            "tests/foundry/multihost.test.ts",
+            "tests/foundry/remote-tool-batching.test.ts",
+            "tests/foundry/provider-recovery.test.ts",
+            "tests/foundry/cohort-coordination.test.ts",
+            "tests/foundry/execution-loop.test.ts",
+            "tests/foundry/dispatch-index.test.ts",
+            "tests/foundry/dependency-closure.test.ts",
+            "tests/foundry/context-envelope.test.ts",
+            "tests/foundry/tool-batching.test.ts",
+            "tests/foundry/source-search.test.ts",
+            "tests/foundry/response-repair.test.ts",
+            "tests/foundry/workflow-policy.test.ts",
+            "tests/foundry/verification-batching.test.ts",
+            "tests/foundry/early-feedback.test.ts",
+            "tests/foundry/verifier-audit.test.ts",
+            "tests/foundry/deliberation.test.ts",
+            "tests/foundry/diagnostic-memory.test.ts",
+            "tests/foundry/progress-memory.test.ts",
+            "tests/foundry/debugging-guardrails.test.ts",
+            "tests/foundry/decision-policy.test.ts",
+            "tests/foundry/evaluation-cadence.test.ts",
+            "tests/foundry/job-preflight.test.ts",
+            "tests/foundry/experiment-pipeline.test.ts",
+            "tests/foundry/generalization.test.ts",
+            "tests/foundry/research-strategy.test.ts",
+            "tests/foundry/experiment-design.test.ts",
+            "tests/foundry/research-frontier.test.ts",
+            "tests/foundry/swarm-research-frontier.test.ts",
+            "tests/foundry/theory.test.ts",
+            "tests/foundry/swarm-theory.test.ts",
+            "tests/foundry/scientific-acceptance.test.ts",
+            "tests/foundry/objective-restart.test.ts",
+            "tests/foundry/objective-liveness.test.ts",
+            "tests/foundry/recovery-planning.test.ts",
+            "tests/foundry/research.test.ts",
+            "tests/foundry/research-programme.test.ts",
+            "tests/foundry/job-evidence.test.ts",
+            "tests/foundry/job-races.test.ts",
+            "tests/foundry/episodic-memory.test.ts",
+            "tests/foundry/project-knowledge.test.ts",
+            "tests/foundry/project-knowledge-selection.test.ts",
+            "tests/foundry/human-knowledge.test.ts",
+            "tests/foundry/project-pack.test.ts",
+            "tests/foundry/operations.test.ts",
+            "tests/foundry/operation-events.test.ts",
+            "tests/foundry/operations-swarm.test.ts",
+            "tests/foundry/surface.test.ts"
+          ],
+          "exitCode": 0,
+          "log": "/tmp/future-code-final-swarm-remainder.log"
+        }
+      ],
+      "exitCode": 0,
+      "seconds": 325.943,
+      "sourceChangedDuringRun": [],
+      "reason": "Both full parallel-run failures were unchanged scientific validator fixtures hitting2s child deadlines. Isolate that complete file, then run every remaining file at concurrency2. Exact full group, no exclusions/assertion/deadline changes.",
+      "initialParallelAttempt": {
+        "suite": "test-swarm",
+        "exitCode": 1,
+        "seconds": 541.968,
+        "log": "/tmp/future-code-final-test-swarm-v4.log",
+        "steps": [
+          {
+            "command": [
+              "node",
+              "--experimental-strip-types",
+              "--test",
+              "--test-concurrency=2",
+              "tests/foundry/productivity.test.ts",
+              "tests/foundry/swarm.test.ts",
+              "tests/foundry/swarm-http.test.ts",
+              "tests/foundry/multihost.test.ts",
+              "tests/foundry/remote-tool-batching.test.ts",
+              "tests/foundry/provider-recovery.test.ts",
+              "tests/foundry/cohort-coordination.test.ts",
+              "tests/foundry/execution-loop.test.ts",
+              "tests/foundry/dispatch-index.test.ts",
+              "tests/foundry/dependency-closure.test.ts",
+              "tests/foundry/context-envelope.test.ts",
+              "tests/foundry/tool-batching.test.ts",
+              "tests/foundry/source-search.test.ts",
+              "tests/foundry/response-repair.test.ts",
+              "tests/foundry/workflow-policy.test.ts",
+              "tests/foundry/verification-batching.test.ts",
+              "tests/foundry/early-feedback.test.ts",
+              "tests/foundry/verifier-audit.test.ts",
+              "tests/foundry/deliberation.test.ts",
+              "tests/foundry/diagnostic-memory.test.ts",
+              "tests/foundry/progress-memory.test.ts",
+              "tests/foundry/debugging-guardrails.test.ts",
+              "tests/foundry/decision-policy.test.ts",
+              "tests/foundry/evaluation-cadence.test.ts",
+              "tests/foundry/job-preflight.test.ts",
+              "tests/foundry/experiment-pipeline.test.ts",
+              "tests/foundry/scientific-experiments.test.ts",
+              "tests/foundry/generalization.test.ts",
+              "tests/foundry/research-strategy.test.ts",
+              "tests/foundry/experiment-design.test.ts",
+              "tests/foundry/research-frontier.test.ts",
+              "tests/foundry/swarm-research-frontier.test.ts",
+              "tests/foundry/theory.test.ts",
+              "tests/foundry/swarm-theory.test.ts",
+              "tests/foundry/scientific-acceptance.test.ts",
+              "tests/foundry/objective-restart.test.ts",
+              "tests/foundry/objective-liveness.test.ts",
+              "tests/foundry/recovery-planning.test.ts",
+              "tests/foundry/research.test.ts",
+              "tests/foundry/research-programme.test.ts",
+              "tests/foundry/job-evidence.test.ts",
+              "tests/foundry/job-races.test.ts",
+              "tests/foundry/episodic-memory.test.ts",
+              "tests/foundry/project-knowledge.test.ts",
+              "tests/foundry/project-knowledge-selection.test.ts",
+              "tests/foundry/human-knowledge.test.ts",
+              "tests/foundry/project-pack.test.ts",
+              "tests/foundry/operations.test.ts",
+              "tests/foundry/operation-events.test.ts",
+              "tests/foundry/operations-swarm.test.ts",
+              "tests/foundry/surface.test.ts"
+            ],
+            "exitCode": 1
+          }
+        ],
+        "testFiles": [
+          "tests/foundry/productivity.test.ts",
+          "tests/foundry/swarm.test.ts",
+          "tests/foundry/swarm-http.test.ts",
+          "tests/foundry/multihost.test.ts",
+          "tests/foundry/remote-tool-batching.test.ts",
+          "tests/foundry/provider-recovery.test.ts",
+          "tests/foundry/cohort-coordination.test.ts",
+          "tests/foundry/execution-loop.test.ts",
+          "tests/foundry/dispatch-index.test.ts",
+          "tests/foundry/dependency-closure.test.ts",
+          "tests/foundry/context-envelope.test.ts",
+          "tests/foundry/tool-batching.test.ts",
+          "tests/foundry/source-search.test.ts",
+          "tests/foundry/response-repair.test.ts",
+          "tests/foundry/workflow-policy.test.ts",
+          "tests/foundry/verification-batching.test.ts",
+          "tests/foundry/early-feedback.test.ts",
+          "tests/foundry/verifier-audit.test.ts",
+          "tests/foundry/deliberation.test.ts",
+          "tests/foundry/diagnostic-memory.test.ts",
+          "tests/foundry/progress-memory.test.ts",
+          "tests/foundry/debugging-guardrails.test.ts",
+          "tests/foundry/decision-policy.test.ts",
+          "tests/foundry/evaluation-cadence.test.ts",
+          "tests/foundry/job-preflight.test.ts",
+          "tests/foundry/experiment-pipeline.test.ts",
+          "tests/foundry/scientific-experiments.test.ts",
+          "tests/foundry/generalization.test.ts",
+          "tests/foundry/research-strategy.test.ts",
+          "tests/foundry/experiment-design.test.ts",
+          "tests/foundry/research-frontier.test.ts",
+          "tests/foundry/swarm-research-frontier.test.ts",
+          "tests/foundry/theory.test.ts",
+          "tests/foundry/swarm-theory.test.ts",
+          "tests/foundry/scientific-acceptance.test.ts",
+          "tests/foundry/objective-restart.test.ts",
+          "tests/foundry/objective-liveness.test.ts",
+          "tests/foundry/recovery-planning.test.ts",
+          "tests/foundry/research.test.ts",
+          "tests/foundry/research-programme.test.ts",
+          "tests/foundry/job-evidence.test.ts",
+          "tests/foundry/job-races.test.ts",
+          "tests/foundry/episodic-memory.test.ts",
+          "tests/foundry/project-knowledge.test.ts",
+          "tests/foundry/project-knowledge-selection.test.ts",
+          "tests/foundry/human-knowledge.test.ts",
+          "tests/foundry/project-pack.test.ts",
+          "tests/foundry/operations.test.ts",
+          "tests/foundry/operation-events.test.ts",
+          "tests/foundry/operations-swarm.test.ts",
+          "tests/foundry/surface.test.ts"
+        ],
+        "fileConcurrency": 2,
+        "sourceChangedDuringRun": [],
+        "counts": {
+          "tests": 557,
+          "pass": 555,
+          "fail": 2,
+          "skipped": 0,
+          "pythonRuns": []
+        }
+      },
+      "counts": {
+        "tests": 557,
+        "pass": 557,
+        "fail": 0,
+        "skipped": 0
+      },
+      "finalMethod": "21 tests alone + all536 remaining tests at file concurrency2; exact complete51-file group"
+    },
+    {
+      "suite": "test-commands",
+      "exitCode": 0,
+      "seconds": 1.633,
+      "log": "/tmp/future-code-final-test-commands-v4.log",
+      "steps": [
+        {
+          "command": [
+            "node",
+            "scripts/test-commands.mjs"
+          ],
+          "exitCode": 0
+        }
+      ],
+      "testFiles": null,
+      "fileConcurrency": "repository default",
+      "sourceChangedDuringRun": [],
+      "counts": {
+        "tests": 225,
+        "pass": 225,
+        "fail": 0,
+        "skipped": 0,
+        "pythonRuns": []
+      }
+    }
+  ],
+  "unchangedTimeoutFixtureProof": {
+    "tests/foundry/scientific-experiments.test.ts": "6f6e6ff4dc1433f61e4398ae3cb661dc369364878a41fd05f8c906e3f7b644f4",
+    "src/harness/foundry/researchValidation.ts": "316e345246cfbb097bf61d59ca67a85e5c701163e2abf2cbea64aedcd29002ae",
+    "tests/foundry/productivity.test.ts": "9fa48ee9c550109ee8b68275cafc0bba6031c6c91d2e9b5f6d0ba947e680f0fd"
+  },
+  "environmentSkips": {
+    "nodePlatformConditional": {
+      "count": 1,
+      "reason": "platforms without safe nonblocking/no-follow reads omit optional feedback (existing platform-conditional case)"
+    },
+    "pythonTmux": {
+      "count": 5,
+      "reason": "requires tmux on POSIX; tmux unavailable"
+    },
+    "includedAsPass": false
+  }
+}

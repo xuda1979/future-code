@@ -1,6 +1,7 @@
 import type { Command } from '../../commands.js'
 import {
   enableAutoGoal,
+  autoGoalReportPath,
   pauseAutoGoal,
   resumeAutoGoal,
   readAutoGoal,
@@ -24,6 +25,7 @@ const goal: Command = {
   source: 'builtin',
   async getPromptForCommand(args: string) {
     const value = args.trim()
+    const reportPath = autoGoalReportPath()
     if (value === '--next') {
       const state = readAutoGoal()
       const ledger = readMilestoneLedger()
@@ -32,13 +34,13 @@ const goal: Command = {
         return [{ type: 'text' as const, text: 'No active goal. Use /goal <description> to set one before /goal --next.' }]
       }
       if (ledger.length === 0) {
-        return [{ type: 'text' as const, text: `No milestone ledger found in .future-code/goal.md. Add a "## Milestones" section with "- [ ] item" checkboxes, then run /goal --next again. The ledger survives compaction and anchors long-horizon work.` }]
+        return [{ type: 'text' as const, text: `No milestone ledger found in ${reportPath}. Add a "## Milestones" section with "- [ ] item" checkboxes, then run /goal --next again. The ledger survives compaction and anchors long-horizon work.` }]
       }
       if (!next) {
-        return [{ type: 'text' as const, text: `All ${ledger.length} milestones are checked. Review the completion evidence; if verified, mark the goal Status: completed in .future-code/goal.md.` }]
+        return [{ type: 'text' as const, text: `All ${ledger.length} milestones are checked. Review the completion evidence; if verified, mark the goal Status: completed in ${reportPath}.` }]
       }
       const openCount = ledger.filter(m => !m.done).length
-      return [{ type: 'text' as const, text: `Milestone frontier: ${ledger.length - openCount}/${ledger.length} complete, ${openCount} open.\n\nNEXT MILESTONE (#${next.index}): ${next.text}\n\nExecute this milestone now under the active goal "${state.goal}". Tick its checkbox (- [x]) in .future-code/goal.md with concrete evidence when done, then continue with the next open milestone or run /goal --next again. ${AUTO_GOAL_BLOCKER_GUIDANCE}` }]
+      return [{ type: 'text' as const, text: `Milestone frontier: ${ledger.length - openCount}/${ledger.length} complete, ${openCount} open.\n\nNEXT MILESTONE (#${next.index}): ${next.text}\n\nExecute this milestone now under the active goal "${state.goal}". Tick its checkbox (- [x]) in ${reportPath} with concrete evidence when done, then continue with the next open milestone or run /goal --next again. ${AUTO_GOAL_BLOCKER_GUIDANCE}` }]
     }
     if (value === '--status') {
       const state = readAutoGoal()
@@ -65,7 +67,7 @@ const goal: Command = {
       return [{
         type: 'text' as const,
         text: state
-          ? `Recorded active steering constraint for goal "${state.goal}": ${note}\n\nPreserve this constraint in .future-code/goal.md and continue verified work.\n\n${DECISION_GUIDANCE}\n\n${AUTO_GOAL_BLOCKER_GUIDANCE}`
+          ? `Recorded active steering constraint for goal "${state.goal}": ${note}\n\nPreserve this constraint in ${reportPath} and continue verified work.\n\n${DECISION_GUIDANCE}\n\n${AUTO_GOAL_BLOCKER_GUIDANCE}`
           : 'No autonomous goal is configured. Set a goal first with /goal <objective>.',
       }]
     }
@@ -107,9 +109,9 @@ const goal: Command = {
       const supersedeNotice = state.previousGoal
         ? `\nOBJECTIVE TRANSITION (Revision ${state.revision ?? 2}): This objective supersedes "${state.previousGoal}". Discard stale plans from the superseded objective and do not drift back to it.\n`
         : ''
-      return [{ type: 'text' as const, text: `Autonomous goal armed (${budget}; horizon: ${resolvedHorizon}). The host continues after completed model turns. Preserve caller budgets and permissions; operator review remains separate from model claims.${supersedeNotice}\n\nGOAL: ${goalText}\n\n${DECISION_GUIDANCE}\n\nThe host has recorded this goal and Status: in_progress in .future-code/goal.md. Preserve its objective heading. For nontrivial work, maintain a milestone ledger: a "## Milestones" section with "- [ ] item" checkboxes (one per verifiable outcome, each independently checkable; for long-horizon work use 3-8 milestones ordered by dependency). Keep simple short tasks direct, without ceremonial ledger edits. Tick "- [x]" with concrete evidence only after verification. Execute the highest-impact next step and preserve durable progress and evidence. After the requested outcomes and independent checks succeed, set Status: completed. ${AUTO_GOAL_BLOCKER_GUIDANCE} Completing the goal does NOT end the session; remain fully available for subsequent instructions.` }]
+      return [{ type: 'text' as const, text: `Autonomous goal armed (${budget}; horizon: ${resolvedHorizon}). The host continues after completed model turns. Preserve caller budgets and permissions; operator review remains separate from model claims.${supersedeNotice}\n\nGOAL: ${goalText}\n\n${DECISION_GUIDANCE}\n\nThe host has recorded this goal and Status: in_progress in ${reportPath}. Preserve its objective heading. For nontrivial work, maintain a milestone ledger: a "## Milestones" section with "- [ ] item" checkboxes (one per verifiable outcome, each independently checkable; for long-horizon work use 3-8 milestones ordered by dependency). Keep simple short tasks direct, without ceremonial ledger edits. Tick "- [x]" with concrete evidence only after verification. Execute the highest-impact next step and preserve durable progress and evidence. After the requested outcomes and independent checks succeed, set Status: completed. ${AUTO_GOAL_BLOCKER_GUIDANCE} Completing the goal does NOT end the session; remain fully available for subsequent instructions.` }]
     }
-    return [{ type: 'text' as const, text: `Read the current goal from .future-code/goal.md if it exists. If it exists, summarize the current goal and the progress made so far. If it does not exist, tell the user that no goal has been set yet and suggest they use /goal <description> to set one.` }]
+    return [{ type: 'text' as const, text: `Read the current goal from ${reportPath} if it exists. If it exists, summarize the current goal and the progress made so far. If it does not exist, tell the user that no goal has been set yet and suggest they use /goal <description> to set one.` }]
   },
 }
 

@@ -145,7 +145,8 @@ test("loop command parses prompt without stop condition", async () => {
   const prompt = await promptText(loop, "improve code quality");
   assert.ok(prompt.includes("improve code quality"));
   assert.ok(prompt.includes("No explicit stop condition"));
-  assert.ok(prompt.includes("5 iterations"));
+  assert.ok(prompt.includes("CONTINUOUS LOOP"));
+  assert.ok(!prompt.includes("5 iterations"), "standing work cannot require a fifth-iteration confirmation");
 });
 
 test("loop command handles empty args with help message", async () => {

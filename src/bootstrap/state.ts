@@ -22,6 +22,9 @@ import type { SettingSource } from 'src/utils/settings/constants.js'
 import { resetSettingsCache } from 'src/utils/settings/settingsCache.js'
 import type { PluginHookMatcher } from 'src/utils/settings/types.js'
 import { createSignal } from 'src/utils/signal.js'
+// Pure leaf: only supplies the already-owned session identity to goal storage.
+// eslint-disable-next-line custom-rules/bootstrap-isolation
+import { configureAutoGoalSession } from 'src/utils/autoGoalSessionId.js'
 
 // Union type for registered hooks - can be SDK callbacks or native plugin hooks
 type RegisteredHookMatcher = HookCallbackMatcher | PluginHookMatcher
@@ -427,6 +430,7 @@ function getInitialState(): State {
 
 // AND ESPECIALLY HERE
 const STATE: State = getInitialState()
+configureAutoGoalSession(() => STATE.sessionId)
 
 export function getSessionId(): SessionId {
   return STATE.sessionId

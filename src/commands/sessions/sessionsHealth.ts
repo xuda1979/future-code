@@ -41,10 +41,12 @@ export interface ProjectHealth {
   /** Most recently modified transcript, or null when the project has none. */
   latestSession: SessionFileInfo | null
   totalBytes: number
-  /** Active goal text from `<project>/.future-code/goal-autonomy.json`, if present. */
+  /** Latest session's goal; cwd-global legacy fallback for older-only stores. */
   activeGoal: string | null
   /** Goal state (ACTIVE/REVIEW/…) from the same file, if present. */
   goalState: string | null
+  /** Legacy data is unowned; it is diagnostic context, not session authority. */
+  goalScope: 'session' | 'legacy-unowned' | null
   /** Goal continuation counters, when the state file provides them. */
   goalContinuations: { continuations: number; totalContinuations: number } | null
   /** goal-autonomy.json revision, when present. */
@@ -161,19 +163,29 @@ interface GoalAutonomyLite {
   totalContinuations?: unknown
 }
 
-function readGoalState(projectPath: string): {
+function readGoalState(projectPath: string, sessionId?: string): {
   activeGoal: string | null
   goalState: string | null
+  goalScope: ProjectHealth['goalScope']
   goalContinuations: ProjectHealth['goalContinuations']
   goalRevision: number | null
 } {
   const result = {
     activeGoal: null as string | null,
     goalState: null as string | null,
+    goalScope: null as ProjectHealth['goalScope'],
     goalContinuations: null as ProjectHealth['goalContinuations'],
     goalRevision: null as number | null,
   }
-  const file = join(projectPath, '.future-code', 'goal-autonomy.json')
+  const base = join(projectPath, '.future-code')
+  let sessionScoped = false
+  try { sessionScoped = statSync(join(base, 'goals')).isDirectory() } catch { /* older-only store */ }
+  // Once session namespaces exist, never present another session's legacy
+  // root (or its REVIEW/pause) as this session's active objective.
+  const file = sessionScoped && sessionId && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(sessionId)
+    ? join(base, 'goals', sessionId, 'goal-autonomy.json')
+    : sessionScoped ? null : join(base, 'goal-autonomy.json')
+  if (!file) return result
   let stat: { size: number }
   try {
     stat = statSync(file)
@@ -196,6 +208,7 @@ function readGoalState(projectPath: string): {
   }
   if (typeof parsed.goal === 'string' && parsed.goal.length > 0 && parsed.goal.length <= 4096) {
     result.activeGoal = parsed.goal
+    result.goalScope = sessionScoped ? 'session' : 'legacy-unowned'
   }
   if (typeof parsed.state === 'string' && parsed.state.length <= 64) {
     result.goalState = parsed.state
@@ -263,7 +276,7 @@ export function scanProjectHealth(options: ScanOptions = {}): ProjectHealthRepor
       }
     }
 
-    const goal = readGoalState(projectPath)
+    const goal = readGoalState(projectPath, latestSession?.sessionId)
     const totalBytes = sessions.reduce((acc, s) => acc + s.bytes, 0)
     const project: ProjectHealth = {
       dirName: entry.name,
@@ -323,7 +336,7 @@ export function formatProjectHealthReport(reports: ProjectHealthReport[]): strin
     const sizeMb = (project.totalBytes / 1024 / 1024).toFixed(1)
     const goal =
       project.activeGoal !== null
-        ? ` | goal: ${truncate(project.activeGoal, 40)}${project.goalState ? ` (${project.goalState})` : ''}`
+        ? ` | ${project.goalScope === 'legacy-unowned' ? 'legacy goal (session unknown)' : 'goal'}: ${truncate(project.activeGoal, 40)}${project.goalState ? ` (${project.goalState})` : ''}`
         : ''
     const pathNote = project.projectPathExact ? '' : ' (approx)'
     lines.push(

@@ -4,7 +4,7 @@ import {
   getAllowedChannels,
   handlePlanModeTransition,
 } from '../../bootstrap/state.js'
-import type { Tool } from '../../Tool.js'
+import type { Tool, ToolUseContext } from '../../Tool.js'
 import { buildTool, type ToolDef } from '../../Tool.js'
 import { lazySchema } from '../../utils/lazySchema.js'
 import { applyPermissionUpdate } from '../../utils/permissions/PermissionUpdate.js'
@@ -12,6 +12,9 @@ import { prepareContextForPlanMode } from '../../utils/permissions/permissionSet
 import { isPlanModeInterviewPhaseEnabled } from '../../utils/planModeV2.js'
 import { ENTER_PLAN_MODE_TOOL_NAME } from './constants.js'
 import { getEnterPlanModeToolPrompt } from './prompt.js'
+import { readAutoGoal } from '../../commands/goal/auto.ts'
+import { validateQuestionAutonomy } from '../AskUserQuestionTool/autonomyValidation.ts'
+import { isAutoGoalBackgroundTurn } from '../../utils/autoGoalSession.ts'
 import {
   renderToolResultMessage,
   renderToolUseMessage,
@@ -32,6 +35,14 @@ const outputSchema = lazySchema(() =>
 )
 type OutputSchema = ReturnType<typeof outputSchema>
 export type Output = z.infer<OutputSchema>
+
+function planAutonomyValidation(context: ToolUseContext) {
+  const permissionMode = context.getAppState().toolPermissionContext.mode
+  const worker = Boolean(context.agentId) || isAutoGoalBackgroundTurn()
+  const goal = worker || permissionMode === 'plan' ? null : readAutoGoal()
+  return validateQuestionAutonomy({ goalState: goal?.state ?? null, permissionMode, worker,
+    userQuestions: goal?.userQuestions })
+}
 
 export const EnterPlanModeTool: Tool<InputSchema, Output> = buildTool({
   name: ENTER_PLAN_MODE_TOOL_NAME,
@@ -74,10 +85,17 @@ export const EnterPlanModeTool: Tool<InputSchema, Output> = buildTool({
   renderToolUseMessage,
   renderToolResultMessage,
   renderToolUseRejectedMessage,
+  async validateInput(_input, context) {
+    // Validate before the permission/UI boundary. Planning is useful work;
+    // an autonomous goal does not need a new approval phase to do it.
+    return planAutonomyValidation(context)
+  },
   async call(_input, context) {
     if (context.agentId) {
       throw new Error('EnterPlanMode tool cannot be used in agent contexts')
     }
+    const autonomy = planAutonomyValidation(context)
+    if (!autonomy.result) throw new Error(autonomy.message)
 
     const appState = context.getAppState()
     handlePlanModeTransition(appState.toolPermissionContext.mode, 'plan')
