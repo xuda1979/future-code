@@ -5,6 +5,7 @@ import {
   setCachedFutureMdContent,
 } from './bootstrap/state.js'
 import { getLocalISODate } from './constants/common.js'
+import { getMemoryContextLine } from './utils/systemResources.js'
 import {
   filterInjectedMemoryFiles,
   getFutureMds,
@@ -181,9 +182,15 @@ export const getUserContext = memoize(
       futuremd_disabled: Boolean(shouldDisableFutureMd),
     })
 
+    // Memory-awareness: surface the host memory budget (RAM, GPU/NPU/HBM)
+    // as conversation context so workloads are sized up front instead of
+    // discovering the ceiling by OOM-crashing into it.
+    const memoryContext = getMemoryContextLine()
+
     return {
       ...(futureMd && { futureMd }),
       currentDate: `Today's date is ${getLocalISODate()}.`,
+      ...(memoryContext && { memoryContext }),
     }
   },
 )

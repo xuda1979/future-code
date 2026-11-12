@@ -15,6 +15,7 @@ import { backgroundExistingForegroundTask, markTaskNotified, registerForeground,
 import type { AgentId } from '../../types/ids.js';
 import type { AssistantMessage } from '../../types/message.js';
 import { parseForSecurity } from '../../utils/bash/ast.js';
+import { getOomHintForOutput } from '../../utils/systemResources.js';
 import { splitCommand_DEPRECATED, splitCommandWithOperators } from '../../utils/bash/commands.js';
 import { extractFutureCodeHints } from '../../utils/futureCodeHints.js';
 import { detectCodeIndexingFromCommand } from '../../utils/codeIndexing.js';
@@ -697,6 +698,15 @@ export const BashTool = buildTool({
         // Only add exit code if it's actually an error
         if (result.code !== 0) {
           stdoutAccumulator.append(`Exit code ${result.code}`);
+          // Memory-awareness: failed command — detect OOM signatures in the
+          // output and append budget-sized recovery guidance so the model can
+          // retry with a smaller footprint instead of repeating the crash.
+          // Gated inside the non-zero-exit branch: a successful command that
+          // merely prints OOM text (e.g. grep hits on a log) is not a crash.
+          const oomHint = getOomHintForOutput(result.stdout || '', result.stderr || '', result.code);
+          if (oomHint) {
+            stdoutAccumulator.append(oomHint);
+          }
         }
       }
       if (!preventCwdChanges) {
