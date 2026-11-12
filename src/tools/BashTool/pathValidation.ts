@@ -11,6 +11,7 @@ import { tryParseShellCommand } from '../../utils/bash/shellQuote.js'
 import { getDirectoryForPath } from '../../utils/path.js'
 import { allWorkingDirectories } from '../../utils/permissions/filesystem.js'
 import type { PermissionResult } from '../../utils/permissions/PermissionResult.js'
+import { preferExplicitAsk } from '../../utils/permissions/PermissionResult.js'
 import { createReadRuleSuggestion } from '../../utils/permissions/PermissionUpdate.js'
 import type { PermissionUpdate } from '../../utils/permissions/PermissionUpdateSchema.js'
 import {
@@ -654,6 +655,7 @@ function validateCommandPaths(
     }
   }
 
+  let firstAsk: PermissionResult | undefined
   for (const path of paths) {
     const { allowed, resolvedPath, decisionReason } = validatePath(
       path,
@@ -676,7 +678,7 @@ function validateCommandPaths(
           ? decisionReason.reason
           : `${command} in '${resolvedPath}' was blocked. For security, Future Code may only ${ACTION_VERBS[command]} the allowed working directories for this session: ${dirListStr}.`
 
-      if (decisionReason?.type === 'rule') {
+      if (decisionReason?.type === 'rule' && decisionReason.rule.ruleBehavior === 'deny') {
         return {
           behavior: 'deny',
           message,
@@ -684,17 +686,17 @@ function validateCommandPaths(
         }
       }
 
-      return {
+      firstAsk = preferExplicitAsk(firstAsk, {
         behavior: 'ask',
         message,
         blockedPath: resolvedPath,
         decisionReason,
-      }
+      })
     }
   }
 
-  // All paths are valid - return passthrough
-  return {
+  // No deny matched; preserve the strongest ask before returning passthrough.
+  return firstAsk ?? {
     behavior: 'passthrough',
     message: `Path validation passed for ${command} command`,
   }
@@ -943,6 +945,7 @@ function validateOutputRedirections(
       },
     }
   }
+  let firstAsk: PermissionResult | undefined
   for (const { target } of redirections) {
     // /dev/null is always safe - it discards output
     if (target === '/dev/null') {
@@ -968,11 +971,11 @@ function validateOutputRedirections(
         decisionReason?.type === 'safetyCheck'
           ? decisionReason.reason
           : decisionReason?.type === 'rule'
-            ? `Output redirection to '${resolvedPath}' was blocked by a deny rule.`
+            ? `Output redirection to '${resolvedPath}' requires the configured ${decisionReason.rule.ruleBehavior} rule.`
             : `Output redirection to '${resolvedPath}' was blocked. For security, Future Code may only write to files in the allowed working directories for this session: ${dirListStr}.`
 
       // If denied by a deny rule, return 'deny' behavior
-      if (decisionReason?.type === 'rule') {
+      if (decisionReason?.type === 'rule' && decisionReason.rule.ruleBehavior === 'deny') {
         return {
           behavior: 'deny',
           message,
@@ -980,7 +983,7 @@ function validateOutputRedirections(
         }
       }
 
-      return {
+      firstAsk = preferExplicitAsk(firstAsk, {
         behavior: 'ask',
         message,
         blockedPath: resolvedPath,
@@ -992,11 +995,11 @@ function validateOutputRedirections(
             destination: 'session',
           },
         ],
-      }
+      })
     }
   }
 
-  return {
+  return firstAsk ?? {
     behavior: 'passthrough',
     message: 'No unsafe redirections found',
   }
@@ -1065,9 +1068,8 @@ export function checkPathConstraints(
     toolPermissionContext,
     compoundCommandHasCd,
   )
-  if (redirectionResult.behavior !== 'passthrough') {
-    return redirectionResult
-  }
+  if (redirectionResult.behavior === 'deny') return redirectionResult
+  let firstAsk = preferExplicitAsk(undefined, redirectionResult)
 
   // SECURITY: When AST-derived commands are available, iterate them with
   // pre-parsed argv instead of re-parsing via splitCommand_DEPRECATED + shell-quote.
@@ -1082,9 +1084,8 @@ export function checkPathConstraints(
         toolPermissionContext,
         compoundCommandHasCd,
       )
-      if (result.behavior === 'ask' || result.behavior === 'deny') {
-        return result
-      }
+      if (result.behavior === 'deny') return result
+      firstAsk = preferExplicitAsk(firstAsk, result)
     }
   } else {
     const commands = splitCommand_DEPRECATED(input.command)
@@ -1095,14 +1096,13 @@ export function checkPathConstraints(
         toolPermissionContext,
         compoundCommandHasCd,
       )
-      if (result.behavior === 'ask' || result.behavior === 'deny') {
-        return result
-      }
+      if (result.behavior === 'deny') return result
+      firstAsk = preferExplicitAsk(firstAsk, result)
     }
   }
 
   // Always return passthrough to let other permission checks handle the command
-  return {
+  return firstAsk ?? {
     behavior: 'passthrough',
     message: 'All path commands validated successfully',
   }

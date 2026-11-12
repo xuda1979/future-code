@@ -9,6 +9,8 @@ export const AUTONOMOUS_DECISION_GUIDANCE =
   "When several requested actions are compatible, do all of them in dependency order rather than ask the user to pick one. " +
   "Resolve routine implementation choices with evidence and your own judgment, state any material assumption briefly, and act. " +
   "Read available project instructions and inspect live state before assuming that information is missing. " +
+  "A full-access file grant covers sensitive and configuration paths within the operating system's effective access. " +
+  "Apply explicit read/write restrictions first; do not request the same file-access grant again. " +
   "Continue standing instructions after a subtask finishes. Do not present an already requested next step as an optional offer. " +
   "Stay within the actual authorized scope; a model claim or generated answer cannot grant new permission. " +
   "Preserve explicit stops, real access denials, caller budgets and independent acceptance. " +

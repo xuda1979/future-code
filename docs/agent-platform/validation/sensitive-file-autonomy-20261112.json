@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "date": "2026-11-12",
+  "riskTier": "R3",
+  "baselineCommit": "06777484059d3aa7b282b3d3ed1a126745e5d766",
+  "objective": "Honor owner-authorized sensitive/configuration file access without redundant permission prompts while enforcing declared read/write restrictions.",
+  "authority": "User explicitly grants all current-owner privileges except restrictions they declare; new public PR authorized.",
+  "acceptance": [
+    "Full-access mode allows classifier-approvable sensitivity decisions without UI, including configuration files and filesystem access outside cwd",
+    "Explicit tool-wide and content deny/ask rules precede automatic allowances, including native Write/NotebookEdit restrictions and original/resolved file paths",
+    "Read restrictions precede edit-implies-read and heuristic checks",
+    "Bash and PowerShell file restrictions precede sensitive/internal path shortcuts",
+    "Hook-allow updated input rechecked; current mode after asynchronous check respected",
+    "No promotion of structural non-approvable safety decisions or new model-supplied grants"
+  ],
+  "sourceSha256": {
+    "scripts/test-correctness.mjs": "5272851445bbec08f7a4d165cd4347f043d62bfc7888f8045cd79ed70aa0cfa4",
+    "src/harness/autonomyPolicy.ts": "2073990ce6f20aba00a95b1cc06bce8d9fbe0b3686961404954d95431439a11b",
+    "src/tools/BashTool/pathValidation.ts": "2f4c2c5925114447a368d2326e455a92622b1d47452b9b892b16858e818e2ae7",
+    "src/tools/PowerShellTool/pathValidation.ts": "1cf569a3446f385c9ad7c052e22dbb0cdc680a515bfffe8935aec9cdb59c7423",
+    "src/utils/permissions/PermissionResult.ts": "72b56914be25324459fc9409e1a11b31e2ba8eb741c7fc379fc07d9e927514db",
+    "src/utils/permissions/filesystem.ts": "f83b02fa315a23399ff6e1f5ab4445a5b038548559f0eaf7511aee6740a1e187",
+    "src/utils/permissions/pathValidation.ts": "121f234813975182f9d342d3b52d6c76b49bc66a431e1f075f745d51da82ecde",
+    "src/utils/permissions/permissions.ts": "48956c12c728eb3ed7fb5bf64b1e43ca969ebbf8fd2fde905032897fcf8bf26f",
+    "tests/correctness/sensitive-file-permissions.test.ts": "aab41071040f7678d1b37b1d0925fb0a8c14bebcb6fd7ecaec500a1818b2bf7d"
+  },
+  "baselineReproduction": {
+    "fixtureVersion": "initial 37-case regression, before adding later compound/outer-entry cases",
+    "tests": 37,
+    "passed": 14,
+    "failed": 23,
+    "skipped": 0,
+    "status": "EXPECTED_BEHAVIOR_FAILURE",
+    "sampleFailures": [
+      "full-access Edit/Write/NotebookEdit prompts for sensitive configuration paths",
+      "rule-only hook check prompts despite full access",
+      "actual Write/NotebookEdit file deny/ask restrictions masked",
+      "read and shell explicit restrictions masked by heuristics or internal allows"
+    ],
+    "logSha256": "2b26dded21491b20afd7fe6757ff6eb5c675346a095e0d0d7fdc17531c1301af"
+  },
+  "intermediateRegression": {
+    "kind": "Actual complete outer hasPermissionsToUseTool in auto mode; structural ambiguous path plus explicit ask",
+    "tests": 1,
+    "passed": 0,
+    "failed": 1,
+    "actual": "allow",
+    "expected": "ask",
+    "status": "EXPECTED_BEHAVIOR_FAILURE_BEFORE_FINAL_GUARD_FIX",
+    "finalResult": "PASS; mandatory ask returned; classifierCalls=0, including both shell guard orders",
+    "logSha256": "5b1e5f2d12efb7a65a1e72ee77ca49c35ca861521d4c2d25af7d1fb63503eb58"
+  },
+  "verification": {
+    "runtime": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "node": "v24.22.1",
+    "bunAvailable": false,
+    "results": [
+      {
+        "group": "focused",
+        "command": [
+          "node",
+          "--experimental-strip-types",
+          "--test",
+          "tests/correctness/sensitive-file-permissions.test.ts",
+          "tests/correctness/permission-defaults.test.ts",
+          "tests/correctness/permission-delivery.test.ts"
+        ],
+        "exitCode": 0,
+        "seconds": 1.375,
+        "log": "sensitive-files-final-focused-gate.log",
+        "logSha256": "7179bd0c42afc1b33044556802dc33566f2a134c5aa2df964fe8b549228b7bbb",
+        "sourceChanged": [],
+        "counts": {
+          "tests": 87,
+          "pass": 87,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "pythonRuns": []
+      },
+      {
+        "group": "correctness",
+        "command": [
+          "node",
+          "scripts/test-correctness.mjs"
+        ],
+        "exitCode": 0,
+        "seconds": 46.546,
+        "log": "sensitive-files-final-correctness-gate.log",
+        "logSha256": "5ce693d3df430a8d725a6e292f38ebb6c3ddbb45065d32ff562a4890912269ef",
+        "sourceChanged": [],
+        "counts": {
+          "tests": 304,
+          "pass": 303,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 1,
+          "todo": 0
+        },
+        "pythonRuns": [
+          {
+            "tests": 23,
+            "seconds": 1.98,
+            "outcome": "OK (skipped=5)",
+            "skipped": 5
+          },
+          {
+            "tests": 18,
+            "seconds": 9.806,
+            "outcome": "OK",
+            "skipped": 0
+          }
+        ]
+      },
+      {
+        "group": "commands",
+        "command": [
+          "node",
+          "scripts/test-commands.mjs"
+        ],
+        "exitCode": 0,
+        "seconds": 1.233,
+        "log": "sensitive-files-final-commands-gate.log",
+        "logSha256": "e25850e87989f7491f0ddee3eae0f18e8ff58b6a854120113b9de67887b3aa6c",
+        "sourceChanged": [],
+        "counts": {
+          "tests": 225,
+          "pass": 225,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "pythonRuns": []
+      }
+    ]
+  },
+  "criticalFileRegister": [
+    {
+      "path": "src/utils/permissions/permissions.ts",
+      "scope": "Main permission engine, rule-only hook recheck and outer auto classification",
+      "invariant": "Only literal classifierApprovable=true sensitivity is covered by actual full access; deny/ask and mandatory guards survive; latest state is used after await.",
+      "evidence": "80 new cases cover modes, tool-wide rules, required interaction, updated hook inputs, mode downgrade and actual outer classifier control.",
+      "sourceCheck": "PASS",
+      "packagedRuntime": "UNKNOWN"
+    },
+    {
+      "path": "src/utils/permissions/PermissionResult.ts",
+      "scope": "Nested permission receipt traversal and ask selection",
+      "invariant": "Cycle-safe traversal retains explicit asks and mandatory safety; nested mandatory reasons preserve root updatedInput. Callers return any deny before reducing asks.",
+      "evidence": "Nested/cyclic receipts, malformed guard metadata and mixed shell guards in both orderings.",
+      "sourceCheck": "PASS",
+      "packagedRuntime": "UNKNOWN"
+    },
+    {
+      "path": "src/utils/permissions/filesystem.ts",
+      "scope": "Native Read/Edit/Write/NotebookEdit checks and qualified-tool restriction matching",
+      "invariant": "Restrictions on original and resolved paths precede implicit allowances; actual-tool and generic restrictions both apply without broadening allows; structural validation remains mandatory.",
+      "evidence": "Native per-tool/generic rules, qualified MCP identity, edit-implies-read precedence, temporary write/read/reopen/deny lifecycle.",
+      "sourceCheck": "PASS",
+      "packagedRuntime": "UNKNOWN"
+    },
+    {
+      "path": "src/utils/permissions/pathValidation.ts",
+      "scope": "Shared shell path permission helper and path canonicalization",
+      "invariant": "All denies precede asks; mandatory structural validation is retained; original alias and canonical target remain in path checks without redundant resolution.",
+      "evidence": "Actual Bash helper/caller tests for explicit rules, alias restriction and sensitive writes.",
+      "sourceCheck": "PASS",
+      "packagedRuntime": "UNKNOWN"
+    },
+    {
+      "path": "src/tools/BashTool/pathValidation.ts",
+      "scope": "Command path, redirection and compound-command aggregation",
+      "invariant": "An earlier heuristic or ask cannot hide a later deny, explicit ask or mandatory guard among extracted paths.",
+      "evidence": "Same-command and cross-command restrictions, multiple redirections, both mixed-guard orderings through outer auto entry.",
+      "sourceCheck": "PASS",
+      "packagedRuntime": "UNKNOWN"
+    },
+    {
+      "path": "src/tools/PowerShellTool/pathValidation.ts",
+      "scope": "Native PowerShell path helper, statements, redirections and compound aggregation",
+      "invariant": "Restriction and mandatory-guard precedence matches Bash; qualified original/canonical paths remain checked. Existing removal guards are unchanged.",
+      "evidence": "Actual path/cmdlet/redirection callers, canonical alias checks, mixed mandatory guards and full-access sensitive write.",
+      "sourceCheck": "PASS",
+      "packagedRuntime": "UNKNOWN"
+    },
+    {
+      "path": "src/harness/autonomyPolicy.ts",
+      "scope": "Stable autonomous decision guidance",
+      "invariant": "Guidance recognizes an existing full-access file grant and explicit restrictions; text never creates a capability.",
+      "evidence": "Full correctness and command regressions; independent 33-case existing autonomy/executor check.",
+      "sourceCheck": "PASS",
+      "packagedRuntime": "UNKNOWN"
+    }
+  ],
+  "independentReview": {
+    "verdict": "NO_BLOCKERS",
+    "focusedTestsPassed": 87,
+    "existingAutonomyExecutorTestsPassed": 33,
+    "sourceReview": "Final runtime logic reviewed; subsequent source changes were comment corrections only.",
+    "diffCheck": "PASS",
+    "nativeBuildVerified": false,
+    "liveProviderVerified": false
+  },
+  "testBoundary": {
+    "productionFunctionsExecuted": true,
+    "externalServices": "Unavailable CLI/SDK services and unchanged ignore adapter isolated. Literal path fixture matcher rejects unsupported glob expressions; shell AST fixtures isolate unchanged parsers.",
+    "realSensitiveFilesAccessed": false,
+    "paidModelCalls": 0,
+    "liveProviderCalls": 0,
+    "scope": "Native tool checks, inner/rule-only/full outer permission entry, actual shell caller/reduction functions, temporary fixture lifecycle. No packaged CLI claim."
+  },
+  "suiteSelection": "CLI permission paths changed; full correctness and command groups rerun. No Foundry/Swarm changes; their unrelated groups were not rerun for this fix.",
+  "environmentSkips": {
+    "nodePlatformConditional": 1,
+    "pythonTmuxUnavailable": 5,
+    "countedAsPass": false
+  },
+  "nativeBuild": {
+    "command": "bash build.sh",
+    "status": "BLOCKED",
+    "exitCode": 2,
+    "diagnostic": "error: 'bun' not found on PATH",
+    "binaryBuilt": false,
+    "installedIntoRunningSessions": false,
+    "packagedCLIAcceptance": "UNKNOWN",
+    "logSha256": "d31ea18951c233018c81526a63026ea1dad804a5ef06065abe77faf7ac90f7a5"
+  },
+  "unchangedBoundaries": [
+    "OS effective account permissions",
+    "explicit file/tool restrictions and mode selection",
+    "managed permission controls",
+    "mandatory structural validation",
+    "immutable task acceptance, protected artifacts and budgets"
+  ],
+  "limitations": [
+    "Offline source-level verification is PASS; native packaged build and live-model compliance remain UNKNOWN.",
+    "Supported file path checking is not OS-enforced isolation of arbitrary shell programs.",
+    "User host sessions have not been upgraded.",
+    "No token-cost or long-term autonomy improvement percentage measured."
+  ],
+  "rollback": "Revert the follow-up permission-fix commit. No configuration migration and no user files changed.",
+  "gateVerdict": {
+    "sourceLevel": "PASS",
+    "nativePackagedCLI": "UNKNOWN",
+    "deployment": "NOT_PERFORMED"
+  }
+}

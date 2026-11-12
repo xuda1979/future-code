@@ -13,6 +13,7 @@ import {
 } from 'src/tools/FileEditTool/constants.js'
 import type { z } from 'zod/v4'
 import { getOriginalCwd, getSessionId } from '../../bootstrap/state.js'
+import { getToolNameForPermissionCheck } from '../../services/mcp/mcpStringUtils.js'
 import { checkStatsigFeatureGate_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
 import type { AnyObject, Tool, ToolPermissionContext } from '../../Tool.js'
 import { FILE_READ_TOOL_NAME } from '../../tools/FileReadTool/prompt.js'
@@ -920,8 +921,9 @@ function getPatternsByRoot(
   toolPermissionContext: ToolPermissionContext,
   toolType: 'edit' | 'read',
   behavior: 'allow' | 'deny' | 'ask',
+  toolNameOverride?: string,
 ): Map<string | null, Map<string, PermissionRule>> {
-  const toolName = (() => {
+  const toolName = toolNameOverride ?? (() => {
     switch (toolType) {
       case 'edit':
         // Apply Edit tool rules to any tool editing files
@@ -957,6 +959,7 @@ export function matchingRuleForInput(
   toolPermissionContext: ToolPermissionContext,
   toolType: 'edit' | 'read',
   behavior: 'allow' | 'deny' | 'ask',
+  toolNameOverride?: string,
 ): PermissionRule | null {
   let fileAbsolutePath = expandPath(path)
 
@@ -969,6 +972,7 @@ export function matchingRuleForInput(
     toolPermissionContext,
     toolType,
     behavior,
+    toolNameOverride,
   )
 
   // Check each root for a matching pattern
@@ -1024,6 +1028,22 @@ export function matchingRuleForInput(
   return null
 }
 
+/** Keep generic Read/Edit restrictions and the actual native/qualified tool
+ * restrictions. This helper never broadens allow-rule matching. */
+function matchingRestrictionForFileTool(
+  path: string,
+  tool: Pick<Tool, 'name' | 'mcpInfo'>,
+  context: ToolPermissionContext,
+  toolType: 'read' | 'edit',
+  behavior: 'deny' | 'ask',
+): PermissionRule | null {
+  const generic = matchingRuleForInput(path, context, toolType, behavior)
+  if (generic) return generic
+  const name = getToolNameForPermissionCheck(tool)
+  const genericName = toolType === 'read' ? FILE_READ_TOOL_NAME : FILE_EDIT_TOOL_NAME
+  return name === genericName ? null : matchingRuleForInput(path, context, toolType, behavior, name)
+}
+
 /**
  * Permission result for read permission for the specified tool & tool input
  */
@@ -1047,43 +1067,13 @@ export function checkReadPermissionForTool(
   // 6× = 30 syscalls per Read permission check).
   const pathsToCheck = getPathsForPermissionCheck(path)
 
-  // 1. Defense-in-depth: Block UNC paths early (before other checks)
-  // This catches paths starting with \\ or // that could access network resources
-  // This may catch some UNC patterns not detected by containsVulnerableUncPath
-  for (const pathToCheck of pathsToCheck) {
-    if (pathToCheck.startsWith('\\\\') || pathToCheck.startsWith('//')) {
-      return {
-        behavior: 'ask',
-        message: `Future requested permissions to read from ${path}, which appears to be a UNC path that could access network resources.`,
-        decisionReason: {
-          type: 'other',
-          reason: 'UNC path detected (defense-in-depth check)',
-        },
-      }
-    }
-  }
-
-  // 2. Check for suspicious Windows path patterns (defense in depth)
-  for (const pathToCheck of pathsToCheck) {
-    if (hasSuspiciousWindowsPathPattern(pathToCheck)) {
-      return {
-        behavior: 'ask',
-        message: `Future requested permissions to read from ${path}, which contains a suspicious Windows path pattern that requires manual approval.`,
-        decisionReason: {
-          type: 'other',
-          reason:
-            'Path contains suspicious Windows-specific patterns (alternate data streams, short names, long path prefixes, or three or more consecutive dots) that require manual verification',
-        },
-      }
-    }
-  }
-
-  // 3. Check for READ-SPECIFIC deny rules first - check both the original path and resolved symlink path
+  // 1. Check for READ-SPECIFIC deny rules first - check both the original path and resolved symlink path
   // SECURITY: This must come before any allow checks (including "edit access implies read access")
   // to prevent bypassing explicit read deny rules
   for (const pathToCheck of pathsToCheck) {
-    const denyRule = matchingRuleForInput(
+    const denyRule = matchingRestrictionForFileTool(
       pathToCheck,
+      tool,
       toolPermissionContext,
       'read',
       'deny',
@@ -1100,11 +1090,12 @@ export function checkReadPermissionForTool(
     }
   }
 
-  // 4. Check for READ-SPECIFIC ask rules - check both the original path and resolved symlink path
+  // 2. Check for READ-SPECIFIC ask rules - check both the original path and resolved symlink path
   // SECURITY: This must come before implicit allow checks to ensure explicit ask rules are honored
   for (const pathToCheck of pathsToCheck) {
-    const askRule = matchingRuleForInput(
+    const askRule = matchingRestrictionForFileTool(
       pathToCheck,
+      tool,
       toolPermissionContext,
       'read',
       'ask',
@@ -1116,6 +1107,37 @@ export function checkReadPermissionForTool(
         decisionReason: {
           type: 'rule',
           rule: askRule,
+        },
+      }
+    }
+  }
+
+  // 3. UNC heuristics run only after explicit read restrictions.
+  // This catches paths starting with \\ or // that could access network resources
+  // This may catch some UNC patterns not detected by containsVulnerableUncPath
+  for (const pathToCheck of pathsToCheck) {
+    if (pathToCheck.startsWith('\\\\') || pathToCheck.startsWith('//')) {
+      return {
+        behavior: 'ask',
+        message: `Future requested permissions to read from ${path}, which appears to be a UNC path that could access network resources.`,
+        decisionReason: {
+          type: 'other',
+          reason: 'UNC path detected (defense-in-depth check)',
+        },
+      }
+    }
+  }
+
+  // 4. Check for suspicious Windows path patterns (defense in depth)
+  for (const pathToCheck of pathsToCheck) {
+    if (hasSuspiciousWindowsPathPattern(pathToCheck)) {
+      return {
+        behavior: 'ask',
+        message: `Future requested permissions to read from ${path}, which contains a suspicious Windows path pattern that requires manual approval.`,
+        decisionReason: {
+          type: 'other',
+          reason:
+            'Path contains suspicious Windows-specific patterns (alternate data streams, short names, long path prefixes, or three or more consecutive dots) that require manual verification',
         },
       }
     }
@@ -1220,8 +1242,9 @@ export function checkWritePermissionForTool<Input extends AnyObject>(
   const pathsToCheck =
     precomputedPathsToCheck ?? getPathsForPermissionCheck(path)
   for (const pathToCheck of pathsToCheck) {
-    const denyRule = matchingRuleForInput(
+    const denyRule = matchingRestrictionForFileTool(
       pathToCheck,
+      tool,
       toolPermissionContext,
       'edit',
       'deny',
@@ -1233,6 +1256,38 @@ export function checkWritePermissionForTool<Input extends AnyObject>(
         decisionReason: {
           type: 'rule',
           rule: denyRule,
+        },
+      }
+    }
+  }
+
+  // Ambiguous path syntax is a validation boundary, not a sensitivity label.
+  // Keep that receipt visible even when an explicit ask also matches.
+  const safetyCheck = checkPathSafetyForAutoEdit(path, pathsToCheck)
+  if (!safetyCheck.safe && safetyCheck.classifierApprovable !== true) {
+    return {
+      behavior: 'ask',
+      message: safetyCheck.message,
+      decisionReason: { type: 'safetyCheck', reason: safetyCheck.message, classifierApprovable: false },
+    }
+  }
+
+  // 1.4. Explicit asks precede internal paths, session allows and sensitivity.
+  for (const pathToCheck of pathsToCheck) {
+    const askRule = matchingRestrictionForFileTool(
+      pathToCheck,
+      tool,
+      toolPermissionContext,
+      'edit',
+      'ask',
+    )
+    if (askRule) {
+      return {
+        behavior: 'ask',
+        message: `Future requested permissions to write to ${path}, but you haven't granted it yet.`,
+        decisionReason: {
+          type: 'rule',
+          rule: askRule,
         },
       }
     }
@@ -1302,7 +1357,6 @@ export function checkWritePermissionForTool<Input extends AnyObject>(
   // 1.7. Check comprehensive safety validations (Windows patterns, Future config, dangerous files)
   // This MUST come before checking allow rules to prevent users from accidentally granting
   // permission to edit protected files
-  const safetyCheck = checkPathSafetyForAutoEdit(path, pathsToCheck)
   if (!safetyCheck.safe) {
     // SDK suggestion: if under .future/skills/{name}/, emit the narrowed
     // session-scoped addRules that step 1.6 will honor on the next call.
@@ -1334,26 +1388,6 @@ export function checkWritePermissionForTool<Input extends AnyObject>(
         reason: safetyCheck.message,
         classifierApprovable: safetyCheck.classifierApprovable,
       },
-    }
-  }
-
-  // 2. Check for ask rules - check both the original path and resolved symlink path
-  for (const pathToCheck of pathsToCheck) {
-    const askRule = matchingRuleForInput(
-      pathToCheck,
-      toolPermissionContext,
-      'edit',
-      'ask',
-    )
-    if (askRule) {
-      return {
-        behavior: 'ask',
-        message: `Future requested permissions to write to ${path}, but you haven't granted it yet.`,
-        decisionReason: {
-          type: 'rule',
-          rule: askRule,
-        },
-      }
     }
   }
 

@@ -25,6 +25,7 @@ import {
   pathInAllowedWorkingPath,
 } from '../../utils/permissions/filesystem.js'
 import type { PermissionResult } from '../../utils/permissions/PermissionResult.js'
+import { preferExplicitAsk } from '../../utils/permissions/PermissionResult.js'
 import { createReadRuleSuggestion } from '../../utils/permissions/PermissionUpdate.js'
 import type { PermissionUpdate } from '../../utils/permissions/PermissionUpdateSchema.js'
 import {
@@ -868,18 +869,21 @@ function isPathAllowed(
 ): PathCheckResult {
   const permissionType = operationType === 'read' ? 'read' : 'edit'
 
-  // 1. Check deny rules first
-  const denyRule = matchingRuleForInput(
-    resolvedPath,
-    context,
-    permissionType,
-    'deny',
-  )
-  if (denyRule !== null) {
-    return {
-      allowed: false,
-      decisionReason: { type: 'rule', rule: denyRule },
-    }
+  // Restrictions apply before internal-path, sensitivity and sandbox shortcuts.
+  // Evaluate every resolved form, and all denies before any explicit ask.
+  const pathsToCheck = precomputedPathsToCheck ?? getPathsForPermissionCheck(resolvedPath)
+  for (const path of pathsToCheck) {
+    const rule = matchingRuleForInput(path, context, permissionType, 'deny')
+    if (rule) return { allowed: false, decisionReason: { type: 'rule', rule } }
+  }
+  const safetyCheck = operationType === 'read' ? { safe: true as const }
+    : checkPathSafetyForAutoEdit(resolvedPath, pathsToCheck)
+  if (!safetyCheck.safe && safetyCheck.classifierApprovable !== true) {
+    return { allowed: false, decisionReason: { type: 'safetyCheck', reason: safetyCheck.message, classifierApprovable: false } }
+  }
+  for (const path of pathsToCheck) {
+    const rule = matchingRuleForInput(path, context, permissionType, 'ask')
+    if (rule) return { allowed: false, decisionReason: { type: 'rule', rule } }
   }
 
   // 2. For write/create operations, check internal editable paths (plan files, scratchpad, agent memory, job dirs)
@@ -898,10 +902,6 @@ function isPathAllowed(
 
   // 2.5. For write/create operations, check safety validations
   if (operationType !== 'read') {
-    const safetyCheck = checkPathSafetyForAutoEdit(
-      resolvedPath,
-      precomputedPathsToCheck,
-    )
     if (!safetyCheck.safe) {
       return {
         allowed: false,
@@ -918,7 +918,7 @@ function isPathAllowed(
   const isInWorkingDir = pathInAllowedWorkingPath(
     resolvedPath,
     context,
-    precomputedPathsToCheck,
+    pathsToCheck,
   )
   if (isInWorkingDir) {
     if (operationType === 'read' || context.mode === 'acceptEdits') {
@@ -1187,7 +1187,7 @@ function validatePath(
         resolvedPath,
         toolPermissionContext,
         operationType,
-        isCanonical ? [resolvedPath] : undefined,
+        isCanonical ? [...new Set([absolutePath, resolvedPath])] : getPathsForPermissionCheck(absolutePath),
       )
       return {
         allowed: result.allowed,
@@ -1254,7 +1254,7 @@ function validatePath(
     resolvedPath,
     toolPermissionContext,
     operationType,
-    isCanonical ? [resolvedPath] : undefined,
+    isCanonical ? [...new Set([absolutePath, resolvedPath])] : getPathsForPermissionCheck(absolutePath),
   )
   return {
     allowed: result.allowed,
@@ -1553,9 +1553,7 @@ export function checkPathConstraints(
     if (result.behavior === 'deny') {
       return result
     }
-    if (result.behavior === 'ask' && !firstAsk) {
-      firstAsk = result
-    }
+    firstAsk = preferExplicitAsk(firstAsk, result)
   }
 
   return (
@@ -1672,10 +1670,10 @@ function checkPathConstraintsForStatement(
           }
         }
       }
-      firstAsk ??= {
+      firstAsk = preferExplicitAsk(firstAsk, {
         behavior: 'ask',
         message: `${canonical} receives its path from a pipeline expression source that cannot be statically validated and requires manual approval`,
-      }
+      })
       // Don't continue — fall through to path loop so deny rules on
       // extracted paths are still checked.
     }
@@ -1687,10 +1685,10 @@ function checkPathConstraintsForStatement(
     // PowerShell actually writes to ALL paths in the array.
     if (hasUnvalidatablePathArg) {
       const canonical = resolveToCanonical(cmd.name)
-      firstAsk ??= {
+      firstAsk = preferExplicitAsk(firstAsk, {
         behavior: 'ask',
         message: `${canonical} uses a parameter or complex path expression (array literal, subexpression, unknown parameter, etc.) that cannot be statically validated and requires manual approval`,
-      }
+      })
       // Don't continue — fall through to path loop so deny rules on
       // extracted paths are still checked.
     }
@@ -1713,10 +1711,10 @@ function checkPathConstraintsForStatement(
       CMDLET_PATH_CONFIG[resolveToCanonical(cmd.name)]
     ) {
       const canonical = resolveToCanonical(cmd.name)
-      firstAsk ??= {
+      firstAsk = preferExplicitAsk(firstAsk, {
         behavior: 'ask',
         message: `${canonical} is a write operation but no target path could be determined; requires manual approval`,
-      }
+      })
       continue
     }
 
@@ -1762,7 +1760,7 @@ function checkPathConstraintsForStatement(
             ? decisionReason.reason
             : `${canonical} targeting '${resolvedPath}' was blocked. For security, Future Code may only access files in the allowed working directories for this session: ${dirListStr}.`
 
-        if (decisionReason?.type === 'rule') {
+        if (decisionReason?.type === 'rule' && decisionReason.rule.ruleBehavior === 'deny') {
           return {
             behavior: 'deny',
             message,
@@ -1797,13 +1795,13 @@ function checkPathConstraintsForStatement(
           })
         }
 
-        firstAsk ??= {
+        firstAsk = preferExplicitAsk(firstAsk, {
           behavior: 'ask',
           message,
           blockedPath: resolvedPath,
           decisionReason,
           suggestions,
-        }
+        })
       }
     }
   }
@@ -1816,10 +1814,10 @@ function checkPathConstraintsForStatement(
 
       if (hasUnvalidatablePathArg) {
         const canonical = resolveToCanonical(cmd.name)
-        firstAsk ??= {
+        firstAsk = preferExplicitAsk(firstAsk, {
           behavior: 'ask',
           message: `${canonical} uses a parameter or complex path expression (array literal, subexpression, unknown parameter, etc.) that cannot be statically validated and requires manual approval`,
-        }
+        })
         // Don't continue — fall through to path loop for deny checks.
       }
 
@@ -1832,10 +1830,10 @@ function checkPathConstraintsForStatement(
         CMDLET_PATH_CONFIG[resolveToCanonical(cmd.name)]
       ) {
         const canonical = resolveToCanonical(cmd.name)
-        firstAsk ??= {
+        firstAsk = preferExplicitAsk(firstAsk, {
           behavior: 'ask',
           message: `${canonical} is a write operation but no target path could be determined; requires manual approval`,
-        }
+        })
         continue
       }
 
@@ -1875,7 +1873,7 @@ function checkPathConstraintsForStatement(
               ? decisionReason.reason
               : `${canonical} targeting '${resolvedPath}' was blocked. For security, Future Code may only access files in the allowed working directories for this session: ${dirListStr}.`
 
-          if (decisionReason?.type === 'rule') {
+          if (decisionReason?.type === 'rule' && decisionReason.rule.ruleBehavior === 'deny') {
             return {
               behavior: 'deny',
               message,
@@ -1910,26 +1908,26 @@ function checkPathConstraintsForStatement(
             })
           }
 
-          firstAsk ??= {
+          firstAsk = preferExplicitAsk(firstAsk, {
             behavior: 'ask',
             message,
             blockedPath: resolvedPath,
             decisionReason,
             suggestions,
-          }
+          })
         }
       }
 
       // Red-team P11/P14: step 5 at powershellPermissions.ts:970 already
       // catches this via the same synthetic-CommandExpressionAst mechanism —
       // this is belt-and-suspenders so the nested loop doesn't rely on that
-      // accident. Placed AFTER the path loop so specific asks (blockedPath,
-      // suggestions) win via ??=.
+      // accident. Placed AFTER the path loop so equally ranked specific asks
+      // retain their blockedPath and suggestions.
       if (hasExpressionPipelineSource) {
-        firstAsk ??= {
+        firstAsk = preferExplicitAsk(firstAsk, {
           behavior: 'ask',
           message: `${resolveToCanonical(cmd.name)} appears inside a control-flow or chain statement where piped expression sources cannot be statically validated and requires manual approval`,
-        }
+        })
       }
     }
   }
@@ -1962,7 +1960,7 @@ function checkPathConstraintsForStatement(
                 ? decisionReason.reason
                 : `Output redirection to '${resolvedPath}' was blocked. For security, Future Code may only write to files in the allowed working directories for this session: ${dirListStr}.`
 
-            if (decisionReason?.type === 'rule') {
+            if (decisionReason?.type === 'rule' && decisionReason.rule.ruleBehavior === 'deny') {
               return {
                 behavior: 'deny',
                 message,
@@ -1970,7 +1968,7 @@ function checkPathConstraintsForStatement(
               }
             }
 
-            firstAsk ??= {
+            firstAsk = preferExplicitAsk(firstAsk, {
               behavior: 'ask',
               message,
               blockedPath: resolvedPath,
@@ -1982,7 +1980,7 @@ function checkPathConstraintsForStatement(
                   destination: 'session',
                 },
               ],
-            }
+            })
           }
         }
       }
@@ -2015,7 +2013,7 @@ function checkPathConstraintsForStatement(
             ? decisionReason.reason
             : `Output redirection to '${resolvedPath}' was blocked. For security, Future Code may only write to files in the allowed working directories for this session: ${dirListStr}.`
 
-        if (decisionReason?.type === 'rule') {
+        if (decisionReason?.type === 'rule' && decisionReason.rule.ruleBehavior === 'deny') {
           return {
             behavior: 'deny',
             message,
@@ -2023,7 +2021,7 @@ function checkPathConstraintsForStatement(
           }
         }
 
-        firstAsk ??= {
+        firstAsk = preferExplicitAsk(firstAsk, {
           behavior: 'ask',
           message,
           blockedPath: resolvedPath,
@@ -2035,7 +2033,7 @@ function checkPathConstraintsForStatement(
               destination: 'session',
             },
           ],
-        }
+        })
       }
     }
   }
