@@ -287,7 +287,9 @@ export async function* query(
       const category = /prompt_too_long|blocking_limit/.test(terminal.reason) ? 'context' :
         /aborted_tools|hook_stopped/.test(terminal.reason) ? 'tool' : 'unknown'
       if (state?.state === 'REVIEW') recordGoalObservation('goal-review', undefined, Date.now() - queryStartedAt)
-      else if (state?.state === 'PAUSED') recordGoalObservation('goal-blocked', category, Date.now() - queryStartedAt)
+      else if (state?.state === 'PAUSED' && !['aborted_streaming', 'aborted_tools', 'max_turns', 'hook_stopped', 'stop_hook_prevented'].includes(terminal.reason)) {
+        recordGoalObservation('goal-blocked', category, Date.now() - queryStartedAt)
+      }
     } catch { /* Never turn a feedback read failure into a project failure. */ }
   }
   // Only reached if queryLoop returned normally. Skipped on throw (error
@@ -709,10 +711,15 @@ async function* queryLoop(
     // A real provider overflow can still use the ordinary saved-summary path
     // once, within the same caller budget. Withhold only while repair is legal.
     let portableContextRecoveryEnabled = false
+    let portableContextGoalVersion: string | null = null
     if (mainGoalThread && !mediaRecoveryEnabled && !hasAttemptedReactiveCompact &&
       isAutoCompactEnabled() && !toolUseContext.abortController.signal.aborted &&
       (maxTurns === undefined || turnCount < maxTurns)) {
-      try { portableContextRecoveryEnabled = readAutoGoal()?.state === 'ACTIVE' }
+      try {
+        const goal = readAutoGoal()
+        portableContextRecoveryEnabled = goal?.state === 'ACTIVE'
+        if (portableContextRecoveryEnabled && goal) portableContextGoalVersion = JSON.stringify([goal.goal, goal.revision ?? 1, goal.activeSteering ?? []])
+      }
       catch { /* Fresh anchor / continuation boundary reports corrupt state. */ }
     }
     if (
@@ -1301,22 +1308,26 @@ async function* queryLoop(
           snipTokensFreed,
           true,
         )
-        if (repair.compactionResult) {
+        const repairedMessages = repair.compactionResult ? buildPostCompactMessages(repair.compactionResult) : null
+        if (repairedMessages) {
           if (params.taskBudget) {
             const preCompactContext = finalContextTokensFromLastResponse(messagesForQuery)
             taskBudgetRemaining = Math.max(0, (taskBudgetRemaining ?? params.taskBudget.total) - preCompactContext)
           }
-          const postCompactMessages = buildPostCompactMessages(repair.compactionResult)
-          for (const msg of postCompactMessages) yield msg
-          // Return queued steering / explicit pauses to the dispatcher before
-          // spending another request. Compaction is not objective acceptance.
-          if (toolUseContext.abortController.signal.aborted ||
-            readAutoGoal()?.state !== 'ACTIVE' || hasMainThreadQueuedCommand(getCommandQueueSnapshot())) {
-            return { reason: 'completed' }
-          }
+          for (const msg of repairedMessages) yield msg
+        }
+        // Reconcile host authority after the await on both success and failure.
+        // A submit interrupt is a handoff; explicit cancellation must pause.
+        if (toolUseContext.abortController.signal.aborted) return { reason: 'aborted_streaming' }
+        const currentGoal = readAutoGoal()
+        if (currentGoal?.state !== 'ACTIVE' || hasMainThreadQueuedCommand(getCommandQueueSnapshot()) ||
+          JSON.stringify([currentGoal.goal, currentGoal.revision ?? 1, currentGoal.activeSteering ?? []]) !== portableContextGoalVersion) {
+          return { reason: 'completed' }
+        }
+        if (repairedMessages) {
           portableContextRepairPending = true
           state = {
-            messages: postCompactMessages,
+            messages: repairedMessages,
             toolUseContext,
             autoCompactTracking: undefined,
             maxOutputTokensRecoveryCount,
@@ -1333,6 +1344,7 @@ async function* queryLoop(
         // No unchanged replay after failed repair. Preserve the provider's
         // diagnostic and compactor failure, rather than generic turn-end text.
         yield lastMessage
+        void executeStopFailureHooks(lastMessage, toolUseContext)
         const blocked = parkGoal(autoGoalTerminalDiagnostic('prompt_too_long',
           modelApiFailureReason(lastMessage) + (repair.failureReason ? ' Compaction: ' + repair.failureReason : '')))
         if (blocked) yield createSystemMessage('Autonomous goal blocked: ' + blocked, 'warning')

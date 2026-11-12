@@ -4,7 +4,8 @@ import { register } from 'node:module';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { enableAutoGoal } from '../../src/commands/goal/auto.ts';
+import { enableAutoGoal, readAutoGoal, parkActiveAutoGoal, pauseAutoGoal, shouldPauseGoalAfterTerminal,
+  supersedeAutoGoal, recordGoalSteering } from '../../src/commands/goal/auto.ts';
 
 register('./portable-context-loader.mjs', import.meta.url);
 const { autoCompactIfNeeded } = await import('../../src/services/compact/autoCompact.ts');
@@ -130,3 +131,88 @@ test('production main loop withholds recoverable overflow and calls the portable
   assert.match(source, /portableContextRecoveryEnabled &&[\s\S]*?isPromptTooLongMessage\(message\)/);
   assert.match(source, /autoGoalTerminalDiagnostic\(terminal\.reason/);
 });
+
+// Execute the production recovery branch verbatim. Only its model/summary and
+// UI boundaries are injected; host goal transitions use the real durable store.
+const querySourceText = readFileSync(new URL('../../src/query.ts', import.meta.url), 'utf8');
+const branchStart = querySourceText.indexOf('if (isWithheld413 && portableContextRecoveryEnabled)');
+const branchEnd = querySourceText.indexOf('if ((isWithheld413 || isWithheldMedia) && reactiveCompact)', branchStart);
+assert.ok(branchStart > 0 && branchEnd > branchStart);
+const AsyncGenerator = Object.getPrototypeOf(async function* () {}).constructor;
+const executeRecovery = new AsyncGenerator('ctx', `
+  const { deps, messagesForQuery, toolUseContext, systemPrompt, userContext, systemContext, querySource,
+    tracking, snipTokensFreed, params, buildPostCompactMessages, finalContextTokensFromLastResponse,
+    createSystemMessage, readAutoGoal, hasMainThreadQueuedCommand, getCommandQueueSnapshot,
+    lastMessage, parkGoal, autoGoalTerminalDiagnostic, modelApiFailureReason, executeStopFailureHooks,
+    portableContextGoalVersion } = ctx;
+  const isWithheld413 = true, portableContextRecoveryEnabled = true;
+  const maxOutputTokensRecoveryCount = 0, silentResponseRecoveryCount = 0, turnCount = 1;
+  let taskBudgetRemaining, state, portableContextRepairPending = false;
+  for (let iteration = 0; iteration < 1; iteration++) {
+    ${querySourceText.slice(branchStart, branchEnd)}
+  }
+  return { reason: 'test-observed-retry', state, taskBudgetRemaining, portableContextRepairPending };
+`);
+
+for (const success of [false, true]) {
+  for (const handoff of ['interrupt', 'user-cancel', 'queued', 'pause', 'supersede', 'steer', 'none']) {
+    test('portable repair reconciles ' + handoff + ' after ' + (success ? 'success' : 'failure'), () => fixture(async (_h, ctx, cwd) => {
+      enableAutoGoal('Original experiment', cwd, 4);
+      const initial = readAutoGoal(cwd)!;
+      const summary = { type: 'user', message: { content: 'durable summary' } };
+      let parked = 0;
+      const injection = {
+        deps: { autocompact: async () => {
+          if (handoff === 'interrupt' || handoff === 'user-cancel') ctx.abortController.abort(handoff);
+          if (handoff === 'pause') pauseAutoGoal(cwd);
+          if (handoff === 'supersede') supersedeAutoGoal('New experiment', cwd);
+          if (handoff === 'steer') recordGoalSteering('Use the new instrument', cwd);
+          return success ? { compactionResult: { summaryMessages: [summary] } } : { failureReason: 'summary unavailable' };
+        } },
+        messagesForQuery: [{ type: 'user', message: { content: 'original request' } }], toolUseContext: ctx,
+        systemPrompt: [], userContext: {}, systemContext: {}, querySource: source, tracking: undefined,
+        snipTokensFreed: 0, params: { taskBudget: { total: 100 } },
+        buildPostCompactMessages: (result: any) => result.summaryMessages,
+        finalContextTokensFromLastResponse: () => 20,
+        createSystemMessage: (content: string) => ({ type: 'system', content }),
+        readAutoGoal: () => readAutoGoal(cwd),
+        hasMainThreadQueuedCommand: () => handoff === 'queued',
+        getCommandQueueSnapshot: () => [],
+        lastMessage: { type: 'assistant', isApiErrorMessage: true },
+        parkGoal: (reason: string) => { parked++; return parkActiveAutoGoal(reason, cwd); },
+        autoGoalTerminalDiagnostic: (_reason: string, detail: string) => detail,
+        modelApiFailureReason: () => 'HTTP 413: real provider context limit',
+        executeStopFailureHooks: () => {},
+        portableContextGoalVersion: JSON.stringify([initial.goal, initial.revision ?? 1, initial.activeSteering ?? []]),
+      };
+      const yielded: any[] = [];
+      const generator = executeRecovery(injection);
+      let end: any;
+      for (;;) { const result = await generator.next(); if (result.done) { end = result.value; break; } yielded.push(result.value); }
+      if (handoff === 'interrupt' || handoff === 'user-cancel') {
+        assert.equal(end.reason, 'aborted_streaming');
+        assert.equal(parked, 0, 'old overflow must not park before cancellation semantics are applied');
+        if (shouldPauseGoalAfterTerminal(end.reason, ctx.abortController.signal.reason)) parkActiveAutoGoal('operator cancellation', cwd);
+        assert.equal(readAutoGoal(cwd)!.state, handoff === 'interrupt' ? 'ACTIVE' : 'PAUSED');
+      } else if (handoff !== 'none') {
+        assert.equal(end.reason, 'completed');
+        assert.equal(parked, 0, 'old overflow cannot pause a new instruction or queued handoff');
+        assert.equal(readAutoGoal(cwd)!.state, handoff === 'pause' ? 'PAUSED' : 'ACTIVE');
+      } else if (success) {
+        assert.equal(end.reason, 'test-observed-retry');
+        assert.equal(end.state.hasAttemptedReactiveCompact, true);
+        assert.equal(end.taskBudgetRemaining, 80);
+        assert.deepEqual(end.state.messages, [summary]);
+        assert.equal(parked, 0);
+        assert.equal(readAutoGoal(cwd)!.state, 'ACTIVE');
+      } else {
+        assert.equal(end.reason, 'prompt_too_long');
+        assert.equal(parked, 1);
+        assert.match(readAutoGoal(cwd)!.reason!, /HTTP 413.*Compaction: summary unavailable/);
+      }
+      if (success) assert.ok(yielded.includes(summary), 'saved compact boundary/summary is always delivered');
+      assert.equal(readAutoGoal(cwd)!.maxContinuations, 4);
+      assert.equal(readAutoGoal(cwd)!.totalContinuations, 0);
+    }));
+  }
+}
