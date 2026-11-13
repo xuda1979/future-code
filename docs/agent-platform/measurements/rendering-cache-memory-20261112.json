@@ -1,0 +1,571 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-11-12T15:59:25.422Z",
+  "baselineCommit": "e715028b5e3d11775e23188e755ad3cb9acef45b",
+  "scope": "Synthetic retained JS heap in fresh Node processes. Not total session RSS, five live Mac sessions, end-to-end productivity or model quality. GC is measurement-only. Cold eviction can require reparsing old UI data.",
+  "runtime": {
+    "node": "v24.22.1",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "dependencies": {
+      "marked": "18.0.9",
+      "@alcalzone/ansi-tokenize": "0.3.0",
+      "bidi-js": "1.0.3",
+      "emoji-regex": "10.6.0",
+      "get-east-asian-width": "1.6.0",
+      "strip-ansi": "7.2.0",
+      "@babel/core": "8.1.2"
+    }
+  },
+  "contract": {
+    "samples": 5,
+    "streamVersions": 600,
+    "historyMessages": 300,
+    "characterLines": 12000,
+    "lineChars": 120,
+    "order": "Alternating revision order, sequential isolated workers; real parser and terminal rendering, equal complete token/cell hashes; baseline private lexer exposed by transpilation only."
+  },
+  "sourceManifest": [
+    {
+      "path": "src/components/Markdown.tsx",
+      "baselineSha256": "5971af3a32550d7c39867960a5361927c705365f3bb129f54ab21f29dff281a5",
+      "candidateSha256": "95d7c1b516a641b74bf3b6907c72bd477e548196fa3efa9843f39955c52599aa"
+    },
+    {
+      "path": "src/utils/markdownLexer.ts",
+      "baselineSha256": null,
+      "candidateSha256": "9565c8a547a8c39ba05468b54eb86ff81a1b4776cd0040d8f39fb86bbde5098e"
+    },
+    {
+      "path": "src/utils/byteBoundedCache.ts",
+      "baselineSha256": null,
+      "candidateSha256": "17104f1b8c4b37f3d4a8616181b75a20b3ca62fb25c6dbcf95c546292d9bd96e"
+    },
+    {
+      "path": "src/utils/hash.ts",
+      "baselineSha256": "57c4da497960a4fb3ed4115e101a095cb0514c435c7bfb49f9c1344fdfe6a73b",
+      "candidateSha256": "57c4da497960a4fb3ed4115e101a095cb0514c435c7bfb49f9c1344fdfe6a73b"
+    },
+    {
+      "path": "src/utils/intl.ts",
+      "baselineSha256": "e1b714b7279fe2fc808678afd80f95a476bb1e0bc3f8c0ad18dae6c2a3f60f89",
+      "candidateSha256": "e1b714b7279fe2fc808678afd80f95a476bb1e0bc3f8c0ad18dae6c2a3f60f89"
+    },
+    {
+      "path": "src/utils/sliceAnsi.ts",
+      "baselineSha256": "0b7ffbe4c25f56a6cb31de85450bc222978a62c1bf87210a4a8ff6475247acf2",
+      "candidateSha256": "0b7ffbe4c25f56a6cb31de85450bc222978a62c1bf87210a4a8ff6475247acf2"
+    },
+    {
+      "path": "src/ink/output.ts",
+      "baselineSha256": "d1373e1765302a5c14cdb258420f153d22aa274ad5b997528d776436e389b1df",
+      "candidateSha256": "9cd8a624dc13b040bd4304dfd84076f60d90148f2c27c7588bfc2b8ebb62e1da"
+    },
+    {
+      "path": "src/ink/screen.ts",
+      "baselineSha256": "0e44207a3990aa365f2ffde47f9b9dcc7454c422743d1d15443d39fdd2a69880",
+      "candidateSha256": "0e44207a3990aa365f2ffde47f9b9dcc7454c422743d1d15443d39fdd2a69880"
+    },
+    {
+      "path": "src/ink/bidi.ts",
+      "baselineSha256": "b77811f07f55f0c6a54477bde7e83f2959f79a2e594a64ab8b76e69afeef6b55",
+      "candidateSha256": "b77811f07f55f0c6a54477bde7e83f2959f79a2e594a64ab8b76e69afeef6b55"
+    },
+    {
+      "path": "src/ink/stringWidth.ts",
+      "baselineSha256": "692e98be361ef671c18cfe3ae073f39a492cac02bb07d94c84b58b087ffd46d3",
+      "candidateSha256": "692e98be361ef671c18cfe3ae073f39a492cac02bb07d94c84b58b087ffd46d3"
+    },
+    {
+      "path": "src/ink/line-width-cache.ts",
+      "baselineSha256": "27c2f86fa33066cc0d2a4aee688037030397e420a45b2afff57e13d25f24ecaa",
+      "candidateSha256": "c9fb0034feb61ae4da5014fa6b27091f10599473825fe6ed99fbcadb05ef554b"
+    },
+    {
+      "path": "src/ink/widest-line.ts",
+      "baselineSha256": "8d897f7e05f1bd285c1d1ff7604b0218e300300c72093b2fa173cbb0ffbe9af9",
+      "candidateSha256": "8d897f7e05f1bd285c1d1ff7604b0218e300300c72093b2fa173cbb0ffbe9af9"
+    },
+    {
+      "path": "src/ink/warn.ts",
+      "baselineSha256": "17e5b51db4dcf6346b01fbc7f01cc89f714fff8df7324007c9cb7c990e0e1938",
+      "candidateSha256": "17e5b51db4dcf6346b01fbc7f01cc89f714fff8df7324007c9cb7c990e0e1938"
+    },
+    {
+      "path": "src/ink/layout/geometry.ts",
+      "baselineSha256": "13fa5f0dfb7a457c8842e2a31856eb53dfa026d3cb7fd414381ca47b3fcfc5bd",
+      "candidateSha256": "13fa5f0dfb7a457c8842e2a31856eb53dfa026d3cb7fd414381ca47b3fcfc5bd"
+    },
+    {
+      "path": "src/ink/termio/ansi.ts",
+      "baselineSha256": "aaec4c43878bc28293f96583ebe4211c8de92afc76191cc788a8bddf695a4644",
+      "candidateSha256": "aaec4c43878bc28293f96583ebe4211c8de92afc76191cc788a8bddf695a4644"
+    }
+  ],
+  "harnessManifest": [
+    {
+      "path": "scripts/bench-render-cache-memory.mjs",
+      "sha256": "de67607231e5cde67b66d17057928a29fb03396c00e2ae28e6b81cedaead5b28"
+    },
+    {
+      "path": "tests/rendering/source-loader.mjs",
+      "sha256": "3d111891be1145e4d52ff9eb711b6db83d611a770ca80803a58683a9813ce411"
+    },
+    {
+      "path": "tests/rendering/benchmark-loader.mjs",
+      "sha256": "0e3347e8576396622f5c7c31e45b407f376667b4481860c822c2fc40b34f2a5b"
+    }
+  ],
+  "summary": {
+    "streaming": {
+      "baseline": {
+        "heapDeltaBytes": 77281760,
+        "retainedEntries": 500,
+        "scanMs": 1899.538285,
+        "hotMs": 103.82651399999986,
+        "hotHits": 10000,
+        "coldRebuilds": 0
+      },
+      "candidate": {
+        "heapDeltaBytes": 275056,
+        "retainedEntries": 0,
+        "chargedBytes": 0,
+        "scanMs": 1376.354689,
+        "hotMs": 82.85327300000017,
+        "hotHits": 10000,
+        "coldRebuilds": 0
+      }
+    },
+    "history": {
+      "baseline": {
+        "heapDeltaBytes": 39977312,
+        "retainedEntries": 300,
+        "scanMs": 488.76975500000003,
+        "hotMs": 89.65398000000005,
+        "hotHits": 10000,
+        "coldRebuilds": 0
+      },
+      "candidate": {
+        "heapDeltaBytes": 4457112,
+        "retainedEntries": 31,
+        "chargedBytes": 8178544,
+        "scanMs": 570.9267930000001,
+        "hotMs": 78.45316100000014,
+        "hotHits": 10000,
+        "coldRebuilds": 0
+      }
+    },
+    "characters": {
+      "baseline": {
+        "heapDeltaBytes": 97012880,
+        "retainedEntries": 12000,
+        "scanMs": 1849.480117,
+        "hotMs": 194.88309200000003,
+        "hotFrames": 500,
+        "coldRebuilds": 0
+      },
+      "candidate": {
+        "heapDeltaBytes": 5917736,
+        "retainedEntries": 684,
+        "chargedBytes": 8383104,
+        "scanMs": 1606.7346620000003,
+        "hotMs": 180.01669100000026,
+        "hotFrames": 500,
+        "coldRebuilds": 0
+      }
+    }
+  },
+  "runs": [
+    {
+      "sample": 0,
+      "revision": "baseline",
+      "kind": "streaming",
+      "heapDeltaBytes": 77281736,
+      "retainedEntries": 500,
+      "chargedBytes": null,
+      "scanMs": 2576.638582,
+      "hotMs": 104.28316100000029,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "eff8f638898f8adec700b5eb4fda1ba0a0a2551461a96df083757aa28b0af1c6"
+    },
+    {
+      "sample": 0,
+      "revision": "baseline",
+      "kind": "history",
+      "heapDeltaBytes": 39977320,
+      "retainedEntries": 300,
+      "chargedBytes": null,
+      "scanMs": 488.76975500000003,
+      "hotMs": 137.745314,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "ecc6e82fd57aadb542b503ab63cd95289d8cf99379765ebeca9880eab2ea268a"
+    },
+    {
+      "sample": 0,
+      "revision": "baseline",
+      "kind": "characters",
+      "heapDeltaBytes": 97012856,
+      "retainedEntries": 12000,
+      "chargedBytes": null,
+      "scanMs": 1752.8265079999999,
+      "hotMs": 209.9593319999999,
+      "hotFrames": 500,
+      "coldRebuilds": 0,
+      "outputHash": "49826a8f1d501c3f03e2fb63e82140bd5ff3b87cd719aaa0429a61143ca67731"
+    },
+    {
+      "sample": 0,
+      "revision": "candidate",
+      "kind": "streaming",
+      "heapDeltaBytes": 275056,
+      "retainedEntries": 0,
+      "chargedBytes": 0,
+      "scanMs": 1376.354689,
+      "hotMs": 81.47975600000018,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "eff8f638898f8adec700b5eb4fda1ba0a0a2551461a96df083757aa28b0af1c6"
+    },
+    {
+      "sample": 0,
+      "revision": "candidate",
+      "kind": "history",
+      "heapDeltaBytes": 4457080,
+      "retainedEntries": 31,
+      "chargedBytes": 8178544,
+      "scanMs": 570.9267930000001,
+      "hotMs": 62.56524399999989,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "ecc6e82fd57aadb542b503ab63cd95289d8cf99379765ebeca9880eab2ea268a"
+    },
+    {
+      "sample": 0,
+      "revision": "candidate",
+      "kind": "characters",
+      "heapDeltaBytes": 5917456,
+      "retainedEntries": 684,
+      "chargedBytes": 8383104,
+      "scanMs": 1618.5467469999999,
+      "hotMs": 176.95707100000027,
+      "hotFrames": 500,
+      "coldRebuilds": 0,
+      "outputHash": "49826a8f1d501c3f03e2fb63e82140bd5ff3b87cd719aaa0429a61143ca67731"
+    },
+    {
+      "sample": 1,
+      "revision": "candidate",
+      "kind": "streaming",
+      "heapDeltaBytes": 275072,
+      "retainedEntries": 0,
+      "chargedBytes": 0,
+      "scanMs": 1371.4623379999998,
+      "hotMs": 82.85327300000017,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "eff8f638898f8adec700b5eb4fda1ba0a0a2551461a96df083757aa28b0af1c6"
+    },
+    {
+      "sample": 1,
+      "revision": "candidate",
+      "kind": "history",
+      "heapDeltaBytes": 4457224,
+      "retainedEntries": 31,
+      "chargedBytes": 8178544,
+      "scanMs": 628.081016,
+      "hotMs": 78.45316100000014,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "ecc6e82fd57aadb542b503ab63cd95289d8cf99379765ebeca9880eab2ea268a"
+    },
+    {
+      "sample": 1,
+      "revision": "candidate",
+      "kind": "characters",
+      "heapDeltaBytes": 5918864,
+      "retainedEntries": 684,
+      "chargedBytes": 8383104,
+      "scanMs": 1777.4273660000001,
+      "hotMs": 180.01669100000026,
+      "hotFrames": 500,
+      "coldRebuilds": 0,
+      "outputHash": "49826a8f1d501c3f03e2fb63e82140bd5ff3b87cd719aaa0429a61143ca67731"
+    },
+    {
+      "sample": 1,
+      "revision": "baseline",
+      "kind": "streaming",
+      "heapDeltaBytes": 77285056,
+      "retainedEntries": 500,
+      "chargedBytes": null,
+      "scanMs": 1899.538285,
+      "hotMs": 79.45753599999989,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "eff8f638898f8adec700b5eb4fda1ba0a0a2551461a96df083757aa28b0af1c6"
+    },
+    {
+      "sample": 1,
+      "revision": "baseline",
+      "kind": "history",
+      "heapDeltaBytes": 39977288,
+      "retainedEntries": 300,
+      "chargedBytes": null,
+      "scanMs": 372.03086999999994,
+      "hotMs": 70.22788100000002,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "ecc6e82fd57aadb542b503ab63cd95289d8cf99379765ebeca9880eab2ea268a"
+    },
+    {
+      "sample": 1,
+      "revision": "baseline",
+      "kind": "characters",
+      "heapDeltaBytes": 97012952,
+      "retainedEntries": 12000,
+      "chargedBytes": null,
+      "scanMs": 1849.480117,
+      "hotMs": 194.88309200000003,
+      "hotFrames": 500,
+      "coldRebuilds": 0,
+      "outputHash": "49826a8f1d501c3f03e2fb63e82140bd5ff3b87cd719aaa0429a61143ca67731"
+    },
+    {
+      "sample": 2,
+      "revision": "baseline",
+      "kind": "streaming",
+      "heapDeltaBytes": 77285064,
+      "retainedEntries": 500,
+      "chargedBytes": null,
+      "scanMs": 1689.794567,
+      "hotMs": 103.82651399999986,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "eff8f638898f8adec700b5eb4fda1ba0a0a2551461a96df083757aa28b0af1c6"
+    },
+    {
+      "sample": 2,
+      "revision": "baseline",
+      "kind": "history",
+      "heapDeltaBytes": 39977416,
+      "retainedEntries": 300,
+      "chargedBytes": null,
+      "scanMs": 622.703201,
+      "hotMs": 188.18757899999991,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "ecc6e82fd57aadb542b503ab63cd95289d8cf99379765ebeca9880eab2ea268a"
+    },
+    {
+      "sample": 2,
+      "revision": "baseline",
+      "kind": "characters",
+      "heapDeltaBytes": 97012880,
+      "retainedEntries": 12000,
+      "chargedBytes": null,
+      "scanMs": 1484.933148,
+      "hotMs": 186.01258099999995,
+      "hotFrames": 500,
+      "coldRebuilds": 0,
+      "outputHash": "49826a8f1d501c3f03e2fb63e82140bd5ff3b87cd719aaa0429a61143ca67731"
+    },
+    {
+      "sample": 2,
+      "revision": "candidate",
+      "kind": "streaming",
+      "heapDeltaBytes": 275072,
+      "retainedEntries": 0,
+      "chargedBytes": 0,
+      "scanMs": 1536.1188499999998,
+      "hotMs": 103.6811929999999,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "eff8f638898f8adec700b5eb4fda1ba0a0a2551461a96df083757aa28b0af1c6"
+    },
+    {
+      "sample": 2,
+      "revision": "candidate",
+      "kind": "history",
+      "heapDeltaBytes": 4457128,
+      "retainedEntries": 31,
+      "chargedBytes": 8178544,
+      "scanMs": 552.602319,
+      "hotMs": 64.66134499999998,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "ecc6e82fd57aadb542b503ab63cd95289d8cf99379765ebeca9880eab2ea268a"
+    },
+    {
+      "sample": 2,
+      "revision": "candidate",
+      "kind": "characters",
+      "heapDeltaBytes": 5917456,
+      "retainedEntries": 684,
+      "chargedBytes": 8383104,
+      "scanMs": 1585.3217290000002,
+      "hotMs": 164.7106359999998,
+      "hotFrames": 500,
+      "coldRebuilds": 0,
+      "outputHash": "49826a8f1d501c3f03e2fb63e82140bd5ff3b87cd719aaa0429a61143ca67731"
+    },
+    {
+      "sample": 3,
+      "revision": "candidate",
+      "kind": "streaming",
+      "heapDeltaBytes": 275056,
+      "retainedEntries": 0,
+      "chargedBytes": 0,
+      "scanMs": 1419.019122,
+      "hotMs": 86.36347599999999,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "eff8f638898f8adec700b5eb4fda1ba0a0a2551461a96df083757aa28b0af1c6"
+    },
+    {
+      "sample": 3,
+      "revision": "candidate",
+      "kind": "history",
+      "heapDeltaBytes": 4457112,
+      "retainedEntries": 31,
+      "chargedBytes": 8178544,
+      "scanMs": 528.3379290000001,
+      "hotMs": 152.14552200000003,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "ecc6e82fd57aadb542b503ab63cd95289d8cf99379765ebeca9880eab2ea268a"
+    },
+    {
+      "sample": 3,
+      "revision": "candidate",
+      "kind": "characters",
+      "heapDeltaBytes": 5917816,
+      "retainedEntries": 684,
+      "chargedBytes": 8383104,
+      "scanMs": 1415.7538299999999,
+      "hotMs": 180.89482099999987,
+      "hotFrames": 500,
+      "coldRebuilds": 0,
+      "outputHash": "49826a8f1d501c3f03e2fb63e82140bd5ff3b87cd719aaa0429a61143ca67731"
+    },
+    {
+      "sample": 3,
+      "revision": "baseline",
+      "kind": "streaming",
+      "heapDeltaBytes": 77281760,
+      "retainedEntries": 500,
+      "chargedBytes": null,
+      "scanMs": 1890.0181039999998,
+      "hotMs": 104.85883099999955,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "eff8f638898f8adec700b5eb4fda1ba0a0a2551461a96df083757aa28b0af1c6"
+    },
+    {
+      "sample": 3,
+      "revision": "baseline",
+      "kind": "history",
+      "heapDeltaBytes": 39977312,
+      "retainedEntries": 300,
+      "chargedBytes": null,
+      "scanMs": 469.941366,
+      "hotMs": 89.65398000000005,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "ecc6e82fd57aadb542b503ab63cd95289d8cf99379765ebeca9880eab2ea268a"
+    },
+    {
+      "sample": 3,
+      "revision": "baseline",
+      "kind": "characters",
+      "heapDeltaBytes": 97010456,
+      "retainedEntries": 12000,
+      "chargedBytes": null,
+      "scanMs": 3286.300737,
+      "hotMs": 402.0127769999999,
+      "hotFrames": 500,
+      "coldRebuilds": 0,
+      "outputHash": "49826a8f1d501c3f03e2fb63e82140bd5ff3b87cd719aaa0429a61143ca67731"
+    },
+    {
+      "sample": 4,
+      "revision": "baseline",
+      "kind": "streaming",
+      "heapDeltaBytes": 77281736,
+      "retainedEntries": 500,
+      "chargedBytes": null,
+      "scanMs": 3171.938717,
+      "hotMs": 79.70820000000003,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "eff8f638898f8adec700b5eb4fda1ba0a0a2551461a96df083757aa28b0af1c6"
+    },
+    {
+      "sample": 4,
+      "revision": "baseline",
+      "kind": "history",
+      "heapDeltaBytes": 39977312,
+      "retainedEntries": 300,
+      "chargedBytes": null,
+      "scanMs": 909.1642379999998,
+      "hotMs": 76.22454400000015,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "ecc6e82fd57aadb542b503ab63cd95289d8cf99379765ebeca9880eab2ea268a"
+    },
+    {
+      "sample": 4,
+      "revision": "baseline",
+      "kind": "characters",
+      "heapDeltaBytes": 97013072,
+      "retainedEntries": 12000,
+      "chargedBytes": null,
+      "scanMs": 2141.983542,
+      "hotMs": 181.35969999999998,
+      "hotFrames": 500,
+      "coldRebuilds": 0,
+      "outputHash": "49826a8f1d501c3f03e2fb63e82140bd5ff3b87cd719aaa0429a61143ca67731"
+    },
+    {
+      "sample": 4,
+      "revision": "candidate",
+      "kind": "streaming",
+      "heapDeltaBytes": 275048,
+      "retainedEntries": 0,
+      "chargedBytes": 0,
+      "scanMs": 1065.1060360000001,
+      "hotMs": 67.17562100000009,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "eff8f638898f8adec700b5eb4fda1ba0a0a2551461a96df083757aa28b0af1c6"
+    },
+    {
+      "sample": 4,
+      "revision": "candidate",
+      "kind": "history",
+      "heapDeltaBytes": 4457096,
+      "retainedEntries": 31,
+      "chargedBytes": 8178544,
+      "scanMs": 687.67661,
+      "hotMs": 106.53969600000005,
+      "hotHits": 10000,
+      "coldRebuilds": 0,
+      "outputHash": "ecc6e82fd57aadb542b503ab63cd95289d8cf99379765ebeca9880eab2ea268a"
+    },
+    {
+      "sample": 4,
+      "revision": "candidate",
+      "kind": "characters",
+      "heapDeltaBytes": 5917736,
+      "retainedEntries": 684,
+      "chargedBytes": 8383104,
+      "scanMs": 1606.7346620000003,
+      "hotMs": 196.95014000000037,
+      "hotFrames": 500,
+      "coldRebuilds": 0,
+      "outputHash": "49826a8f1d501c3f03e2fb63e82140bd5ff3b87cd719aaa0429a61143ca67731"
+    }
+  ]
+}

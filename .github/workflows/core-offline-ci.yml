@@ -69,3 +69,28 @@ jobs:
         env:
           FUTURE_CODE_REQUIRE_TERMINAL_TESTS: "1"
         run: python3 -m unittest discover -s tests/correctness -p test_terminal_sessions.py -v
+  rendering-memory:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - name: Install the rendering dependencies pinned in bun.lock
+        run: |
+          npm install --prefix "$RUNNER_TEMP/rendering" --no-audit --no-fund --ignore-scripts 'marked@18.0.9' '@alcalzone/ansi-tokenize@0.3.0' 'bidi-js@1.0.3' 'emoji-regex@10.6.0' 'get-east-asian-width@1.6.0' 'strip-ansi@7.2.0'
+          ln -s "$RUNNER_TEMP/rendering/node_modules" node_modules
+      - name: Node parser, terminal and cache regression
+        run: node --experimental-strip-types --test tests/correctness/byte-bounded-cache.test.ts tests/rendering/render-cache.test.ts
+      - name: Bun parser, terminal and cache regression
+        run: bun test --preload ./tests/rendering/bun-isolation.ts tests/correctness/byte-bounded-cache.test.ts tests/rendering/render-cache.test.ts
+      - name: Compile changed rendering sources
+        run: bun build src/components/Markdown.tsx src/ink/output.ts src/ink/line-width-cache.ts src/utils/markdownLexer.ts src/utils/byteBoundedCache.ts --no-bundle --outdir "$RUNNER_TEMP/render-build"

@@ -42,6 +42,7 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/provider-retry-policy.test.ts",
   "tests/correctness/file-read-cache.test.ts",
   "tests/correctness/task-output-memory.test.ts",
+  "tests/correctness/byte-bounded-cache.test.ts",
   "tests/correctness/system-resources.test.ts"], 900000);
 const python = process.env.PYTHON ?? "python3";
 gate(python, ["-m", "unittest", "discover", "-s", "tests/correctness", "-p", "test_*.py", "-v"], 60000);

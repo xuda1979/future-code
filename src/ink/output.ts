@@ -5,6 +5,7 @@ import {
   tokenize,
 } from '@alcalzone/ansi-tokenize'
 import { logForDebugging } from '../utils/debug.js'
+import { ByteBoundedCache, flatStringCopy } from '../utils/byteBoundedCache.js'
 import { getGraphemeSegmenter } from '../utils/intl.js'
 import sliceAnsi from '../utils/sliceAnsi.js'
 import { reorderBidi } from './bidi.js'
@@ -40,6 +41,21 @@ type ClusteredChar = {
   width: number
   styleId: number
   hyperlink: string | undefined
+}
+
+function clusteredCharBytes(characters: ClusteredChar[]): number {
+  let bytes = 64 + characters.length * 96
+  let previousHyperlink: string | undefined
+  for (const character of characters) {
+    bytes += character.value.length * 2
+    // One URL is shared by each style run. Repeated nonadjacent runs may be
+    // overcharged, which is preferable to undercharging a large hyperlink.
+    if (character.hyperlink !== previousHyperlink) {
+      bytes += (character.hyperlink?.length ?? 0) * 2
+      previousHyperlink = character.hyperlink
+    }
+  }
+  return bytes
 }
 
 /**
@@ -175,7 +191,7 @@ export default class Output {
 
   private readonly operations: Operation[] = []
 
-  private charCache: Map<string, ClusteredChar[]> = new Map()
+  private charCache = new ByteBoundedCache<ClusteredChar[]>(16384, 8 * 1024 * 1024, clusteredCharBytes)
 
   constructor(options: Options) {
     const { width, height, stylePool, screen } = options
@@ -190,8 +206,8 @@ export default class Output {
 
   /**
    * Reuse this Output for a new frame. Zeroes the screen buffer, clears
-   * the operation list (backing storage is retained), and caps charCache
-   * growth. Preserving charCache across frames is the main win — most
+   * the operation list (backing storage is retained). charCache evicts by
+   * bytes on insertion. Preserving hot lines across frames is the main win — most
    * lines don't change between renders, so tokenize + grapheme clustering
    * becomes a cache hit.
    */
@@ -201,7 +217,6 @@ export default class Output {
     this.screen = screen
     this.operations.length = 0
     resetScreen(screen, width, height)
-    if (this.charCache.size > 16384) this.charCache.clear()
   }
 
   /**
@@ -637,13 +652,15 @@ function writeLineToScreen(
   y: number,
   screenWidth: number,
   stylePool: StylePool,
-  charCache: Map<string, ClusteredChar[]>,
+  charCache: ByteBoundedCache<ClusteredChar[]>,
 ): number {
   let characters = charCache.get(line)
   if (!characters) {
     characters = reorderBidi(
       styledCharsWithGraphemeClustering(
-        styledCharsFromTokens(tokenize(line)),
+        // Cached URLs/styles can be slices of this input. Detach it before
+        // tokenization so one short line cannot pin a whole response string.
+        styledCharsFromTokens(tokenize(flatStringCopy(line))),
         stylePool,
       ),
     )
