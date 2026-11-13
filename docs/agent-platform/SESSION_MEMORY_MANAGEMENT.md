@@ -1,5 +1,8 @@
 # Session memory management
 
+For the subsequent terminal-rendering cache work (including streaming Markdown),
+see [Rendering cache memory](RENDERING_CACHE_MEMORY.md).
+
 Long sessions can retain unnecessary local data even when model context is bounded.
 This change addresses two measured retention paths without changing model prompts,
 active agent concurrency, transcript content, or acceptance rules.
