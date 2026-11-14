@@ -146,7 +146,7 @@ export function sanitizeSurfaceKey(surfaceKey: string): string {
   return `${surface}/${sanitizedModel}`
 }
 
-// @[MODEL LAUNCH]: Add a mapping for the new model ID so git commit trailers show the public name.
+// @[MODEL LAUNCH]: Add a mapping for the new model ID so PR attribution shows the public name.
 /**
  * Sanitize a model name to its public equivalent.
  * Maps internal variants to their public names based on model family.

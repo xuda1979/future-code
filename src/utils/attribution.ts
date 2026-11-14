@@ -18,7 +18,6 @@ import {
   type AttributionData,
   calculateCommitAttribution,
   isInternalModelRepo,
-  isInternalModelRepoCached,
   sanitizeModelName,
 } from './commitAttribution.js'
 import { logForDebugging } from './debug.js'
@@ -27,8 +26,6 @@ import { logError } from './log.js'
 import {
   getCanonicalName,
   getMainLoopModel,
-  getPublicModelDisplayName,
-  getPublicModelName,
 } from './model/model.js'
 import { isMemoryFileAccess } from './sessionFileAccessHooks.js'
 import { getTranscriptPath } from './sessionStorage.js'
@@ -44,7 +41,7 @@ export type AttributionTexts = {
 /**
  * Returns attribution text for commits and PRs based on user settings.
  * Handles:
- * - Dynamic model name via getPublicModelName()
+ * - Fixed default trailer: "Future-Code V1.0 <exutechnology@gmail.com>"
  * - Custom attribution settings (settings.attribution.commit/pr)
  * - Backward compatibility with deprecated includeCoAuthoredBy setting
  * - Remote mode: returns session URL for attribution
@@ -67,17 +64,8 @@ export function getAttributionTexts(): AttributionTexts {
     return { commit: '', pr: '' }
   }
 
-  // @[MODEL LAUNCH]: Update the hardcoded fallback model name below (guards against codename leaks).
-  // For internal repos, use the real model name. For external repos,
-  // fall back to "Future Opus 4.6" for unrecognized models to avoid leaking codenames.
-  const model = getMainLoopModel()
-  const isKnownPublicModel = getPublicModelDisplayName(model) !== null
-  const modelName =
-    isInternalModelRepoCached() || isKnownPublicModel
-      ? getPublicModelName(model)
-      : 'Future Opus 4.6'
   const defaultAttribution = `🤖 Generated with [Future Code](${PRODUCT_URL})`
-  const defaultCommit = `Co-Authored-By: ${modelName} <noreply@future.com>`
+  const defaultCommit = 'Co-Authored-By: Future-Code V1.0 <exutechnology@gmail.com>'
 
   const settings = getInitialSettings()
 
