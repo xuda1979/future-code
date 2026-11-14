@@ -24,6 +24,7 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/remote-response-liveness.test.ts",
   "tests/correctness/query-activity.test.ts", "tests/correctness/model-stream-liveness.test.ts",
   "tests/correctness/model-fallback-effects.test.ts", "tests/correctness/streaming-tool-executor.test.ts",
+  "tests/correctness/streaming-gate-precedence.test.ts",
   "tests/correctness/self-improve-isolation.test.ts",
   "tests/correctness/self-improve-scheduler.test.ts",
   "tests/correctness/self-improve-project-feedback.test.ts",

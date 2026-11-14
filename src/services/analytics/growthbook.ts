@@ -800,9 +800,14 @@ export function getFeatureValue_CACHED_WITH_REFRESH<T>(
  *
  * @deprecated Use getFeatureValue_CACHED_MAY_BE_STALE() for new code. This function
  * exists only to support migration of existing Statsig gates.
+ *
+ * @param defaultValue Returned when no override and no cached value exists
+ *   (GrowthBook disabled, or gate missing from both disk caches). Callers
+ *   that omit it keep the historical `false` behavior.
  */
 export function checkStatsigFeatureGate_CACHED_MAY_BE_STALE(
   gate: string,
+  defaultValue = false,
 ): boolean {
   // Check env var overrides first (for eval harnesses)
   const overrides = getEnvOverrides()
@@ -815,7 +820,7 @@ export function checkStatsigFeatureGate_CACHED_MAY_BE_STALE(
   }
 
   if (!isGrowthBookEnabled()) {
-    return false
+    return defaultValue
   }
 
   // Log experiment exposure if data is available, otherwise defer until after init
@@ -833,7 +838,7 @@ export function checkStatsigFeatureGate_CACHED_MAY_BE_STALE(
     return Boolean(gbCached)
   }
   // Fallback to Statsig cache for migration period
-  return config.cachedStatsigGates?.[gate] ?? false
+  return config.cachedStatsigGates?.[gate] ?? defaultValue
 }
 
 /**
