@@ -44,6 +44,7 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/file-read-cache.test.ts",
   "tests/correctness/task-output-memory.test.ts",
   "tests/correctness/reblock-guard.test.ts",
+  "tests/correctness/reblock-guard-wiring.test.ts",
   "tests/correctness/byte-bounded-cache.test.ts",
   "tests/correctness/system-resources.test.ts"], 900000);
 const python = process.env.PYTHON ?? "python3";
