@@ -132,6 +132,24 @@ def unique_object(pairs):
     return out
 
 
+_MAX_PROGRESS_DEPTH = 16
+
+
+def bounded_depth(value):
+    # Iterative JSON parsing (Python 3.14+) no longer raises RecursionError on
+    # hostile nesting, so progress record depth must be rejected explicitly.
+    stack = [(value, 0)]
+    while stack:
+        node, depth = stack.pop()
+        if depth >= _MAX_PROGRESS_DEPTH:
+            return False
+        if isinstance(node, dict):
+            stack.extend((item, depth + 1) for item in node.values())
+        elif isinstance(node, list):
+            stack.extend((item, depth + 1) for item in node)
+    return True
+
+
 def invalid_constant(_value):
     raise ValueError("nonfinite structured result")
 
@@ -252,6 +270,8 @@ def observation(directory: Path, key: str) -> dict[str, Any]:
         if len(raw) > 65536:
             raise ValueError("progress record exceeds byte budget")
         progress = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+        if not bounded_depth(progress):
+            raise ValueError("progress record exceeds depth budget")
         sequence = progress.get("sequence")
         if type(sequence) is int and 0 <= sequence <= 2**53 - 1:
             reply["progressToken"] = str(sequence)

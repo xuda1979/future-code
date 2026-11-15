@@ -43,6 +43,24 @@ def _unique(pairs):
     return value
 
 
+_MAX_RECORD_DEPTH = 16
+
+
+def _bounded_depth(value):
+    # Iterative JSON parsing (Python 3.14+) no longer raises RecursionError on
+    # hostile nesting, so record depth must be rejected explicitly here.
+    stack = [(value, 0)]
+    while stack:
+        node, depth = stack.pop()
+        if depth >= _MAX_RECORD_DEPTH:
+            return False
+        if isinstance(node, dict):
+            stack.extend((item, depth + 1) for item in node.values())
+        elif isinstance(node, list):
+            stack.extend((item, depth + 1) for item in node)
+    return True
+
+
 def validate_supervision(cfg):
     if "supervision" not in cfg:
         return
@@ -113,6 +131,8 @@ class Progress:
             if len(raw) > 65536:
                 return
             record = json.loads(raw, object_pairs_hook=_unique)
+            if not _bounded_depth(record):
+                return
             sequence = record.get("sequence")
         except (OSError, ValueError, AttributeError, RecursionError):
             return
