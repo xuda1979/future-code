@@ -13,6 +13,7 @@ import type { DiagnosticMemory } from "./diagnostics.ts";
 import type { DebuggingState } from "./debugging.ts";
 import { installMemoryTables, indexMemory } from "./memory.ts";
 import type { DecisionState } from "./decisions.ts";
+import type { CompletionProbe } from "./verifiedCompletion.ts";
 import type { ProjectKnowledge } from "./knowledge.ts";
 import { chargeOperationsRequest } from "../operations/actions.ts";
 
@@ -31,6 +32,9 @@ export interface ThreadState {
   diagnostics?: DiagnosticMemory;
   debugging?: DebuggingState;
   decisions?: DecisionState;
+  /** One full completion probe per material candidate; feedback/timer churn
+   * cannot turn a failed/interrupted probe into blind repeated verification. */
+  completionProbe?: CompletionProbe;
   /** Durable bounded repair streak; a valid admitted model message clears it. */
   responseRejections?: number;
   turns: number;

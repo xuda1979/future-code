@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "status": "PASS",
+  "scope": "Read-only independent source review and fresh production-path focused regression suite for opt-in Swarm verified-checks completion. No live-speed verdict.",
+  "focused_tests": 18,
+  "focused_pass": 18,
+  "focused_fail": 0,
+  "source_sha256": {
+    "src/harness/foundry/swarm/config.ts": "b191a704dc0a781102f06d3f8122a81e342aec90081924eadbcb4ce9e97f7391",
+    "src/harness/foundry/swarm/driver.ts": "046829655862fd73ea1d6fcfb279f2482c603c3c1aefe0722cf2a47b6c3e144b",
+    "src/harness/foundry/swarm/session.ts": "26428cf16bad0dbc215846310c80034e572fd502b23400c020e348b3fe4d69e7",
+    "src/harness/foundry/swarm/verifiedCompletion.ts": "c5f608ec83382e66759a5566cfc3bdd0e78d3c734b1ee87b0d22b47171b1a6aa",
+    "tests/foundry/verified-completion.test.ts": "43356e0aa0aa8b3812173db873f287914328a4d564b16ad23b73200d8823da5b"
+  },
+  "source_unchanged_during_execution": true,
+  "command": "node --experimental-strip-types --test tests/foundry/verified-completion.test.ts",
+  "log_sha256": "30acd0b6b5daaae714ef95815fa585449fec725463eabd22aa3d4ddb9680f47b",
+  "durable_log": "/workspace/scratch/c02ca89c6836/durable-work/verified-completion/independent-focused-final.log",
+  "resolved_findings": [
+    {
+      "finding": "Cancellation could occur during the awaited post-verifier source snapshot before durable host output.",
+      "resolution": "AbortSignal and lease are checked immediately after both awaited snapshots. Dedicated cancellation/lease-expiry controls cover both boundaries."
+    },
+    {
+      "finding": "First independent focused run rejected the new negative-control fixture before its intended verifier gate.",
+      "resolution": "Fixture declares the existing mandatory parallelSafe flag. Configuration guards and test assertions remain unchanged; the final real negative-control audit now runs and rejects the weak verifier."
+    }
+  ],
+  "reviewed_boundaries": [
+    "Explicit pinned profile opt-in; default path has no extra completion probe.",
+    "Every named current check observation requires an owned successful receipt; pending effects, queued batches and saved replies drain first.",
+    "Full verification must bind the exact artifact and contain every required check once, without any additional non-PASS verdict.",
+    "UNKNOWN intent persists before verification; own feedback/check churn cannot rearm the same material candidate.",
+    "Source, cancellation and lease guards are rechecked after async boundaries.",
+    "Failed/unknown probes resume the same attempt; later scheduler verification and integration remain fresh.",
+    "Operations, programme and theoretical authorities retain normal completion conservatively."
+  ],
+  "limitations": [
+    "The policy is suitable only for finite opt-in tasks whose immutable checks define all required outcomes.",
+    "It adds a full verification pass before existing fresh scheduler verification/integration. Expensive full verifiers can cost more than the avoided model acknowledgment.",
+    "This review covers the source/tested Swarm path, not a native CLI completion rewrite, installation into running sessions, or a live speedup.",
+    "Fresh broad repository gates and a separately frozen new experiment remain the integration owners responsibility."
+  ]
+}

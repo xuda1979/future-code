@@ -19,6 +19,11 @@ The [remote batch recovery](REMOTE_TOOL_BATCHING.md) follow-up extends that
 contract to worker fleets, reduces file-operation RPCs, and restores actual
 durable patch contents when replacing a worker.
 
+[Verified completion](VERIFIED_COMPLETION.md) optionally removes a final model
+acknowledgment for finite tasks after a fresh full verifier PASS. Normal
+scheduler verification and integration remain mandatory; the extra verifier
+cost must be worthwhile for the selected profile.
+
 | Direction | Runtime change | Observable result |
 |---|---|---|
 | Autonomous continuation | Commit-driven notifications, generation checks before waiting, cross-process SQLite `data_version` checks | A newly eligible task or reconciled objective interrupts idle supervision |
