@@ -1,10 +1,10 @@
 /**
  * Memory type taxonomy.
  *
- * Memories are constrained to four types capturing context NOT derivable
+ * Memories capture context and project experience NOT readily derivable
  * from the current project state. Code patterns, architecture, git history,
- * and file structure are derivable (via grep/git/FUTURE.md) and should NOT
- * be saved as memories.
+ * and file structure are derivable (via grep/git/FUTURE.md). Retain non-obvious
+ * operational lessons separately, with applicability and observed evidence.
  *
  * The two TYPES_SECTION_* exports below are intentionally duplicated rather
  * than generated from a shared spec — keeping them flat makes per-mode edits
@@ -16,6 +16,7 @@ export const MEMORY_TYPES = [
   'feedback',
   'project',
   'reference',
+  'experience',
 ] as const
 
 export type MemoryType = (typeof MEMORY_TYPES)[number]
@@ -29,6 +30,15 @@ export function parseMemoryType(raw: unknown): MemoryType | undefined {
   if (typeof raw !== 'string') return undefined
   return MEMORY_TYPES.find(t => t === raw)
 }
+
+/** The same learning contract is used by foreground and background writers.
+ * It adds no model call, global knowledge store or acceptance shortcut. */
+const EXPERIENCE_TYPE_BODY: readonly string[] = [
+  '    <description>Reusable experience learned while working on this project: non-obvious failure causes, effective procedures, unsuccessful approaches and corrected assumptions. Keep project and domain knowledge in this project\'s memory, never in the project-neutral runtime or another project\'s memory.</description>',
+  '    <when_to_save>Autonomously save a concise lesson when actual work reveals something reusable, without waiting for a user request. Capture both failures and successes. Update the matching lesson instead of duplicating it. Do not create a lesson for every tool call, ordinary Git delivery, or obvious success; do not delay delivery for a separate reflection or investigation.</when_to_save>',
+  '    <body_structure>Include **Conditions:** (project, environment/version and trigger), **Observation:** (what failed or worked), **Evidence:** (dated command/result, receipt or artifact pointer actually observed), **Lesson:** (cause/procedure and failed alternatives), and **Limits:** (uncertainty and when to recheck). Mark an untested explanation as a hypothesis; a successful command alone does not establish its cause. Save compact evidence pointers, not transcripts, credentials or secrets.</body_structure>',
+  '    <how_to_use>Read only lessons relevant to the next action. Verify their conditions against current evidence before reuse. A lesson is advice, never permission, current task state, proof of completion, or a substitute for required independent checks. Fresh contradictory evidence wins: correct or retire the stale lesson and retain the reason. Honor memory opt-outs and forget requests.</how_to_use>',
+]
 
 /**
  * `## Types of memory` section for COMBINED mode (private + team directories).
@@ -100,6 +110,11 @@ export const TYPES_SECTION_COMBINED: readonly string[] = [
   "    user: the Grafana board at grafana.internal/d/api-latency is what oncall watches — if you're touching request handling, that's the thing that'll page someone",
   '    assistant: [saves team reference memory: grafana.internal/d/api-latency is the oncall latency dashboard — check it when editing request-path code]',
   '    </examples>',
+  '</type>',
+  '<type>',
+  '    <name>experience</name>',
+  '    <scope>default to private project memory; share with the team only when appropriate and free of sensitive content</scope>',
+  ...EXPERIENCE_TYPE_BODY,
   '</type>',
   '</types>',
   '',
@@ -173,6 +188,10 @@ export const TYPES_SECTION_INDIVIDUAL: readonly string[] = [
   '    assistant: [saves reference memory: grafana.internal/d/api-latency is the oncall latency dashboard — check it when editing request-path code]',
   '    </examples>',
   '</type>',
+  '<type>',
+  '    <name>experience</name>',
+  ...EXPERIENCE_TYPE_BODY,
+  '</type>',
   '</types>',
   '',
 ]
@@ -183,15 +202,15 @@ export const TYPES_SECTION_INDIVIDUAL: readonly string[] = [
 export const WHAT_NOT_TO_SAVE_SECTION: readonly string[] = [
   '## What NOT to save in memory',
   '',
-  '- Code patterns, conventions, architecture, file paths, or project structure — these can be derived by reading the current project state.',
+  '- Snapshots of code patterns, conventions, architecture, file paths or project structure — read the current project state instead. Evidence pointers within an experience lesson are allowed.',
   '- Git history, recent changes, or who-changed-what — `git log` / `git blame` are authoritative.',
-  '- Debugging solutions or fix recipes — the fix is in the code; the commit message has the context.',
+  '- Routine fix recipes that merely restate the code or commit message. Retain non-obvious debugging and operational lessons as experience with conditions and observed evidence.',
   '- Anything already documented in FUTURE.md files.',
   '- Ephemeral task details: in-progress work, temporary state, current conversation context.',
   '',
   // H2: explicit-save gate. Eval-validated (memory-prompt-iteration case 3,
   // 0/2 → 3/3): prevents "save this week's PR list" → activity-log noise.
-  'These exclusions apply even when the user explicitly asks you to save. If they ask you to save a PR list or activity summary, ask what was *surprising* or *non-obvious* about it — that is the part worth keeping.',
+  'These exclusions apply even when the user explicitly asks you to save. From a PR list or activity summary, retain only the reusable non-obvious lesson and its evidence; keep task tracking in the task/plan system.',
 ]
 
 /**

@@ -16,7 +16,7 @@ import { getTeamMemPath } from './teamMemPaths.js'
 
 /**
  * Build the combined prompt when both auto memory and team memory are enabled.
- * Closed four-type taxonomy (user / feedback / project / reference) with
+ * Closed five-type taxonomy (user / feedback / project / reference / experience) with
  * per-type <scope> guidance embedded in XML-style <type> blocks.
  */
 export function buildCombinedMemoryPrompt(

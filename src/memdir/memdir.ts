@@ -186,8 +186,8 @@ function logMemoryDirCounts(
 
 /**
  * Build the typed-memory behavioral instructions (without MEMORY.md content).
- * Constrains memories to a closed four-type taxonomy (user / feedback / project /
- * reference) — content that is derivable from the current project state (code
+ * Constrains memories to a closed five-type taxonomy (user / feedback / project /
+ * reference / experience) — snapshots derivable from the current project state (code
  * patterns, architecture, git history) is explicitly excluded.
  *
  * Individual-only variant: no `## Memory scope` section, no <scope> tags

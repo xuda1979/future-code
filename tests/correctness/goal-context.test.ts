@@ -107,8 +107,12 @@ test("production query uses the fresh anchor for both the hard-limit check and m
   const source = readFileSync(new URL("../../src/query.ts", import.meta.url), "utf8");
   const compact = source.indexOf("await deps.autocompact(");
   const anchor = source.indexOf("let goalRequestMessages = appendGoalRequestAnchor(");
-  const model = source.indexOf("messages: prependUserContext(goalRequestMessages, userContext)");
-  assert.ok(compact >= 0 && anchor > compact && model > anchor);
+  const projection = source.indexOf("const requestMessages = gitDelivery ? [...goalRequestMessages,");
+  const model = source.indexOf("messages: prependUserContext(requestMessages, userContext)");
+  assert.ok(compact >= 0 && anchor > compact && projection > anchor && model > projection);
+  // The delivery reminder appends to the complete fresh anchor projection;
+  // ordinary tasks use that same anchored array directly.
+  assert.match(source.slice(projection, model), /isMeta: true \}\)\] : goalRequestMessages/);
   assert.match(source.slice(anchor, model), /tokenCountWithEstimation\(goalRequestMessages\) - snipTokensFreed/);
   assert.match(source.slice(anchor, model), /executionPolicy: autoGoalPolicy/);
   assert.match(source, /promptFormat: autoGoalPolicy \? 'delta' : 'full'/);
