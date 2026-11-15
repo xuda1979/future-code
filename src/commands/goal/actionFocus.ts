@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 /** A request-local activity diagnostic, never a progress/acceptance verdict.
  * It observes actual paired tool receipts even if the model never ends its
@@ -25,6 +27,15 @@ function content(message: ActivityMessage): unknown {
 }
 function isBlock(value: unknown): value is Block {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Match the file tools' lexical expansion without loading their I/O layer.
+ * Original transcript inputs remain untouched; symlinks are not resolved. */
+function expandedPath(value: unknown, cwd: string): string | null {
+  if (typeof value !== 'string' || value.includes('\0')) return null;
+  const path = value.trim();
+  if (path === '~') return homedir().normalize('NFC');
+  return (path.startsWith('~/') ? join(homedir(), path.slice(2)) : resolve(cwd, path)).normalize('NFC');
 }
 
 /** Exact canonical identity only within a small budget. Oversized/unsupported
@@ -62,7 +73,8 @@ function identity(value: unknown): string | null {
 
 /** Replaceable tail guidance. Historical messages and complete receipts stay
  * in their original order; this neither grants authority nor skips checks. */
-export function actionFocusReview(messages: readonly ActivityMessage[], goalReportPath: string): string | null {
+export function actionFocusReview(messages: readonly ActivityMessage[], goalReportPath: string, cwd = process.cwd()): string | null {
+  const reportPath = expandedPath(goalReportPath, cwd);
   const blocks: { value: Block; role: string }[] = [];
   for (let i = messages.length - 1; i >= Math.max(0, messages.length - MAX_MESSAGES) && blocks.length < MAX_BLOCKS; i--) {
     const message = messages[i]!;
@@ -102,7 +114,8 @@ export function actionFocusReview(messages: readonly ActivityMessage[], goalRepo
     if (!entry || entry.index >= index || ambiguous.has(value.tool_use_id) || resultCounts.get(value.tool_use_id) !== 1) return;
     const call = entry.call;
     if (typeof call.name !== 'string' || !isBlock(call.input)) return;
-    const note = ['Write', 'Edit', 'MultiEdit'].includes(call.name) && call.input.file_path === goalReportPath;
+    const note = reportPath !== null && ['Write', 'Edit', 'MultiEdit'].includes(call.name) &&
+      expandedPath(call.input.file_path, cwd) === reportPath;
     const waiting = call.name === 'TaskOutput';
     const observation = OBSERVATIONS.has(call.name) || note;
     const failed = value.is_error === true;

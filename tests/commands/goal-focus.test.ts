@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   enableAutoGoal, readAutoGoal, readMilestoneLedger, resumeAutoGoalFromInput,
-  decideAutoGoalContinuation, formatActiveGoalCompactionAnchor, recordGoalSteering,
+  decideAutoGoalContinuation, formatActiveGoalCompactionAnchor, recordGoalSteering, pauseAutoGoal,
 } from "../../src/commands/goal/auto.ts";
 
 function fixture(run: (cwd: string) => void): void {
@@ -132,3 +132,78 @@ test("multi-line objectives still bind legitimate reports and completion still r
   assert.equal(advance(cwd).kind, "BLOCKED");
   assert.equal(readAutoGoal(cwd)?.state, "REVIEW");
 }));
+
+test("trusted new work invalidates a preexisting completion report without replacing the root or its budget", () => fixture(cwd => {
+  const root = "Implement and independently verify the source change";
+  enableAutoGoal(root, cwd, 7);
+  advance(cwd);
+  const path = join(cwd, ".future-code/goal.md");
+  const oldReport = `# ${root}\nStatus: completed\n- [x] Source and tests verified\n`;
+  writeFileSync(path, oldReport);
+  const before = readAutoGoal(cwd)!;
+  const next = resumeAutoGoalFromInput("Push the already validated commit to origin now; report the remote commit hash.",
+    { cwd, mainThread: true })!;
+  assert.equal(next.goal, root);
+  assert.equal(next.revision, before.revision);
+  assert.equal(next.continuations, before.continuations);
+  assert.equal(next.totalContinuations, before.totalContinuations);
+  assert.equal(next.maxContinuations, 7);
+  assert.equal(readFileSync(path, "utf8"), oldReport, "keep the old evidence intact");
+  const pending = decideAutoGoalContinuation({ cwd, mainThread: true, withinTurnBudget: true,
+    promptFormat: "delta", toolActivity: false, assistantText: "The requested remote push has not run yet." });
+  assert.equal(pending.kind, "CONTINUE");
+  assert.equal(readAutoGoal(cwd)?.state, "ACTIVE");
+  writeFileSync(path, `# ${root}\nStatus: completed\n- [x] Source and tests verified\n- [x] Remote commit independently checked\n`);
+  assert.equal(advance(cwd).kind, "BLOCKED");
+  assert.equal(readAutoGoal(cwd)?.state, "REVIEW", "fresh completion still requests review, never acceptance");
+}));
+
+test("new trusted constraints also invalidate a preexisting completion claim", () => fixture(cwd => {
+  const root = "Deliver the checked result";
+  enableAutoGoal(root, cwd);
+  writeFileSync(join(cwd, ".future-code/goal.md"), `# ${root}\nStatus: completed\n`);
+  resumeAutoGoalFromInput("Do not weaken the acceptance checks", { cwd, mainThread: true });
+  assert.equal(advance(cwd).kind, "CONTINUE");
+  assert.deepEqual(readAutoGoal(cwd)?.activeSteering, ["Do not weaken the acceptance checks"]);
+}));
+
+test("read-only questions and child input leave an existing completion report eligible for review", () => {
+  for (const [input, mainThread] of [["What is the big objective now?", true],
+    ["Push the validated commit to origin", false]] as const) fixture(cwd => {
+    const root = "Deliver the checked result";
+    enableAutoGoal(root, cwd);
+    writeFileSync(join(cwd, ".future-code/goal.md"), `# ${root}\nStatus: completed\n`);
+    const before = readAutoGoal(cwd);
+    assert.equal(resumeAutoGoalFromInput(input, { cwd, mainThread }), null);
+    assert.deepEqual(readAutoGoal(cwd), before);
+    assert.equal(advance(cwd).kind, "BLOCKED");
+    assert.equal(readAutoGoal(cwd)?.state, "REVIEW");
+  });
+});
+
+test("steering does not suppress a genuine external blocker or cancel an operator pause", () => {
+  fixture(cwd => {
+    const root = "Deliver the checked result";
+    enableAutoGoal(root, cwd);
+    writeFileSync(join(cwd, ".future-code/goal.md"), `# ${root}\nStatus: blocked\nBlocker: HTTP 403 from executor\n` +
+      "Blocker type: credentials\nRecovery attempted: Confirmed the credential is expired\nExternal action required: Renew the executor credential\n");
+    resumeAutoGoalFromInput("Push the validated commit to origin", { cwd, mainThread: true });
+    assert.equal(advance(cwd).kind, "BLOCKED");
+    assert.equal(readAutoGoal(cwd)?.state, "PAUSED");
+    assert.match(readAutoGoal(cwd)?.reason ?? "", /HTTP 403/);
+  });
+  fixture(cwd => {
+    const root = "Deliver the checked result";
+    enableAutoGoal(root, cwd, 7);
+    writeFileSync(join(cwd, ".future-code/goal.md"), `# ${root}\nStatus: completed\n`);
+    pauseAutoGoal(cwd, "Paused by operator instruction");
+    const before = readAutoGoal(cwd)!;
+    resumeAutoGoalFromInput("Do not weaken the acceptance checks", { cwd, mainThread: true });
+    const next = readAutoGoal(cwd)!;
+    assert.equal(next.state, "PAUSED");
+    assert.equal(next.reason, before.reason);
+    assert.equal(next.ignoredGoalReport, before.ignoredGoalReport);
+    assert.equal(next.maxContinuations, 7);
+    assert.equal(advance(cwd).kind, "SKIP");
+  });
+});
