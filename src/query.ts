@@ -129,7 +129,8 @@ import { notifyQueryActivity, type QueryActivityEvent } from './utils/queryActiv
 import { hasMainThreadQueuedCommand } from './utils/queueWakeup.js'
 import { createHash } from 'node:crypto'
 import { recordProjectSignal, type ProjectSignalInput } from './services/selfImprove/projectSignals.js'
-import { watchModelStream, isModelProgress, modelStreamIdleTimeout, ModelStreamStalledError, modelStallAction } from './utils/modelStreamLiveness.js'
+import { watchModelStream, isModelProgress, modelStreamIdleTimeout, ModelStreamStalledError, ModelRequestDeadlineError, modelStallAction } from './utils/modelStreamLiveness.js'
+import { gitDeliveryPolicy, gitDeliveryModelTimeout, GIT_DELIVERY_GUIDANCE } from './utils/gitDeliveryPolicy.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
@@ -363,6 +364,10 @@ async function* queryLoop(
   let portableContextRepairPending = false
   let goalToolActivity = false
   let rejectedAutonomyQuestions = 0
+  // Select from original human input before compaction. Keep the decision
+  // through summary/fallback recovery; newly drained human work releases it.
+  let gitDelivery = gitDeliveryPolicy(params.messages, mainGoalThread)
+  const gitModelBudget = { remainingMs: 2 * gitDeliveryModelTimeout() }
 
   // Snapshot immutable env/statsig/session state once at entry. See QueryConfig
   // for what's included and why feature() gates are intentionally excluded.
@@ -766,11 +771,13 @@ async function* queryLoop(
         attemptWithFallback = false
         try {
           let streamingFallbackOccured = false
+          const requestMessages = gitDelivery ? [...goalRequestMessages,
+            createUserMessage({ content: GIT_DELIVERY_GUIDANCE, isMeta: true })] : goalRequestMessages
           queryCheckpoint('query_api_streaming_start')
           activity({ kind: 'phase', phase: 'model' })
-          if (params.onActivity) activity({ kind: 'context', tokens: tokenCountWithEstimation(goalRequestMessages) })
+          if (params.onActivity) activity({ kind: 'context', tokens: tokenCountWithEstimation(requestMessages) })
           for await (const message of watchModelStream(signal => deps.callModel({
-            messages: prependUserContext(goalRequestMessages, userContext),
+            messages: prependUserContext(requestMessages, userContext),
             systemPrompt: fullSystemPrompt,
             thinkingConfig: toolUseContext.options.thinkingConfig,
             tools: toolUseContext.options.tools,
@@ -818,7 +825,8 @@ async function* queryLoop(
                 },
               }),
             },
-          }), { signal: toolUseContext.abortController.signal, timeoutMs: modelStreamIdleTimeout(), isProgress: isModelProgress })) {
+          }), { signal: toolUseContext.abortController.signal, timeoutMs: modelStreamIdleTimeout(), isProgress: isModelProgress,
+            ...(gitDelivery ? { maxDurationMs: gitDeliveryModelTimeout(), timeBudget: gitModelBudget } : {}) })) {
             if (isModelProgress(message)) activity({ kind: 'progress' })
             // We won't use the tool_calls from the first attempt
             // We could.. but then we'd have to merge assistant messages
@@ -1017,7 +1025,8 @@ async function* queryLoop(
           if (mainGoalThread) {
             try { activeGoalOnStall = readAutoGoal()?.state === 'ACTIVE' } catch { /* handled at continuation boundary */ }
           }
-          const persistentModelRetry = (isPersistentRetryEnabled() || activeGoalOnStall) && isForegroundRetrySource(querySource)
+          const persistentModelRetry = !(innerError instanceof ModelRequestDeadlineError) &&
+            (isPersistentRetryEnabled() || activeGoalOnStall) && isForegroundRetrySource(querySource)
           const stallAction = modelStallAction(toolUseBlocks.length, modelStallRecoveries, toolUseContext.abortController.signal.aborted, persistentModelRetry)
           if (innerError instanceof ModelStreamStalledError && stallAction === 'collect') {
             // Complete already-admitted tools and use their actual results in
@@ -1972,6 +1981,8 @@ async function* queryLoop(
       // user prompts, even if someone stamps an agentId on one.
       return cmd.mode === 'task-notification' && cmd.agentId === currentAgentId
     })
+    if (queuedCommandsSnapshot.some(cmd => cmd.mode === 'prompt' && !cmd.isMeta && cmd.origin === undefined))
+      gitDelivery = false
 
     for await (const attachment of getAttachmentMessages(
       null,
