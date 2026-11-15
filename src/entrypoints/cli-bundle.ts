@@ -27,7 +27,16 @@ function setDefaultEnv(key: string, value: string) {
 // before any CLI initialization (so it works with no config/env at all).
 const listModelsOnly =
   process.argv.includes('--list-models') || process.argv.includes('--models');
-if (listModelsOnly) {
+const modelEndpointOnly = process.argv[2] === '--model-endpoint';
+if (modelEndpointOnly) {
+  import('../commands/model/endpointCli.ts').then(({ runModelEndpointCLI }) => {
+    console.log(runModelEndpointCLI(process.argv.slice(3)));
+  }).catch(() => {
+    console.error('Could not configure model endpoint. Use --model-endpoint --help and check the key environment variable and configuration directory.');
+    process.exitCode = 1;
+  });
+}
+if (listModelsOnly && !modelEndpointOnly) {
   import('../utils/model/cmriHuanxinCatalog.js').then(({ renderCatalogText }) => {
     console.log(renderCatalogText());
     process.exit(0);
@@ -49,7 +58,7 @@ setDefaultEnv('DISABLE_TELEMETRY', '1');
 setDefaultEnv('NODE_ENV', 'production');
 
 // Now hand off to the real CLI entrypoint (unless we are only listing models).
-if (!listModelsOnly && process.argv[2] === '--ops') {
+if (!modelEndpointOnly && !listModelsOnly && process.argv[2] === '--ops') {
   import('../ops/cli.mjs').then(({ handleOps }) => {
     const controller = new AbortController();
     process.once('SIGINT', () => controller.abort());
@@ -57,6 +66,6 @@ if (!listModelsOnly && process.argv[2] === '--ops') {
     return handleOps(process.argv.slice(3), process.cwd(), controller.signal)
       .then(value => console.log(JSON.stringify(value, null, 2)));
   }).catch(error => { console.error(error); process.exitCode = 1; });
-} else if (!listModelsOnly) {
+} else if (!modelEndpointOnly && !listModelsOnly) {
   import('./cli.tsx');
 }

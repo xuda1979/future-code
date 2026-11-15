@@ -1,4 +1,5 @@
 import Future, { type ClientOptions } from '@future/sdk'
+import { checkModelEndpointProxy, modelEndpointClientOptions } from '../../utils/model/modelEndpoints.js'
 import { randomUUID } from 'crypto'
 import type { GoogleAuth } from 'google-auth-library'
 import {
@@ -98,6 +99,21 @@ export async function getFutureClient({
   fetchOverride?: ClientOptions['fetch']
   source?: string
 }): Promise<Future> {
+  const endpoint = modelEndpointClientOptions(model)
+  if (endpoint) {
+    const { protocol, ...endpointOptions } = endpoint
+    if (protocol === 'openai') await checkModelEndpointProxy(endpoint.baseURL)
+    const endpointFetch = buildFetch(fetchOverride, source)
+    return new Future({
+      ...endpointOptions,
+      maxRetries,
+      timeout: parseInt(process.env.API_TIMEOUT_MS || String(600 * 1000), 10),
+      // FUTURE_UNIX_SOCKET targets the previous first-party auth proxy.
+      // Saved endpoints must use their own URL, including local translation.
+      fetchOptions: getProxyFetchOptions() as ClientOptions['fetchOptions'],
+      ...(endpointFetch && { fetch: endpointFetch }),
+    })
+  }
   const containerId = process.env.FUTURE_CODE_CONTAINER_ID
   const remoteSessionId = process.env.FUTURE_CODE_REMOTE_SESSION_ID
   const clientApp = process.env.FUTURE_AGENT_SDK_CLIENT_APP

@@ -17,6 +17,7 @@ import { checkOpus1mAccess, checkSonnet1mAccess } from './check1mAccess.js'
 import { getAPIProvider } from './providers.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import { listModelsByProvider } from './cmriHuanxinCatalog.js'
+import { listModelEndpoints } from './modelEndpoints.js'
 import {
   getCanonicalName,
   getFutureAiUserDefaultModelDescription,
@@ -430,6 +431,16 @@ function getKnownModelOption(model: string): ModelOption | null {
 
 export function getModelOptions(fastMode = false): ModelOption[] {
   const options = getModelOptionsBase(fastMode)
+  for (const endpoint of listModelEndpoints()) {
+    const index = options.findIndex(option => option.value === endpoint.model)
+    const option: ModelOption = {
+      value: endpoint.model,
+      label: endpoint.model,
+      description: `Saved ${endpoint.protocol} endpoint`,
+    }
+    if (index === -1) options.push(option)
+    else options[index] = option
+  }
 
   // Add the custom model from the FUTURE_CUSTOM_MODEL_OPTION env var
   const envCustomModel = process.env.FUTURE_CUSTOM_MODEL_OPTION
