@@ -1,0 +1,118 @@
+{
+  "schema": 1,
+  "experiment_id": "EXP-0104",
+  "status": "FROZEN_BEFORE_PROVIDER_TRIALS",
+  "kind": "EXPLORATORY_LIVE_DECISION_POLICY_COMPONENT_CANARY",
+  "objective": "Measure accepted engineering completion and avoidable work for the actual production request projection, including an already validated Git push.",
+  "base_commit": "022a41ae21c35e47e09c87a1b39cec97cc834f17",
+  "candidate_parent": "4c2124ab7ac218101f918fd5fb106a76d0cdfbf5",
+  "candidate_dirty_patch_sha256": "f8f4eed28c808d6e2f6b69ff0fff0e2c5c2e27417768733f6e3f25a01075faf0",
+  "source_sha256": {
+    "base": {
+      "src/commands/goal/context.ts": "f8b3de90eb37f95927f7401a5c2f4dff2eec75539c7561f16c2022bb4ecff23e",
+      "src/commands/goal/auto.ts": "9c4a632d4658c32adc105b65e174bf772382c048bb6702b1781ddc3c1f1b6796",
+      "src/harness/decisionGuidance.ts": "2f28e052363535ab8e8bb2155b3ad28d8d8d4865ccb32e5af8d632564f4b1cac",
+      "src/harness/autonomyPolicy.ts": "2073990ce6f20aba00a95b1cc06bce8d9fbe0b3686961404954d95431439a11b"
+    },
+    "candidate": {
+      "src/commands/goal/actionFocus.ts": "8a50c556fbcddc479f96c1e48785f355fd5235cccf896a5815d67adfd7c663ea",
+      "src/commands/goal/context.ts": "6e7e64f079fe212cd16a709facc3ba6a10b06aaf893d8f968a42031bc6132d57",
+      "src/commands/goal/auto.ts": "3b3adeb64262d62f368612ca368148070dc7c4ddff70a6a57aff40961578892c",
+      "src/harness/decisionGuidance.ts": "ebf859cfd2403358b66054770176667f5f44ec4669a737bff3fbf18246bd1021",
+      "src/harness/autonomyPolicy.ts": "2073990ce6f20aba00a95b1cc06bce8d9fbe0b3686961404954d95431439a11b"
+    }
+  },
+  "measurement_files_sha256": {
+    "harness.py": "4be3dc8a5077dce1ce82c7bb6b618b3a74c412c0991f1ef547928b45b521ba49",
+    "project.mjs": "13104c962c16828cdcc4b884a88e00de03d7add2808c3c2498c4f201dac9e6e7",
+    "checker.py": "f127492bdd1ad772649b7c558a5af0a99c70cb7cc97fc257c6cbbf920da90b14",
+    "responder.txt": "5b5dc9f9cbc7934acca01847fafea4b10f0349c9314bd431a8bb57df555f9d0c",
+    "calibrate_fixtures.py": "03d7be93b36f69d984c5bbfc5bcaa2fc805c3991868aa9873a1fd1cd830b57e9"
+  },
+  "model": {
+    "selection": "same inherited parent model and reasoning settings for every fresh fork_turns=none responder",
+    "exact_backend_revision": null,
+    "provider_usage": null,
+    "billed_cost": null,
+    "transport": "collaboration fresh responder; permitted I/O only protocol+request read and response write; nested provider tool traces unavailable"
+  },
+  "cases": [
+    "push_clean",
+    "extension_seeded",
+    "recovery_seeded",
+    "investigation_clean"
+  ],
+  "repetitions": 3,
+  "arms": [
+    "base",
+    "candidate"
+  ],
+  "trials": 24,
+  "order": [
+    "41fea555ac3c",
+    "1e677da7a042",
+    "4ee4a61088fa",
+    "c996a4c4326e",
+    "338fca7f696c",
+    "ef86578a8cc9",
+    "11fe0274c77c",
+    "f3ae2f5d227b",
+    "df060ba84c71",
+    "20d9a1f718f0",
+    "4004188e6d0b",
+    "bd013338602a",
+    "451cc3f796d2",
+    "2113ed9d4dbc",
+    "d79d9d1ad562",
+    "40b3b47a0972",
+    "8cd81c5d3829",
+    "6360517a4120",
+    "d49e3e5ca4d9",
+    "b21e4315780d",
+    "8ba8240de117",
+    "db8442526815",
+    "0e44b0354882",
+    "22eb1728d4f2"
+  ],
+  "concurrency": "paired cohorts of up to six live responders; arm start order alternates by task and repetition",
+  "budgets": {
+    "model_decisions_per_trial": 6,
+    "actions_per_decision": 4,
+    "response_bytes": 16000,
+    "response_deadline_seconds": 120,
+    "task_tool_deadline_seconds": 10,
+    "acceptance_deadline_seconds": 20,
+    "accelerator_minutes": 0
+  },
+  "primary": "Independent acceptance within six decisions; retain every failure, timeout and malformed response.",
+  "secondary": [
+    "actual controller tool actions",
+    "model decision requests",
+    "tool and checker elapsed time",
+    "observed component wall time",
+    "request-ready to response-write latency"
+  ],
+  "practical_speedup_rule": "Exploratory positive only if no acceptance degradation, at least 20% fewer paired seeded-case model decisions and at least 20% lower median paired observed component wall time; no universal or statistical-significance claim.",
+  "failure_denominators": "All 24 trials retained. Failed trials contribute their full observed time; report completion counts and time together, never survivor-only speedup.",
+  "guardrails": [
+    "frozen checker and task/scorer bytes",
+    "fresh independent recheck of remote Git artifact",
+    "read-only investigation preserved",
+    "unchanged model/tool/acceptance budgets",
+    "no hardcoded answer patches or branch-on-warning simulated policy"
+  ],
+  "conditional_scope": "Seeded observation/failure histories are created with actual fixture tools identically in both arms and measure continuation recovery, not natural stall incidence.",
+  "limitations": [
+    "Not the packaged Future-Code CLI.",
+    "Exact backend revision, provider tokens and billing are UNKNOWN.",
+    "Nested responder tool-trace protocol compliance cannot be independently audited.",
+    "Four task clusters; three repetitions do not create twelve independent task types.",
+    "Controller dispatch and file-based response capture are included in observed latency."
+  ],
+  "preflight": {
+    "independent_checker_controls": 18,
+    "fixture_checker_interface_controls": 8,
+    "trial_model_responses_before_freeze": 0
+  },
+  "task_manifest_sha256": "be97b1bcb9b1e3fa3cb81f52dde9ac5cd8c760909df3c256f9f528992a736666"
+}

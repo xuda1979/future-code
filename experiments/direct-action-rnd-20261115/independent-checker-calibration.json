@@ -1,0 +1,173 @@
+{
+  "status": "PASS",
+  "checker_sha256": "f127492bdd1ad772649b7c558a5af0a99c70cb7cc97fc257c6cbbf920da90b14",
+  "controls": [
+    {
+      "case": "extension_unmodified_is_red",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "default dataset or execution engine does not match the frozen task",
+        "default pipeline CLI failed independent recomputation"
+      ],
+      "seconds": 0.2043
+    },
+    {
+      "case": "extension_real_correct_is_green",
+      "expected_accepted": true,
+      "accepted": true,
+      "reasons": [],
+      "seconds": 0.1727
+    },
+    {
+      "case": "recovery_missing_engine_is_red",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "default dataset or execution engine does not match the frozen task",
+        "independent evaluate(path) mismatch: data/train-v1.json",
+        "independent evaluate(path) mismatch: data/train-v2.json",
+        "default pipeline CLI failed independent recomputation"
+      ],
+      "seconds": 0.1381
+    },
+    {
+      "case": "recovery_correct_python_is_green",
+      "expected_accepted": true,
+      "accepted": true,
+      "reasons": [],
+      "seconds": 0.1873
+    },
+    {
+      "case": "wrong_numeric_sum_rejected",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "independent evaluate(path) mismatch: data/train-v1.json",
+        "independent evaluate(path) mismatch: data/train-v2.json",
+        "default pipeline CLI failed independent recomputation"
+      ],
+      "seconds": 0.1383
+    },
+    {
+      "case": "boolean_count_rejected",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "independent evaluate(path) mismatch: data/train-v1.json",
+        "independent evaluate(path) mismatch: data/train-v2.json",
+        "default pipeline CLI failed independent recomputation"
+      ],
+      "seconds": 0.2713
+    },
+    {
+      "case": "correct_function_wrong_cli_rejected",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "default pipeline CLI failed independent recomputation"
+      ],
+      "seconds": 0.1409
+    },
+    {
+      "case": "frozen_dataset_mutation_rejected",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "protected bytes changed: data/train-v1.json"
+      ],
+      "seconds": 0.0059
+    },
+    {
+      "case": "unapproved_source_write_rejected",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "unexpected or out-of-scope task file: unapproved.txt"
+      ],
+      "seconds": 0.0023
+    },
+    {
+      "case": "runaway_candidate_bounded_and_rejected",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "independent evaluate(path) mismatch: data/train-v1.json",
+        "independent evaluate(path) mismatch: data/train-v2.json",
+        "default pipeline CLI failed independent recomputation"
+      ],
+      "seconds": 10.835
+    },
+    {
+      "case": "investigation_independent_correct_is_green",
+      "expected_accepted": true,
+      "accepted": true,
+      "reasons": [],
+      "seconds": 0.0028
+    },
+    {
+      "case": "investigation_wrong_total_rejected",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "read-only investigation answer differs from independent recomputation"
+      ],
+      "seconds": 0.0042
+    },
+    {
+      "case": "investigation_missing_field_rejected",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "read-only investigation answer differs from independent recomputation"
+      ],
+      "seconds": 0.0022
+    },
+    {
+      "case": "read_only_violation_rejected",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "unexpected or out-of-scope task file: notes.txt"
+      ],
+      "seconds": 0.002
+    },
+    {
+      "case": "push_missing_result_ref_is_red",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "remote result ref is not the frozen validated commit"
+      ],
+      "seconds": 0.006
+    },
+    {
+      "case": "push_correct_ref_and_fresh_check_is_green",
+      "expected_accepted": true,
+      "accepted": true,
+      "reasons": [],
+      "seconds": 0.0689
+    },
+    {
+      "case": "push_wrong_commit_rejected",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "remote result ref is not the frozen validated commit"
+      ],
+      "seconds": 0.0043
+    },
+    {
+      "case": "push_stale_validation_does_not_replace_fresh_check",
+      "expected_accepted": false,
+      "accepted": false,
+      "reasons": [
+        "fresh remote artifact self-check failed"
+      ],
+      "seconds": 0.044
+    }
+  ],
+  "all_controls_met": true,
+  "provider_calls": 0,
+  "scope": "Independent checker calibration; no R&D speedup measured."
+}

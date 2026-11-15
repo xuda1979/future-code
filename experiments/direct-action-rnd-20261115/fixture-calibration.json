@@ -1,0 +1,34 @@
+{
+  "status": "PASS",
+  "controls": [
+    {
+      "kind": "push_clean",
+      "bad_exit": 1,
+      "good_exit": 0,
+      "bad_output": "{\"accepted\": false, \"reasons\": [\"remote result ref is not the frozen validated commit\"]}\n",
+      "good_output": "{\"accepted\": true, \"reasons\": []}\n"
+    },
+    {
+      "kind": "extension_seeded",
+      "bad_exit": 1,
+      "good_exit": 0,
+      "bad_output": "{\"accepted\": false, \"reasons\": [\"default dataset or execution engine does not match the frozen task\", \"default pipeline CLI failed independent recomputation\"]}\n",
+      "good_output": "{\"accepted\": true, \"reasons\": []}\n"
+    },
+    {
+      "kind": "recovery_seeded",
+      "bad_exit": 1,
+      "good_exit": 0,
+      "bad_output": "{\"accepted\": false, \"reasons\": [\"default dataset or execution engine does not match the frozen task\", \"independent evaluate(path) mismatch: data/train-v1.json\", \"independent evaluate(path) mismatch: data/train-v2.json\", \"default pipeline CLI failed independent recomputation\"]}\n",
+      "good_output": "{\"accepted\": true, \"reasons\": []}\n"
+    },
+    {
+      "kind": "investigation_clean",
+      "bad_exit": 1,
+      "good_exit": 0,
+      "bad_output": "{\"accepted\": false, \"reasons\": [\"read-only investigation answer differs from independent recomputation\"]}\n",
+      "good_output": "{\"accepted\": true, \"reasons\": []}\n"
+    }
+  ],
+  "provider_calls": 0
+}

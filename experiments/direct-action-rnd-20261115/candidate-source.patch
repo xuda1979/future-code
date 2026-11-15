@@ -1,0 +1,259 @@
+diff --git a/src/commands/goal/actionFocus.ts b/src/commands/goal/actionFocus.ts
+index b8598f9..a1c68e7 100644
+--- a/src/commands/goal/actionFocus.ts
++++ b/src/commands/goal/actionFocus.ts
+@@ -1,4 +1,6 @@
+ import { createHash } from 'node:crypto';
++import { homedir } from 'node:os';
++import { join, resolve } from 'node:path';
+ 
+ /** A request-local activity diagnostic, never a progress/acceptance verdict.
+  * It observes actual paired tool receipts even if the model never ends its
+@@ -27,6 +29,15 @@ function isBlock(value: unknown): value is Block {
+   return value !== null && typeof value === 'object' && !Array.isArray(value);
+ }
+ 
++/** Match the file tools' lexical expansion without loading their I/O layer.
++ * Original transcript inputs remain untouched; symlinks are not resolved. */
++function expandedPath(value: unknown, cwd: string): string | null {
++  if (typeof value !== 'string' || value.includes('\0')) return null;
++  const path = value.trim();
++  if (path === '~') return homedir().normalize('NFC');
++  return (path.startsWith('~/') ? join(homedir(), path.slice(2)) : resolve(cwd, path)).normalize('NFC');
++}
++
+ /** Exact canonical identity only within a small budget. Oversized/unsupported
+  * values disable duplicate detection; a shared truncated prefix is not proof
+  * of equal receipts. Digests and counts, never payloads, leave this module. */
+@@ -62,7 +73,8 @@ function identity(value: unknown): string | null {
+ 
+ /** Replaceable tail guidance. Historical messages and complete receipts stay
+  * in their original order; this neither grants authority nor skips checks. */
+-export function actionFocusReview(messages: readonly ActivityMessage[], goalReportPath: string): string | null {
++export function actionFocusReview(messages: readonly ActivityMessage[], goalReportPath: string, cwd = process.cwd()): string | null {
++  const reportPath = expandedPath(goalReportPath, cwd);
+   const blocks: { value: Block; role: string }[] = [];
+   for (let i = messages.length - 1; i >= Math.max(0, messages.length - MAX_MESSAGES) && blocks.length < MAX_BLOCKS; i--) {
+     const message = messages[i]!;
+@@ -102,7 +114,8 @@ export function actionFocusReview(messages: readonly ActivityMessage[], goalRepo
+     if (!entry || entry.index >= index || ambiguous.has(value.tool_use_id) || resultCounts.get(value.tool_use_id) !== 1) return;
+     const call = entry.call;
+     if (typeof call.name !== 'string' || !isBlock(call.input)) return;
+-    const note = ['Write', 'Edit', 'MultiEdit'].includes(call.name) && call.input.file_path === goalReportPath;
++    const note = reportPath !== null && ['Write', 'Edit', 'MultiEdit'].includes(call.name) &&
++      expandedPath(call.input.file_path, cwd) === reportPath;
+     const waiting = call.name === 'TaskOutput';
+     const observation = OBSERVATIONS.has(call.name) || note;
+     const failed = value.is_error === true;
+diff --git a/src/commands/goal/auto.ts b/src/commands/goal/auto.ts
+index 33ca854..0fda0e3 100644
+--- a/src/commands/goal/auto.ts
++++ b/src/commands/goal/auto.ts
+@@ -216,6 +216,11 @@ function readGoalReport(dir: string): { text: string; fingerprint: string; conte
+   return { text, fingerprint, contentFingerprint: createHash("sha256").update(text).digest("hex") };
+ }
+ 
++/** Only execution prose, with quoted/code examples removed, controls status. */
++function terminalGoalReportStatus(controlText: string): string | undefined {
++  return /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?(completed|blocked)(?:\*\*)?\s*$/im.exec(controlText)?.[1]?.toLowerCase();
++}
++
+ function extractGoalHeading(reportText: string): string | null {
+   const match = /^\s*#\s+([^\r\n]+)/m.exec(reportText);
+   const heading = match?.[1]?.trim();
+@@ -463,12 +468,21 @@ export function recordGoalSteering(
+   if (deduped.length > MAX_STEERING_NOTES) throw new Error("Goal steering limit reached; consolidate constraints explicitly instead of discarding earlier instructions");
+   const { dir } = location(cwd);
+   const preservePause = state.state === "PAUSED" && options.resumePaused === false;
++  const resuming = state.state === "PAUSED" && !preservePause;
++  const report = state.state === "ACTIVE" || resuming ? readGoalReport(dir) : null;
++  // A queued human instruction can arrive after the model wrote completed,
++  // before the old turn processes that report. It adds work/constraints to
++  // the same root; the earlier claim cannot retire the new instruction.
++  // Do not suppress real blockers, operator pauses, or change report bytes.
++  const staleCompletion = state.state === "ACTIVE" && report &&
++    goalMatchesReport(report.text, state.goal) &&
++    terminalGoalReportStatus(executionProse(report.text, true)) === "completed";
+   return persist(cwd, {
+     ...state,
+     state: preservePause ? "PAUSED" : "ACTIVE",
+     continuations: state.state === "PAUSED" && !preservePause && options.resetContinuationBudget !== false ? 0 : state.continuations,
+-    ignoredGoalReport: state.state === "PAUSED" && !preservePause
+-      ? (readGoalReport(dir)?.fingerprint ?? null)
++    ignoredGoalReport: resuming || staleCompletion
++      ? (report?.fingerprint ?? null)
+       : state.ignoredGoalReport,
+     reason: preservePause ? state.reason : null,
+     activeSteering: deduped,
+@@ -785,7 +799,7 @@ function goalFileOutcome(
+   }
+   if (report.fingerprint === state.ignoredGoalReport) return null;
+ 
+-  const status = /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?(completed|blocked)(?:\*\*)?\s*$/im.exec(controlText)?.[1]?.toLowerCase();
++  const status = terminalGoalReportStatus(controlText);
+   if (status === "completed") {
+     if (state.loop?.kind === "continuous") return {
+       recovery: "This is a standing loop. A completed cycle cannot retire it. Reconcile the previous cycle's effects, " +
+diff --git a/src/commands/goal/context.ts b/src/commands/goal/context.ts
+index 4977413..7ab5523 100644
+--- a/src/commands/goal/context.ts
++++ b/src/commands/goal/context.ts
+@@ -53,12 +53,13 @@ export function appendGoalRequestAnchor<T extends ContextMessage>(messages: T[],
+   executionPolicy?: string | null;
+ }): T[] {
+   if (!options.mainThread) return messages;
+-  const state = readAutoGoal(options.cwd);
++  const cwd = options.cwd ?? process.cwd();
++  const state = readAutoGoal(cwd);
+   if (!state) return messages;
+-  const review = state.state === "ACTIVE" ? actionFocusReview(messages, autoGoalReportPath(options.cwd)) : null;
++  const review = state.state === "ACTIVE" ? actionFocusReview(messages, autoGoalReportPath(cwd), cwd) : null;
+   return [
+     ...(state.state === "ACTIVE" && options.executionPolicy ? [options.makeMessage(options.executionPolicy)] : []),
+     ...messages,
+-    options.makeMessage(formatGoalRequestAnchor(state, options.cwd) + (review ? "\n" + review : "")),
++    options.makeMessage(formatGoalRequestAnchor(state, cwd) + (review ? "\n" + review : "")),
+   ];
+ }
+diff --git a/tests/commands/goal-focus.test.ts b/tests/commands/goal-focus.test.ts
+index 3f2199e..2c35401 100644
+--- a/tests/commands/goal-focus.test.ts
++++ b/tests/commands/goal-focus.test.ts
+@@ -5,7 +5,7 @@ import { join } from "node:path";
+ import { tmpdir } from "node:os";
+ import {
+   enableAutoGoal, readAutoGoal, readMilestoneLedger, resumeAutoGoalFromInput,
+-  decideAutoGoalContinuation, formatActiveGoalCompactionAnchor, recordGoalSteering,
++  decideAutoGoalContinuation, formatActiveGoalCompactionAnchor, recordGoalSteering, pauseAutoGoal,
+ } from "../../src/commands/goal/auto.ts";
+ 
+ function fixture(run: (cwd: string) => void): void {
+@@ -132,3 +132,78 @@ test("multi-line objectives still bind legitimate reports and completion still r
+   assert.equal(advance(cwd).kind, "BLOCKED");
+   assert.equal(readAutoGoal(cwd)?.state, "REVIEW");
+ }));
++
++test("trusted new work invalidates a preexisting completion report without replacing the root or its budget", () => fixture(cwd => {
++  const root = "Implement and independently verify the source change";
++  enableAutoGoal(root, cwd, 7);
++  advance(cwd);
++  const path = join(cwd, ".future-code/goal.md");
++  const oldReport = `# ${root}\nStatus: completed\n- [x] Source and tests verified\n`;
++  writeFileSync(path, oldReport);
++  const before = readAutoGoal(cwd)!;
++  const next = resumeAutoGoalFromInput("Push the already validated commit to origin now; report the remote commit hash.",
++    { cwd, mainThread: true })!;
++  assert.equal(next.goal, root);
++  assert.equal(next.revision, before.revision);
++  assert.equal(next.continuations, before.continuations);
++  assert.equal(next.totalContinuations, before.totalContinuations);
++  assert.equal(next.maxContinuations, 7);
++  assert.equal(readFileSync(path, "utf8"), oldReport, "keep the old evidence intact");
++  const pending = decideAutoGoalContinuation({ cwd, mainThread: true, withinTurnBudget: true,
++    promptFormat: "delta", toolActivity: false, assistantText: "The requested remote push has not run yet." });
++  assert.equal(pending.kind, "CONTINUE");
++  assert.equal(readAutoGoal(cwd)?.state, "ACTIVE");
++  writeFileSync(path, `# ${root}\nStatus: completed\n- [x] Source and tests verified\n- [x] Remote commit independently checked\n`);
++  assert.equal(advance(cwd).kind, "BLOCKED");
++  assert.equal(readAutoGoal(cwd)?.state, "REVIEW", "fresh completion still requests review, never acceptance");
++}));
++
++test("new trusted constraints also invalidate a preexisting completion claim", () => fixture(cwd => {
++  const root = "Deliver the checked result";
++  enableAutoGoal(root, cwd);
++  writeFileSync(join(cwd, ".future-code/goal.md"), `# ${root}\nStatus: completed\n`);
++  resumeAutoGoalFromInput("Do not weaken the acceptance checks", { cwd, mainThread: true });
++  assert.equal(advance(cwd).kind, "CONTINUE");
++  assert.deepEqual(readAutoGoal(cwd)?.activeSteering, ["Do not weaken the acceptance checks"]);
++}));
++
++test("read-only questions and child input leave an existing completion report eligible for review", () => {
++  for (const [input, mainThread] of [["What is the big objective now?", true],
++    ["Push the validated commit to origin", false]] as const) fixture(cwd => {
++    const root = "Deliver the checked result";
++    enableAutoGoal(root, cwd);
++    writeFileSync(join(cwd, ".future-code/goal.md"), `# ${root}\nStatus: completed\n`);
++    const before = readAutoGoal(cwd);
++    assert.equal(resumeAutoGoalFromInput(input, { cwd, mainThread }), null);
++    assert.deepEqual(readAutoGoal(cwd), before);
++    assert.equal(advance(cwd).kind, "BLOCKED");
++    assert.equal(readAutoGoal(cwd)?.state, "REVIEW");
++  });
++});
++
++test("steering does not suppress a genuine external blocker or cancel an operator pause", () => {
++  fixture(cwd => {
++    const root = "Deliver the checked result";
++    enableAutoGoal(root, cwd);
++    writeFileSync(join(cwd, ".future-code/goal.md"), `# ${root}\nStatus: blocked\nBlocker: HTTP 403 from executor\n` +
++      "Blocker type: credentials\nRecovery attempted: Confirmed the credential is expired\nExternal action required: Renew the executor credential\n");
++    resumeAutoGoalFromInput("Push the validated commit to origin", { cwd, mainThread: true });
++    assert.equal(advance(cwd).kind, "BLOCKED");
++    assert.equal(readAutoGoal(cwd)?.state, "PAUSED");
++    assert.match(readAutoGoal(cwd)?.reason ?? "", /HTTP 403/);
++  });
++  fixture(cwd => {
++    const root = "Deliver the checked result";
++    enableAutoGoal(root, cwd, 7);
++    writeFileSync(join(cwd, ".future-code/goal.md"), `# ${root}\nStatus: completed\n`);
++    pauseAutoGoal(cwd, "Paused by operator instruction");
++    const before = readAutoGoal(cwd)!;
++    resumeAutoGoalFromInput("Do not weaken the acceptance checks", { cwd, mainThread: true });
++    const next = readAutoGoal(cwd)!;
++    assert.equal(next.state, "PAUSED");
++    assert.equal(next.reason, before.reason);
++    assert.equal(next.ignoredGoalReport, before.ignoredGoalReport);
++    assert.equal(next.maxContinuations, 7);
++    assert.equal(advance(cwd).kind, "SKIP");
++  });
++});
+diff --git a/tests/correctness/action-focus.test.ts b/tests/correctness/action-focus.test.ts
+index 372998e..56446e2 100644
+--- a/tests/correctness/action-focus.test.ts
++++ b/tests/correctness/action-focus.test.ts
+@@ -1,8 +1,9 @@
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+-import { tmpdir } from 'node:os';
++import { homedir, tmpdir } from 'node:os';
+ import { join } from 'node:path';
++import { actionFocusReview } from '../../src/commands/goal/actionFocus.ts';
+ import { appendGoalRequestAnchor } from '../../src/commands/goal/context.ts';
+ import { enableAutoGoal, pauseAutoGoal, readAutoGoal } from '../../src/commands/goal/auto.ts';
+ 
+@@ -42,6 +43,34 @@ test('rewriting goal notes cannot conceal an observation-only loop', () => fixtu
+   assert.match(anchor(history, cwd), /observation\/planning receipts/);
+ }));
+ 
++test('equivalent relative and normalized absolute goal-report writes stay observational without changing history', () => fixture(cwd => {
++  const aliases = ['.future-code/goal.md', './.future-code/goal.md',
++    join(cwd, '.future-code') + '/./goal.md', join(cwd, '.future-code') + '/other/../goal.md',
++    '  .future-code/goal.md  '];
++  for (const name of ['Write', 'Edit', 'MultiEdit']) for (const file_path of aliases) {
++    const history = [...observations(12), ...pair(20, name, { file_path, content: 'notes' }, 'updated')];
++    const before = structuredClone(history);
++    assert.match(anchor(history, cwd), /13 observation\/planning receipts/, `${name}: ${file_path}`);
++    assert.deepEqual(history, before, 'path normalization must not rewrite request history');
++  }
++}));
++
++test('home expansion recognizes only the current goal report without filesystem access', () => {
++  const goal = join(homedir(), '.future-code/goals/review/goal.md');
++  const history = [...observations(12), ...pair(20, 'Write',
++    { file_path: '~/.future-code/goals/review/goal.md', content: 'notes' }, 'updated')];
++  assert.match(actionFocusReview(history, goal, '/unrelated/workspace')!, /13 observation\/planning receipts/);
++  assert.doesNotMatch(actionFocusReview(history, join(homedir(), '.future-code/goals/other/goal.md'),
++    '/unrelated/workspace') ?? '', /Host Action Review/);
++});
++
++test('successful relative document writes outside the current goal report still reset activity review', () => fixture(cwd => {
++  for (const file_path of ['docs/progress.md', 'docs/goal.md', 'goal.md']) {
++    const history = [...observations(12), ...pair(20, 'Write', { file_path, content: 'deliverable' }, 'updated')];
++    assert.doesNotMatch(anchor(history, cwd), /Host Action Review/, file_path);
++  }
++}));
++
+ test('three identical failed receipts trigger diagnosis without suppressing the original tool evidence', () => fixture(cwd => {
+   const history = Array.from({ length: 3 }, (_, i) => pair(i, 'Bash', { command: 'run-check' }, 'HTTP 503', true)).flat();
+   const view = appendGoalRequestAnchor(history, { cwd, mainThread: true, makeMessage: meta });
