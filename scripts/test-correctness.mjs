@@ -23,6 +23,7 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/portable-context-recovery.test.ts",
   "tests/correctness/remote-response-liveness.test.ts",
   "tests/correctness/query-activity.test.ts", "tests/correctness/model-stream-liveness.test.ts",
+  "tests/correctness/opportunistic-task.test.ts",
   "tests/correctness/model-fallback-effects.test.ts", "tests/correctness/streaming-tool-executor.test.ts",
   "tests/correctness/streaming-gate-precedence.test.ts",
   "tests/correctness/self-improve-isolation.test.ts",
