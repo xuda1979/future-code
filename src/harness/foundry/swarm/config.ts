@@ -32,6 +32,9 @@ export interface AgentProfile {
   system: string;
   tools: ToolName[];
   checks: string[];
+  /** Explicitly omit a final model acknowledgment only after fresh full host
+   * verification. Scheduler acceptance and integration still run separately. */
+  completionPolicy?: "verified-checks";
   /** Cheap permitted check used for autonomous evaluation; defaults to checks[0]. */
   checkpointCheck?: string;
   /** Permitted exploratory checks; never added to independent acceptance. */
@@ -308,7 +311,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
   invariant(s.integrationChecks.every(n => s.checks[n].replaySafe), "integration checks must be replay-safe");
   for (const [id, a] of Object.entries(s.agents)) {
     identifier(id); keys(a, ["protocol", "url", "model", "system", "tools", "checks"],
-      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs", "cohort", "probes", "checkpointCheck", "diagnostics", "decisionPolicy", "capabilities"]);
+      ["keyEnv", "promptCache", "allowHttp", "quotaPool", "jobs", "fallbacks", "hedgeAfterMs", "cohort", "probes", "checkpointCheck", "diagnostics", "decisionPolicy", "capabilities", "completionPolicy"]);
     if (a.capabilities !== undefined) names(a.capabilities, Object.keys(s.operations?.capabilities ?? {}), "external capabilities");
     if (a.tools.includes("invoke_capability")) invariant(s.operations && a.capabilities?.length, "invoke_capability requires a capability grant");
     if (a.tools.includes("read_operations")) invariant(s.operations, "read_operations requires operations policy");
@@ -359,6 +362,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
       invariant(a.jobs && a.jobs.length > 0, "job tools require named job capabilities");
     if (s.supervision) invariant(a.tools.includes("run_check"), "supervision requires a permitted checkpoint check");
     names(a.tools, [...TOOLS], "tools"); names(a.checks, checks, "agent checks");
+    if (a.completionPolicy !== undefined) invariant(a.completionPolicy === "verified-checks" && a.tools.includes("run_check"),
+      "completion policy requires verified-checks and named run_check capabilities");
     if (a.checkpointCheck !== undefined) invariant(a.tools.includes("run_check") && permittedChecks(a).includes(a.checkpointCheck),
       "checkpoint check must be a permitted run_check capability");
     if (a.diagnostics !== undefined) {

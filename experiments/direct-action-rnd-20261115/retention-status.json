@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "status": "RAW_EVIDENCE_LOST_AFTER_ENVIRONMENT_RESTART",
+  "recorded_at_utc": "2026-11-15T08:36:34.177509+00:00",
+  "scope": "Retention note only. Existing audit reports, their historical conclusions and measured denominators are not modified.",
+  "cohorts": [
+    {
+      "experiment_id": "EXP-0104",
+      "historical_audit_status": "PASS",
+      "audit_report": "independent-results.json",
+      "audit_report_sha256": "445f595323f483ce49c9cb53caa0607c11b54b00f48e6aea5bbfceb4fb212f06",
+      "historical_trial_count": 24,
+      "historical_source_view_replays": 65,
+      "historical_pass_artifacts_freshly_reaccepted": 16,
+      "recorded_raw_file_hashes_survive": 194,
+      "raw_lab_path": "/tmp/future-code-live-canary-20261115",
+      "raw_lab_exists_now": false,
+      "raw_state_files_available_now": 0,
+      "current_exact_trace_replay": "UNAVAILABLE_AFTER_ENVIRONMENT_RESTART",
+      "historical_exploratory_speedup_threshold_met": false
+    },
+    {
+      "experiment_id": "EXP-0105",
+      "historical_audit_status": "PASS",
+      "audit_report": "independent-confirmation-results.json",
+      "audit_report_sha256": "e7cd8701424b3c164d61209c7807a95a0e28a6919128e3b202d76852f07edded",
+      "historical_trial_count": 24,
+      "historical_source_view_replays": 76,
+      "historical_pass_artifacts_freshly_reaccepted": 24,
+      "recorded_raw_file_hashes_survive": 224,
+      "raw_lab_path": "/tmp/future-code-live-canary-confirm-20261115",
+      "raw_lab_exists_now": false,
+      "raw_state_files_available_now": 0,
+      "current_exact_trace_replay": "UNAVAILABLE_AFTER_ENVIRONMENT_RESTART",
+      "historical_exploratory_speedup_threshold_met": false
+    }
+  ],
+  "surviving_file_sha256": {
+    "independent-results.json": "445f595323f483ce49c9cb53caa0607c11b54b00f48e6aea5bbfceb4fb212f06",
+    "independent-confirmation-results.json": "e7cd8701424b3c164d61209c7807a95a0e28a6919128e3b202d76852f07edded",
+    "delivery-recovery-results.json": "4a666f1b25db1aca2033b7c18fbe20baafddea7e27479887b6999ca85aa2bb46",
+    "contract.json": "2d19482fc3bd8f99efcd45c6b06d75970661ad9530bd599b815db584eb6cd722",
+    "confirmation-contract.json": "3271df833d0b19b29853bc3027edfddd403347bb5da5e42b5c5daf20ea809025",
+    "task-manifest.json": "be97b1bcb9b1e3fa3cb81f52dde9ac5cd8c760909df3c256f9f528992a736666",
+    "confirmation-task-manifest.json": "29428acb96da15a4cdaf8d5d16e29ef5d0e089c49cf242796c4c99f28379ddc5",
+    "checker.py": "f127492bdd1ad772649b7c558a5af0a99c70cb7cc97fc257c6cbbf920da90b14",
+    "verify_results.py": "8969adeb19ed05b6506133be938f58ad3b2a6363aadf619383a90b62794dc5b4",
+    "independent-checker-calibration.json": "a7d0a91f98b4609188820f47ce84a725f0ab357fce78432ee61e14f302eab7d0"
+  },
+  "deterministic_delivery": {
+    "historical_remote_ref_and_fresh_clone_checks": "independently completed before restart; base0/3, candidate3/3",
+    "raw_workspace_path": "/tmp/fc-delivery-recovery-Fmt3xm",
+    "raw_workspace_exists_now": false,
+    "current_exact_artifact_recheck": "UNAVAILABLE_AFTER_ENVIRONMENT_RESTART"
+  },
+  "limitations": [
+    "The surviving reports record audits completed against the then-present raw traces and artifacts; they are not a new re-audit after restart.",
+    "Recorded raw-file hashes do not recover missing bytes. Exact old request/response sequences, source snapshots, per-trial workspaces and remote repositories cannot currently be replayed from surviving files.",
+    "No original requests, responses, timestamps or candidate outputs were reconstructed or invented.",
+    "The original48 trials and failed practical speedup thresholds remain preserved in the historical summaries."
+  ],
+  "future_requirement": "New experiments must use fresh task fixtures and checkpoint actual raw requests, responses, receipts and artifacts in workspace-backed evidence directories before claiming current replayability."
+}

@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { actionFocusReview } from '../../src/commands/goal/actionFocus.ts';
 import { appendGoalRequestAnchor } from '../../src/commands/goal/context.ts';
 import { enableAutoGoal, pauseAutoGoal, readAutoGoal } from '../../src/commands/goal/auto.ts';
 
@@ -40,6 +41,34 @@ test('rewriting goal notes cannot conceal an observation-only loop', () => fixtu
   history.push(...pair(20, 'Write', { file_path: path, content: 'new standup' }, 'written'));
   writeFileSync(path, readFileSync(path, 'utf8') + '\nStandup: still investigating\n');
   assert.match(anchor(history, cwd), /observation\/planning receipts/);
+}));
+
+test('equivalent relative and normalized absolute goal-report writes stay observational without changing history', () => fixture(cwd => {
+  const aliases = ['.future-code/goal.md', './.future-code/goal.md',
+    join(cwd, '.future-code') + '/./goal.md', join(cwd, '.future-code') + '/other/../goal.md',
+    '  .future-code/goal.md  '];
+  for (const name of ['Write', 'Edit', 'MultiEdit']) for (const file_path of aliases) {
+    const history = [...observations(12), ...pair(20, name, { file_path, content: 'notes' }, 'updated')];
+    const before = structuredClone(history);
+    assert.match(anchor(history, cwd), /13 observation\/planning receipts/, `${name}: ${file_path}`);
+    assert.deepEqual(history, before, 'path normalization must not rewrite request history');
+  }
+}));
+
+test('home expansion recognizes only the current goal report without filesystem access', () => {
+  const goal = join(homedir(), '.future-code/goals/review/goal.md');
+  const history = [...observations(12), ...pair(20, 'Write',
+    { file_path: '~/.future-code/goals/review/goal.md', content: 'notes' }, 'updated')];
+  assert.match(actionFocusReview(history, goal, '/unrelated/workspace')!, /13 observation\/planning receipts/);
+  assert.doesNotMatch(actionFocusReview(history, join(homedir(), '.future-code/goals/other/goal.md'),
+    '/unrelated/workspace') ?? '', /Host Action Review/);
+});
+
+test('successful relative document writes outside the current goal report still reset activity review', () => fixture(cwd => {
+  for (const file_path of ['docs/progress.md', 'docs/goal.md', 'goal.md']) {
+    const history = [...observations(12), ...pair(20, 'Write', { file_path, content: 'deliverable' }, 'updated')];
+    assert.doesNotMatch(anchor(history, cwd), /Host Action Review/, file_path);
+  }
 }));
 
 test('three identical failed receipts trigger diagnosis without suppressing the original tool evidence', () => fixture(cwd => {

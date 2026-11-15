@@ -36,6 +36,7 @@ import { KNOWLEDGE_NOTICE, ProjectKnowledge, type ExperienceInput, type Knowledg
 import { assertResearchFrontierExpansion } from "./researchStrategy.ts";
 import { assertTheoryAcceptance, theoryTaskContext } from "./theory.ts";
 import { Operations, actionEvidenceGate } from "../operations/actions.ts";
+import { completionMaterialKey, eligibleVerifiedCompletion, fullCompletionVerificationPassed } from "./verifiedCompletion.ts";
 
 export const workerIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-worker-v1", cfg });
 export const verifierIdentity = (cfg: PinnedSwarm): string => digest({ adapter: "foundry-swarm-independent-checks-v1", cfg });
@@ -234,6 +235,79 @@ export class SwarmDriver implements Driver {
       }
     };
     const jobs = this.cfg.spec.jobs ? new ResearchJobs(this.journal, this.cfg, this.jobRpc) : null;
+    const tryVerifiedCompletion = async (): Promise<boolean> => {
+      // These authorities have independent mutable evidence beyond the small
+      // patch/job/child identity. Retain their normal model-completion path.
+      if (profile.completionPolicy !== "verified-checks" || this.operations || this.programme || theoretical) return false;
+      const passingReceipt = (hash: string): boolean => {
+        if (!this.journal.ownsReceipt(c, hash)) return false;
+        try {
+          const result = this.store.readArtifact(hash) as any;
+          return result?.code === 0 && result.error === undefined;
+        } catch { return false; }
+      };
+      const eligible = eligibleVerifiedCompletion(profile, t.state, passingReceipt);
+      if (!eligible) return false;
+      signal.throwIfAborted(); this.journal.assertLease(c);
+      const before = await timedTool(() => hands.snapshot());
+      signal.throwIfAborted(); this.journal.assertLease(c);
+      if (before !== t.state.patchHash) {
+        t.state.patchHash = before;
+        this.journal.checkpoint(t, "completion.source-changed", { patchHash: before });
+        return false;
+      }
+      const artifact = { schema: 1 as const, patchHash: before,
+        summary: `Host candidate based on ${eligible.receipts.length} current named-check receipts (${digest(eligible.receipts)}). Full scheduler verification and integration are still required.` };
+      const candidate: WorkerResult = { artifact: toJson(artifact) };
+      // Persist UNKNOWN before the expensive work. A crash can cost the
+      // optimization, never manufacture PASS or blindly repeat this probe.
+      t.state.completionProbe = { materialKey: eligible.materialKey, status: "UNKNOWN" };
+      t.state.history.push({ role: "user", content: canonical({ completionVerification: {
+        status: "UNKNOWN", materialKey: eligible.materialKey,
+        instruction: "An independent completion probe has not yet produced a passing receipt. This is not acceptance." } }) });
+      this.journal.checkpoint(t, "completion.probe", { materialKey: eligible.materialKey, receipts: eligible.receipts });
+      control?.activity?.("completion:verify");
+      let verification: Verification;
+      try { verification = await this.verify(c, candidate, signal, control); }
+      catch (error) {
+        signal.throwIfAborted(); this.journal.assertLease(c);
+        if (error instanceof FatalAttemptError || error instanceof DeferredAttemptError) throw error;
+        verification = { artifactHash: digest(candidate.artifact), checks: [{ id: "completion", verdict: "UNKNOWN",
+          detail: error instanceof Error ? error.message.slice(0, 512) : "completion verifier unavailable" }] };
+      }
+      if (!verification || typeof verification.artifactHash !== "string" || !Array.isArray(verification.checks) ||
+          verification.checks.some(check => !check || typeof check.id !== "string" || typeof check.verdict !== "string")) {
+        verification = { artifactHash: digest(candidate.artifact), checks: [{ id: "completion", verdict: "UNKNOWN",
+          detail: "The full verifier returned an invalid report." }] };
+      }
+      signal.throwIfAborted(); this.journal.assertLease(c);
+      const after = await timedTool(() => hands.snapshot());
+      signal.throwIfAborted(); this.journal.assertLease(c);
+      if (after !== t.state.patchHash) t.state.patchHash = after;
+      const current = eligibleVerifiedCompletion(profile, { ...t.state, completionProbe: undefined }, passingReceipt);
+      const unchanged = after === artifact.patchHash && current?.materialKey === eligible.materialKey &&
+        completionMaterialKey(t.state) === eligible.materialKey;
+      const passed = unchanged && fullCompletionVerificationPassed(this.store.contract().requiredChecks, candidate.artifact, verification);
+      const receipt = this.journal.receipt(c, toJson({ materialKey: eligible.materialKey, current: unchanged, verification }));
+      t.state.completionProbe = { materialKey: eligible.materialKey, status: passed ? "PASS" :
+        verification.checks.some(check => check.verdict === "FAIL") ? "FAIL" : "UNKNOWN", receipt };
+      if (passed) {
+        // This is an ordinary candidate descriptor. The scheduler still calls
+        // verify freshly and integration still rebuilds its own checks.
+        t.state.output = artifact;
+        this.journal.checkpoint(t, "worker.output", { ...artifact, completionVerification: { receipt, materialKey: eligible.materialKey } });
+        return true;
+      }
+      const feedback: Verification = { ...verification, checks: [...verification.checks,
+        { id: "completion", verdict: "UNKNOWN", detail: "Full completion verification was not established on current material inputs." }] };
+      t.state.feedbackHash = this.journal.feedback(c, feedback);
+      t.state.history.push({ role: "user", content: canonical({ completionVerification: {
+        status: t.state.completionProbe.status, receipt, current: unchanged,
+        checks: verification.checks.slice(0, 16).map(check => ({ id: check.id.slice(0, 128), verdict: check.verdict })),
+        instruction: "Continue this same attempt. Inspect the owned receipt, repair or resolve the missing evidence, and use current named checks. No completion or acceptance was granted." } }) });
+      this.journal.checkpoint(t, "completion.review", { receipt, materialKey: eligible.materialKey, status: t.state.completionProbe.status });
+      return false;
+    };
     const enforcePruning = () => {
       const failure = t.state.diagnostics?.pruned ?? pruningCandidate(t.state, this.cfg);
       if (!failure) return;
@@ -555,6 +629,10 @@ export class SwarmDriver implements Driver {
           this.journal.checkpoint(t, "decision.review", { review });
           control?.activity?.("decision:measurement-due");
         }
+        // All admitted tool pairs, saved replies and exploratory barriers have
+        // drained. Only now may an explicitly configured profile omit a NEW
+        // model acknowledgment after the full independent verifier succeeds.
+        if (profile.completionPolicy === "verified-checks" && await tryVerifiedCompletion()) continue;
         if (t.state.turns >= budget.maxTurns) throw new FatalAttemptError("THREAD_TURN_BUDGET_EXHAUSTED");
         if (this.knowledge && profile.tools.includes("read_knowledge") && Math.floor(limit / 4) >= 1024) {
           // Refresh only AFTER replay and at a complete tool boundary. The

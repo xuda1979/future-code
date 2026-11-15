@@ -53,12 +53,13 @@ export function appendGoalRequestAnchor<T extends ContextMessage>(messages: T[],
   executionPolicy?: string | null;
 }): T[] {
   if (!options.mainThread) return messages;
-  const state = readAutoGoal(options.cwd);
+  const cwd = options.cwd ?? process.cwd();
+  const state = readAutoGoal(cwd);
   if (!state) return messages;
-  const review = state.state === "ACTIVE" ? actionFocusReview(messages, autoGoalReportPath(options.cwd)) : null;
+  const review = state.state === "ACTIVE" ? actionFocusReview(messages, autoGoalReportPath(cwd), cwd) : null;
   return [
     ...(state.state === "ACTIVE" && options.executionPolicy ? [options.makeMessage(options.executionPolicy)] : []),
     ...messages,
-    options.makeMessage(formatGoalRequestAnchor(state, options.cwd) + (review ? "\n" + review : "")),
+    options.makeMessage(formatGoalRequestAnchor(state, cwd) + (review ? "\n" + review : "")),
   ];
 }

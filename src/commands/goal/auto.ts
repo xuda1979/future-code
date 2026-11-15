@@ -216,6 +216,11 @@ function readGoalReport(dir: string): { text: string; fingerprint: string; conte
   return { text, fingerprint, contentFingerprint: createHash("sha256").update(text).digest("hex") };
 }
 
+/** Only execution prose, with quoted/code examples removed, controls status. */
+function terminalGoalReportStatus(controlText: string): string | undefined {
+  return /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?(completed|blocked)(?:\*\*)?\s*$/im.exec(controlText)?.[1]?.toLowerCase();
+}
+
 function extractGoalHeading(reportText: string): string | null {
   const match = /^\s*#\s+([^\r\n]+)/m.exec(reportText);
   const heading = match?.[1]?.trim();
@@ -463,12 +468,21 @@ export function recordGoalSteering(
   if (deduped.length > MAX_STEERING_NOTES) throw new Error("Goal steering limit reached; consolidate constraints explicitly instead of discarding earlier instructions");
   const { dir } = location(cwd);
   const preservePause = state.state === "PAUSED" && options.resumePaused === false;
+  const resuming = state.state === "PAUSED" && !preservePause;
+  const report = state.state === "ACTIVE" || resuming ? readGoalReport(dir) : null;
+  // A queued human instruction can arrive after the model wrote completed,
+  // before the old turn processes that report. It adds work/constraints to
+  // the same root; the earlier claim cannot retire the new instruction.
+  // Do not suppress real blockers, operator pauses, or change report bytes.
+  const staleCompletion = state.state === "ACTIVE" && report &&
+    goalMatchesReport(report.text, state.goal) &&
+    terminalGoalReportStatus(executionProse(report.text, true)) === "completed";
   return persist(cwd, {
     ...state,
     state: preservePause ? "PAUSED" : "ACTIVE",
     continuations: state.state === "PAUSED" && !preservePause && options.resetContinuationBudget !== false ? 0 : state.continuations,
-    ignoredGoalReport: state.state === "PAUSED" && !preservePause
-      ? (readGoalReport(dir)?.fingerprint ?? null)
+    ignoredGoalReport: resuming || staleCompletion
+      ? (report?.fingerprint ?? null)
       : state.ignoredGoalReport,
     reason: preservePause ? state.reason : null,
     activeSteering: deduped,
@@ -785,7 +799,7 @@ function goalFileOutcome(
   }
   if (report.fingerprint === state.ignoredGoalReport) return null;
 
-  const status = /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?(completed|blocked)(?:\*\*)?\s*$/im.exec(controlText)?.[1]?.toLowerCase();
+  const status = terminalGoalReportStatus(controlText);
   if (status === "completed") {
     if (state.loop?.kind === "continuous") return {
       recovery: "This is a standing loop. A completed cycle cannot retire it. Reconcile the previous cycle's effects, " +
