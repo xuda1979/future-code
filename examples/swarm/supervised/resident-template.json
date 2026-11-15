@@ -1,0 +1,34 @@
+{
+  "argv": ["/usr/bin/python3", "/opt/research/run_experiment.py"],
+  "cwd": "/srv/research/project",
+  "timeoutMs": 172800000,
+  "envAllow": [],
+  "resultMaxBytes": 16384,
+  "maxLogBytes": 1048576,
+  "supervision": {
+    "replaySafe": true,
+    "maxAttempts": 3,
+    "retryExitCodes": [75, 137, -9],
+    "backoffMs": 1000,
+    "pollMs": 1000,
+    "stallMs": 1200000,
+    "bootstrap": {
+      "argv": ["/usr/bin/python3", "/opt/research/bootstrap.py"],
+      "timeoutMs": 300000
+    },
+    "checkpoint": {
+      "root": "/srv/research/checkpoints",
+      "contract": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "components": ["weights", "state"],
+      "maxBytes": 107374182400
+    },
+    "goal": {
+      "name": "heldout_score",
+      "contract": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "direction": "maximize",
+      "baseline": 0.2,
+      "staleMs": 3600000,
+      "minDelta": 0.001
+    }
+  }
+}
