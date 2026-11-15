@@ -1,0 +1,177 @@
+{
+  "source_sha256": {
+    "src/commands/goal/actionFocus.ts": "e39cd242f6885283037496777a9947577a197971e040bab534d80b2f7ab4d4af",
+    "src/commands/goal/context.ts": "e177df6f813e37cda40987954b1807118ae545055f1b348b3fbdcd1966d88cd6",
+    "src/harness/decisionGuidance.ts": "ebf859cfd2403358b66054770176667f5f44ec4669a737bff3fbf18246bd1021",
+    "tests/correctness/action-focus.test.ts": "a72cbf26f2010fa189e718fe67d9c9ff8b79914cf27511c88b25d08c88027ab3",
+    "scripts/test-correctness.mjs": "22f6320cd4402e7cca1ebbf4dbfefb14e5c941198c5e36395b0b89311ad565ba"
+  },
+  "source_unchanged": true,
+  "groups": [
+    {
+      "group": "correctness",
+      "exit": 0,
+      "seconds": 38.227,
+      "log_sha256": "fdef780a3c31656e514459dea0fe2794f1f019233c564cf74f76baf2a4845710",
+      "command": "node scripts/test-correctness.mjs",
+      "log_name": "future-code-direct-release-correctness.log"
+    },
+    {
+      "group": "resilience",
+      "exit": 0,
+      "seconds": 37.632,
+      "log_sha256": "231a36bf673937dee0f457d6e0a2b813a1759e032f44302f184b7e79cfcd1de3",
+      "command": "node scripts/test-resilience.mjs",
+      "log_name": "future-code-direct-release-resilience.log"
+    },
+    {
+      "group": "foundry",
+      "exit": 0,
+      "seconds": 118.407,
+      "log_sha256": "66c141c77b5c7ab09668f6c6b78d5943ec5cdf902496548ae9c3615f7de27d8d",
+      "command": "node scripts/test-foundry.mjs",
+      "log_name": "future-code-direct-release-foundry.log"
+    },
+    {
+      "group": "swarm",
+      "exit": 0,
+      "seconds": 97.415,
+      "log_sha256": "cf5ac330a6e6dc27acbfe5923e13a8ffbb277786ed6ff9502afd41c688085134",
+      "command": "node scripts/test-swarm.mjs",
+      "log_name": "future-code-direct-release-swarm.log"
+    },
+    {
+      "group": "commands",
+      "exit": 0,
+      "seconds": 1.039,
+      "log_sha256": "306407756105127dd7a3e4cdb42862295572286d478c65fcc940932c7a0b7121",
+      "command": "node scripts/test-commands.mjs",
+      "log_name": "future-code-direct-release-commands.log"
+    }
+  ],
+  "schema": 1,
+  "date": "2026-11-15",
+  "base_commit": "022a41ae21c35e47e09c87a1b39cec97cc834f17",
+  "scope": "Host request diagnostics and general decision guidance; no live-model productivity claim.",
+  "environment": {
+    "node": "v24.22.1",
+    "python": "Python 3.12.14",
+    "platform": "Linux"
+  },
+  "counts": {
+    "correctness": {
+      "node_pass": 366,
+      "node_skip": 1,
+      "python_pass": 36,
+      "python_skip": 5
+    },
+    "resilience": {
+      "node_pass": 178,
+      "python_pass": 18
+    },
+    "foundry": {
+      "pass": 879
+    },
+    "swarm": {
+      "pass": 557
+    },
+    "commands": {
+      "pass": 227
+    },
+    "note": "Suites overlap; do not sum into a unique-test count."
+  },
+  "request_path_regressions": {
+    "test_file": "tests/correctness/action-focus.test.ts",
+    "base": {
+      "tests": 15,
+      "pass": 6,
+      "fail": 9,
+      "expected_feature_failures": true,
+      "log_sha256": "c438253ccdd3d606b0ecad2e0780cb93bddfe7fde08f09559ac469c13f24cdbf"
+    },
+    "candidate": {
+      "tests": 15,
+      "pass": 15,
+      "fail": 0,
+      "included_in": "correctness"
+    },
+    "live_model_calls": 0
+  },
+  "focused_existing_diagnostic_and_generalization_checks": {
+    "tests": 42,
+    "pass": 42,
+    "fail": 0,
+    "log_sha256": "ed6fd5a762cc0561052946723691aa58a3e75f4579831f7de369dcabe4162673"
+  },
+  "overhead": {
+    "kind": "HOST_DIAGNOSTIC_MICROBENCHMARK",
+    "node": "v24.22.1",
+    "platform": "linux",
+    "samples": 1000,
+    "results": [
+      {
+        "name": "ordinary_discovery",
+        "history_messages": 10,
+        "warning_bytes": 0,
+        "p50_ms": 0.021900999999985515,
+        "p95_ms": 0.08971200000002,
+        "max_ms": 6.418853000000013
+      },
+      {
+        "name": "repeated_failure",
+        "history_messages": 6,
+        "warning_bytes": 870,
+        "p50_ms": 0.008865999999954965,
+        "p95_ms": 0.05608200000000352,
+        "max_ms": 5.270471000000015
+      },
+      {
+        "name": "observation_review",
+        "history_messages": 24,
+        "warning_bytes": 919,
+        "p50_ms": 0.038548999999989064,
+        "p95_ms": 0.15364799999997558,
+        "max_ms": 5.776718000000017
+      },
+      {
+        "name": "long_history_same_tail",
+        "history_messages": 100024,
+        "warning_bytes": 919,
+        "p50_ms": 0.037791000000027,
+        "p95_ms": 0.12892099999999118,
+        "max_ms": 3.0063430000000153
+      },
+      {
+        "name": "large_receipts",
+        "history_messages": 24,
+        "warning_bytes": 919,
+        "p50_ms": 0.7481450000000223,
+        "p95_ms": 1.351142999999979,
+        "max_ms": 103.374191
+      }
+    ],
+    "limitations": "Local request-diagnostic overhead only; no live-model productivity or time saved measured."
+  },
+  "overhead_script_sha256": "fc2eb3ba2d91e45a626a726700373c67a35acdc1a3c2f18e417e69bc9233e688",
+  "guidance_characters_before_unchanged_autonomy_summary": {
+    "base": 1125,
+    "candidate": 1117
+  },
+  "draft_findings_resolved": [
+    "Longer guidance displaced an existing retained diagnostic under the unchanged 8192-byte context fixture. Shortened guidance restores the original test without changing its budget or assertions.",
+    "Restored existing evaluation wording exercised by generalization and command tests; all final groups pass."
+  ],
+  "syntax_and_whitespace": "All three changed runtime modules and the benchmark script parse; git diff --check passed.",
+  "build": {
+    "command": "bash build.sh",
+    "exit": 2,
+    "reason": "Bun not found on PATH",
+    "packaged_cli_verified": false
+  },
+  "limitations": [
+    "Advisory activity review is not a progress or stall verdict; a model can ignore it.",
+    "Unknown successful tools reset the window conservatively; arbitrary shell commands are not semantically classified.",
+    "No live provider, remote training, benchmark gain or deployment into existing sessions was verified.",
+    "Full receipts, immutable acceptance, permissions, explicit budgets, healthy jobs and deep reasoning remain outside the diagnostic control path."
+  ]
+}
