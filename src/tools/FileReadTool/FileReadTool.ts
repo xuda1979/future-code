@@ -40,6 +40,7 @@ import {
 import { logFileOperation } from '../../utils/fileOperationAnalytics.js'
 import { formatFileSize } from '../../utils/format.js'
 import { getFsImplementation } from '../../utils/fsOperations.js'
+import { readRangeCovers } from '../../utils/readRangeCoverage.js'
 import {
   compressImageBufferWithTokenLimit,
   createImageMetadataText,
@@ -520,8 +521,9 @@ export const FileReadTool = buildTool({
     // (especially handles whitespace trimming and Windows path separators)
     const fullFilePath = expandPath(file_path)
 
-    // Dedup: if we've already read this exact range and the file hasn't
-    // changed on disk, return a stub instead of re-sending the full content.
+    // Dedup: if an earlier Read in this conversation already covers the
+    // requested range and the file hasn't changed on disk, return a stub
+    // instead of re-sending the full content.
     // The earlier Read tool_result is still in context — two full copies
     // waste cache_creation tokens on every subsequent turn. BQ proxy shows
     // ~18% of Read calls are same-file collisions (up to 2.64% of fleet
@@ -549,9 +551,18 @@ export const FileReadTool = buildTool({
       !existingState.isPartialView &&
       existingState.offset !== undefined
     ) {
-      const rangeMatch =
-        existingState.offset === offset && existingState.limit === limit
-      if (rangeMatch) {
+      // Coverage, not just exact match: the cached Read satisfies any
+      // request whose lines fall inside the cached range. Live-transcript
+      // mining (253 sessions, 19,393 Read calls) showed 36% of Reads were
+      // subrange re-reads that an exact-match check never caught. Safety
+      // invariants (uncapped reads reach EOF; capped ends are conservative)
+      // are documented in readRangeCoverage.ts.
+      if (
+        readRangeCovers(
+          { offset: existingState.offset, limit: existingState.limit },
+          { offset, limit },
+        )
+      ) {
         try {
           const mtimeMs = await getFileModificationTimeAsync(fullFilePath)
           if (mtimeMs === existingState.timestamp) {
