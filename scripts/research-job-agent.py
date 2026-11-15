@@ -27,6 +27,13 @@ import threading
 import time
 from typing import Any
 
+# Resolve the deployed sibling helpers for both script execution and callers
+# loading this endpoint by its absolute filename (without PYTHONPATH changes).
+_SCRIPT_DIRECTORY = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIRECTORY not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIRECTORY)
+from research_job_supervision import run_supervised, validate_supervision
+
 MAX_REQUEST = 1024 * 1024
 # Startup is replayable only while the durable state is QUEUED. A runner
 # publishes RUNNING under worker.lock before invoking any user command.
@@ -67,7 +74,7 @@ def read(path: Path) -> Any:
 
 def template(path: Path) -> dict[str, Any]:
     cfg = read(path)
-    if not isinstance(cfg, dict) or set(cfg) - {"argv", "cwd", "timeoutMs", "envAllow", "resultMaxBytes", "maxLogBytes", "artifacts"}:
+    if not isinstance(cfg, dict) or set(cfg) - {"argv", "cwd", "timeoutMs", "envAllow", "resultMaxBytes", "maxLogBytes", "artifacts", "supervision"}:
         raise ValueError("invalid trusted job template")
     argv = cfg.get("argv")
     if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a and "\0" not in a for a in argv):
@@ -100,6 +107,7 @@ def template(path: Path) -> dict[str, Any]:
         total += spec["maxBytes"]
     if total > 268435456:
         raise ValueError("declared artifact total exceeds byte limit")
+    validate_supervision(cfg)
     return cfg
 
 
@@ -195,7 +203,11 @@ def artifact_page(directory: Path, key: str, request: dict[str, Any], cfg: dict[
         raise ValueError("invalid artifact metadata")
     size, checksum = 0, hashlib.sha256()
     content = bytearray()
-    with regular_file(directory / f"{name}.bin") as source:
+    attempt = record.get("evidenceAttempt")
+    if attempt is not None and (type(attempt) is not int or not 1 <= attempt <= 32):
+        raise ValueError("invalid evidence attempt")
+    evidence_dir = directory / "attempts" / str(attempt) if attempt is not None else directory
+    with regular_file(evidence_dir / f"{name}.bin") as source:
         if os.fstat(source.fileno()).st_size != meta["bytes"]:
             raise ValueError("artifact size changed")
         while chunk := source.read(65536):
@@ -233,14 +245,25 @@ def observation(directory: Path, key: str) -> dict[str, Any]:
         status = "UNKNOWN"
     reply: dict[str, Any] = {"schema": 1, "key": key, "jobId": key, "status": status}
     try:
-        progress = read(directory / "progress.json")
+        with regular_file(directory / "progress.json") as source:
+            if os.fstat(source.fileno()).st_size > 65536:
+                raise ValueError("progress record exceeds byte budget")
+            raw = source.read(65537)
+        if len(raw) > 65536:
+            raise ValueError("progress record exceeds byte budget")
+        progress = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
         sequence = progress.get("sequence")
-        if type(sequence) is int and sequence >= 0:
+        if type(sequence) is int and 0 <= sequence <= 2**53 - 1:
             reply["progressToken"] = str(sequence)
-    except (OSError, ValueError, AttributeError):
+    except (OSError, ValueError, AttributeError, RecursionError):
         pass
     if "result" in state:
         reply["result"] = state["result"]
+    elif status == "RUNNING":
+        try:
+            reply["result"] = {"supervision": read(directory / "supervision.json")}
+        except FileNotFoundError:
+            pass
     return reply
 
 
@@ -346,132 +369,159 @@ def worker(directory: Path) -> None:
         cfg = request["config"]
         atomic(directory / "input.json", request["input"])
         atomic(directory / "state.json", {**record, "status": "RUNNING", "workerPid": os.getpid()})
-        env = {"PATH": os.environ.get("PATH", ""), "HOME": str(directory),
-               "FUTURE_JOB_KEY": directory.name, "FUTURE_JOB_INPUT_PATH": str(directory / "input.json"),
-               "FUTURE_JOB_PROGRESS_PATH": str(directory / "progress.json")}
-        env.update({k: os.environ[k] for k in cfg.get("envAllow", []) if k in os.environ})
-        if "resultMaxBytes" in cfg:
-            env["FUTURE_JOB_RESULT_PATH"] = str(directory / "result.json")
-        output_fd = None
-        if cfg.get("artifacts"):
-            outputs = directory / "outputs"
-            outputs.mkdir(mode=0o700)
-            output_fd = os.open(outputs, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-            env["FUTURE_JOB_ARTIFACT_DIR"] = str(outputs)
-        tails: dict[str, bytes] = {"stdout": b"", "stderr": b""}
-        artifacts: dict[str, Any] = {}
-        capture_errors: dict[str, str] = {}
+        if "supervision" in cfg:
+            result, evidence_attempt = run_supervised(directory, cfg, execute_attempt, atomic, encoded)
+        else:
+            result = execute_attempt(directory, cfg, {}, time.monotonic() + cfg["timeoutMs"] / 1000, None)
+            evidence_attempt = None
+        atomic(directory / "state.json", {**record,
+            "status": "SUCCEEDED" if result["exitCode"] == 0 and "error" not in result else "FAILED",
+            "result": result, **({"evidenceAttempt": evidence_attempt} if evidence_attempt else {})})
 
-        def drain(stream: Any, name: str) -> None:
-            limit = cfg.get("maxLogBytes", 0)
-            out = None
-            retained, observed = 0, 0
-            checksum, observed_checksum = hashlib.sha256(), hashlib.sha256()
-            if limit:
-                try:
-                    fd = os.open(directory / f"{name}.bin", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-                    out = os.fdopen(fd, "wb")
-                except OSError:
-                    capture_errors[name] = "log artifact could not open"
+
+def execute_attempt(directory: Path, cfg: dict[str, Any], extra_env: dict[str, str],
+                    deadline: float, observe) -> dict[str, Any]:
+    env = {"PATH": os.environ.get("PATH", ""), "HOME": str(directory),
+           "FUTURE_JOB_KEY": directory.name, "FUTURE_JOB_INPUT_PATH": str(directory / "input.json"),
+           "FUTURE_JOB_PROGRESS_PATH": str(directory / "progress.json")}
+    env.update({k: os.environ[k] for k in cfg.get("envAllow", []) if k in os.environ})
+    env.update(extra_env)
+    if "resultMaxBytes" in cfg:
+        env["FUTURE_JOB_RESULT_PATH"] = str(directory / "result.json")
+    output_fd = None
+    if cfg.get("artifacts"):
+        outputs = directory / "outputs"
+        outputs.mkdir(mode=0o700)
+        output_fd = os.open(outputs, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        env["FUTURE_JOB_ARTIFACT_DIR"] = str(outputs)
+    tails: dict[str, bytes] = {"stdout": b"", "stderr": b""}
+    artifacts: dict[str, Any] = {}
+    capture_errors: dict[str, str] = {}
+
+    def drain(stream: Any, name: str) -> None:
+        limit = cfg.get("maxLogBytes", 0)
+        out = None
+        retained, observed = 0, 0
+        checksum, observed_checksum = hashlib.sha256(), hashlib.sha256()
+        if limit:
             try:
-                while chunk := stream.read(4096):
-                    tails[name] = (tails[name] + chunk)[-65536:]
-                    if limit:
-                        observed += len(chunk)
-                        observed_checksum.update(chunk)
-                    if out is not None and retained < limit:
-                        prefix = chunk[:max(0, limit - retained)]
-                        try:
-                            out.write(prefix)
-                            checksum.update(prefix)
-                            retained += len(prefix)
-                        except OSError:
-                            capture_errors[name] = "log artifact write failed"
-                            # Keep draining after disk errors so a verbose child
-                            # cannot deadlock against a full pipe.
-                            try:
-                                out.close()
-                            except OSError:
-                                pass
-                            out = None
+                fd = os.open(directory / f"{name}.bin", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                out = os.fdopen(fd, "wb")
             except OSError:
-                capture_errors[name] = "log stream could not drain"
-            finally:
-                stream.close()
-                if out is not None:
+                capture_errors[name] = "log artifact could not open"
+        try:
+            while chunk := stream.read(4096):
+                tails[name] = (tails[name] + chunk)[-65536:]
+                if limit:
+                    observed += len(chunk)
+                    observed_checksum.update(chunk)
+                if out is not None and retained < limit:
+                    prefix = chunk[:max(0, limit - retained)]
                     try:
-                        out.flush()
-                        os.fsync(out.fileno())
+                        out.write(prefix)
+                        checksum.update(prefix)
+                        retained += len(prefix)
                     except OSError:
-                        capture_errors[name] = "log artifact could not persist"
-                    finally:
+                        capture_errors[name] = "log artifact write failed"
+                        # Keep draining after disk errors so a verbose child
+                        # cannot deadlock against a full pipe.
                         try:
                             out.close()
                         except OSError:
-                            capture_errors[name] = "log artifact could not close"
-                if limit and name not in capture_errors:
-                    artifacts[name] = {"sha256": checksum.hexdigest(), "bytes": retained,
-                                       "observedBytes": observed, "observedSha256": observed_checksum.hexdigest(),
-                                       "truncated": observed > retained}
-
-        started = time.monotonic()
-        code = -1
-        reason = None
-        child = None
-        threads: list[threading.Thread] = []
-        try:
-            with open(directory / "input.json", "rb") as data:
-                child = subprocess.Popen(cfg["argv"], cwd=cfg.get("cwd", str(directory)), env=env,
-                                         stdin=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                         close_fds=True, start_new_session=True)
-            for name, stream in (("stdout", child.stdout), ("stderr", child.stderr)):
-                t = threading.Thread(target=drain, args=(stream, name), daemon=True)
-                t.start()
-                threads.append(t)
-            try:
-                code = child.wait(timeout=cfg["timeoutMs"] / 1000)
-            except subprocess.TimeoutExpired:
-                reason = "trusted job deadline exceeded"
+                            pass
+                        out = None
         except OSError:
-            reason = "trusted executable could not start"
+            capture_errors[name] = "log stream could not drain"
         finally:
-            if child:
+            stream.close()
+            if out is not None:
                 try:
-                    os.killpg(child.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                code = child.wait()
-            for t in threads:
-                t.join(timeout=1)
-            if any(t.is_alive() for t in threads):
-                reason = reason or "log streams did not finish"
-            elif capture_errors:
-                reason = reason or "log evidence capture failed"
-        result = {"exitCode": code, "durationMs": round((time.monotonic() - started) * 1000),
-                  "configurationHash": hashlib.sha256(encoded(cfg)).hexdigest(),
-                  "stdoutTail": tails["stdout"][-4096:].decode("utf-8", errors="replace"),
-                  "stderrTail": tails["stderr"][-4096:].decode("utf-8", errors="replace")}
-        if "resultMaxBytes" in cfg:
-            try:
-                data, meta = structured_result(directory, cfg["resultMaxBytes"])
-                result["data"] = data
-                artifacts["result"] = meta
-            except (OSError, ValueError, RecursionError):
-                reason = reason or "structured result missing, invalid, or exceeds byte budget"
-        if output_fd is not None:
-            try:
-                for name, spec in cfg["artifacts"].items():
+                    out.flush()
+                    os.fsync(out.fileno())
+                except OSError:
+                    capture_errors[name] = "log artifact could not persist"
+                finally:
                     try:
-                        artifacts[name] = capture_artifact(directory, output_fd, name, spec["maxBytes"])
-                    except (OSError, ValueError):
-                        reason = reason or "declared artifact missing, invalid, or exceeds byte budget"
-            finally:
-                os.close(output_fd)
-        if artifacts:
-            result["artifacts"] = artifacts
-        if reason:
-            result["error"] = reason
-        atomic(directory / "state.json", {**record, "status": "SUCCEEDED" if code == 0 and reason is None else "FAILED", "result": result})
+                        out.close()
+                    except OSError:
+                        capture_errors[name] = "log artifact could not close"
+            if limit and name not in capture_errors:
+                artifacts[name] = {"sha256": checksum.hexdigest(), "bytes": retained,
+                                   "observedBytes": observed, "observedSha256": observed_checksum.hexdigest(),
+                                   "truncated": observed > retained}
+
+    started = time.monotonic()
+    code = -1
+    reason = None
+    child = None
+    threads: list[threading.Thread] = []
+    try:
+        with open(env["FUTURE_JOB_INPUT_PATH"], "rb") as data:
+            child = subprocess.Popen(cfg["argv"], cwd=cfg.get("cwd", str(directory)), env=env,
+                                     stdin=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                     close_fds=True, start_new_session=True)
+        for name, stream in (("stdout", child.stdout), ("stderr", child.stderr)):
+            t = threading.Thread(target=drain, args=(stream, name), daemon=True)
+            t.start()
+            threads.append(t)
+        while child.poll() is None:
+            if time.monotonic() >= deadline:
+                reason = "trusted job deadline exceeded"
+                break
+            if observe is not None:
+                reason = observe()
+                if reason:
+                    break
+            # Wake immediately on child exit. Cheap/legacy jobs do not acquire
+            # a polling-interval latency penalty from opt-in supervision.
+            remaining = max(0, deadline - time.monotonic())
+            wait = min(cfg["supervision"].get("pollMs", 1000) / 1000, remaining) if observe else remaining
+            try:
+                child.wait(timeout=wait)
+            except subprocess.TimeoutExpired:
+                pass
+        code = child.poll() if child.poll() is not None else -1
+    except OSError:
+        reason = "trusted executable could not start"
+    finally:
+        if child:
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            code = child.wait()
+        for t in threads:
+            t.join(timeout=1)
+        if any(t.is_alive() for t in threads):
+            reason = reason or "log streams did not finish"
+        elif capture_errors:
+            reason = reason or "log evidence capture failed"
+    result = {"exitCode": code, "durationMs": round((time.monotonic() - started) * 1000),
+              "configurationHash": hashlib.sha256(encoded(cfg)).hexdigest(),
+              "stdoutTail": tails["stdout"][-4096:].decode("utf-8", errors="replace"),
+              "stderrTail": tails["stderr"][-4096:].decode("utf-8", errors="replace")}
+    if "resultMaxBytes" in cfg and (code == 0 or "supervision" not in cfg):
+        try:
+            data, meta = structured_result(directory, cfg["resultMaxBytes"])
+            result["data"] = data
+            artifacts["result"] = meta
+        except (OSError, ValueError, RecursionError):
+            reason = reason or "structured result missing, invalid, or exceeds byte budget"
+    if output_fd is not None:
+        try:
+            for name, spec in (cfg["artifacts"].items() if code == 0 or "supervision" not in cfg else []):
+                try:
+                    artifacts[name] = capture_artifact(directory, output_fd, name, spec["maxBytes"])
+                except (OSError, ValueError):
+                    reason = reason or "declared artifact missing, invalid, or exceeds byte budget"
+        finally:
+            os.close(output_fd)
+    if artifacts:
+        result["artifacts"] = artifacts
+    if reason:
+        result["error"] = reason
+    return result
+
 
 
 def main() -> int:

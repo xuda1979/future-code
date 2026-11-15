@@ -32,6 +32,14 @@ export interface JobReply {
   progressToken?: string;
   result?: Json;
 }
+
+/** Derived small status projection. Build it once while the reply is already
+ * in memory; status listing must never reopen large cold result artifacts. */
+function jobObservation(reply: JobReply): string {
+  const summary = (reply.result as any)?.supervision;
+  return canonical({ remoteStatus: reply.status,
+    ...(summary && Buffer.byteLength(canonical(summary)) <= 8192 ? { supervision: summary } : {}) });
+}
 export type JobRPC = (command: NonNullable<PinnedSwarm["jobAdapters"]>[string], cfg: PinnedSwarm,
   request: Json, signal: AbortSignal) => Promise<unknown>;
 const defaultRPC: JobRPC = async (command, cfg, request, signal) => {
@@ -153,7 +161,7 @@ export class ResearchJobs {
       progress_token TEXT, poll_at REAL NOT NULL, failures INTEGER NOT NULL DEFAULT 0,
       job_id TEXT, status TEXT NOT NULL, result_hash TEXT, updated REAL NOT NULL,
       reconciliation_hash TEXT, progress_rank INTEGER NOT NULL DEFAULT 0, stale_at REAL,
-      idle_polls INTEGER NOT NULL DEFAULT 0);
+      idle_polls INTEGER NOT NULL DEFAULT 0, observation_hash TEXT, observation_at REAL, observation_summary TEXT);
       CREATE INDEX IF NOT EXISTS research_jobs_run ON research_jobs(run,task);
       CREATE TABLE IF NOT EXISTS research_plan_reports(
         key TEXT NOT NULL, validator TEXT NOT NULL, implementation_hash TEXT NOT NULL,
@@ -170,6 +178,12 @@ export class ResearchJobs {
       journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN stale_at REAL");
     if (!columns.has("idle_polls"))
       journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN idle_polls INTEGER NOT NULL DEFAULT 0");
+    if (!columns.has("observation_hash"))
+      journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN observation_hash TEXT");
+    if (!columns.has("observation_at"))
+      journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN observation_at REAL");
+    if (!columns.has("observation_summary"))
+      journal.store.db.exec("ALTER TABLE research_jobs ADD COLUMN observation_summary TEXT");
     journal.store.db.exec(`CREATE INDEX IF NOT EXISTS research_jobs_run_template ON research_jobs(run,template);
       CREATE INDEX IF NOT EXISTS research_jobs_live_template ON research_jobs(template) WHERE result_hash IS NULL;
       CREATE INDEX IF NOT EXISTS research_jobs_receipt ON research_jobs(run,task,result_hash);
@@ -429,11 +443,17 @@ export class ResearchJobs {
       }
       const idlePolls = changed || terminal ? 0 : Math.min(1_000_000, Number(current.idle_polls ?? 0) + 1);
       const pollMs = nextRemotePollMs(template, idlePolls);
+      // Keep the last good advisory observation across host restarts and link
+      // outages, separately from terminal evidence. A late unchanged reply may
+      // not overwrite an observation committed by a concurrent controller.
+      const observe = terminal || changed || current.observation_hash === row.observation_hash;
       store.db.prepare(`UPDATE research_jobs SET job_id=?,status=?,progress_at=?,progress_token=?,poll_at=?,failures=0,
-        result_hash=?,updated=?,reconciliation_hash=?,progress_rank=?,stale_at=?,idle_polls=? WHERE key=?`)
+        result_hash=?,updated=?,reconciliation_hash=?,progress_rank=?,stale_at=?,idle_polls=?,observation_hash=?,observation_at=?,observation_summary=? WHERE key=?`)
         .run(v.jobId, v.status, changed ? now : current.progress_at, v.progressToken ?? current.progress_token,
           now + pollMs, terminal ? receipt : null, now, reconciliationHash,
-          Math.max(Number(current.progress_rank ?? 0), rank), changed ? now + template.staleMs : current.stale_at, idlePolls, key);
+          Math.max(Number(current.progress_rank ?? 0), rank), changed ? now + template.staleMs : current.stale_at, idlePolls,
+          observe ? receipt : current.observation_hash, observe ? now : current.observation_at,
+          observe ? jobObservation(v) : current.observation_summary, key);
       // Store only meaningful changes; polling/replayed milestones do not
       // manufacture progress.
       if (changed || current.status !== v.status || current.job_id !== v.jobId) store.event("job.observed",
@@ -478,8 +498,8 @@ export class ResearchJobs {
       const current = store.db.prepare("SELECT job_id,result_hash FROM research_jobs WHERE run=? AND key=?").get(run, key);
       invariant(current && !current.result_hash, "research job already reconciled");
       invariant(!current.job_id || current.job_id === reply.jobId, "remote job identity changed");
-      store.db.prepare("UPDATE research_jobs SET job_id=?,status=?,result_hash=?,poll_at=?,updated=?,reconciliation_hash=? WHERE run=? AND key=?")
-        .run(reply.jobId, reply.status, receipt, now, now, reconciliationHash, run, key);
+      store.db.prepare("UPDATE research_jobs SET job_id=?,status=?,result_hash=?,poll_at=?,updated=?,reconciliation_hash=?,observation_hash=?,observation_at=?,observation_summary=? WHERE run=? AND key=?")
+        .run(reply.jobId, reply.status, receipt, now, now, reconciliationHash, receipt, now, jobObservation(reply), run, key);
       store.db.prepare("UPDATE task_waits SET wake=MIN(wake,?) WHERE run=? AND task=? AND kind IN ('remote-job','remote-stalled')")
         .run(now, run, row.task);
       store.event("job.reconciled", { key, jobId: reply.jobId, status: reply.status,
@@ -497,8 +517,16 @@ export class ResearchJobs {
     if (released.changes) store.event("job.capacity.released", { template, waiters: Number(released.changes) });
   }
   list(run: string): Json {
-    const rows = this.journal.store.db.prepare(`SELECT key,task,template,job_id,status,progress_at,stale_at,progress_rank,poll_at,idle_polls,failures,result_hash,reconciliation_hash,updated
+    const rows = this.journal.store.db.prepare(`SELECT key,task,template,job_id,status,progress_at,stale_at,progress_rank,poll_at,idle_polls,failures,result_hash,reconciliation_hash,updated,observation_hash,observation_at,observation_summary
       FROM research_jobs WHERE run=? ORDER BY created LIMIT 201`).all(run);
-    return { items: rows.slice(0, 200) as Json[], truncated: rows.length > 200 };
+    return { items: rows.slice(0, 200).map(row => {
+      const { observation_summary, ...item } = row;
+      if (!observation_summary || !row.observation_hash) return item as Json;
+      const projection = JSON.parse(String(observation_summary));
+      return { ...item, observation: { ...projection, receipt: row.observation_hash, observedAt: row.observation_at,
+        current: projection.remoteStatus === row.status &&
+          (row.result_hash !== null || row.stale_at === null || Date.now() < Number(row.stale_at)),
+        trust: "OBSERVATION_NOT_ACCEPTANCE" } } as Json;
+    }), truncated: rows.length > 200 };
   }
 }

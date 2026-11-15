@@ -259,6 +259,11 @@ work; it does not make one serial external LLM request faster.
 
 ## External jobs: provider-neutral protocol
 
+For long jobs that must recover while the client or transport is offline, use
+[resident job recovery](RESIDENT_JOB_RECOVERY.md). The trusted endpoint supports
+bounded on-machine retries, pinned bootstrap, complete checkpoint bundles and
+separate execution/goal telemetry; these remain opt-in template capabilities.
+
 Add a named job template to the spec, then grant it to the agent:
 
 ```json
