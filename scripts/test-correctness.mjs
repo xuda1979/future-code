@@ -42,6 +42,8 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/token-estimation-anchor.test.ts",
   "tests/correctness/provider-retry-policy.test.ts",
   "tests/correctness/file-read-cache.test.ts",
+  "tests/correctness/read-range-coverage.test.ts",
+  "tests/correctness/read-dedup-wiring.test.ts",
   "tests/correctness/task-output-memory.test.ts",
   "tests/correctness/reblock-guard.test.ts",
   "tests/correctness/reblock-guard-wiring.test.ts",
