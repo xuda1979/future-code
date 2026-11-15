@@ -17,6 +17,7 @@ import { execFileNoThrow } from './utils/execFileNoThrow.js'
 import { getBranch, getDefaultBranch, getIsGit, gitExe } from './utils/git.js'
 import { shouldIncludeGitInstructions } from './utils/gitSettings.js'
 import { logError } from './utils/log.js'
+import { collectProjectDigest } from './utils/projectDigest.js'
 
 const MAX_STATUS_CHARS = 2000
 
@@ -133,14 +134,21 @@ export const getSystemContext = memoize(
       ? getSystemPromptInjection()
       : null
 
+    // Session-start layout/manifest digest: lets the model act directly on
+    // known paths instead of re-listing directories at turn one. Guards
+    // (CCR, bare mode, killswitch, homedir) live in projectDigest.ts.
+    const projectDigest = collectProjectDigest()
+
     logForDiagnosticsNoPII('info', 'system_context_completed', {
       duration_ms: Date.now() - startTime,
       has_git_status: gitStatus !== null,
       has_injection: injection !== null,
+      has_project_digest: projectDigest !== null,
     })
 
     return {
       ...(gitStatus && { gitStatus }),
+      ...(projectDigest && { projectDigest }),
       ...(feature('BREAK_CACHE_COMMAND') && injection
         ? {
             cacheBreaker: `[CACHE_BREAKER: ${injection}]`,
