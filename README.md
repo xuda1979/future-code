@@ -18,6 +18,12 @@ Ordinary CLI sessions also default to permission bypass. Explicit
 policy take precedence; `FUTURE_CODE_SKIP_PERMISSIONS=0` restores the prompted
 fallback. See [remote sessions and defaults](docs/agent-platform/REMOTE_SESSIONS.md).
 
+Add a model URL and API key locally with `/model add <id> <base-url>`; the key
+prompt is masked. Scripts and agents can use `future-code --model-endpoint add
+<id> <base-url> --api-key-env ENV_NAME`. Saving does not call a model. See
+[model endpoint setup](docs/agent-platform/MODEL_ENDPOINTS.md) for protocols,
+selection checks and upgrade requirements.
+
 ## Architecture
 
 ```mermaid

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import queue
@@ -14,6 +15,8 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from pathlib import Path
+from types import SimpleNamespace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -576,10 +579,14 @@ def parse_chat_stream(stream_body: str) -> dict[str, Any]:
 
 
 def server_is_glm52(server: ThreadingHTTPServer) -> bool:
+    if getattr(server, 'profile_route', False):
+        return False
     return str(getattr(server, "model_name", "")).lower() in {"glm5.2", "glm-5.2"}
 
 
 def _is_glm53(server: ThreadingHTTPServer) -> bool:
+    if getattr(server, 'profile_route', False):
+        return False
     return str(getattr(server, "model_name", "")).lower() in {"glm5.3", "glm-5.3", "glm-5.3"}
 
 
@@ -618,7 +625,7 @@ def build_upstream_body(server: ThreadingHTTPServer, body: dict[str, Any], force
     # DeepSeek-V4 subscription accepts far more input than the proxy-wide
     # default (--max-input-chars, e.g. 24000 for the cmri GLM-5.3 default).
     max_input_chars = int(getattr(server, "max_input_chars", 24000))
-    if request_routes_to_dp4(body):
+    if not getattr(server, 'profile_route', False) and request_routes_to_dp4(body):
         try:
             max_input_chars = int(os.environ.get("HUANXIN_DP4_MAX_INPUT_CHARS", str(max_input_chars)))
         except ValueError:
@@ -642,9 +649,9 @@ def build_upstream_body(server: ThreadingHTTPServer, body: dict[str, Any], force
     # the cmri provider on 172.23.31.2 overrides this via
     # HUANXIN_GLM52_UPSTREAM_MODEL (set to "glm5.2" in cmri.env).
     upstream_model = body.get("model") or getattr(server, "model_name", "")
-    if isinstance(upstream_model, str) and upstream_model.lower() == "glm5.2":
+    if not getattr(server, 'profile_route', False) and isinstance(upstream_model, str) and upstream_model.lower() == "glm5.2":
         upstream_model = os.environ.get("HUANXIN_GLM52_UPSTREAM_MODEL", "glm-5.2")
-    if isinstance(upstream_model, str) and upstream_model.lower() == "dp4":
+    if not getattr(server, 'profile_route', False) and isinstance(upstream_model, str) and upstream_model.lower() == "dp4":
         upstream_model = os.environ.get("HUANXIN_DP4_UPSTREAM_MODEL", upstream_model)
     if upstream_model:
         upstream_body["model"] = upstream_model
@@ -746,7 +753,7 @@ def build_upstream_body(server: ThreadingHTTPServer, body: dict[str, Any], force
 def build_upstream_request(server: ThreadingHTTPServer, upstream_body: dict[str, Any], body: dict[str, Any] | None = None) -> urllib.request.Request:
     # Per-request dp4 side-route: override the proxy-wide upstream URL and
     # auth with the aihuanxin DeepSeek-V4 endpoint (Bearer key, no appcode).
-    if body is not None and request_routes_to_dp4(body):
+    if not getattr(server, 'profile_route', False) and body is not None and request_routes_to_dp4(body):
         headers = {
             "Authorization": "Bearer %s" % os.environ["HUANXIN_DP4_API_KEY"].strip(),
             "Content-Type": "application/json",
@@ -958,7 +965,7 @@ def _upstream_chat_once(server: ThreadingHTTPServer, request: urllib.request.Req
         # The upstream's own TLS certificate has expired (server-side issue). Retry once
         # without verification so the user stays unblocked; this reverts to full
         # verification automatically once the upstream renews its certificate.
-        if not insecure and _is_expired_cert_error(exc):
+        if not insecure and not getattr(server, 'profile_route', False) and _is_expired_cert_error(exc):
             sys.stderr.write(
                 "[huanxin-proxy] WARNING: upstream TLS certificate verification failed "
                 "(certificate has expired); retrying once without verification.\n"
@@ -1327,13 +1334,53 @@ def feed_stream_line(writer: FutureStreamWriter, line: str) -> None:
         writer.finish_reason = finish_reason
 
 
+def server_for_model(server: ThreadingHTTPServer, body: dict[str, Any]) -> Any:
+    """Resolve one atomically saved endpoint per request, never mutate shared routes.
+
+    CLI and proxy use the same config home. A malformed/missing-key profile must
+    fail closed rather than silently send the request to the previous provider.
+    """
+    model = body.get('model')
+    if not isinstance(model, str):
+        return server
+    name = hashlib.sha256(model.encode('utf-8')).hexdigest() + '.json'
+    home = Path(os.environ.get('FUTURE_CONFIG_DIR', str(Path.home() / '.future')))
+    try:
+        with (home / 'model-endpoints' / name).open('rb') as handle:
+            data = handle.read(16385)
+    except FileNotFoundError:
+        return server
+    if len(data) > 16384:
+        raise ValueError('Invalid saved model endpoint')
+    p = json.loads(data)
+    if not isinstance(p, dict) or p.get('version') != 1 or p.get('model') != model or p.get('protocol') != 'openai':
+        raise ValueError('Invalid saved model endpoint')
+    url, key = p.get('baseUrl'), p.get('apiKey')
+    if not isinstance(url, str) or not isinstance(key, str) or not key.strip() or len(key) > 8192 or any(c in key for c in '\r\n\x00'):
+        raise ValueError('Invalid saved model endpoint')
+    parsed = urlparse(url)
+    if parsed.scheme not in {'http', 'https'} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or any(c.isspace() or ord(c) < 32 for c in url):
+        raise ValueError('Invalid saved model endpoint')
+    url = url.rstrip('/')
+    if not url.endswith('/chat/completions'):
+        url += '/v1/chat/completions' if not parsed.path.strip('/') else '/chat/completions'
+    route = SimpleNamespace(**vars(server))
+    route.upstream_url = url
+    route.upstream_token = 'Bearer ' + key
+    route.model_name = model
+    route.appcode = ''
+    route.profile_route = True
+    route.insecure = False
+    return route
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "future-huanxin-future-proxy/0.1"
 
     def do_GET(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         if path in {"/", "/health", "/healthz"}:
-            write_json(self, HTTPStatus.OK, {"ok": True, "model": self.server.model_name})  # type: ignore[attr-defined]
+            write_json(self, HTTPStatus.OK, {"ok": True, "model": self.server.model_name, "model_endpoints": 1})  # type: ignore[attr-defined]
             return
         write_json(self, HTTPStatus.NOT_FOUND, {"error": {"message": "not found", "type": "not_found_error"}})
 
@@ -1349,19 +1396,25 @@ class Handler(BaseHTTPRequestHandler):
             write_json(self, HTTPStatus.BAD_REQUEST, {"error": {"message": "invalid JSON", "type": "invalid_request_error"}})
             return
 
+        try:
+            server = server_for_model(self.server, body)
+        except Exception:
+            write_json(self, HTTPStatus.BAD_REQUEST, {"error": {"message": "Invalid saved model endpoint. Add it again with /model add.", "type": "invalid_request_error"}})
+            return
+
         # Live streaming path: forward tokens to the client as they arrive and keep the
         # connection alive with pings during GLM's long "thinking" phase. Compaction
         # requests stay on the buffered path so their upstream-failure fallback works.
         if body.get("stream") and not is_compaction_like_request(body):
             try:
-                if self.stream_live(self.server, body):  # type: ignore[arg-type]
+                if self.stream_live(server, body):  # type: ignore[arg-type]
                     return
             except (BrokenPipeError, ConnectionResetError):
                 return
             except Exception as exc:  # pragma: no cover - defensive
                 debug_log("stream_live failed, falling back to buffered: %r" % exc)
 
-        status, upstream = upstream_chat(self.server, body)  # type: ignore[arg-type]
+        status, upstream = upstream_chat(server, body)  # type: ignore[arg-type]
         if _DEBUG_LOG_PATH:
             debug_log(
                 "POST model=%s stream=%s n_msgs=%s tools=%s status=%s upstream_keys=%s"
@@ -1378,7 +1431,7 @@ class Handler(BaseHTTPRequestHandler):
                 debug_log("  upstream_error=%s" % json.dumps(upstream)[:800])
         if status >= 400:
             if is_compaction_like_request(body) and is_compaction_upstream_failure(status, upstream):
-                response = local_compaction_response(self.server, body, upstream)  # type: ignore[arg-type]
+                response = local_compaction_response(server, body, upstream)  # type: ignore[arg-type]
                 if body.get("stream"):
                     self.write_stream(response)
                 else:
@@ -1386,7 +1439,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             write_json(self, status, upstream)
             return
-        response = future_response(self.server, body, upstream)  # type: ignore[arg-type]
+        response = future_response(server, body, upstream)  # type: ignore[arg-type]
         # Defensive: filter out any None/non-dict blocks that could sneak in from
         # a malformed upstream response (root cause of the Jul-23 NoneType crash
         # at this exact line). Also guarantees the write_stream loop below is safe.
@@ -1451,7 +1504,7 @@ class Handler(BaseHTTPRequestHandler):
                 write_json(self, exc.code, payload)
                 return True
             except Exception as exc:
-                if not insecure and _is_expired_cert_error(exc):
+                if not insecure and not getattr(server, 'profile_route', False) and _is_expired_cert_error(exc):
                     try:
                         resp = urllib.request.urlopen(request, timeout=int(os.environ.get("HUANXIN_GLM52_UPSTREAM_TIMEOUT", "60")), context=server.insecure_context)  # type: ignore[attr-defined]
                         break

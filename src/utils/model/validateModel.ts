@@ -10,6 +10,9 @@ import {
   AuthenticationError,
 } from '@future/sdk'
 import { getModelStrings } from './modelStrings.js'
+import { createHash } from 'node:crypto'
+import { readModelEndpoint } from './modelEndpoints.js'
+import { withModelValidationDeadline } from './validationDeadline.js'
 
 // Cache valid models to avoid repeated API calls
 const validModelCache = new Map<string, boolean>()
@@ -19,6 +22,7 @@ const validModelCache = new Map<string, boolean>()
  */
 export async function validateModel(
   model: string,
+  signal?: AbortSignal,
 ): Promise<{ valid: boolean; error?: string }> {
   const normalizedModel = model.trim()
 
@@ -42,23 +46,35 @@ export async function validateModel(
   }
 
   // Check if it matches FUTURE_CUSTOM_MODEL_OPTION (pre-validated by the user)
-  if (normalizedModel === process.env.FUTURE_CUSTOM_MODEL_OPTION) {
+  const endpoint = readModelEndpoint(normalizedModel)
+  if (!endpoint && normalizedModel === process.env.FUTURE_CUSTOM_MODEL_OPTION) {
     return { valid: true }
   }
 
-  // Check cache first
-  if (validModelCache.has(normalizedModel)) {
+  // Model IDs alone are not identities: re-adding the same ID may replace
+  // its endpoint or key. Never reuse the previous provider's successful check.
+  const validationIdentity = () => createHash('sha256').update(JSON.stringify([
+    normalizedModel, getAPIProvider(), process.env.FUTURE_BASE_URL,
+    process.env.FUTURE_API_KEY, process.env.FUTURE_AUTH_TOKEN,
+    process.env.FUTURE_CUSTOM_HEADERS, readModelEndpoint(normalizedModel),
+  ])).digest('hex')
+  const cacheKey = validationIdentity()
+  if (signal?.aborted) return { valid: false, error: 'Model validation cancelled.' }
+  if (validModelCache.has(cacheKey)) {
     return { valid: true }
   }
 
 
   // Try to make an actual API call with minimal parameters
   try {
-    await sideQuery({
+    await withModelValidationDeadline(validationSignal => sideQuery({
       model: normalizedModel,
       max_tokens: 1,
       maxRetries: 0,
       querySource: 'model_validation',
+      signal: validationSignal,
+      thinking: false,
+      skipSystemPromptPrefix: true,
       messages: [
         {
           role: 'user',
@@ -71,19 +87,23 @@ export async function validateModel(
           ],
         },
       ],
-    })
+    }), signal)
 
     // If we got here, the model is valid
-    validModelCache.set(normalizedModel, true)
+    if (signal?.aborted) return { valid: false, error: 'Model validation cancelled.' }
+    if (validationIdentity() !== cacheKey) return { valid: false, error: 'Model endpoint changed during validation. The current model was kept; try again.' }
+    if (validModelCache.size >= 256) validModelCache.clear()
+    validModelCache.set(cacheKey, true)
     return { valid: true }
   } catch (error) {
-    return handleValidationError(error, normalizedModel)
+    return handleValidationError(error, normalizedModel, Boolean(endpoint))
   }
 }
 
 function handleValidationError(
   error: unknown,
   modelName: string,
+  privateEndpoint = false,
 ): { valid: boolean; error: string } {
   // NotFoundError (404) means the model doesn't exist
   if (error instanceof NotFoundError) {
@@ -126,7 +146,7 @@ function handleValidationError(
     }
 
     // Generic API error
-    return { valid: false, error: `API error: ${error.message}` }
+    return { valid: false, error: privateEndpoint ? `API error (HTTP ${error.status ?? 'unknown'}). Check the saved endpoint and credentials.` : `API error: ${error.message}` }
   }
 
   // For unknown errors, be safe and reject

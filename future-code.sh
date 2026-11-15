@@ -38,6 +38,17 @@ case "$SOURCE_FILE" in
 esac
 SCRIPT_DIR="$(cd "$(dirname "$SOURCE_FILE")" && pwd -P)"
 
+# Local endpoint setup must work even if the old provider/config is broken.
+# Bypass persistent sessions, config sourcing, proxy startup and model defaults.
+if [[ "${1:-}" == --model-endpoint ]]; then
+  BIN="${FUTURE_CODE_BIN:-${SCRIPT_DIR}/future-code}"
+  if [[ ! -x "$BIN" ]]; then
+    echo "error: build the future-code binary before configuring model endpoints." >&2
+    exit 2
+  fi
+  exec "$BIN" "$@"
+fi
+
 # Session control runs before model configuration: reconnect/inspect/stop still
 # work if credentials expire. The session owns this wrapper AND its API proxy.
 if [[ "${FUTURE_CODE_SESSION_CHILD:-}" != 1 ]]; then
