@@ -56,6 +56,7 @@ export async function* watchModelStream<T>(create: (signal: AbortSignal) => Asyn
   const durationLimit = Math.min(options.maxDurationMs ?? Infinity, options.timeBudget?.remainingMs ?? Infinity)
   let lastLiveness = started
   let finished = false
+  let deadlineFired = false
   try {
     if (options.signal.aborted) return
     if (durationLimit <= 0) throw new ModelRequestDeadlineError(0)
@@ -66,16 +67,22 @@ export async function* watchModelStream<T>(create: (signal: AbortSignal) => Asyn
       const requestRemaining = durationLimit - (performance.now() - started)
       const requestDeadline = requestRemaining <= idleRemaining && Number.isFinite(durationLimit)
       const remaining = Math.min(idleRemaining, requestRemaining)
-      if (remaining <= 0) throw requestDeadline
-        ? new ModelRequestDeadlineError(durationLimit) : new ModelStreamStalledError(options.timeoutMs)
+      if (remaining <= 0) {
+        if (requestDeadline) deadlineFired = true
+        throw requestDeadline
+          ? new ModelRequestDeadlineError(durationLimit) : new ModelStreamStalledError(options.timeoutMs)
+      }
       let timer: ReturnType<typeof setTimeout> | undefined
       let rejectAbort: () => void = () => {}
       const deadline = new Promise<never>((_, reject) => {
         rejectAbort = () => reject(controller.signal.reason)
         controller.signal.addEventListener('abort', rejectAbort, { once: true })
         // Do not allocate an Error/stack for every healthy streamed token.
-        timer = setTimeout(() => controller.abort(requestDeadline
-          ? new ModelRequestDeadlineError(durationLimit) : new ModelStreamStalledError(options.timeoutMs)), Math.ceil(remaining))
+        timer = setTimeout(() => {
+          if (requestDeadline) deadlineFired = true
+          controller.abort(requestDeadline
+            ? new ModelRequestDeadlineError(durationLimit) : new ModelStreamStalledError(options.timeoutMs))
+        }, Math.ceil(remaining))
       })
       let next: IteratorResult<T>
       try { next = await Promise.race([iterator.next(), deadline]) }
@@ -86,7 +93,14 @@ export async function* watchModelStream<T>(create: (signal: AbortSignal) => Asyn
       yield next.value
     }
   } finally {
-    if (options.timeBudget) options.timeBudget.remainingMs = Math.max(0, options.timeBudget.remainingMs - (performance.now() - started))
+    if (options.timeBudget) {
+      // Charge a fired request deadline its full allotted slice: the timer
+      // clock can fire a hair before performance.now() reaches the deadline,
+      // and sub-ms residue on an exhausted shared budget would re-admit
+      // another provider invocation.
+      const consumed = deadlineFired ? Math.max(performance.now() - started, durationLimit) : performance.now() - started
+      options.timeBudget.remainingMs = Math.max(0, options.timeBudget.remainingMs - consumed)
+    }
     options.signal.removeEventListener('abort', abort)
     controller.abort()
     // .return() may itself wait forever behind a hung .next(). Observe its
