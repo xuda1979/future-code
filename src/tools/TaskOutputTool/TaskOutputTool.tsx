@@ -23,6 +23,7 @@ import { countCharInString } from '../../utils/stringUtils.js';
 import { getTaskOutput } from '../../utils/task/diskOutput.js';
 import { updateTaskState } from '../../utils/task/framework.js';
 import { formatTaskOutput } from '../../utils/task/outputFormatting.js';
+import { clearReblockGuard, noteBlockingTimeoutExpired, shouldRefuseBlockedWait } from '../../utils/task/reblockGuard.js';
 import type { ThemeName } from '../../utils/theme.js';
 import { AgentPromptDisplay, AgentResponseDisplay } from '../AgentTool/UI.js';
 import BashToolResultMessage from '../BashTool/BashToolResultMessage.js';
@@ -220,6 +221,8 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
     if (!block) {
       // Non-blocking: return current state
       if (task.status !== 'running' && task.status !== 'pending') {
+        // Task finished: any stale re-block guard no longer applies
+        clearReblockGuard(task_id);
         // Mark as notified
         updateTaskState(task_id, toolUseContext.setAppState, t => ({
           ...t,
@@ -235,6 +238,18 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
       return {
         data: {
           retrieval_status: 'not_ready' as const,
+          task: await getTaskOutputData(task)
+        }
+      };
+    }
+
+    // Mechanical re-block guard: a blocked wait on this task already timed
+    // out once while it was still running. Blocking again would freeze the
+    // entire session for another full timeout — refuse instantly instead.
+    if ((task.status === 'running' || task.status === 'pending') && shouldRefuseBlockedWait(task_id)) {
+      return {
+        data: {
+          retrieval_status: 'timeout' as const,
           task: await getTaskOutputData(task)
         }
       };
@@ -261,6 +276,10 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
       };
     }
     if (completedTask.status === 'running' || completedTask.status === 'pending') {
+      // The blocking wait expired while the task kept running. Arm the
+      // guard so an immediate re-block short-circuits instead of freezing
+      // the session for yet another timeout.
+      noteBlockingTimeoutExpired(task_id);
       return {
         data: {
           retrieval_status: 'timeout' as const,
@@ -269,6 +288,8 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
       };
     }
 
+    // Task finished: drop the re-block guard so future waits behave normally
+    clearReblockGuard(task_id);
     // Mark as notified
     updateTaskState(task_id, toolUseContext.setAppState, t => ({
       ...t,
@@ -290,7 +311,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
       // timeout (observed: 26 consecutive 600s blocks in one session,
       // ~1.3M tokens burned on no-op polls).
       parts.push(
-        `<hint>The blocking wait expired but the task is still running. Do NOT call TaskOutput again with a longer timeout — each blocked call freezes this whole session. Instead: end your turn (e.g. respond with a short status note or use the Sleep tool). You will receive a &lt;task-notification&gt; automatically when this task completes, and you can then Read the output file below. If you need a mid-run progress peek, use block=false.</hint>`,
+        `<hint>The blocking wait expired but the task is still running. Do NOT call TaskOutput again with a longer timeout — each blocked call freezes this whole session. Instead: end your turn (e.g. respond with a short status note or use the Sleep tool). You will receive a &lt;task-notification&gt; automatically when this task completes, and you can then Read the output file below. If you need a mid-run progress peek, use block=false. Blocked re-waits on this still-running task are now refused instantly.</hint>`,
       );
     }
     if (data.task) {
