@@ -55,6 +55,8 @@ jobs:
         run: bun test --preload ./tests/api/retry-isolation.ts ./tests/api/retry-resilience.test.ts
       - name: Auth-failure suppression regression
         run: bun test tests/correctness/auth-failure-suppression.test.ts
+      - name: TaskOutput re-block guard regression
+        run: bun test tests/correctness/task-output-timeout-hint.test.ts tests/correctness/task-output-reblock-integration.test.ts
   terminal-sessions:
     runs-on: ubuntu-latest
     timeout-minutes: 5
