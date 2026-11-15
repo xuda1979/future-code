@@ -55,6 +55,8 @@ jobs:
         run: bun test --preload ./tests/api/retry-isolation.ts ./tests/api/retry-resilience.test.ts
       - name: Auth-failure suppression regression
         run: bun test tests/correctness/auth-failure-suppression.test.ts
+      - name: Compile query and tool-collection sources
+        run: bun build src/query.ts src/services/tools/StreamingToolExecutor.ts src/services/toolUseSummary/toolUseSummaryGenerator.ts src/utils/opportunisticTask.ts --no-bundle --outdir "$RUNNER_TEMP/query-build"
   terminal-sessions:
     runs-on: ubuntu-latest
     timeout-minutes: 5

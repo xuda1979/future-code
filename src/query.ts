@@ -104,6 +104,7 @@ import { executeStopFailureHooks } from './utils/hooks.js'
 import type { QuerySource } from './constants/querySource.js'
 import { createDumpPromptsFetch } from './services/api/dumpPrompts.js'
 import { StreamingToolExecutor } from './services/tools/StreamingToolExecutor.js'
+import { OpportunisticTask } from './utils/opportunisticTask.js'
 import { queryCheckpoint } from './utils/queryProfiler.js'
 import { runTools } from './services/tools/toolOrchestration.js'
 import { applyToolResultBudget } from './utils/toolResultStorage.js'
@@ -230,7 +231,7 @@ type State = {
   silentResponseRecoveryCount: number
   hasAttemptedReactiveCompact: boolean
   maxOutputTokensOverride: number | undefined
-  pendingToolUseSummary: Promise<ToolUseSummaryMessage | null> | undefined
+  pendingToolUseSummary: OpportunisticTask<ToolUseSummaryMessage> | undefined
   stopHookActive: boolean | undefined
   turnCount: number
   // Why the previous iteration continued. Undefined on first iteration.
@@ -366,6 +367,9 @@ async function* queryLoop(
   // Snapshot immutable env/statsig/session state once at entry. See QueryConfig
   // for what's included and why feature() gates are intentionally excluded.
   const config = buildQueryConfig()
+  // Display labels cannot delay model/tool work, overlap without bound during
+  // an outage, or publish after the owning query's return/throw/cancellation.
+  using toolUseSummaryTask = new OpportunisticTask<ToolUseSummaryMessage>()
 
   // Fired once per user turn — the prompt is invariant across loop iterations,
   // so per-iteration firing would ask sideQuery the same question N times.
@@ -393,6 +397,10 @@ async function* queryLoop(
       stopHookActive,
       turnCount,
     } = state
+
+    // Recovery transitions may drop their display label. Retire that work so
+    // it cannot keep the query's single optional-request slot occupied.
+    if (!pendingToolUseSummary) toolUseSummaryTask.take()
 
     // Skill discovery prefetch — per-iteration (uses findWritePivot guard
     // that returns early on non-write iterations). Discovery runs while the
@@ -1234,9 +1242,10 @@ async function* queryLoop(
       return { reason: 'aborted_streaming' }
     }
 
-    // Yield tool use summary from previous turn — haiku (~1s) resolved during model streaming (5-30s)
+    // Consume the previous display label only if it is ready. Slow optional
+    // inference must not delay tools, completion, recovery or stop hooks.
     if (pendingToolUseSummary) {
-      const summary = await pendingToolUseSummary
+      const summary = pendingToolUseSummary.take()
       if (summary) {
         yield summary
       }
@@ -1764,7 +1773,7 @@ async function* queryLoop(
 
     // Generate tool use summary after tool batch completes — passed to next recursive call
     let nextPendingToolUseSummary:
-      | Promise<ToolUseSummaryMessage | null>
+      | OpportunisticTask<ToolUseSummaryMessage>
       | undefined
     if (
       config.gates.emitToolUseSummaries &&
@@ -1819,20 +1828,20 @@ async function* queryLoop(
         }
       })
 
-      // Fire off summary generation without blocking the next API call
-      nextPendingToolUseSummary = generateToolUseSummary({
-        tools: toolInfoForSummary,
-        signal: toolUseContext.abortController.signal,
-        isNonInteractiveSession: toolUseContext.options.isNonInteractiveSession,
-        lastAssistantText,
-      })
-        .then(summary => {
-          if (summary) {
-            return createToolUseSummaryMessage(summary, toolUseIds)
-          }
-          return null
+      // Keep at most one display request in flight, including providers that
+      // ignore cancellation. This task has no authority over actual receipts.
+      if (toolUseSummaryTask.start(toolUseContext.abortController.signal, signal =>
+        generateToolUseSummary({
+          tools: toolInfoForSummary,
+          signal,
+          isNonInteractiveSession: toolUseContext.options.isNonInteractiveSession,
+          lastAssistantText,
         })
-        .catch(() => null)
+          .then(summary => summary ? createToolUseSummaryMessage(summary, toolUseIds) : null)
+          .catch(() => null),
+      )) {
+        nextPendingToolUseSummary = toolUseSummaryTask
+      }
     }
 
     // We were aborted during tool calls

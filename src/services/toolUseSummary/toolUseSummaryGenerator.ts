@@ -88,6 +88,7 @@ export async function generateToolUseSummary({
 
     return summary || null
   } catch (error) {
+    if (signal.aborted) return null
     // Log but don't fail - summaries are non-critical
     const err = toError(error)
     err.cause = { errorId: E_TOOL_USE_SUMMARY_GENERATION_FAILED }

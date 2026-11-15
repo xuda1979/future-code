@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { register } from 'node:module';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 register('./streaming-tool-executor-loader.mjs', import.meta.url);
 const { StreamingToolExecutor } = await import('../../src/services/tools/StreamingToolExecutor.ts');
 
@@ -64,6 +66,14 @@ test('an empty stream cannot silently lose an admitted call result', { timeout: 
   const blocks = await f.drain();
   assert.equal(blocks.length, 1); assert.equal(blocks[0]!.is_error, true);
   assert.match(String(blocks[0]!.content), /ended without a result/);
+});
+
+test('an exception in failure reporting wakes the collector and remains a failure', { timeout: 2000 }, async () => {
+  const f = fixture(async function* () {
+    throw { [Symbol.toPrimitive]() { throw new Error('diagnostic conversion failed'); } };
+  });
+  f.add('broken-report');
+  await assert.rejects(f.drain(), /diagnostic conversion failed/);
 });
 
 test('parallel reads overlap and a write remains an ordering barrier', { timeout: 2000 }, async () => {
@@ -138,4 +148,41 @@ test('a throwing concurrency preflight cannot lose a call before normal tool val
   const blocks = await f.drain();
   assert.equal(blocks.length, 1); assert.equal(blocks[0]!.tool_use_id, 'invalid');
   assert.equal(blocks[0]!.is_error, true); assert.deepEqual(f.inProgress(), []);
+});
+
+function probe(scenario: string) {
+  const child = spawnSync(process.execPath, ['--experimental-strip-types',
+    fileURLToPath(new URL('./fixtures/tool-collection-probe.mjs', import.meta.url)),
+    fileURLToPath(new URL('../../', import.meta.url)), scenario], { encoding: 'utf8', timeout: 3000 });
+  assert.ifError(child.error);
+  assert.equal(child.status, 0, child.stderr);
+  return JSON.parse(child.stdout);
+}
+
+test('a completed unknown call behind an exclusive tool cannot starve completion or cancellation', () => {
+  const p = probe('blocked');
+  assert.deepEqual(p.started, ['write', 'after']);
+  assert.deepEqual(p.receipts.map((r: any) => r.tool_use_id), ['write', 'missing', 'after']);
+  assert.equal(p.receipts[1].is_error, true);
+  assert.equal(p.effects, 1);
+  assert.deepEqual(p.inProgress, []);
+  assert.ok(p.heartbeat > 0, 'the event loop must run while an exclusive tool is pending');
+});
+
+test('operator cancellation still fires behind an exclusive result barrier without replaying effects', () => {
+  const p = probe('cancel');
+  assert.deepEqual(p.started, ['write']);
+  assert.equal(p.aborted, true);
+  assert.equal(p.effects, 1);
+  assert.equal(p.receipts.length, 3);
+  assert.ok(p.receipts.every((r: any) => r.is_error === true));
+  assert.deepEqual(p.inProgress, []);
+});
+
+test('progress does not repeatedly subscribe to a long-running sibling completion promise', () => {
+  const p = probe('progress');
+  assert.equal(p.progressCount, 500);
+  assert.equal(p.receipts.length, 2);
+  assert.deepEqual(p.inProgress, []);
+  assert.ok(p.subscriptions <= 1, `long-lived promise acquired ${p.subscriptions} observers`);
 });

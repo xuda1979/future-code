@@ -47,6 +47,7 @@ export class StreamingToolExecutor {
   // Aborting this does NOT abort the parent — query.ts won't end the turn.
   private siblingAbortController: AbortController
   private discarded = false
+  private collectionFailure?: { error: unknown }
   // Signal to wake up getRemainingResults when progress is available
   private progressAvailableResolve?: () => void
 
@@ -412,7 +413,14 @@ export class StreamingToolExecutor {
 
     // Observe rejection too: a detached finally() would create an unhandled
     // rejection. Normal tool/stream failures above become paired diagnostics.
-    void promise.then(() => this.processQueue(), () => this.processQueue())
+    void promise.then(() => this.processQueue(), error => {
+      // Preserve rejection propagation if even diagnostic construction fails.
+      // The shared waiter must wake on rejection as well as normal completion.
+      this.collectionFailure ??= { error }
+      this.progressAvailableResolve?.()
+      this.progressAvailableResolve = undefined
+      this.processQueue()
+    })
   }
 
   private recordExecutionFailure(tool: TrackedTool, messages: Message[], error: unknown): void {
@@ -453,13 +461,16 @@ export class StreamingToolExecutor {
       return
     }
 
+    // Progress is advisory and may cross an exclusive result barrier. Drain it
+    // separately so a buffered result cannot hide later tools' progress.
     for (const tool of this.tools) {
-      // Always yield pending progress messages immediately, regardless of tool status
       while (tool.pendingProgress.length > 0) {
         const progressMessage = tool.pendingProgress.shift()!
         yield { message: progressMessage, newContext: this.toolUseContext }
       }
+    }
 
+    for (const tool of this.tools) {
       if (tool.status === 'yielded') {
         continue
       }
@@ -495,6 +506,7 @@ export class StreamingToolExecutor {
     }
 
     while (this.hasUnfinishedTools()) {
+      if (this.collectionFailure) throw this.collectionFailure.error
       this.processQueue()
 
       for (const result of this.getCompletedResults()) {
@@ -508,21 +520,17 @@ export class StreamingToolExecutor {
         !this.hasCompletedResults() &&
         !this.hasPendingProgress()
       ) {
-        const executingPromises = this.tools
-          .filter(t => t.status === 'executing' && t.promise)
-          .map(t => t.promise!)
-
-        // Also wait for progress to become available
-        const progressPromise = new Promise<void>(resolve => {
+        // Both progress and completion already signal this waiter. Racing
+        // every executing promise on every progress event retains an observer
+        // per event on a long-running sibling until that sibling completes.
+        // There is no await between checking state and arming the waiter.
+        await new Promise<void>(resolve => {
           this.progressAvailableResolve = resolve
         })
-
-        if (executingPromises.length > 0) {
-          await Promise.race([...executingPromises, progressPromise])
-        }
       }
     }
 
+    if (this.collectionFailure) throw this.collectionFailure.error
     for (const result of this.getCompletedResults()) {
       yield result
     }
@@ -532,7 +540,15 @@ export class StreamingToolExecutor {
    * Check if there are any completed results ready to yield
    */
   private hasCompletedResults(): boolean {
-    return this.tools.some(t => t.status === 'completed')
+    // Match getCompletedResults' visibility. A ready result (for example an
+    // unknown-tool diagnostic) behind an executing exclusive tool cannot be
+    // yielded yet. Treating it as ready causes a synchronous busy loop that
+    // prevents the running tool, timers and cancellation from ever completing.
+    for (const tool of this.tools) {
+      if (tool.status === 'completed') return true
+      if (tool.status === 'executing' && !tool.isConcurrencySafe) return false
+    }
+    return false
   }
 
   /**
