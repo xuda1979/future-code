@@ -104,7 +104,7 @@ test('production recovery bounds deadlines even for active goals/persistent mode
   assert.equal(decide(scope).stallAction, 'block')
   assert.match(source, /gitDeliveryPolicy\(params.messages, mainGoalThread\)/)
   assert.ok(source.indexOf('gitDeliveryPolicy(params.messages') < source.indexOf('while (true)'))
-  assert.match(source, /cmd.mode === 'prompt' && !cmd.isMeta && cmd.origin === undefined\)\)\s+gitDelivery = false/)
+  assert.match(source, /cmd.mode === 'prompt' && !cmd.isMeta && cmd.origin === undefined\)\)\s*\{\s+gitDelivery = false\s+deliveryRequested = false/)
   assert.match(source, /timeBudget: gitModelBudget/)
 })
 test('scope guidance retains acceptance and reconciles uncertain effects; timeout is configurable', () => {

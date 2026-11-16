@@ -18,6 +18,7 @@ import { AbortError } from '../utils/errors.js';
 import { logError } from '../utils/log.js';
 import type { PermissionDecision } from '../utils/permissions/PermissionResult.js';
 import { hasPermissionsToUseTool } from '../utils/permissions/permissions.js';
+import { automaticPermissionDecision } from '../utils/permissions/interactivePrompts.js';
 import { jsonStringify } from '../utils/slowOperations.js';
 import { handleCoordinatorPermission } from './toolPermission/handlers/coordinatorHandler.js';
 import { handleInteractivePermission } from './toolPermission/handlers/interactiveHandler.js';
@@ -34,7 +35,8 @@ function useCanUseTool(setToolUseConfirmQueue, setToolPermissionContext) {
       if (ctx.resolveIfAborted(resolve)) {
         return;
       }
-      const decisionPromise = forceDecision !== undefined ? Promise.resolve(forceDecision) : hasPermissionsToUseTool(tool, input, toolUseContext, assistantMessage, toolUseID);
+      const decisionPromise = (forceDecision !== undefined ? Promise.resolve(forceDecision) : hasPermissionsToUseTool(tool, input, toolUseContext, assistantMessage, toolUseID))
+        .then(decision => automaticPermissionDecision(decision, tool.name));
       return decisionPromise.then(async result => {
         if (result.behavior === "allow") {
           if (ctx.resolveIfAborted(resolve)) {

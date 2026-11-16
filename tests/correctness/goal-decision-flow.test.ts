@@ -85,6 +85,18 @@ test('genuine closed completion reaches review without spending an optional toke
   assert.equal(run.budgetCalls, 0);
 }));
 
+test('ongoing goals continue independently of total output tokens already spent', () => fixture(async cwd => {
+  enableAutoGoal('Finish and independently verify the requested outcome', cwd);
+  const run = await flow('The candidate still needs an independent check.', {
+    getCurrentTurnTokenBudget: () => 1,
+    getTurnOutputTokens: () => Number.MAX_SAFE_INTEGER,
+  });
+  assert.equal(run.result.reason, 'test-observed-continuation');
+  assert.equal(run.budgetCalls, 0, 'goal continuation does not use a lifetime token ceiling or spending target');
+  assert.equal(readAutoGoal(cwd)?.state, 'ACTIVE');
+  assert.equal(readAutoGoal(cwd)?.maxContinuations, null);
+}));
+
 test('a paused objective is never revived by optional token continuation', () => fixture(async cwd => {
   enableAutoGoal('Verify the requested edit', cwd);
   pauseAutoGoal(cwd);

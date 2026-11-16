@@ -24,6 +24,7 @@ import {
 import { plural } from '../stringUtils.js'
 import { permissionModeTitle } from './PermissionMode.js'
 import { getMandatorySafetyCheck, hasExplicitAskRule } from './PermissionResult.js'
+import { automaticPermissionDecision } from './interactivePrompts.js'
 import type {
   PermissionAskDecision,
   PermissionDecision,
@@ -472,6 +473,10 @@ async function runPermissionRequestHooksForHeadlessAgent(
 }
 
 export const hasPermissionsToUseTool: CanUseToolFn = async (
+  ...args
+): Promise<PermissionDecision> => automaticPermissionDecision(await resolveToolPermissions(...args), args[0].name)
+
+const resolveToolPermissions: CanUseToolFn = async (
   tool,
   input,
   context,

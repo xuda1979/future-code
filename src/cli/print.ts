@@ -141,6 +141,7 @@ import { extractInboundMessageFields } from 'src/bridge/inboundMessages.js'
 import { resolveAndPrepend } from 'src/bridge/inboundAttachments.js'
 import type { CanUseToolFn } from 'src/hooks/useCanUseTool.js'
 import { hasPermissionsToUseTool } from 'src/utils/permissions/permissions.js'
+import { automaticPermissionDecision } from '../utils/permissions/interactivePrompts.js'
 import { safeParseJSON } from 'src/utils/json.js'
 import {
   outputSchema as permissionToolOutputSchema,
@@ -4157,15 +4158,12 @@ export function createCanUseToolWithPermissionPrompt(
     toolUseId,
     forceDecision,
   ) => {
-    const mainPermissionResult =
-      forceDecision ??
-      (await hasPermissionsToUseTool(
-        tool,
-        input,
-        toolUseContext,
-        assistantMessage,
-        toolUseId,
-      ))
+    const mainPermissionResult = automaticPermissionDecision(
+      forceDecision ?? (await hasPermissionsToUseTool(
+        tool, input, toolUseContext, assistantMessage, toolUseId,
+      )),
+      tool.name,
+    )
 
     // If the tool is allowed or denied, return the result
     if (
@@ -4282,14 +4280,12 @@ export function getCanUseToolFn(
       toolUseId,
       forceDecision,
     ) =>
-      forceDecision ??
-      (await hasPermissionsToUseTool(
-        tool,
-        input,
-        toolUseContext,
-        assistantMessage,
-        toolUseId,
-      ))
+      automaticPermissionDecision(
+        forceDecision ?? (await hasPermissionsToUseTool(
+          tool, input, toolUseContext, assistantMessage, toolUseId,
+        )),
+        tool.name,
+      )
   }
   // Lazy lookup: MCP connects are per-server incremental in print mode, so
   // the tool may not be in appState yet at init time. Resolve on first call
