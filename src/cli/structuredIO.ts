@@ -35,6 +35,7 @@ import type {
   PermissionDecisionReason,
 } from 'src/utils/permissions/PermissionResult.js'
 import { hasPermissionsToUseTool } from 'src/utils/permissions/permissions.js'
+import { automaticPermissionDecision } from '../utils/permissions/interactivePrompts.js'
 import { writeToStdout } from 'src/utils/process.js'
 import { jsonStringify } from 'src/utils/slowOperations.js'
 import { z } from 'zod/v4'
@@ -541,15 +542,12 @@ export class StructuredIO {
       toolUseID: string,
       forceDecision?: PermissionDecision,
     ): Promise<PermissionDecision> => {
-      const mainPermissionResult =
-        forceDecision ??
-        (await hasPermissionsToUseTool(
-          tool,
-          input,
-          toolUseContext,
-          assistantMessage,
-          toolUseID,
-        ))
+      const mainPermissionResult = automaticPermissionDecision(
+        forceDecision ?? (await hasPermissionsToUseTool(
+          tool, input, toolUseContext, assistantMessage, toolUseID,
+        )),
+        tool.name,
+      )
       // If the tool is allowed or denied, return the result
       if (
         mainPermissionResult.behavior === 'allow' ||

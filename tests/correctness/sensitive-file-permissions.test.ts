@@ -7,6 +7,7 @@ import { posix, normalize, sep, join } from 'node:path'
 import { normalizeNameForMCP } from '../../src/services/mcp/normalization.ts'
 import { defaultPermissionMode } from '../../src/utils/permissions/defaultPermissionMode.ts'
 import { getMandatorySafetyCheck, hasExplicitAskRule, preferExplicitAsk } from '../../src/utils/permissions/PermissionResult.ts'
+import { automaticPermissionDecision } from '../../src/utils/permissions/interactivePrompts.ts'
 
 // Execute production policy functions, not copies. Only unavailable CLI/SDK
 // services and the unchanged ignore-package adapter are isolated. Fixtures
@@ -101,7 +102,7 @@ function outerEngine() {
   const code = stripTypeScriptTypes(permissionSource.slice(start, end).replace('export const', 'const'), { mode: 'transform' })
   let classifierCalls = 0
   const noop = () => {}
-  const scope = { hasPermissionsToUseToolInner: engine().hasPermissionsToUseToolInner,
+  const scope = { hasPermissionsToUseToolInner: engine().hasPermissionsToUseToolInner, automaticPermissionDecision,
     feature: (name: string) => ['TRANSCRIPT_CLASSIFIER', 'POWERSHELL_AUTO_MODE'].includes(name),
     autoModeStateModule: null, POWERSHELL_TOOL_NAME: 'PowerShell', AGENT_TOOL_NAME: 'Agent', REPL_TOOL_NAME: 'REPL',
     classifierDecisionModule: { isAutoModeAllowlistedTool: () => false },
@@ -253,7 +254,7 @@ test('the real outer auto-mode pipeline cannot classify an ambiguous write path 
   const outer = outerEngine()
   const result = await outer.run(tool('Write'), { file_path: path }, { ...context(permission), messages: [], options: { tools: [] } },
     { message: { id: 'fixture' } }, 'fixture-id')
-  assert.equal(result.behavior, 'ask')
+  assert.equal(result.behavior, 'deny')
   assert.equal(result.decisionReason.type, 'safetyCheck')
   assert.equal(result.decisionReason.classifierApprovable, false)
   assert.equal(outer.classifierCalls(), 0)
@@ -274,7 +275,7 @@ test('mandatory compound safety retains original updated input and cannot be wea
     assert.equal(decision.decisionReason.classifierApprovable, false)
     const outer = outerEngine()
     assert.equal((await outer.run(t, {}, { ...context(ctx('auto')), messages: [], options: { tools: [] } },
-      { message: { id: 'fixture' } }, 'id')).behavior, 'ask')
+      { message: { id: 'fixture' } }, 'id')).behavior, 'deny')
     assert.equal(outer.classifierCalls(), 0)
   }
 })
@@ -403,7 +404,7 @@ for (const kind of ['bash', 'powershell'] as const) {
       const t = { name: kind === 'bash' ? 'Bash' : 'PowerShell', inputSchema: { parse: (x: unknown) => x }, checkPermissions: () => result }
       const outer = outerEngine()
       assert.equal((await outer.run(t, {}, { ...context(permission), messages: [], options: { tools: [] } },
-        { message: { id: 'fixture' } }, 'id')).behavior, 'ask')
+        { message: { id: 'fixture' } }, 'id')).behavior, 'deny')
       assert.equal(outer.classifierCalls(), 0)
     })
   }

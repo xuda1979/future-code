@@ -105,7 +105,7 @@ const goal: Command = {
       if (!goalText) throw new Error('Usage: /goal [--auto] [--limit N] [--horizon short|long] <goal>')
       const state = enableAutoGoal(goalText, process.cwd(), limit ?? null, { horizon })
       const resolvedHorizon = classifyGoalHorizon(goalText, state.horizon)
-      const budget = state.maxContinuations === null ? 'continues until verified completion, an external blocker, or an operator pause' : `up to ${state.maxContinuations} automatic continuation turns`
+      const budget = state.maxContinuations === null ? 'no lifetime token cap; continues until verified completion, an external blocker, or an operator pause' : `no lifetime token cap; up to ${state.maxContinuations} automatic continuation turns`
       const supersedeNotice = state.previousGoal
         ? `\nOBJECTIVE TRANSITION (Revision ${state.revision ?? 2}): This objective supersedes "${state.previousGoal}". Discard stale plans from the superseded objective and do not drift back to it.\n`
         : ''

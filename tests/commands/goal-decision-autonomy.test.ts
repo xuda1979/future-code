@@ -183,7 +183,7 @@ test('new prerequisite evidence cannot reset an exhausted continuation budget', 
   assert.match(readAutoGoal(cwd)!.reason!, /budget exhausted/);
 }));
 
-test('a human-requested decision may yield without retiring the unfinished root or granting new authority', () => fixture(cwd => {
+test('default unattended execution continues despite an old requested-interaction preference', () => fixture(cwd => {
   enableAutoGoal('Implement the requested design', cwd, 3);
   next(cwd);
   resumeAutoGoalFromInput('Ask me to choose between the designs before implementing', { mainThread: true, cwd });
@@ -191,7 +191,7 @@ test('a human-requested decision may yield without retiring the unfinished root 
   assert.equal(state.userQuestions, true);
   assert.equal(state.continuations, 1);
   assert.equal(state.maxContinuations, 3);
-  assert.equal(next(cwd, { assistantText: 'Would you like me to continue with the first design?' }).kind, 'SKIP');
+  assert.equal(next(cwd, { assistantText: 'Would you like me to continue with the first design?' }).kind, 'CONTINUE');
   assert.equal(readAutoGoal(cwd)?.state, 'ACTIVE');
   assert.equal(readAutoGoal(cwd)?.goal, 'Implement the requested design');
 }));

@@ -130,7 +130,7 @@ import { hasMainThreadQueuedCommand } from './utils/queueWakeup.js'
 import { createHash } from 'node:crypto'
 import { recordProjectSignal, type ProjectSignalInput } from './services/selfImprove/projectSignals.js'
 import { watchModelStream, isModelProgress, modelStreamIdleTimeout, ModelStreamStalledError, ModelRequestDeadlineError, modelStallAction } from './utils/modelStreamLiveness.js'
-import { gitDeliveryPolicy, gitDeliveryModelTimeout, GIT_DELIVERY_GUIDANCE } from './utils/gitDeliveryPolicy.js'
+import { gitDeliveryPolicy, gitDeliveryModelTimeout, GIT_DELIVERY_GUIDANCE, nextGitDeliveryPhase, gitDeliveryIntent } from './utils/gitDeliveryPolicy.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
@@ -367,6 +367,7 @@ async function* queryLoop(
   // Select from original human input before compaction. Keep the decision
   // through summary/fallback recovery; newly drained human work releases it.
   let gitDelivery = gitDeliveryPolicy(params.messages, mainGoalThread)
+  let deliveryRequested = gitDeliveryIntent(params.messages, mainGoalThread)
   const gitModelBudget = { remainingMs: 2 * gitDeliveryModelTimeout() }
 
   // Snapshot immutable env/statsig/session state once at entry. See QueryConfig
@@ -1898,6 +1899,8 @@ async function* queryLoop(
       Array.isArray(message.message.content) && message.message.content.some(block =>
         block.type === 'tool_result' && !block.is_error))
 
+    if (mainGoalThread && deliveryRequested) gitDelivery = nextGitDeliveryPhase(gitDelivery, toolUseBlocks, toolResults)
+
     // A rejected question is model feedback, never productive tool work.
     // Bound repeated dialog attempts even when every turn emits tool_use and
     // therefore never reaches the ordinary end-turn continuation decision.
@@ -1981,8 +1984,10 @@ async function* queryLoop(
       // user prompts, even if someone stamps an agentId on one.
       return cmd.mode === 'task-notification' && cmd.agentId === currentAgentId
     })
-    if (queuedCommandsSnapshot.some(cmd => cmd.mode === 'prompt' && !cmd.isMeta && cmd.origin === undefined))
+    if (queuedCommandsSnapshot.some(cmd => cmd.mode === 'prompt' && !cmd.isMeta && cmd.origin === undefined)) {
       gitDelivery = false
+      deliveryRequested = false
+    }
 
     for await (const attachment of getAttachmentMessages(
       null,

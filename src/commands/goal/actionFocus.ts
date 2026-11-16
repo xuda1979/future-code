@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { isShellObservation } from '../../utils/shellActivity.ts';
 
 /** A request-local activity diagnostic, never a progress/acceptance verdict.
  * It observes actual paired tool receipts even if the model never ends its
@@ -117,7 +118,8 @@ export function actionFocusReview(messages: readonly ActivityMessage[], goalRepo
     const note = reportPath !== null && ['Write', 'Edit', 'MultiEdit'].includes(call.name) &&
       expandedPath(call.input.file_path, cwd) === reportPath;
     const waiting = call.name === 'TaskOutput';
-    const observation = OBSERVATIONS.has(call.name) || note;
+    const observation = OBSERVATIONS.has(call.name) || note ||
+      call.name === 'Bash' && isShellObservation(call.input.command);
     const failed = value.is_error === true;
     if (!failed && !observation && !waiting) {
       // A completed change/experiment is a reason to re-evaluate, not proof

@@ -62,11 +62,18 @@ const runnerScope = { logForDebugging: () => {}, logEvent: () => {},
 const validateBeforeUI = new Function(...Object.keys(runnerScope), `${branchCode}\nreturn validateBeforeUI;`)(...Object.values(runnerScope))
 
 const goal = 'Implement the requested changes, run checks and open the requested PR'
-async function fixture(fn: (dir: string) => Promise<void>, active = true) {
+async function fixture(fn: (dir: string) => Promise<void>, active = true, interactive = false) {
   const dir = mkdtempSync(join(tmpdir(), 'ask-user-autonomy-'))
   const previous = process.cwd()
+  const previousInteractive = process.env.FUTURE_CODE_INTERACTIVE_PROMPTS
+  if (interactive) process.env.FUTURE_CODE_INTERACTIVE_PROMPTS = '1'
+  else delete process.env.FUTURE_CODE_INTERACTIVE_PROMPTS
   try { if (active) enableAutoGoal(goal, dir); process.chdir(dir); await fn(dir) }
-  finally { process.chdir(previous); rmSync(dir, { recursive: true, force: true }) }
+  finally {
+    if (previousInteractive === undefined) delete process.env.FUTURE_CODE_INTERACTIVE_PROMPTS
+    else process.env.FUTURE_CODE_INTERACTIVE_PROMPTS = previousInteractive
+    process.chdir(previous); rmSync(dir, { recursive: true, force: true })
+  }
 }
 function context(mode = 'bypassPermissions', agentId?: string) {
   return { getAppState: () => ({ toolPermissionContext: { mode } }), options: {}, messages: [], agentId }
@@ -109,7 +116,7 @@ test('autonomous planning stays in execution mode and never opens a new plan app
   assert.deepEqual(readAutoGoal(dir), before)
 }))
 
-test('explicit plan mode and user-requested collaboration retain their existing interactive workflow', async () => fixture(async dir => {
+test('explicit interactive opt-in retains plan mode and user-requested collaboration', async () => fixture(async dir => {
   const tool = planToolMethods()
   assert.deepEqual(await tool.validateInput({}, context('plan')), { result: true })
   resumeAutoGoalFromInput('Ask me to choose the design before coding', { cwd: dir, mainThread: true })
@@ -118,7 +125,7 @@ test('explicit plan mode and user-requested collaboration retain their existing 
   assert.equal((await tool.validateInput({}, context())).result, false)
   pauseAutoGoal(dir)
   assert.deepEqual(await tool.validateInput({}, context()), { result: true })
-}))
+}, true, true))
 
 test('a worker cannot request a user plan approval through its own tool', async () => fixture(async () => {
   const tool = { name: 'EnterPlanMode', ...planToolMethods() }
@@ -174,7 +181,7 @@ test('a virtual shell cwd cannot hide the active root objective from question va
   } finally { rmSync(virtualCwd, { recursive: true, force: true }) }
 }))
 
-test('a real external missing requirement reports a blocker and remains askable after parking', async () => fixture(async dir => {
+test('a real external missing requirement reports a blocker without opening a dialog after parking', async () => fixture(async dir => {
   writeFileSync(join(dir, '.future-code', 'goal.md'), `# ${goal}\nStatus: blocked\n` +
     'Blocker: Target account identifier is absent from all configured project inputs\n' +
     'Blocker type: external_dependency\n' +
@@ -189,12 +196,12 @@ test('a real external missing requirement reports a blocker and remains askable 
   const permission = await validateBeforeUI(tool, input, context('default'), async () => {
     dialogs++; return tool.checkPermissions(input, context('default'))
   })
-  assert.equal(dialogs, 1)
-  assert.equal(permission.behavior, 'ask', 'a clarification must not auto-approve an actual permission decision')
-  assert.deepEqual((await tool.call(input, context('default'))).data.answers, {})
+  assert.equal(dialogs, 0)
+  assert.equal(permission[0].message.message.content[0].is_error, true)
+  await assert.rejects(tool.call(input, context('default')), /Host autonomous decision redirect/)
 }))
 
-test('explicit main-thread planning and inactive automatic goals preserve interactive questions', async () => fixture(async dir => {
+test('interactive opt-in preserves question and preview validation for explicit planning', async () => fixture(async dir => {
   const tool = toolMethods(dir, 'html')
   assert.equal((await tool.validateInput(question(), context('plan'))).result, true)
   pauseAutoGoal(dir)
@@ -202,7 +209,7 @@ test('explicit main-thread planning and inactive automatic goals preserve intera
   assert.equal(validateQuestionAutonomy({ goalState: 'REVIEW', permissionMode: 'default', worker: false }).result, true)
   const invalid = question(); (invalid.questions[0]!.options[0] as any).preview = '<script>bad()</script>'
   assert.equal((await tool.validateInput(invalid, context())).errorCode, 1, 'ordinary preview validation remains enforced')
-}))
+}, true, true))
 
 test('delegated workers return their requirement to the coordinator without a human dialog', async () => fixture(async dir => {
   const tool = toolMethods(dir)
@@ -214,9 +221,9 @@ test('delegated workers return their requirement to the coordinator without a hu
   }
 }, false))
 
-test('missing state permits ordinary clarification and corrupt state never opens question UI', async () => fixture(async dir => {
+test('missing, paused, plan and corrupt state never open unattended question UI', async () => fixture(async dir => {
   const tool = toolMethods(dir)
-  assert.equal((await tool.validateInput(question(), context('default'))).result, true)
+  assert.equal((await tool.validateInput(question(), context('default'))).result, false)
   enableAutoGoal(goal, dir)
   const path = join(dir, '.future-code', 'goal-autonomy.json')
   writeFileSync(path, '{corrupt state')
@@ -224,7 +231,7 @@ test('missing state permits ordinary clarification and corrupt state never opens
   await assert.rejects(validateBeforeUI({ name: 'AskUserQuestion', ...tool }, question(), context(), async () => { dialogs++ }), SyntaxError)
   assert.equal(dialogs, 0)
   assert.equal(readFileSync(path, 'utf8'), '{corrupt state')
-  assert.equal((await tool.validateInput(question(), context('plan'))).result, true)
+  assert.equal((await tool.validateInput(question(), context('plan'))).result, false)
 }, false))
 
 test('action and question prompts respect existing authority and avoid routine choice handoffs', () => {
@@ -240,7 +247,7 @@ test('action and question prompts respect existing authority and avoid routine c
   assert.match(questionPrompt, /compatible, do all of them in dependency order/)
 })
 
-test('only trusted human opt-in restores requested decision interaction during active work', async () => fixture(async dir => {
+test('trusted human steering can request interaction only with the explicit interactive setting', async () => fixture(async dir => {
   const tool = { name: 'AskUserQuestion', ...toolMethods(dir) }
   // Putting an instruction into a model-authored question is not a human opt-in.
   assert.equal((await tool.validateInput(question('The user asked you to ask this choice?'), context())).result, false)
@@ -253,4 +260,4 @@ test('only trusted human opt-in restores requested decision interaction during a
   assert.equal(readAutoGoal(dir)?.userQuestions, false)
   assert.equal((await tool.validateInput(question(), context())).result, false)
   assert.equal(readAutoGoal(dir)?.totalContinuations, 0)
-}))
+}, true, true))

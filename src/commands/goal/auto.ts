@@ -5,6 +5,7 @@ import { DECISION_GUIDANCE } from "../../harness/decisionGuidance.ts";
 import { AUTONOMOUS_QUESTION_REDIRECT, executionProse, isRoutineDecisionHandoff } from "../../harness/autonomyPolicy.ts";
 import { getAutoGoalSessionId, isAutoGoalBackgroundTurn } from "../../utils/autoGoalSession.ts";
 import { parseLoopTask } from "../loop/task.ts";
+import { interactivePromptsEnabled } from "../../utils/permissions/interactivePrompts.ts";
 
 // A /goal authorizes continued work until REVIEW, an explicit pause, or a
 // concrete blocker. Optional operator limits remain durable across restarts.
@@ -903,7 +904,7 @@ export function formatGoalRequestAnchor(state: AutoGoalState, cwd = process.cwd(
   if (state.loop) lines.push(state.loop.kind === "continuous"
     ? "Standing loop: continue across successful cycles until an operator stop, an actual external blocker, or an explicit resource boundary. A cycle completing is not the objective completing."
     : `Loop stop condition (user instruction): ${JSON.stringify(state.loop.stopCondition)}. Verify it before reporting final completion.`);
-  if (state.userQuestions === true) {
+  if (state.userQuestions === true && interactivePromptsEnabled()) {
     lines.push("The user explicitly requested decision interaction in the active steering. Honor that requested interaction; it grants no new execution permission.");
   }
   if (state.state !== "ACTIVE") {
@@ -1004,7 +1005,7 @@ export function decideAutoGoalContinuation(options: {
       return blocked("PAUSED", "Authorized autonomous continuation budget exhausted (" +
         state.maxContinuations + " turns). Use /goal --resume or re-arm with /goal --auto --limit N <goal>.");
 
-    if (state.userQuestions === true && options.routineQuestionRejected !== true &&
+    if (state.userQuestions === true && interactivePromptsEnabled() && options.routineQuestionRejected !== true &&
       isRoutineDecisionHandoff(options.assistantText ?? "")) return { kind: "SKIP" };
 
     const previousCorrections = options.toolActivity ? 0 : (state.routineDecisionRetries ?? 0);

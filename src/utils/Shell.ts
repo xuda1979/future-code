@@ -31,6 +31,7 @@ export type { ExecResult } from './ShellCommand.js'
 import { accessSync } from 'fs'
 import { onCwdChangedForHooks } from './hooks/fileChangedWatcher.js'
 import { getFutureTempDirName } from './permissions/filesystem.js'
+import { unattendedGitEnvironment } from './permissions/interactivePrompts.js'
 import { getPlatform } from './platform.js'
 import { SandboxManager } from './sandbox/sandbox-adapter.js'
 import { invalidateSessionEnvCache } from './sessionEnvironment.js'
@@ -320,6 +321,7 @@ export async function exec(
         GIT_EDITOR: 'true',
         FUTURECODE: '1',
         ...envOverrides,
+        ...unattendedGitEnvironment(),
         ...(process.env.USER_TYPE === 'ant'
           ? {
               FUTURE_CODE_SESSION_ID: getSessionId(),
