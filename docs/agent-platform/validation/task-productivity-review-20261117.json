@@ -1,0 +1,78 @@
+{
+  "productionCorrectnessReview": "PASS",
+  "evidenceIntegrityReview": "PASS_AFTER_OBSERVER_AND_MEDIAN_CORRECTION",
+  "strictIndependentTaskWindowGate": "FAIL",
+  "independentStalledCounterTimelyRepairs": {
+    "baseline": "0/5",
+    "candidate": "4/5",
+    "cutoffMs": 2500,
+    "lateCandidateMs": 2734.0687970000004
+  },
+  "primaryStalledCounterTimelyRepairs": {
+    "baseline": "0/5",
+    "candidate": "5/5"
+  },
+  "independentFocusedTests": {
+    "pass": 52,
+    "fail": 0,
+    "skip": 0
+  },
+  "checkerPositiveNegativeCases": 19,
+  "nativeSDKTransportAbort": "PASS",
+  "readCohorts": {
+    "primaryTrials": 80,
+    "independentTrials": 80,
+    "affectedRepairsPerArm": 20,
+    "affectedWorkerRounds": {
+      "baseline": 80,
+      "candidate": 60
+    },
+    "forcedRecoveryRounds": {
+      "baseline": 20,
+      "candidate": 0
+    },
+    "usefulCancellations": {
+      "baseline": 65,
+      "candidate": 0
+    }
+  },
+  "numericAudits": "Both read cohorts, primary strict counter and immutable corrected independent strict counter authenticate and recompute; corrupted metric/control records rejected. Audit PASS means evidence recomputation, not performance gate PASS.",
+  "medianReplay": {
+    "standardFourRowMedianMs": 1199.320687,
+    "changedRawRows": 0,
+    "changedOutcomes": 0,
+    "preservedExperimentResult": "FAIL"
+  },
+  "docsReview": "No remaining material overclaim; label counter table primary cohort for clarity. Mixed timing, failed performance target, no native CLI/model parity claim all explicit.",
+  "limits": [
+    "No live-model productivity comparison or full packaged CLI validation.",
+    "Selected regression components do not estimate production frequency or universal speedup.",
+    "Bedrock inference-profile bounded file reads may require smaller ranges."
+  ],
+  "productionSourceHashes": {
+    "src/services/tools/StreamingToolExecutor.ts": "193051e587545c3fc2796d6d66c80f43680f0d8783a6436ba73a12c7aac31477",
+    "src/services/tokenEstimation.ts": "8a7cbd05b4893a56564204882f11d83468a3c17812343172501ca97bb281a6d3",
+    "src/tools/FileReadTool/FileReadTool.ts": "8222686915c4d1f1d873dc7736b23b081f0be5d93a3cd98f128a30679640e888",
+    "src/tools/FileReadTool/tokenBudget.ts": "ca798f0bd3928aa4c7162cd043f880443554f4d73a938dc28f09baf61a89111c"
+  },
+  "artifacts": {
+    "audit-read-results.py": "913f352ef2452424a85a8ad0d16f113b12a780bfa00fba03bce37e8cedffba9b",
+    "audit-file-results.py": "97d47c9c068fd5e6e29d11d55c7c19d830fa617c1caca8314c69c47b10b2c8c6",
+    "recompute-counter-median.py": "ad03008f7d4218bf0bdb4172cbb8665014a26601883db6d31c7254185b5e9064",
+    "checker-tamper.mjs": "dc51f5a2b283ca98b3630f2d007e596be12afef02ad3fc2a628c449b474c1f69",
+    "file-checker-tamper.mjs": "e3df1f6d01a63374908768681670d2f8aef1dc8afbe1e3bbf25dbf7d72d882bd",
+    "native-sdk-abort.mjs": "d237876d6087ad4169fe29b5b30ff1ae127158139c397c70d88227d6d9c06625",
+    "read-input-map.json": "b2d0f5bec55fcdcb3dfa432a2930e4794e9ab4016fc5381b04fad8c95254d8b5",
+    "counter-strict-input-map.json": "131d4bc2bdd3b78c5b623730bb3576cc77dbfb719584fb7fe75079f4bf8b8047",
+    "counter-v1-input-map.json": "ab047a794c137754cd2af3977694d1655422d96309a2e82d6e0c8d71764e45d4",
+    "file-read-task-independent-corrected-20261117.json": "c8e8352a882e548425fef42b73292eb1e67dd8e1de661a87ccba56a7f4c9878e",
+    "task-read-recovery-20261117-independent-audit.json": "ea088e2e0397f6d756fbc57b55787e36d637f483e9467ab38e7587cddedc5b9b",
+    "task-read-recovery-independent-20261117-independent-audit.json": "3a3f7eb68b91fa231216cdcc6fa15aece7e27c0bb7b28ec48f0f72182522d568",
+    "file-read-task-20261117-independent-audit.json": "9cd42ddc0eb910b640d27d507535344ca020dd45a88bd15295faad7075e27879",
+    "file-read-task-independent-corrected-20261117-independent-audit.json": "6e7884720d397875052c96107a58b085cfa9acb8e873d7d732a27b3487391fc6",
+    "checker-tamper.json": "31514b8f11c1a4e8ef027f0bfdc1e82716a3a31d8aa9bdeacbc5fd87ca58e4a7",
+    "file-checker-tamper.json": "6b2c2bd65b9b70ad2997c8c2811af32b6ef4859e3578ae1d2e2d75c7af3da01c",
+    "native-sdk-abort.json": "a85e9f2ccce2b52edfe9f4597c7e33b9570d847383e8d6609bf7479af4f433a5",
+    "observer-final.log": "9d7e8cae0d8718539d9bdcaea3f33a777615c40b62c6da1ddc5df9af85e86439"
+  }
+}

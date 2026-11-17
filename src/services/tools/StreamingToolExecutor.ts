@@ -42,6 +42,10 @@ export class StreamingToolExecutor {
   private toolUseContext: ToolUseContext
   private hasErrored = false
   private erroredToolDescription = ''
+  // A returned error from a read-only shell command must not discard useful
+  // evidence from independent reads. Keep the error as an ordering barrier:
+  // drain that safe batch, then cancel dependent mutations and their suffix.
+  private pendingReadOnlyBatchFailure?: string
   // Child of toolUseContext.abortController. Fires when a Bash tool errors
   // so sibling subprocesses die immediately instead of running to completion.
   // Aborting this does NOT abort the parent — query.ts won't end the turn.
@@ -148,6 +152,12 @@ export class StreamingToolExecutor {
       if (tool.status !== 'queued') continue
 
       if (this.canExecuteTool(tool.isConcurrencySafe)) {
+        if (!tool.isConcurrencySafe && this.pendingReadOnlyBatchFailure !== undefined) {
+          this.hasErrored = true
+          this.erroredToolDescription = this.pendingReadOnlyBatchFailure
+          this.pendingReadOnlyBatchFailure = undefined
+          this.siblingAbortController.abort('sibling_error')
+        }
         this.executeTool(tool)
       } else {
         // Can't execute this tool yet, and since we need to maintain order for non-concurrent tools, stop here
@@ -355,13 +365,19 @@ export class StreamingToolExecutor {
 
         if (isErrorResult) {
           thisToolErrored = true
-          // Only Bash errors cancel siblings. Bash commands often have implicit
-          // dependency chains (e.g. mkdir fails → subsequent commands pointless).
-          // Read/WebFetch/etc are independent — one failure shouldn't nuke the rest.
+          // Exclusive Bash commands can have implicit dependency chains (e.g.
+          // mkdir fails → subsequent commands pointless), so fail immediately.
+          // Read-only Bash failures retain independent batch receipts; the next
+          // exclusive tool remains a cancellation barrier. Thrown/framework
+          // failures still cancel immediately through recordExecutionFailure.
           if (tool.block.name === BASH_TOOL_NAME) {
-            this.hasErrored = true
-            this.erroredToolDescription = this.getToolDescription(tool)
-            this.siblingAbortController.abort('sibling_error')
+            if (tool.isConcurrencySafe) {
+              this.pendingReadOnlyBatchFailure ??= this.getToolDescription(tool)
+            } else {
+              this.hasErrored = true
+              this.erroredToolDescription = this.getToolDescription(tool)
+              this.siblingAbortController.abort('sibling_error')
+            }
           }
         }
 

@@ -14,13 +14,14 @@ function fixture(run: (...args: any[]) => AsyncGenerator<any>) {
   let inProgress = new Set<string>();
   const tools = ['Read', 'Write', 'Bash'].map(name => ({ name,
     inputSchema: { safeParse: (data: unknown) => ({ success: true, data }) },
-    isConcurrencySafe: () => name === 'Read', interruptBehavior: () => 'cancel',
+    isConcurrencySafe: (input: any) => name === 'Read' || (name === 'Bash' && input.readOnly === true),
+    interruptBehavior: () => 'cancel',
   }));
   const context = { abortController: new AbortController(), options: { tools, mcpClients: [] },
     setInProgressToolUseIDs: (update: (value: Set<string>) => Set<string>) => { inProgress = update(inProgress); },
     setHasInterruptibleToolInProgress: () => {}, marker: 'original' };
   const executor = new StreamingToolExecutor(tools as any, (() => {}) as any, context as any);
-  const add = (id: string, name = 'Read') => executor.addTool({ id, name, input: {} } as any,
+  const add = (id: string, name = 'Read', input = {}) => executor.addTool({ id, name, input } as any,
     { uuid: `assistant-${id}`, message: { id: `response-${id}` } } as any);
   const drain = async () => {
     const updates = [];
@@ -135,6 +136,102 @@ test('a Bash framework failure cancels dependent siblings without cancelling the
   assert.deepEqual(executed, ['bash']); assert.equal(blocks.length, 2);
   assert.ok(blocks.every((block: any) => block.is_error));
   assert.equal(f.context.abortController.signal.aborted, false); assert.deepEqual(f.inProgress(), []);
+});
+
+test('a returned read-only Bash error preserves useful independent read receipts', { timeout: 2000 }, async () => {
+  const executed: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const f = fixture(async function* (call) {
+    executed.push(call.id);
+    if (call.id === 'optional-config') {
+      const update = result(call.id, 'cat: optional.json: No such file or directory');
+      (update.message.message.content[0] as any).is_error = true;
+      yield update;
+    } else {
+      await gate;
+      yield result(call.id, `actual-${call.id}`);
+    }
+  });
+  f.add('optional-config', 'Bash', { readOnly: true });
+  f.add('implementation', 'Bash', { readOnly: true });
+  await new Promise(resolve => setImmediate(resolve));
+  // Calls that arrive later in the same consecutive safe batch stay useful too.
+  f.add('tests');
+  release();
+  const blocks = await f.drain();
+  assert.deepEqual(executed, ['optional-config', 'implementation', 'tests']);
+  const byId = new Map(blocks.map((block: any) => [block.tool_use_id, block]));
+  assert.equal(byId.get('optional-config')!.is_error, true);
+  assert.match(String(byId.get('optional-config')!.content), /No such file or directory/);
+  for (const id of ['implementation', 'tests']) {
+    assert.equal(byId.get(id)!.is_error, undefined);
+    assert.equal(byId.get(id)!.content, `actual-${id}`);
+  }
+  assert.equal(blocks.length, 3);
+  assert.equal(f.context.abortController.signal.aborted, false);
+  assert.deepEqual(f.inProgress(), []);
+});
+
+test('a failed read-only Bash batch drains reads then suppresses the dependent mutation and suffix', { timeout: 2000 }, async () => {
+  const executed: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const f = fixture(async function* (call) {
+    executed.push(call.id);
+    if (call.id === 'missing') {
+      const update = result(call.id, 'required input is missing');
+      (update.message.message.content[0] as any).is_error = true;
+      yield update;
+    } else {
+      if (call.id === 'independent') await gate;
+      yield result(call.id, `actual-${call.id}`);
+    }
+  });
+  f.add('missing', 'Bash', { readOnly: true });
+  f.add('independent');
+  f.add('dependent-mutation', 'Write');
+  f.add('after-mutation');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(executed, ['missing', 'independent']);
+  release();
+  const blocks = await f.drain();
+  assert.deepEqual(executed, ['missing', 'independent']);
+  const byId = new Map(blocks.map((block: any) => [block.tool_use_id, block]));
+  assert.equal(byId.get('independent')!.content, 'actual-independent');
+  assert.equal(byId.get('independent')!.is_error, undefined);
+  assert.equal(byId.get('missing')!.content, 'required input is missing');
+  assert.equal(byId.get('missing')!.is_error, true);
+  for (const id of ['dependent-mutation', 'after-mutation']) {
+    assert.equal(byId.get(id)!.is_error, true);
+    assert.match(String(byId.get(id)!.content), /Cancelled: parallel tool call Bash/);
+  }
+  assert.equal(blocks.length, 4);
+  assert.equal(f.context.abortController.signal.aborted, false);
+  assert.deepEqual(f.inProgress(), []);
+});
+
+test('a read-only Bash framework failure still cancels immediately and retains uncertainty', { timeout: 2000 }, async () => {
+  const executed: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const f = fixture(async function* (call) {
+    executed.push(call.id);
+    if (call.id === 'broken-transport') throw new Error('shell result transport failed');
+    await gate;
+    yield result(call.id);
+  });
+  f.add('broken-transport', 'Bash', { readOnly: true });
+  f.add('independent');
+  await new Promise(resolve => setImmediate(resolve));
+  release();
+  const blocks = await f.drain();
+  assert.deepEqual(executed, ['broken-transport', 'independent']);
+  assert.equal(blocks.length, 2);
+  assert.ok(blocks.every((block: any) => block.is_error === true));
+  assert.match(String(blocks[0]!.content), /effects may already exist/);
+  assert.equal(f.context.abortController.signal.aborted, false);
+  assert.deepEqual(f.inProgress(), []);
 });
 
 test('a throwing concurrency preflight cannot lose a call before normal tool validation', { timeout: 2000 }, async () => {

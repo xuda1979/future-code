@@ -1,0 +1,471 @@
+{
+  "schema": 1,
+  "baseline": "e2344798ea34cc3f06fed54679b44b084d94f512",
+  "date": "2026-11-17",
+  "kind": "SOURCE_AND_TASK_COMPONENT_EVIDENCE_WITH_EXPLICIT_FAILED_PERFORMANCE_TARGET",
+  "implementationCorrectness": "PASS",
+  "evidenceIntegrity": "PASS_AFTER_RETAINED_OBSERVER_CORRECTIONS",
+  "independentTaskWindowTarget": "FAIL",
+  "releaseScope": "Source PR for review; no binary installation or production deployment.",
+  "productionSourceHashes": {
+    "src/services/tools/StreamingToolExecutor.ts": "193051e587545c3fc2796d6d66c80f43680f0d8783a6436ba73a12c7aac31477",
+    "src/services/tokenEstimation.ts": "8a7cbd05b4893a56564204882f11d83468a3c17812343172501ca97bb281a6d3",
+    "src/tools/FileReadTool/FileReadTool.ts": "8222686915c4d1f1d873dc7736b23b081f0be5d93a3cd98f128a30679640e888",
+    "src/tools/FileReadTool/tokenBudget.ts": "ca798f0bd3928aa4c7162cd043f880443554f4d73a938dc28f09baf61a89111c"
+  },
+  "finalTestInputs": {
+    "scripts/test-correctness.mjs": "644944440a1220b606c0dc449810b2ec169c561d40b2396007dfde547b3251d5",
+    "tests/correctness/streaming-tool-executor.test.ts": "a7150f6b23ae64bfff729eaf94602e3959fa8c17aefbf2653f6922be09408e8d",
+    "tests/correctness/file-read-token-budget.test.ts": "e233716d52bec4a3c5a94cc79fc7d9a4429317f460cb6065fee92833a16e0a25",
+    "tests/correctness/file-read-token-count.test.ts": "d37b11c2e1c43149bd501aba542f7c144bcf8b7804582926f129e477b1848566",
+    "tests/correctness/file-read-token-count-loader.mjs": "c8005fe9f75bc293e3d664c51de0ec8cda924a86764907bcf70f2fcbe7581a54",
+    "tests/correctness/task-productivity-observer.test.ts": "de0860d431d4c26a7a9b59ae2c7a0eb3ab2bf91a7e8ed8f027c6646b0d70a608"
+  },
+  "gates": [
+    {
+      "gate": "foundry",
+      "command": [
+        "node",
+        "scripts/test-foundry.mjs"
+      ],
+      "exitCode": 0,
+      "wallSeconds": 247.37854865800182,
+      "log": "foundry-final.log",
+      "result": "PASS",
+      "logSha256": "db63e39837e9818abd1e6f4f56a1a6af87031c160df80f4209867ce58201e4ea",
+      "node": {
+        "tests": 899,
+        "pass": 899,
+        "fail": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "gate": "swarm",
+      "command": [
+        "node",
+        "scripts/test-swarm.mjs"
+      ],
+      "exitCode": 0,
+      "wallSeconds": 190.48599179300072,
+      "log": "swarm-final.log",
+      "result": "PASS",
+      "logSha256": "41c45e5233a286965e5caff5dfad4c3b75c73f7a804bdfe9b95e7f3842695142",
+      "node": {
+        "tests": 557,
+        "pass": 557,
+        "fail": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "gate": "correctness",
+      "command": [
+        "node",
+        "scripts/test-correctness.mjs"
+      ],
+      "exitCode": 0,
+      "wallSeconds": 93.78712136299873,
+      "log": "correctness-final.log",
+      "result": "PASS",
+      "logSha256": "3ce949ee0acd789909632f25c1f3b820e7884d47aaf6754903f824b6d4f087bd",
+      "node": {
+        "tests": 510,
+        "pass": 509,
+        "fail": 0,
+        "skipped": 1
+      },
+      "python": [
+        {
+          "suite": "correctness",
+          "tests": 40,
+          "passed": 35,
+          "skipped": 5,
+          "failures": 0
+        },
+        {
+          "suite": "research-jobs",
+          "tests": 54,
+          "passed": 54,
+          "skipped": 0,
+          "failures": 0
+        }
+      ]
+    },
+    {
+      "gate": "resilience",
+      "command": [
+        "node",
+        "scripts/test-resilience.mjs"
+      ],
+      "exitCode": 0,
+      "result": "PASS",
+      "logSha256": "71972ab0ebd2ec2aff70665dcb8e7a02730fb09aacecb991ddd1256be98a5789",
+      "node": {
+        "tests": 178,
+        "pass": 178,
+        "fail": 0,
+        "skipped": 0
+      },
+      "python": [
+        {
+          "suite": "research-jobs",
+          "tests": 54,
+          "passed": 54,
+          "skipped": 0,
+          "failures": 0
+        }
+      ]
+    },
+    {
+      "gate": "commands",
+      "command": [
+        "node",
+        "scripts/test-commands.mjs"
+      ],
+      "exitCode": 0,
+      "result": "PASS",
+      "logSha256": "e81c6d9eeb7d36cf1108f7ed2cdf68388b9c2b61121e9de6dfd8b76fb7c3d414",
+      "node": {
+        "tests": 242,
+        "pass": 242,
+        "fail": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "suiteCountsOverlap": true,
+  "runtime": {
+    "node": "24.22.1",
+    "bun": "1.4.2",
+    "sdkAlias": "@future/sdk",
+    "sdkPackage": "@anthropic-ai/sdk",
+    "sdkVersion": "0.116.0",
+    "sdkPackageSha256": "14196d5e2de5b984f17217caa8ff58dfd437e7e80788ca7b6fe25fd430b65bd2"
+  },
+  "targetRuntime": {
+    "changedModuleTranspilation": {
+      "result": "PASS",
+      "command": [
+        "node_modules/bun/bin/bun.exe",
+        "build",
+        "src/services/tokenEstimation.ts",
+        "src/tools/FileReadTool/FileReadTool.ts",
+        "src/tools/FileReadTool/tokenBudget.ts",
+        "src/services/tools/StreamingToolExecutor.ts",
+        "--target=bun",
+        "--no-bundle",
+        "--outdir=<scratch>"
+      ],
+      "logSha256": "33201d403f16a1ece09f375bdc0abd4747a5542566d1524ce0b4e16e458e7b3e"
+    },
+    "bunHelperLifecycle": {
+      "verdict": "PASS",
+      "runtime": "1.4.2",
+      "localCounterCalls": 0,
+      "deadlineAbort": true,
+      "operatorCancellation": true,
+      "elapsedMs": 1027.426986
+    },
+    "fullNativeFileReadImport": {
+      "result": "VOID",
+      "reason": "Existing test runtime is missing zod/v4 and other full CLI dependencies. Validator declarations, actual counting service, helper and SDK transport are tested at their stated component scopes.",
+      "logSha256": "e410a8475ac37671a17325464d6bb76cfd7679fd28fe3c12b7abf15a5daa4bee"
+    },
+    "fullNativePackaging": "UNMEASURED"
+  },
+  "pairedExperiments": {
+    "primaryReadTrials": 80,
+    "primaryStrictCounterTrials": 50,
+    "independentReadTrials": 80,
+    "independentStrictCounterTrials": 50,
+    "modelCalls": 0,
+    "modelTokens": null,
+    "dollars": null,
+    "affectedReadRepairsPerArm": 20,
+    "affectedReadWorkerRounds": {
+      "baseline": 80,
+      "candidate": 60
+    },
+    "affectedReadExecutedTools": {
+      "baseline": 190,
+      "candidate": 125
+    },
+    "affectedReadUsefulCancellations": {
+      "baseline": 65,
+      "candidate": 0
+    },
+    "primaryStalledCounterTimelyRepairs": {
+      "baseline": 0,
+      "candidate": 5,
+      "samplesPerArm": 5
+    },
+    "independentStalledCounterTimelyRepairs": {
+      "baseline": 0,
+      "candidate": 4,
+      "samplesPerArm": 5,
+      "cutoffMs": 2500,
+      "lateCandidateMs": 2734.0687970000004
+    },
+    "jsonCounterRequests": {
+      "baseline": 5,
+      "candidate": 0
+    },
+    "rawGuardrailPassesAreNotRepairs": true
+  },
+  "measurementHistory": [
+    {
+      "result": "VOID",
+      "reason": "First independent read run detected changed checker/benchmark input during requested hardening. No trial from that run is admitted."
+    },
+    {
+      "result": "CORRECTED",
+      "reason": "Asynchronous socket-close observation was initially too early; actual upstream closure is now observed before experiment cleanup."
+    },
+    {
+      "result": "CORRECTED_WITH_UNFAVORABLE_RECORD_RETAINED",
+      "reason": "Timer-only observer mislabeled an initial independent2555.44ms completion as within2500ms. Exact original raw and observer source are archived; historical timely count4/5."
+    },
+    {
+      "result": "FAIL_RETAINED",
+      "reason": "Strict independent repeat has one correctly censored2734.07ms completion. The independent5/5 window target is not met."
+    },
+    {
+      "result": "CORRECTED_BY_IMMUTABLE_REPLAY",
+      "reason": "Even-cohort median now averages the two middle values. Raw rows, timestamps, outcomes and FAIL verdict remain unchanged; original summaries are retained."
+    }
+  ],
+  "regressionsBeforeFix": {
+    "readResultFailures": 2,
+    "tokenTransportFailures": 4,
+    "readLogSha256": "a507a9e43348e0911fa5bd4feee14aa71bea76b29784a5ed70c1a3803b9f252d",
+    "tokenLogSha256": "117534d0f100fb1a9534501b8f523fb9c90e3622533f510de93d78bf98166e2b"
+  },
+  "independentReview": {
+    "receipt": "docs/agent-platform/validation/task-productivity-review-20261117.json",
+    "receiptSha256": "2d680ef5e43d5c49063fb39144f429912ab0665d5dcac6e679b3dc4523c4ad31",
+    "focusedPasses": 52,
+    "artifactCheckerCases": 19,
+    "reviewArtifacts": {
+      "audit-read-results.py": {
+        "path": "experiments/task-productivity-20261117/verification/audit-read-results.py",
+        "sha256": "913f352ef2452424a85a8ad0d16f113b12a780bfa00fba03bce37e8cedffba9b"
+      },
+      "audit-file-results.py": {
+        "path": "experiments/task-productivity-20261117/verification/audit-file-results.py",
+        "sha256": "97d47c9c068fd5e6e29d11d55c7c19d830fa617c1caca8314c69c47b10b2c8c6"
+      },
+      "recompute-counter-median.py": {
+        "path": "experiments/task-productivity-20261117/verification/recompute-counter-median.py",
+        "sha256": "ad03008f7d4218bf0bdb4172cbb8665014a26601883db6d31c7254185b5e9064"
+      },
+      "checker-tamper.mjs": {
+        "path": "experiments/task-productivity-20261117/verification/checker-tamper.mjs",
+        "sha256": "dc51f5a2b283ca98b3630f2d007e596be12afef02ad3fc2a628c449b474c1f69"
+      },
+      "file-checker-tamper.mjs": {
+        "path": "experiments/task-productivity-20261117/verification/file-checker-tamper.mjs",
+        "sha256": "e3df1f6d01a63374908768681670d2f8aef1dc8afbe1e3bbf25dbf7d72d882bd"
+      },
+      "native-sdk-abort.mjs": {
+        "path": "experiments/task-productivity-20261117/verification/native-sdk-abort.mjs",
+        "sha256": "d237876d6087ad4169fe29b5b30ff1ae127158139c397c70d88227d6d9c06625"
+      },
+      "read-input-map.json": {
+        "path": "experiments/task-productivity-20261117/verification/read-input-map.json",
+        "sha256": "b2d0f5bec55fcdcb3dfa432a2930e4794e9ab4016fc5381b04fad8c95254d8b5"
+      },
+      "counter-strict-input-map.json": {
+        "path": "experiments/task-productivity-20261117/verification/counter-strict-input-map.json",
+        "sha256": "131d4bc2bdd3b78c5b623730bb3576cc77dbfb719584fb7fe75079f4bf8b8047"
+      },
+      "counter-v1-input-map.json": {
+        "path": "experiments/task-productivity-20261117/verification/counter-v1-input-map.json",
+        "sha256": "ab047a794c137754cd2af3977694d1655422d96309a2e82d6e0c8d71764e45d4"
+      },
+      "file-read-task-independent-corrected-20261117.json": {
+        "path": "docs/agent-platform/validation/task-productivity-verification/file-read-task-independent-corrected-20261117.json",
+        "sha256": "c8e8352a882e548425fef42b73292eb1e67dd8e1de661a87ccba56a7f4c9878e"
+      },
+      "task-read-recovery-20261117-independent-audit.json": {
+        "path": "docs/agent-platform/validation/task-productivity-verification/task-read-recovery-20261117-independent-audit.json",
+        "sha256": "ea088e2e0397f6d756fbc57b55787e36d637f483e9467ab38e7587cddedc5b9b"
+      },
+      "task-read-recovery-independent-20261117-independent-audit.json": {
+        "path": "docs/agent-platform/validation/task-productivity-verification/task-read-recovery-independent-20261117-independent-audit.json",
+        "sha256": "3a3f7eb68b91fa231216cdcc6fa15aece7e27c0bb7b28ec48f0f72182522d568"
+      },
+      "file-read-task-20261117-independent-audit.json": {
+        "path": "docs/agent-platform/validation/task-productivity-verification/file-read-task-20261117-independent-audit.json",
+        "sha256": "9cd42ddc0eb910b640d27d507535344ca020dd45a88bd15295faad7075e27879"
+      },
+      "file-read-task-independent-corrected-20261117-independent-audit.json": {
+        "path": "docs/agent-platform/validation/task-productivity-verification/file-read-task-independent-corrected-20261117-independent-audit.json",
+        "sha256": "6e7884720d397875052c96107a58b085cfa9acb8e873d7d732a27b3487391fc6"
+      },
+      "checker-tamper.json": {
+        "path": "docs/agent-platform/validation/task-productivity-verification/checker-tamper.json",
+        "sha256": "31514b8f11c1a4e8ef027f0bfdc1e82716a3a31d8aa9bdeacbc5fd87ca58e4a7"
+      },
+      "file-checker-tamper.json": {
+        "path": "docs/agent-platform/validation/task-productivity-verification/file-checker-tamper.json",
+        "sha256": "6b2c2bd65b9b70ad2997c8c2811af32b6ef4859e3578ae1d2e2d75c7af3da01c"
+      },
+      "native-sdk-abort.json": {
+        "path": "docs/agent-platform/validation/task-productivity-verification/native-sdk-abort.json",
+        "sha256": "a85e9f2ccce2b52edfe9f4597c7e33b9570d847383e8d6609bf7479af4f433a5"
+      },
+      "observer-final.log": {
+        "path": "docs/agent-platform/validation/task-productivity-verification/observer-final.log",
+        "sha256": "9d7e8cae0d8718539d9bdcaea3f33a777615c40b62c6da1ddc5df9af85e86439"
+      }
+    },
+    "portableAuditSmoke": {
+      "result": "PASS",
+      "experimentResult": "FAIL",
+      "logSha256": "53e60d5fa85a692f9e91ece43b58fe64eb680e304eca830ebfe75320ce74fc79"
+    }
+  },
+  "artifactManifest": {
+    "docs/agent-platform/validation/file-read-task-20261117.json": {
+      "bytes": 69939,
+      "sha256": "5091d2b6c3fbfe74a7bdce32bffda1d4363b742795b6bb9e7e87102121672a60"
+    },
+    "docs/agent-platform/validation/file-read-task-independent-observer-v1-20261117.json": {
+      "bytes": 69845,
+      "sha256": "d407db42699924d91fd567dfa1f11431c009f5249374865d1a80b07f27f50e8e"
+    },
+    "docs/agent-platform/validation/file-read-task-independent-strict-v2-20261117.json": {
+      "bytes": 70358,
+      "sha256": "dc1edaa0587cddc5e7aac77339a360d65f372cd2d6c458fc728a858f7c2bfb25"
+    },
+    "docs/agent-platform/validation/file-read-task-observer-v1-20261117.json": {
+      "bytes": 69750,
+      "sha256": "bdf0e8328e6b02f2bc198e745ec4a6f8134326fe6162ffd625998265160643ff"
+    },
+    "docs/agent-platform/validation/task-productivity-review-20261117.json": {
+      "bytes": 4236,
+      "sha256": "2d680ef5e43d5c49063fb39144f429912ab0665d5dcac6e679b3dc4523c4ad31"
+    },
+    "docs/agent-platform/validation/task-productivity-verification/checker-tamper.json": {
+      "bytes": 2015,
+      "sha256": "31514b8f11c1a4e8ef027f0bfdc1e82716a3a31d8aa9bdeacbc5fd87ca58e4a7"
+    },
+    "docs/agent-platform/validation/task-productivity-verification/file-checker-tamper.json": {
+      "bytes": 1169,
+      "sha256": "6b2c2bd65b9b70ad2997c8c2811af32b6ef4859e3578ae1d2e2d75c7af3da01c"
+    },
+    "docs/agent-platform/validation/task-productivity-verification/file-read-task-20261117-independent-audit.json": {
+      "bytes": 2455,
+      "sha256": "9cd42ddc0eb910b640d27d507535344ca020dd45a88bd15295faad7075e27879"
+    },
+    "docs/agent-platform/validation/task-productivity-verification/file-read-task-independent-corrected-20261117-independent-audit.json": {
+      "bytes": 2455,
+      "sha256": "6e7884720d397875052c96107a58b085cfa9acb8e873d7d732a27b3487391fc6"
+    },
+    "docs/agent-platform/validation/task-productivity-verification/file-read-task-independent-corrected-20261117.json": {
+      "bytes": 71102,
+      "sha256": "c8e8352a882e548425fef42b73292eb1e67dd8e1de661a87ccba56a7f4c9878e"
+    },
+    "docs/agent-platform/validation/task-productivity-verification/native-sdk-abort.json": {
+      "bytes": 165,
+      "sha256": "a85e9f2ccce2b52edfe9f4597c7e33b9570d847383e8d6609bf7479af4f433a5"
+    },
+    "docs/agent-platform/validation/task-productivity-verification/observer-final.log": {
+      "bytes": 364,
+      "sha256": "9d7e8cae0d8718539d9bdcaea3f33a777615c40b62c6da1ddc5df9af85e86439"
+    },
+    "docs/agent-platform/validation/task-productivity-verification/task-read-recovery-20261117-independent-audit.json": {
+      "bytes": 1947,
+      "sha256": "ea088e2e0397f6d756fbc57b55787e36d637f483e9467ab38e7587cddedc5b9b"
+    },
+    "docs/agent-platform/validation/task-productivity-verification/task-read-recovery-independent-20261117-independent-audit.json": {
+      "bytes": 1947,
+      "sha256": "3a3f7eb68b91fa231216cdcc6fa15aece7e27c0bb7b28ec48f0f72182522d568"
+    },
+    "docs/agent-platform/validation/task-read-recovery-20261117.json": {
+      "bytes": 336534,
+      "sha256": "ef3934e88c5e1c7ae1835f32fc6888c67ab13039ef61bf6cbf05eb53917e1e92"
+    },
+    "docs/agent-platform/validation/task-read-recovery-independent-20261117.json": {
+      "bytes": 336481,
+      "sha256": "8a3bf011c7d895f209cbac4e9902fd508a813b425cadaddfdac83c9ba5f2f179"
+    },
+    "experiments/task-productivity-20261117/bench-file-read-task-observer-v1.mjs": {
+      "bytes": 14679,
+      "sha256": "ee9df961ac849f02f0fcf5dbfc24d149529ef580e6632ff50a9becaf8ec6fa97"
+    },
+    "experiments/task-productivity-20261117/bench-file-read-task-strict-v2.mjs": {
+      "bytes": 15430,
+      "sha256": "d41d0740a57df6d1c3c4cab0d6fb5b6a18f824fa74cd222b1bbe2bb24f4e9dc9"
+    },
+    "experiments/task-productivity-20261117/bench-task-read-recovery-observer-v1.mjs": {
+      "bytes": 15244,
+      "sha256": "8ead81d62f913e12a3a09f1741550b81c8b96d9d28417c67fc3aa4d802f9e364"
+    },
+    "experiments/task-productivity-20261117/check-file-task.mjs": {
+      "bytes": 1195,
+      "sha256": "ecbc06daa25fecada760b5a7a8bbd10bb30ab5348c3dabb248870180e95802f7"
+    },
+    "experiments/task-productivity-20261117/check-task.mjs": {
+      "bytes": 2117,
+      "sha256": "42608248fc78fdbb8d1533899ada85500b747f2edf4a0056bc32a1167005c5ed"
+    },
+    "experiments/task-productivity-20261117/completion-observer-v2.mjs": {
+      "bytes": 526,
+      "sha256": "2697150052d839e9f4e627c496ed580ac8c1eb3d5d18c9b03e1ab37ca889e009"
+    },
+    "experiments/task-productivity-20261117/completion-observer.mjs": {
+      "bytes": 783,
+      "sha256": "385c66f3523db1e28d17b26e92d7db99fb7d2e643a422df5a07aa1738795b550"
+    },
+    "experiments/task-productivity-20261117/contract.json": {
+      "bytes": 3744,
+      "sha256": "b313db48f790e74eb64e2b3f6e4424aca545e5fe07b6c2dd6be1c90ce7b2f0e1"
+    },
+    "experiments/task-productivity-20261117/verification/audit-file-results.py": {
+      "bytes": 6284,
+      "sha256": "97d47c9c068fd5e6e29d11d55c7c19d830fa617c1caca8314c69c47b10b2c8c6"
+    },
+    "experiments/task-productivity-20261117/verification/audit-read-results.py": {
+      "bytes": 4851,
+      "sha256": "913f352ef2452424a85a8ad0d16f113b12a780bfa00fba03bce37e8cedffba9b"
+    },
+    "experiments/task-productivity-20261117/verification/checker-tamper.mjs": {
+      "bytes": 2386,
+      "sha256": "dc51f5a2b283ca98b3630f2d007e596be12afef02ad3fc2a628c449b474c1f69"
+    },
+    "experiments/task-productivity-20261117/verification/counter-strict-input-map.json": {
+      "bytes": 255,
+      "sha256": "131d4bc2bdd3b78c5b623730bb3576cc77dbfb719584fb7fe75079f4bf8b8047"
+    },
+    "experiments/task-productivity-20261117/verification/counter-v1-input-map.json": {
+      "bytes": 120,
+      "sha256": "ab047a794c137754cd2af3977694d1655422d96309a2e82d6e0c8d71764e45d4"
+    },
+    "experiments/task-productivity-20261117/verification/file-checker-tamper.mjs": {
+      "bytes": 2092,
+      "sha256": "e3df1f6d01a63374908768681670d2f8aef1dc8afbe1e3bbf25dbf7d72d882bd"
+    },
+    "experiments/task-productivity-20261117/verification/native-sdk-abort.mjs": {
+      "bytes": 2103,
+      "sha256": "d237876d6087ad4169fe29b5b30ff1ae127158139c397c70d88227d6d9c06625"
+    },
+    "experiments/task-productivity-20261117/verification/read-input-map.json": {
+      "bytes": 128,
+      "sha256": "b2d0f5bec55fcdcb3dfa432a2930e4794e9ab4016fc5381b04fad8c95254d8b5"
+    },
+    "experiments/task-productivity-20261117/verification/recompute-counter-median.py": {
+      "bytes": 1809,
+      "sha256": "ad03008f7d4218bf0bdb4172cbb8665014a26601883db6d31c7254185b5e9064"
+    }
+  },
+  "limits": [
+    "Controlled worker and counter endpoint; no live-model intelligence or productivity benchmark.",
+    "No authenticated matched-model GPT-6.1 Sol Max ranking or parity claim.",
+    "Observed local timings are mixed and selected fixtures do not estimate production frequency.",
+    "Independent strict2.5s performance target FAIL; no universal wall-time guarantee.",
+    "Bounded Bedrock inference-profile file reads may require smaller ranges; no Bedrock end-to-end latency measurement.",
+    "Full native CLI build/install and upgrades to running user sessions were not performed."
+  ]
+}
