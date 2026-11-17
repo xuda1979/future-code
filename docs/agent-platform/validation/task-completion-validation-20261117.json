@@ -1,0 +1,125 @@
+{
+  "schema": 1,
+  "kind": "REAL_ARTIFACT_AND_OFFLINE_HOST_LOOP_REGRESSION_NOT_LIVE_MODEL_SPEED",
+  "result": "PASS",
+  "recorded_at": "2026-11-17T07:08:46.267840+00:00",
+  "base_revision": "534a00682ed23b15f585232a0c129869c09d5249",
+  "base_tree": "b16a5318e719d48e4ca501b35dde16098ebe810b",
+  "equivalent_measured_baseline": "169a169127909ea9e738750e81aacb174f0b031b",
+  "runtime": {
+    "node": "v24.22.1",
+    "python": "3.12.14",
+    "bun": "1.4.2",
+    "platform": "Linux"
+  },
+  "runtime_files_changed": [
+    "src/commands/goal/auto.ts"
+  ],
+  "source_sha256": {
+    "src/commands/goal/auto.ts": "21fdb8edf8520009d77e2f9019102b04a903e26746dcc9a0a92318fc91fe18ee",
+    "scripts/test-correctness.mjs": "b05b8f5630b9878f9e6a09cf4df2db68a85dc15b7b0589db11f4b56e79ba60a7",
+    "tests/correctness/goal-milestone-scope.test.ts": "960b6a8f914a3040ab07ec5487be25d94fe6f9d7ebb5035d2a2d9e1d98e0bc64",
+    "scripts/bench-task-completion.mjs": "626c048556ac8cbe9dfa8eba5fd5e14f9d77eef18980209ef01b34328226c9b4",
+    "src/harness/autonomyPolicy.ts": "2073990ce6f20aba00a95b1cc06bce8d9fbe0b3686961404954d95431439a11b",
+    "src/harness/decisionGuidance.ts": "818de2c156b42f8ecda9f720cc44901e33075ff42a8fd5bcd2916cf427ed2fc1",
+    "src/utils/autoGoalSession.ts": "d1969432c2fde42691f96368d7e71c2ea3f56e113f91ebb5b932d5e146798b76"
+  },
+  "checks": [
+    {
+      "command": [
+        "node",
+        "scripts/test-correctness.mjs"
+      ],
+      "exit_code": 0,
+      "log_sha256": "82e5ab987f03a8594b9e6bde9c9fd9e757a6d1240ba0b85f644b01e778ee3e59",
+      "summary": [
+        "\u2139 tests 470",
+        "\u2139 pass 469",
+        "\u2139 fail 0",
+        "\u2139 skipped 1",
+        "\u2139 duration_ms 78072.737303",
+        "Ran 40 tests in 5.182s",
+        "OK (skipped=5)",
+        "Ran 54 tests in 53.075s",
+        "OK",
+        "Correctness gates passed. This is not a full Bun/CLI or live-provider certification."
+      ]
+    },
+    {
+      "command": [
+        "node",
+        "scripts/test-commands.mjs"
+      ],
+      "exit_code": 0,
+      "log_sha256": "7df6d4fcf36bec33754b0bbccdb02c268e2a05e3bf2b3d5b2c25f2e62ed8133c",
+      "summary": [
+        "\u2139 tests 242",
+        "\u2139 pass 242",
+        "\u2139 fail 0",
+        "\u2139 skipped 0",
+        "\u2139 duration_ms 1834.405525"
+      ]
+    },
+    {
+      "command": [
+        "bun",
+        "build",
+        "src/commands/goal/auto.ts",
+        "--target=bun",
+        "--no-bundle",
+        "--outdir=TEMP_DIR"
+      ],
+      "exit_code": 0,
+      "scope": "Transpilation of changed module; not full binary/live CLI certification"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "experiment": {
+    "path": "docs/agent-platform/validation/task-completion-scope-20261117.json",
+    "sha256": "91f129c271d4ff526fc3ec7217c3043dc4e4622e01ed983763b415b098ec8d0e",
+    "trials": 40,
+    "completed_task_trials_per_arm": 15,
+    "baseline_unnecessary_continuations_after_passing_check": 480,
+    "candidate_unnecessary_continuations_after_passing_check": 0,
+    "observation_limit_per_trial": 32,
+    "required_unfinished_trials": 10,
+    "required_unfinished_trials_reaching_review": 0
+  },
+  "preserved": [
+    "Required milestone/acceptance ancestry",
+    "Legacy, bare backlog and unknown-heading work",
+    "Standing continuous-loop behavior",
+    "Independent acceptance boundary",
+    "Default unlimited autonomous goal lifetime",
+    "No new permission prompt or model-effort reduction"
+  ],
+  "skips": [
+    "Correctness Node: one optional platform-feedback check skipped",
+    "Correctness Python: five tmux checks skipped because tmux is unavailable"
+  ],
+  "prior_stage_validation": "provider-efficiency-validation-20261117.json",
+  "limits": [
+    "No historical four-hour session trace was available; exact incident attribution is unknown.",
+    "No live model or human productivity timing was measured.",
+    "No Foundry/Swarm code changed; their prior-stage validation record is not relabeled as a rerun of this snapshot.",
+    "Source PR does not deploy into existing installed binaries."
+  ],
+  "independent_verification": {
+    "result": "PASS",
+    "reviewer": "separate read-only verification agent",
+    "focused_and_existing_autonomy_recovery_tests_passed": 50,
+    "independent_trial_rerun_count": 40,
+    "final_artifact_semantics_matched": true,
+    "authenticated_fixture_sha256": "626c048556ac8cbe9dfa8eba5fd5e14f9d77eef18980209ef01b34328226c9b4",
+    "authenticated_parser_sha256": "21fdb8edf8520009d77e2f9019102b04a903e26746dcc9a0a92318fc91fe18ee",
+    "authenticated_checker_sha256": "facb2daf3efdb4d7295b312a50506e17bbf7790b01d194d73756b6f8b379fdfe",
+    "scope": "Reproduced real rename, reviewed required-scope safety and recomputed all final trial counts/hashes."
+  }
+}

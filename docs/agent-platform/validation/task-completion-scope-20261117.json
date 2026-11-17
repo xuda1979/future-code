@@ -1,0 +1,5192 @@
+{
+  "schema": 1,
+  "kind": "REAL_ARTIFACT_AND_HOST_COMPLETION_LOOP_NOT_LIVE_MODEL_PRODUCTIVITY",
+  "samplesPerArm": 5,
+  "continuationObservationLimit": 32,
+  "runtime": {
+    "node": "v24.22.1",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "sources": {
+    "baseline": {
+      "revision": "169a169127909ea9e738750e81aacb174f0b031b",
+      "sha256": {
+        "src/commands/goal/auto.ts": "cfa0df4dd7c537160f16414b5a67d7154b5eb847fee23aed7615b99219ce6356",
+        "src/harness/autonomyPolicy.ts": "2073990ce6f20aba00a95b1cc06bce8d9fbe0b3686961404954d95431439a11b",
+        "src/harness/decisionGuidance.ts": "818de2c156b42f8ecda9f720cc44901e33075ff42a8fd5bcd2916cf427ed2fc1",
+        "src/utils/autoGoalSession.ts": "d1969432c2fde42691f96368d7e71c2ea3f56e113f91ebb5b932d5e146798b76"
+      }
+    },
+    "candidate": {
+      "revision": "534a00682ed23b15f585232a0c129869c09d5249",
+      "sha256": {
+        "src/commands/goal/auto.ts": "21fdb8edf8520009d77e2f9019102b04a903e26746dcc9a0a92318fc91fe18ee",
+        "src/harness/autonomyPolicy.ts": "2073990ce6f20aba00a95b1cc06bce8d9fbe0b3686961404954d95431439a11b",
+        "src/harness/decisionGuidance.ts": "818de2c156b42f8ecda9f720cc44901e33075ff42a8fd5bcd2916cf427ed2fc1",
+        "src/utils/autoGoalSession.ts": "d1969432c2fde42691f96368d7e71c2ea3f56e113f91ebb5b932d5e146798b76"
+      }
+    }
+  },
+  "fixtureSha256": "626c048556ac8cbe9dfa8eba5fd5e14f9d77eef18980209ef01b34328226c9b4",
+  "independentCheckerSha256": "facb2daf3efdb4d7295b312a50506e17bbf7790b01d194d73756b6f8b379fdfe",
+  "results": {
+    "rename": {
+      "baseline": {
+        "independentlyPassed": 5,
+        "reachedReview": 0,
+        "continuationsObserved": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "extraContinuationsAfterPassingCheck": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "unrelatedFrontier": true
+      },
+      "candidate": {
+        "independentlyPassed": 5,
+        "reachedReview": 5,
+        "continuationsObserved": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "extraContinuationsAfterPassingCheck": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "unrelatedFrontier": false
+      }
+    },
+    "config": {
+      "baseline": {
+        "independentlyPassed": 5,
+        "reachedReview": 0,
+        "continuationsObserved": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "extraContinuationsAfterPassingCheck": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "unrelatedFrontier": true
+      },
+      "candidate": {
+        "independentlyPassed": 5,
+        "reachedReview": 5,
+        "continuationsObserved": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "extraContinuationsAfterPassingCheck": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "unrelatedFrontier": false
+      }
+    },
+    "code-fix": {
+      "baseline": {
+        "independentlyPassed": 5,
+        "reachedReview": 0,
+        "continuationsObserved": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "extraContinuationsAfterPassingCheck": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "unrelatedFrontier": true
+      },
+      "candidate": {
+        "independentlyPassed": 5,
+        "reachedReview": 5,
+        "continuationsObserved": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "extraContinuationsAfterPassingCheck": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "unrelatedFrontier": false
+      }
+    },
+    "unfinished-required": {
+      "baseline": {
+        "independentlyPassed": 0,
+        "reachedReview": 0,
+        "continuationsObserved": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "extraContinuationsAfterPassingCheck": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "unrelatedFrontier": false
+      },
+      "candidate": {
+        "independentlyPassed": 0,
+        "reachedReview": 0,
+        "continuationsObserved": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "extraContinuationsAfterPassingCheck": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "unrelatedFrontier": false
+      }
+    }
+  },
+  "runs": [
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "case": "rename",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "10bce2363f838af7fcd0f2176a9d83183eb64510f725e6ccf2b4ae3971dcd151",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "case": "rename",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "10bce2363f838af7fcd0f2176a9d83183eb64510f725e6ccf2b4ae3971dcd151",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "case": "config",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "config.json",
+        "beforeSha256": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9",
+        "afterSha256": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      },
+      "reportSha256": "8b894cdd1bf1ae6dd0e84785d5fe8a47436ccd272d812feb18611039b1bd356c",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "case": "config",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "config.json",
+        "beforeSha256": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9",
+        "afterSha256": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      },
+      "reportSha256": "8b894cdd1bf1ae6dd0e84785d5fe8a47436ccd272d812feb18611039b1bd356c",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "case": "code-fix",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "calc.mjs",
+        "beforeSha256": "11c762960fd62b841a4d6810301b3fb66ebf8d4f7a91680e07f385e8ab3263d9",
+        "afterSha256": "8f93710150c389ff11a0a0b7e38cd9a5594c4528f2e4ef80d7c39c486b325ce9"
+      },
+      "reportSha256": "2b24a6b0e7739f8582d6b25854feeaa705b11eeba7f3696cd4218d96d58cef16",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "case": "code-fix",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "calc.mjs",
+        "beforeSha256": "11c762960fd62b841a4d6810301b3fb66ebf8d4f7a91680e07f385e8ab3263d9",
+        "afterSha256": "8f93710150c389ff11a0a0b7e38cd9a5594c4528f2e4ef80d7c39c486b325ce9"
+      },
+      "reportSha256": "2b24a6b0e7739f8582d6b25854feeaa705b11eeba7f3696cd4218d96d58cef16",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "case": "unfinished-required",
+      "artifactCheck": "FAIL_REQUIRED_WORK_MISSING",
+      "checkerExitCode": 1,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "813eb9533bd7a05ef92223fba35f6c624b7a7fc90e086c31c8b5347fbbca5f33",
+      "frontier": "Update README.md as requested",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": null,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "case": "unfinished-required",
+      "artifactCheck": "FAIL_REQUIRED_WORK_MISSING",
+      "checkerExitCode": 1,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "813eb9533bd7a05ef92223fba35f6c624b7a7fc90e086c31c8b5347fbbca5f33",
+      "frontier": "Update README.md as requested",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": null,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "case": "rename",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "10bce2363f838af7fcd0f2176a9d83183eb64510f725e6ccf2b4ae3971dcd151",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "case": "rename",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "10bce2363f838af7fcd0f2176a9d83183eb64510f725e6ccf2b4ae3971dcd151",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "case": "config",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "config.json",
+        "beforeSha256": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9",
+        "afterSha256": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      },
+      "reportSha256": "8b894cdd1bf1ae6dd0e84785d5fe8a47436ccd272d812feb18611039b1bd356c",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "case": "config",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "config.json",
+        "beforeSha256": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9",
+        "afterSha256": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      },
+      "reportSha256": "8b894cdd1bf1ae6dd0e84785d5fe8a47436ccd272d812feb18611039b1bd356c",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "case": "code-fix",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "calc.mjs",
+        "beforeSha256": "11c762960fd62b841a4d6810301b3fb66ebf8d4f7a91680e07f385e8ab3263d9",
+        "afterSha256": "8f93710150c389ff11a0a0b7e38cd9a5594c4528f2e4ef80d7c39c486b325ce9"
+      },
+      "reportSha256": "2b24a6b0e7739f8582d6b25854feeaa705b11eeba7f3696cd4218d96d58cef16",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "case": "code-fix",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "calc.mjs",
+        "beforeSha256": "11c762960fd62b841a4d6810301b3fb66ebf8d4f7a91680e07f385e8ab3263d9",
+        "afterSha256": "8f93710150c389ff11a0a0b7e38cd9a5594c4528f2e4ef80d7c39c486b325ce9"
+      },
+      "reportSha256": "2b24a6b0e7739f8582d6b25854feeaa705b11eeba7f3696cd4218d96d58cef16",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "case": "unfinished-required",
+      "artifactCheck": "FAIL_REQUIRED_WORK_MISSING",
+      "checkerExitCode": 1,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "813eb9533bd7a05ef92223fba35f6c624b7a7fc90e086c31c8b5347fbbca5f33",
+      "frontier": "Update README.md as requested",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": null,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "case": "unfinished-required",
+      "artifactCheck": "FAIL_REQUIRED_WORK_MISSING",
+      "checkerExitCode": 1,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "813eb9533bd7a05ef92223fba35f6c624b7a7fc90e086c31c8b5347fbbca5f33",
+      "frontier": "Update README.md as requested",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": null,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "case": "rename",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "10bce2363f838af7fcd0f2176a9d83183eb64510f725e6ccf2b4ae3971dcd151",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "case": "rename",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "10bce2363f838af7fcd0f2176a9d83183eb64510f725e6ccf2b4ae3971dcd151",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "case": "config",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "config.json",
+        "beforeSha256": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9",
+        "afterSha256": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      },
+      "reportSha256": "8b894cdd1bf1ae6dd0e84785d5fe8a47436ccd272d812feb18611039b1bd356c",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "case": "config",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "config.json",
+        "beforeSha256": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9",
+        "afterSha256": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      },
+      "reportSha256": "8b894cdd1bf1ae6dd0e84785d5fe8a47436ccd272d812feb18611039b1bd356c",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "case": "code-fix",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "calc.mjs",
+        "beforeSha256": "11c762960fd62b841a4d6810301b3fb66ebf8d4f7a91680e07f385e8ab3263d9",
+        "afterSha256": "8f93710150c389ff11a0a0b7e38cd9a5594c4528f2e4ef80d7c39c486b325ce9"
+      },
+      "reportSha256": "2b24a6b0e7739f8582d6b25854feeaa705b11eeba7f3696cd4218d96d58cef16",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "case": "code-fix",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "calc.mjs",
+        "beforeSha256": "11c762960fd62b841a4d6810301b3fb66ebf8d4f7a91680e07f385e8ab3263d9",
+        "afterSha256": "8f93710150c389ff11a0a0b7e38cd9a5594c4528f2e4ef80d7c39c486b325ce9"
+      },
+      "reportSha256": "2b24a6b0e7739f8582d6b25854feeaa705b11eeba7f3696cd4218d96d58cef16",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "case": "unfinished-required",
+      "artifactCheck": "FAIL_REQUIRED_WORK_MISSING",
+      "checkerExitCode": 1,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "813eb9533bd7a05ef92223fba35f6c624b7a7fc90e086c31c8b5347fbbca5f33",
+      "frontier": "Update README.md as requested",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": null,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "case": "unfinished-required",
+      "artifactCheck": "FAIL_REQUIRED_WORK_MISSING",
+      "checkerExitCode": 1,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "813eb9533bd7a05ef92223fba35f6c624b7a7fc90e086c31c8b5347fbbca5f33",
+      "frontier": "Update README.md as requested",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": null,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "case": "rename",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "10bce2363f838af7fcd0f2176a9d83183eb64510f725e6ccf2b4ae3971dcd151",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "case": "rename",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "10bce2363f838af7fcd0f2176a9d83183eb64510f725e6ccf2b4ae3971dcd151",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "case": "config",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "config.json",
+        "beforeSha256": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9",
+        "afterSha256": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      },
+      "reportSha256": "8b894cdd1bf1ae6dd0e84785d5fe8a47436ccd272d812feb18611039b1bd356c",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "case": "config",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "config.json",
+        "beforeSha256": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9",
+        "afterSha256": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      },
+      "reportSha256": "8b894cdd1bf1ae6dd0e84785d5fe8a47436ccd272d812feb18611039b1bd356c",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "case": "code-fix",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "calc.mjs",
+        "beforeSha256": "11c762960fd62b841a4d6810301b3fb66ebf8d4f7a91680e07f385e8ab3263d9",
+        "afterSha256": "8f93710150c389ff11a0a0b7e38cd9a5594c4528f2e4ef80d7c39c486b325ce9"
+      },
+      "reportSha256": "2b24a6b0e7739f8582d6b25854feeaa705b11eeba7f3696cd4218d96d58cef16",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "case": "code-fix",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "calc.mjs",
+        "beforeSha256": "11c762960fd62b841a4d6810301b3fb66ebf8d4f7a91680e07f385e8ab3263d9",
+        "afterSha256": "8f93710150c389ff11a0a0b7e38cd9a5594c4528f2e4ef80d7c39c486b325ce9"
+      },
+      "reportSha256": "2b24a6b0e7739f8582d6b25854feeaa705b11eeba7f3696cd4218d96d58cef16",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "case": "unfinished-required",
+      "artifactCheck": "FAIL_REQUIRED_WORK_MISSING",
+      "checkerExitCode": 1,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "813eb9533bd7a05ef92223fba35f6c624b7a7fc90e086c31c8b5347fbbca5f33",
+      "frontier": "Update README.md as requested",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": null,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "case": "unfinished-required",
+      "artifactCheck": "FAIL_REQUIRED_WORK_MISSING",
+      "checkerExitCode": 1,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "813eb9533bd7a05ef92223fba35f6c624b7a7fc90e086c31c8b5347fbbca5f33",
+      "frontier": "Update README.md as requested",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": null,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "case": "rename",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "10bce2363f838af7fcd0f2176a9d83183eb64510f725e6ccf2b4ae3971dcd151",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "case": "rename",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "10bce2363f838af7fcd0f2176a9d83183eb64510f725e6ccf2b4ae3971dcd151",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "case": "config",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "config.json",
+        "beforeSha256": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9",
+        "afterSha256": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      },
+      "reportSha256": "8b894cdd1bf1ae6dd0e84785d5fe8a47436ccd272d812feb18611039b1bd356c",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "case": "config",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "config.json",
+        "beforeSha256": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9",
+        "afterSha256": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      },
+      "reportSha256": "8b894cdd1bf1ae6dd0e84785d5fe8a47436ccd272d812feb18611039b1bd356c",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "case": "code-fix",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "calc.mjs",
+        "beforeSha256": "11c762960fd62b841a4d6810301b3fb66ebf8d4f7a91680e07f385e8ab3263d9",
+        "afterSha256": "8f93710150c389ff11a0a0b7e38cd9a5594c4528f2e4ef80d7c39c486b325ce9"
+      },
+      "reportSha256": "2b24a6b0e7739f8582d6b25854feeaa705b11eeba7f3696cd4218d96d58cef16",
+      "frontier": "Benchmark all project subsystems and redesign the framework",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": true
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": 32,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "case": "code-fix",
+      "artifactCheck": "PASS",
+      "checkerExitCode": 0,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "calc.mjs",
+        "beforeSha256": "11c762960fd62b841a4d6810301b3fb66ebf8d4f7a91680e07f385e8ab3263d9",
+        "afterSha256": "8f93710150c389ff11a0a0b7e38cd9a5594c4528f2e4ef80d7c39c486b325ce9"
+      },
+      "reportSha256": "2b24a6b0e7739f8582d6b25854feeaa705b11eeba7f3696cd4218d96d58cef16",
+      "frontier": null,
+      "decisions": [
+        {
+          "kind": "BLOCKED",
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 0,
+      "extraContinuationsAfterPassingCheck": 0,
+      "finalState": "REVIEW",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "case": "unfinished-required",
+      "artifactCheck": "FAIL_REQUIRED_WORK_MISSING",
+      "checkerExitCode": 1,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "813eb9533bd7a05ef92223fba35f6c624b7a7fc90e086c31c8b5347fbbca5f33",
+      "frontier": "Update README.md as requested",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": null,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "case": "unfinished-required",
+      "artifactCheck": "FAIL_REQUIRED_WORK_MISSING",
+      "checkerExitCode": 1,
+      "requestedArtifactEdits": 1,
+      "independentChecks": 1,
+      "artifact": {
+        "path": "new.txt",
+        "beforeSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c",
+        "afterSha256": "7b4cf94b72028229009c2075ec45a38856ecf235be9d32efe74e754c6f77600c"
+      },
+      "reportSha256": "813eb9533bd7a05ef92223fba35f6c624b7a7fc90e086c31c8b5347fbbca5f33",
+      "frontier": "Update README.md as requested",
+      "decisions": [
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        },
+        {
+          "kind": "CONTINUE",
+          "reason": null,
+          "requestsUnrelatedWork": false
+        }
+      ],
+      "continuationsObserved": 32,
+      "extraContinuationsAfterPassingCheck": null,
+      "finalState": "ACTIVE",
+      "goalUnchanged": true,
+      "lifetimeLimit": null
+    }
+  ]
+}
