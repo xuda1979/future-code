@@ -236,8 +236,9 @@ export interface GoalMilestone {
 
 /**
  * Parses the machine-readable milestone ledger from goal.md.
- * Ledger items are GitHub-style checkboxes optionally wrapped in a
- * "## Milestones" section; items outside any "Status:" line qualify.
+ * Legacy unsectioned/unknown-section checkboxes remain required. Explicit
+ * optional/non-goal sections outside a required ledger are notes, not new
+ * user requirements. Required Milestones/Acceptance ancestry takes priority.
  * Each item looks like:
  *   - [ ] Fix notation clash between L (range) and L (lattice)
  *   - [x] Replace separator sentence — evidence: review_update.md §2
@@ -245,10 +246,51 @@ export interface GoalMilestone {
 export function parseMilestoneLedger(reportText: string): GoalMilestone[] {
   const milestones: GoalMilestone[] = [];
   const seen = new Set<string>();
-  const pattern = /^\s*(?:[-*+]|\d+\.)\s+\[( |x|X)\]\s*(.+?)\s*$/gm;
-  let match: RegExpExecArray | null;
-  const prose = executionProse(reportText, true);
-  while ((match = pattern.exec(prose)) !== null) {
+  const pattern = /^\s*(?:[-*+]|\d+\.)\s+\[( |x|X)\]\s*(.+?)\s*$/;
+  const sections: { level: number; mode: "required" | "excluded" | "legacy" }[] = [];
+  let sawDocumentTitle = false;
+  function section(level: number, rawHeading: string, titleCandidate = false): void {
+    while (sections.length && sections.at(-1)!.level >= level) sections.pop();
+    const heading = rawHeading.replace(/\s+#+\s*$/, "").replace(/[*_`]/g, "").trim()
+      .replace(/^(?:[（(](?:\d+(?:\.\d+)*|[IVXLC]+|[一二三四五六七八九十百]+)[）)]\s*|(?:\d+(?:\.\d+)*|[IVXLC]+)\s+|(?:\d+(?:\.\d+)*|[IVXLC]+|[一二三四五六七八九十百]+)[.)、．]\s*)/i, "");
+    // Match goalMatchesReport: the first ATX H1 binds the root objective,
+    // including when a summary or a Setext section precedes that title.
+    const documentTitle = titleCandidate && !sawDocumentTitle;
+    if (titleCandidate) sawDocumentTitle = true;
+    const parentMode = sections.at(-1)?.mode ?? "legacy";
+    const required = !documentTitle && /^(?:required\b|milestones?\b|acceptance\b|completion criteria\b|里程碑|任务里程碑|阶段里程碑|验收(?:条件|标准|要求|清单)?|必(?:须|需)完成|必做事项)/i.test(heading);
+    const excluded = !documentTitle && (/^(?:optional(?:\s+(?:future\s+)?(?:work|improvements?|enhancements?|ideas?|suggestions?|follow[- ]?ups?|backlog))?|out[- ]of[- ]scope|non[- ]goals?|backlog\s+\((?:optional(?:\s+future[- ]work)?|out[- ]of[- ]scope)\))(?:\s*(?::.*|\([^)]*\)))?$/i.test(heading) ||
+      /^(?:可选(?:后续)?(?:改进|工作|事项|建议|待办池)?|非(?:本次)?目标|范围外(?:事项|工作)?|不在本次范围(?:内)?|待办池[（(](?:可选|非本次范围)[）)]|后续(?:工作|改进)[（(](?:可选|非本次范围)[）)])(?:[：:].*|[（(][^）)]*[）)])?$/.test(heading));
+    sections.push({ level, mode: required || parentMode === "required" ? "required" : excluded ? "excluded" : parentMode });
+  }
+  // Keep original line adjacency: removing quoted/fenced examples first can
+  // accidentally join a paragraph and a later rule into a Setext heading.
+  const lines = reportText.split(/\r?\n/);
+  let fence: { char: string; length: number } | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const trimmed = line.trim();
+    const marker = /^(\x60{3,}|~{3,})/.exec(trimmed)?.[1];
+    if (marker) {
+      if (fence === null) fence = { char: marker[0]!, length: marker.length };
+      else if (fence.char === marker[0] && marker.length >= fence.length &&
+        new RegExp("^(?:" + (fence.char === "~" ? "~" : "\\x60") + "){" + fence.length + ",}\\s*$").test(trimmed)) fence = null;
+      continue;
+    }
+    if (fence !== null || executionProse(line, true) === "") continue;
+    // Four-space-indented examples are not Markdown headings. Preserve
+    // nested checkbox parsing while preventing examples from changing scope.
+    const atx = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$/.exec(line);
+    if (atx) { section(atx[1]!.length, atx[2] ?? "", atx[1]!.length === 1); continue; }
+    const setext = /^ {0,3}(=+|-+)\s*$/.exec(lines[i + 1] ?? "");
+    if (setext && /^ {0,3}\S/.test(line) && !/^\s*(?:[-*+]|\d+\.)\s/.test(line)) {
+      section(setext[1]![0] === "=" ? 1 : 2, line.trim());
+      i++;
+      continue;
+    }
+    if (sections.at(-1)?.mode === "excluded") continue;
+    const match = pattern.exec(line);
+    if (!match) continue;
     const text = match[2]!.trim();
     if (!text || text.length > 512) continue;
     const key = text.toLowerCase();

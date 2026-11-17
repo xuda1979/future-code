@@ -13,6 +13,12 @@ a completed response waiting for HTTP EOF, lost tool arguments, and a local
 tool-choice conversion crash. They can waste time independently of GLM's
 inference speed. It also adds autonomous recovery for slow decisions on a
 conservative set of routine tasks, without imposing a goal lifetime limit.
+The follow-up investigation found a task-loop defect: optional future-work
+checkboxes were promoted into mandatory requested milestones after actual
+small edits passed independent checks. The host then explicitly ordered
+unrelated work. The [root-cause report](task-loop-root-cause-20261117.md) records
+the fix and real-artifact baseline/candidate reproduction; this directly
+addresses unnecessary post-completion work, beyond transport delay recovery.
 It identified architectural differences requiring live
 measurements before further changes. This report does **not** establish that
 all causes of the user's observed 10× difference have been resolved.
@@ -41,6 +47,7 @@ same deterministic upstream for all arms; it isolates runtime behavior.
 | Time to usable tool call | Native Chat uses the model's valid finish reason and `[DONE]` to emit completed calls. It does not require transport EOF. [O1, O3] | Tool execution already streams by default, but the bridge withheld tool block completion until socket EOF. That defeated the benefit on affected routes. [F1, F2] | Fixed: release the complete, validated batch at protocol completion. Preserve terminal usage and reasoning; do not infer completion merely from a JSON-looking argument fragment. |
 | Independent tools | Session steps start tool fibers as calls arrive; the library also provides concurrent tool dispatch. Fast overlap is useful, but concurrent side effects still need resource and mutation coordination. [O3, O4] | Safe tools overlap; non-concurrent tools are ordering barriers. This protects context updates and dependent mutations but can serialize independent writes in the interactive loop. Foundry provides explicit task-level concurrency. [F2, F3] | Keep existing safe parallelism and mutation barriers. Improve dependency declarations with measured workloads rather than copying unbounded execution into every path. |
 | Planning and prompt overhead | A short base system prompt emphasizes available tools and parallel independent calls; runtime instructions, tools, skills, and provider context add to it. A short base template does not prove a small total request. [O5] | Current instructions already keep routine read/edit/check work direct. The main loop is model → tools → model, not an obligatory planner/critic chain. More capabilities mean more potential context and configuration surfaces. [F2, F4] | Preserve the recently added direct short-task policy. Do not add a new planner, classifier, or judge call for each small action. Total request sizes remain a live measurement target. |
+| Completion scope | The native loop separates pending tool calls from terminal responses; component completion alone does not certify that a user's full task passed. [O4] | Durable goals prevent premature abandonment, but the host parsed optional future-work checkboxes as required and explicitly continued them after a completed task. [F12] | Fixed: respect explicit optional section scope while required/acceptance ancestry, unknown legacy sections and unfinished long-project work remain mandatory. Keep independent acceptance and unlimited default goal lifetime. |
 | Tool definitions and prefill | Native provider-specific lowering and compatibility controls make schema behavior explicit. Sending many tools can still cost context. [O1] | Third-party proxies disable provider-native deferred tool references by default. All enabled schemas can then be sent inline, increasing prefill if many MCP tools are installed. That gate prevents unsupported `tool_reference` payloads. [F5] | Keep compatibility protection. Measure enabled schema count/bytes before introducing provider-neutral discovery. Do not turn on Anthropic-specific deferred loading for GLM blindly. |
 | Tool output size | Tool output handling defaults to 2,000 lines / 50 KiB and saves excess output. Smaller working context helps throughput but may require targeted rereads. [O6] | Per-tool persistence and a default 32,000-character aggregate wire-message budget preserve full outputs as references. Read/image exemptions and frozen replacement decisions preserve semantics and prefix stability. [F6] | Retain existing full evidence and reference-based budgets. The suspected separate-message bypass is already handled, including interleaved streaming fragments; no duplicate budget layer was added. |
 | Compaction and long context | V2 supports recent context beside structured summaries, provider-native compaction where supported, and guarded background precomputation. Summaries are lossy; unused background work costs tokens and can contend with a slow main model. Documentation and source defaults can differ across versions. [O7] | Active goals have a 64k working-context target, durable goal/steering state, and existing compaction/restore paths. Foreground compaction can pause work; a lower target can also compact more often. [F7] | Preserve durable authority outside summaries. Background compaction is a promising separate change only with frozen source coverage, tail retention, cancellation, and resume tests; it is not enabled speculatively in this PR. |
@@ -51,7 +58,7 @@ same deterministic upstream for all arms; it isolates runtime behavior.
 | Durable work and verification | OpenCode persists session/tool settlement, handles interruption, captures snapshots, and supports jobs and automation. It should not be described as merely a stateless chat loop. [O3] | Foundry adds immutable acceptance, scoped tasks, durable scheduling/fencing, independent Swarm verification, and remote-job/checkpoint recovery. These are useful for research where a plausible answer is not a valid result. They carry coordination cost when used unnecessarily. [F3, F9] | Keep acceptance and recovery. Use concrete checkpoints and evidence for long work; keep ordinary interactive actions direct. Session persistence alone is not proof that a research objective passed. |
 | Autonomy | Permissions and agent behavior are configurable; interactive modes may request decisions. Efficient execution still depends on the selected policy. | Existing default unattended execution suppresses question/plan dialogs, continues durable goals, and preserves explicit operator constraints. A goal has no default lifetime continuation cap. [F10] | Preserved. No new permission/confirmation prompts, manual recovery step, global reasoning-effort reduction, token cap, or goal lifetime cap is introduced. Failures remain machine-visible so the autonomous owner can recover without fabricated success. |
 
-## Changes implemented in this PR
+## Implemented changes
 
 1. Stop the upstream reader at SSE `[DONE]`, including optional whitespace and
    CRLF variants. Do not perform another blocking read after model completion.
@@ -70,6 +77,10 @@ same deterministic upstream for all arms; it isolates runtime behavior.
    imperatives, such as `replace "old" with "new" in src/app.ts` or `run npm test`.
    Unknown work, research, proofs, mixed objectives, children and background
    tasks do not opt in merely because their prompts are short.
+7. Stop promoting explicit optional notes into mandatory milestones. This
+   follow-up fix in `goal/auto.ts` addresses host-induced scope expansion with
+   no classifier call, task-keyword eligibility restriction or timeout. The
+   required-ledger and independent-acceptance boundaries remain in force.
 
 The routine recovery first retries with a direct-action reminder, preserving
 the original effort and tool/verification policy. If it remains slow, an
@@ -150,6 +161,9 @@ verification, recovery, and command suites are run independently.
 Exact commands, source hashes, gate results, environment-dependent skips and
 the resolved integration-test failure are retained in the
 [validation record](validation/provider-efficiency-validation-20261117.json).
+That record describes the provider-stage source snapshot. The later
+completion-scope fix has a separate [validation record](validation/task-completion-validation-20261117.json)
+and [real-artifact trials](validation/task-completion-scope-20261117.json).
 The existing goal-context assertions were preserved, not weakened to pass.
 All required local gates passed: correctness, resilience, the 899-test Foundry
 suite with test files serialized, the 557-test Swarm suite, 242 command tests,
@@ -249,6 +263,7 @@ assuming the user's installed version matches a changing website.
 - **F9:** [independent Swarm verification](../../src/harness/foundry/swarm/verification.ts), [remote job supervision](../../scripts/research_job_supervision.py).
 - **F10:** [autonomy regressions](../../tests/correctness/direct-execution.test.ts).
 - **F11:** [stream liveness](../../src/utils/modelStreamLiveness.ts), [routine decision policy](../../src/utils/routineDecisionPolicy.ts), [recovery boundary regressions](../../tests/correctness/routine-decision-policy.test.ts).
+- **F12:** [goal ledger and completion decisions](../../src/commands/goal/auto.ts), [scope regressions](../../tests/correctness/goal-milestone-scope.test.ts), [task-loop reproduction](task-loop-root-cause-20261117.md).
 
 OpenAI's [published Codex agent-loop explanation](https://openai.com/index/unrolling-the-codex-agent-loop/)
 also supports stable prompt prefixes and context management as harness concerns.
