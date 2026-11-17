@@ -1,0 +1,3598 @@
+{
+  "schema": 1,
+  "kind": "SCRIPTED_REAL_ARTIFACT_TASK_LIFECYCLE_NOT_LIVE_MODEL_PRODUCTIVITY",
+  "runtime": {
+    "node": "v24.22.1",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "samplesPerArmPerScenario": 3,
+  "sources": {
+    "baseline": {
+      "revision": "12281e7a224c7a0d60e81f2858d05b8740af684d",
+      "sha256": {
+        "src/commands/goal/auto.ts": "21fdb8edf8520009d77e2f9019102b04a903e26746dcc9a0a92318fc91fe18ee",
+        "src/harness/autonomyPolicy.ts": "2073990ce6f20aba00a95b1cc06bce8d9fbe0b3686961404954d95431439a11b",
+        "src/harness/decisionGuidance.ts": "818de2c156b42f8ecda9f720cc44901e33075ff42a8fd5bcd2916cf427ed2fc1",
+        "src/utils/autoGoalSession.ts": "d1969432c2fde42691f96368d7e71c2ea3f56e113f91ebb5b932d5e146798b76",
+        "src/utils/autoGoalSessionId.ts": "15ccb9ba56694a51335cb8855ccc1d03ad961e85251393018d0c99aac38c1625",
+        "src/utils/workloadContext.ts": "d2ebc457868034741f8ed19efa3a84bbf1ef988e1b317a82e6d872564e0f077e",
+        "src/commands/loop/task.ts": "2ce105c9e8e8a3fa359da23cbf0f5da1a3f400280e2df6b89cacbaa074e52690",
+        "src/utils/permissions/interactivePrompts.ts": "423febd7005d3a1fe4047a09b9499f458b457e91e06d5b6ac9299222bf881d6e"
+      }
+    },
+    "candidate": {
+      "revision": "12281e7a224c7a0d60e81f2858d05b8740af684d",
+      "sha256": {
+        "src/commands/goal/auto.ts": "c99f1df713d1383849196ebdb327db9aa652ed2715b8998b119b4812bc97e441",
+        "src/harness/autonomyPolicy.ts": "2073990ce6f20aba00a95b1cc06bce8d9fbe0b3686961404954d95431439a11b",
+        "src/harness/decisionGuidance.ts": "818de2c156b42f8ecda9f720cc44901e33075ff42a8fd5bcd2916cf427ed2fc1",
+        "src/utils/autoGoalSession.ts": "d1969432c2fde42691f96368d7e71c2ea3f56e113f91ebb5b932d5e146798b76",
+        "src/utils/autoGoalSessionId.ts": "15ccb9ba56694a51335cb8855ccc1d03ad961e85251393018d0c99aac38c1625",
+        "src/utils/workloadContext.ts": "d2ebc457868034741f8ed19efa3a84bbf1ef988e1b317a82e6d872564e0f077e",
+        "src/commands/loop/task.ts": "2ce105c9e8e8a3fa359da23cbf0f5da1a3f400280e2df6b89cacbaa074e52690",
+        "src/utils/permissions/interactivePrompts.ts": "423febd7005d3a1fe4047a09b9499f458b457e91e06d5b6ac9299222bf881d6e"
+      }
+    }
+  },
+  "fixtureSha256": "e9f0e5fc487f42f5f7fdb1eaa21ba3e23a77b53d8f3893e18b9e16deaa710f2d",
+  "independentCheckerSha256": "3ac1ce78d4d19ea87615cca9fc258b28afd568b2f4b3145d41c7bb85f27aa3c7",
+  "scenarios": [
+    "amendment-rewrite-restart",
+    "current-status-vs-history",
+    "post-review-amendment",
+    "verified-completion",
+    "required-incomplete",
+    "pause-resume",
+    "continuous-loop",
+    "finite-loop",
+    "session-isolation",
+    "git-delivery-restart"
+  ],
+  "results": {
+    "amendment-rewrite-restart": {
+      "baseline": {
+        "trials": 3,
+        "passed": 0,
+        "prematureReviews": 3,
+        "artifactChecksPassed": 0
+      },
+      "candidate": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      }
+    },
+    "current-status-vs-history": {
+      "baseline": {
+        "trials": 3,
+        "passed": 0,
+        "prematureReviews": 3,
+        "artifactChecksPassed": 0
+      },
+      "candidate": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      }
+    },
+    "post-review-amendment": {
+      "baseline": {
+        "trials": 3,
+        "passed": 0,
+        "prematureReviews": 3,
+        "artifactChecksPassed": 0
+      },
+      "candidate": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      }
+    },
+    "verified-completion": {
+      "baseline": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      },
+      "candidate": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      }
+    },
+    "required-incomplete": {
+      "baseline": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 0
+      },
+      "candidate": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 0
+      }
+    },
+    "pause-resume": {
+      "baseline": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      },
+      "candidate": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      }
+    },
+    "continuous-loop": {
+      "baseline": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      },
+      "candidate": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      }
+    },
+    "finite-loop": {
+      "baseline": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      },
+      "candidate": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      }
+    },
+    "session-isolation": {
+      "baseline": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      },
+      "candidate": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      }
+    },
+    "git-delivery-restart": {
+      "baseline": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      },
+      "candidate": {
+        "trials": 3,
+        "passed": 3,
+        "prematureReviews": 0,
+        "artifactChecksPassed": 3
+      }
+    }
+  },
+  "runs": [
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "amendment-rewrite-restart",
+      "contractVerdict": "FAIL",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": true,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "new-instruction-before-rewrite",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "amendment-rewrite-restart",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "new-instruction-before-rewrite",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "amended-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 2,
+          "reportSha256": "ab84b0bea4391acbb9dc27be67aeac9fe0d802f06db6249be0770d731c2a4405"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "README.md": "9251f5889b8f8121ff76d46633a21d82891b77f3b8b0be707eb8157bdf4c062e"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "current-status-vs-history",
+      "contractVerdict": "FAIL",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": true,
+      "requestedEdits": 0,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "FAIL",
+          "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    enabled: true,\n+   port: 8080\n-   port: 9090\n  }\n"
+        },
+        {
+          "kind": "config",
+          "result": "FAIL",
+          "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    enabled: true,\n+   port: 8080\n-   port: 9090\n  }\n"
+        }
+      ],
+      "observations": [
+        {
+          "label": "current-in-progress-with-completed-history",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "a3bb3b70579a5dee94e6aa6d6a62004179636a1ec688ac7701512671bfb0829c"
+        }
+      ],
+      "artifacts": {
+        "config.json": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "current-status-vs-history",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "FAIL",
+          "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    enabled: true,\n+   port: 8080\n-   port: 9090\n  }\n"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "current-in-progress-with-completed-history",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a3bb3b70579a5dee94e6aa6d6a62004179636a1ec688ac7701512671bfb0829c"
+        },
+        {
+          "label": "requested-config-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 1,
+          "reportSha256": "51b4fbcf684da1e71867ad95ab16880162aca44500317f7883ff3ff8d9238de8"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "post-review-amendment",
+      "contractVerdict": "FAIL",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": true,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "initial-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "post-review-amendment",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "initial-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "amended-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 1,
+          "reportSha256": "ab84b0bea4391acbb9dc27be67aeac9fe0d802f06db6249be0770d731c2a4405"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "README.md": "9251f5889b8f8121ff76d46633a21d82891b77f3b8b0be707eb8157bdf4c062e"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "verified-completion",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "verified-completion",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "required-incomplete",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "FAIL",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "required-work-remains",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        },
+        {
+          "label": "required-work-remains-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "required-incomplete",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "FAIL",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "required-work-remains",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        },
+        {
+          "label": "required-work-remains-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "pause-resume",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "operator-paused",
+          "decision": "SKIP",
+          "state": "PAUSED",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "8e706bbb272f07745f602f01c0cf20c25960ed1da578b543fb0211a81640418e"
+        },
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "pause-resume",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "operator-paused",
+          "decision": "SKIP",
+          "state": "PAUSED",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "8e706bbb272f07745f602f01c0cf20c25960ed1da578b543fb0211a81640418e"
+        },
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "continuous-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "cycles",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "cycle-1",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-2",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-3",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 3,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "standing-loop-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 4,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d",
+        "heartbeats.txt": "46e69dbaf8d2965813203cd1277d6f5b579b7926c25e138846574d22c8006a9f"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "continuous-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "cycles",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "cycle-1",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-2",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-3",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 3,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "standing-loop-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 4,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d",
+        "heartbeats.txt": "46e69dbaf8d2965813203cd1277d6f5b579b7926c25e138846574d22c8006a9f"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "finite-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "finite-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "session-isolation",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "sessions",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "session-A-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        },
+        {
+          "label": "session-A-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "session-isolation",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "sessions",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "session-A-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        },
+        {
+          "label": "session-A-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "git-delivery-restart",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "git",
+          "result": "PASS"
+        },
+        {
+          "kind": "git",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "delivered-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        },
+        {
+          "label": "delivered-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        }
+      ],
+      "artifacts": {
+        "change.txt": "53767e1c6b79680835f2e13b883c0fbbe509b3d1601a5fc02c52b7d4327bec60"
+      }
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "git-delivery-restart",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "git",
+          "result": "PASS"
+        },
+        {
+          "kind": "git",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "delivered-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        },
+        {
+          "label": "delivered-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        }
+      ],
+      "artifacts": {
+        "change.txt": "53767e1c6b79680835f2e13b883c0fbbe509b3d1601a5fc02c52b7d4327bec60"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "amendment-rewrite-restart",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "new-instruction-before-rewrite",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "amended-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 2,
+          "reportSha256": "ab84b0bea4391acbb9dc27be67aeac9fe0d802f06db6249be0770d731c2a4405"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "README.md": "9251f5889b8f8121ff76d46633a21d82891b77f3b8b0be707eb8157bdf4c062e"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "amendment-rewrite-restart",
+      "contractVerdict": "FAIL",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": true,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "new-instruction-before-rewrite",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "current-status-vs-history",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "FAIL",
+          "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    enabled: true,\n+   port: 8080\n-   port: 9090\n  }\n"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "current-in-progress-with-completed-history",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a3bb3b70579a5dee94e6aa6d6a62004179636a1ec688ac7701512671bfb0829c"
+        },
+        {
+          "label": "requested-config-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 1,
+          "reportSha256": "51b4fbcf684da1e71867ad95ab16880162aca44500317f7883ff3ff8d9238de8"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "current-status-vs-history",
+      "contractVerdict": "FAIL",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": true,
+      "requestedEdits": 0,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "FAIL",
+          "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    enabled: true,\n+   port: 8080\n-   port: 9090\n  }\n"
+        },
+        {
+          "kind": "config",
+          "result": "FAIL",
+          "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    enabled: true,\n+   port: 8080\n-   port: 9090\n  }\n"
+        }
+      ],
+      "observations": [
+        {
+          "label": "current-in-progress-with-completed-history",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "a3bb3b70579a5dee94e6aa6d6a62004179636a1ec688ac7701512671bfb0829c"
+        }
+      ],
+      "artifacts": {
+        "config.json": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "post-review-amendment",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "initial-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "amended-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 1,
+          "reportSha256": "ab84b0bea4391acbb9dc27be67aeac9fe0d802f06db6249be0770d731c2a4405"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "README.md": "9251f5889b8f8121ff76d46633a21d82891b77f3b8b0be707eb8157bdf4c062e"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "post-review-amendment",
+      "contractVerdict": "FAIL",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": true,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "initial-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "verified-completion",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "verified-completion",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "required-incomplete",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "FAIL",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "required-work-remains",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        },
+        {
+          "label": "required-work-remains-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "required-incomplete",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "FAIL",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "required-work-remains",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        },
+        {
+          "label": "required-work-remains-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "pause-resume",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "operator-paused",
+          "decision": "SKIP",
+          "state": "PAUSED",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "8e706bbb272f07745f602f01c0cf20c25960ed1da578b543fb0211a81640418e"
+        },
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "pause-resume",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "operator-paused",
+          "decision": "SKIP",
+          "state": "PAUSED",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "8e706bbb272f07745f602f01c0cf20c25960ed1da578b543fb0211a81640418e"
+        },
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "continuous-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "cycles",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "cycle-1",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-2",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-3",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 3,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "standing-loop-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 4,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d",
+        "heartbeats.txt": "46e69dbaf8d2965813203cd1277d6f5b579b7926c25e138846574d22c8006a9f"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "continuous-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "cycles",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "cycle-1",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-2",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-3",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 3,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "standing-loop-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 4,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d",
+        "heartbeats.txt": "46e69dbaf8d2965813203cd1277d6f5b579b7926c25e138846574d22c8006a9f"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "finite-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "finite-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "session-isolation",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "sessions",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "session-A-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        },
+        {
+          "label": "session-A-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "session-isolation",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "sessions",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "session-A-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        },
+        {
+          "label": "session-A-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "git-delivery-restart",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "git",
+          "result": "PASS"
+        },
+        {
+          "kind": "git",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "delivered-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        },
+        {
+          "label": "delivered-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        }
+      ],
+      "artifacts": {
+        "change.txt": "53767e1c6b79680835f2e13b883c0fbbe509b3d1601a5fc02c52b7d4327bec60"
+      }
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "git-delivery-restart",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "git",
+          "result": "PASS"
+        },
+        {
+          "kind": "git",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "delivered-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        },
+        {
+          "label": "delivered-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        }
+      ],
+      "artifacts": {
+        "change.txt": "53767e1c6b79680835f2e13b883c0fbbe509b3d1601a5fc02c52b7d4327bec60"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "amendment-rewrite-restart",
+      "contractVerdict": "FAIL",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": true,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "new-instruction-before-rewrite",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "amendment-rewrite-restart",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "new-instruction-before-rewrite",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "amended-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 2,
+          "reportSha256": "ab84b0bea4391acbb9dc27be67aeac9fe0d802f06db6249be0770d731c2a4405"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "README.md": "9251f5889b8f8121ff76d46633a21d82891b77f3b8b0be707eb8157bdf4c062e"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "current-status-vs-history",
+      "contractVerdict": "FAIL",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": true,
+      "requestedEdits": 0,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "FAIL",
+          "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    enabled: true,\n+   port: 8080\n-   port: 9090\n  }\n"
+        },
+        {
+          "kind": "config",
+          "result": "FAIL",
+          "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    enabled: true,\n+   port: 8080\n-   port: 9090\n  }\n"
+        }
+      ],
+      "observations": [
+        {
+          "label": "current-in-progress-with-completed-history",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "a3bb3b70579a5dee94e6aa6d6a62004179636a1ec688ac7701512671bfb0829c"
+        }
+      ],
+      "artifacts": {
+        "config.json": "8c77a6e2654598b17fac5af6ae67508bacc29acfb7dc8684ab031aecbefde1a9"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "current-status-vs-history",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "FAIL",
+          "detail": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    enabled: true,\n+   port: 8080\n-   port: 9090\n  }\n"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "current-in-progress-with-completed-history",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a3bb3b70579a5dee94e6aa6d6a62004179636a1ec688ac7701512671bfb0829c"
+        },
+        {
+          "label": "requested-config-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 1,
+          "reportSha256": "51b4fbcf684da1e71867ad95ab16880162aca44500317f7883ff3ff8d9238de8"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "post-review-amendment",
+      "contractVerdict": "FAIL",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": true,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "initial-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "post-review-amendment",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "rename",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        },
+        {
+          "kind": "amendment",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "initial-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "old-completion-rewritten-after-amendment",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a690d53eab16b7a24fe6ee8f88e79bc61957b9928ca6dbbd1f43e42e7f5ab6fe"
+        },
+        {
+          "label": "amended-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [
+            "Also create README.md documenting the rename."
+          ],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 1,
+          "reportSha256": "ab84b0bea4391acbb9dc27be67aeac9fe0d802f06db6249be0770d731c2a4405"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "README.md": "9251f5889b8f8121ff76d46633a21d82891b77f3b8b0be707eb8157bdf4c062e"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "verified-completion",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "verified-completion",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "required-incomplete",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "FAIL",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "required-work-remains",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        },
+        {
+          "label": "required-work-remains-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "required-incomplete",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "FAIL",
+      "expectedArtifactCheck": "FAIL",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        },
+        {
+          "kind": "amendment",
+          "result": "FAIL",
+          "detail": "required README is missing"
+        }
+      ],
+      "observations": [
+        {
+          "label": "required-work-remains",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        },
+        {
+          "label": "required-work-remains-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "Rename old.txt and create README.md",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "d0bc29d3048e956586377827d497547bd69839c01b703d1ec11a1134085f4f24"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "pause-resume",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "operator-paused",
+          "decision": "SKIP",
+          "state": "PAUSED",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "8e706bbb272f07745f602f01c0cf20c25960ed1da578b543fb0211a81640418e"
+        },
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "pause-resume",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "operator-paused",
+          "decision": "SKIP",
+          "state": "PAUSED",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "8e706bbb272f07745f602f01c0cf20c25960ed1da578b543fb0211a81640418e"
+        },
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d1347203ff64e1ca220bd936048126f1f6119af940fbf15c871b3e4e4112d82f"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "continuous-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "cycles",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "cycle-1",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-2",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-3",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 3,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "standing-loop-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 4,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d",
+        "heartbeats.txt": "46e69dbaf8d2965813203cd1277d6f5b579b7926c25e138846574d22c8006a9f"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "continuous-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "cycles",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "cycle-1",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 1,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-2",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 2,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "cycle-3",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 3,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        },
+        {
+          "label": "standing-loop-after-restart",
+          "decision": "CONTINUE",
+          "state": "ACTIVE",
+          "rootObjective": "/loop check config and append heartbeat",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 4,
+          "reportSha256": "a4b54c3e779742f2a711c226aef1f53d2f6873873b3606c8a94322fd0506b81d"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d",
+        "heartbeats.txt": "46e69dbaf8d2965813203cd1277d6f5b579b7926c25e138846574d22c8006a9f"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "finite-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "finite-loop",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "config",
+          "result": "PASS"
+        },
+        {
+          "kind": "config",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "verified-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        },
+        {
+          "label": "verified-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "/loop set port to 9090 stop: the configured port is 9090",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "3b0ee670ad899e2d022c45840045a215dd21d7a426f037a6bc772d579210dd2a"
+        }
+      ],
+      "artifacts": {
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "session-isolation",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "sessions",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "session-A-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        },
+        {
+          "label": "session-A-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "session-isolation",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 2,
+      "restarts": 2,
+      "checks": [
+        {
+          "kind": "sessions",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "session-A-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        },
+        {
+          "label": "session-A-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Rename old.txt to new.txt",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "c956672c132ca86e9ca120e3162d2ccbd268947d4a54dddc31360fb788231d7f"
+        },
+        {
+          "label": "session-B-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Set port to 9090 in config.json",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "d202c7ade7bbe98b3d80d913fdce824f95f3f1a9eb9bc6c3abb04298f27bdb04"
+        }
+      ],
+      "artifacts": {
+        "new.txt": "f4dfa7a9ac02884ba64646f083f1e169b9972f32ac1d791bfaa487e20842fd6f",
+        "config.json": "513a34b71df82e6372abf44395bc9afc9eeffe0c18aae6c68d64810039bc259d"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "git-delivery-restart",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "git",
+          "result": "PASS"
+        },
+        {
+          "kind": "git",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "delivered-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        },
+        {
+          "label": "delivered-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        }
+      ],
+      "artifacts": {
+        "change.txt": "53767e1c6b79680835f2e13b883c0fbbe509b3d1601a5fc02c52b7d4327bec60"
+      }
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "git-delivery-restart",
+      "contractVerdict": "PASS",
+      "finalArtifactCheck": "PASS",
+      "expectedArtifactCheck": "PASS",
+      "prematureReview": false,
+      "requestedEdits": 1,
+      "restarts": 1,
+      "checks": [
+        {
+          "kind": "git",
+          "result": "PASS"
+        },
+        {
+          "kind": "git",
+          "result": "PASS"
+        }
+      ],
+      "observations": [
+        {
+          "label": "delivered-request-complete",
+          "decision": "BLOCKED",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": "Goal file declares completion; independent acceptance is still required. Review the verified artifacts.",
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        },
+        {
+          "label": "delivered-request-after-restart",
+          "decision": "SKIP",
+          "state": "REVIEW",
+          "rootObjective": "Create change.txt, verify it, commit and push to origin/main",
+          "steering": [],
+          "lifetimeLimit": null,
+          "reason": null,
+          "totalContinuations": 0,
+          "reportSha256": "1104c753386ef1f5e77d7d95927ecefeca158215df5950f60ad1b0bc23cc9d17"
+        }
+      ],
+      "artifacts": {
+        "change.txt": "53767e1c6b79680835f2e13b883c0fbbe509b3d1601a5fc02c52b7d4327bec60"
+      }
+    }
+  ]
+}
