@@ -1,0 +1,52 @@
+{
+  "verdict": "PASS",
+  "experimentResult": "PASS",
+  "auditScriptSha256": "97d47c9c068fd5e6e29d11d55c7c19d830fa617c1caca8314c69c47b10b2c8c6",
+  "trials": 50,
+  "rawReportSha256": "5091d2b6c3fbfe74a7bdce32bffda1d4363b742795b6bb9e7e87102121672a60",
+  "authenticatedSourceHashes": {
+    "baseline": {
+      "src/tools/FileReadTool/FileReadTool.ts": "8930374130d356bcfeeb140f910f59655ccfe96121bff17ffe8e3269f5242e1a",
+      "src/services/tokenEstimation.ts": "5441b27fdf3c4b9625b7950f9bb4e0f567f165ce4ff7960908730a9b7212a72f",
+      "src/tools/FileReadTool/tokenBudget.ts": null
+    },
+    "candidate": {
+      "src/tools/FileReadTool/FileReadTool.ts": "8222686915c4d1f1d873dc7736b23b081f0be5d93a3cd98f128a30679640e888",
+      "src/services/tokenEstimation.ts": "8a7cbd05b4893a56564204882f11d83468a3c17812343172501ca97bb281a6d3",
+      "src/tools/FileReadTool/tokenBudget.ts": "ca798f0bd3928aa4c7162cd043f880443554f4d73a938dc28f09baf61a89111c"
+    }
+  },
+  "authenticatedInputHashes": {
+    "scripts/bench-file-read-task.mjs": "d41d0740a57df6d1c3c4cab0d6fb5b6a18f824fa74cd222b1bbe2bb24f4e9dc9",
+    "experiments/task-productivity-20261117/check-file-task.mjs": "ecbc06daa25fecada760b5a7a8bbd10bb30ab5348c3dabb248870180e95802f7",
+    "experiments/task-productivity-20261117/contract.json": "b313db48f790e74eb64e2b3f6e4424aca545e5fe07b6c2dd6be1c90ce7b2f0e1",
+    "tests/correctness/file-read-token-count-loader.mjs": "c8005fe9f75bc293e3d664c51de0ec8cda924a86764907bcf70f2fcbe7581a54",
+    "experiments/task-productivity-20261117/completion-observer.mjs": "2697150052d839e9f4e627c496ed580ac8c1eb3d5d18c9b03e1ab37ca889e009",
+    "node_modules/@future/sdk/package.json": "14196d5e2de5b984f17217caa8ff58dfd437e7e80788ca7b6fe25fd430b65bd2"
+  },
+  "inputSnapshots": {
+    "scripts/bench-file-read-task.mjs": "experiments/task-productivity-20261117/bench-file-read-task-strict-v2.mjs",
+    "experiments/task-productivity-20261117/completion-observer.mjs": "experiments/task-productivity-20261117/completion-observer-v2.mjs"
+  },
+  "tamperDetected": [
+    "counterRequests",
+    "rangeReads",
+    "mutations",
+    "closedByProductionBeforeCleanup",
+    "oversize-labelled-repair"
+  ],
+  "totals": {
+    "baseline": {
+      "protocolPasses": 20,
+      "completedRepairs": 15,
+      "guardrailPasses": 5,
+      "censored": 5
+    },
+    "candidate": {
+      "protocolPasses": 25,
+      "completedRepairs": 20,
+      "guardrailPasses": 5,
+      "censored": 0
+    }
+  }
+}

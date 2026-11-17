@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "experiment": "task-read-recovery-20261117",
+  "baseline": "e2344798ea34cc3f06fed54679b44b084d94f512",
+  "risk": "R2",
+  "objective": "Remove host-induced task delays while preserving errors, ordered mutations, cancellation, budgets and independent artifact acceptance.",
+  "hypotheses": [
+    "An ordinary returned failure in a concurrency-safe Bash read need not destroy the useful results of its independent read batch. Preserving them eliminates a recovery round without permitting the next mutation after a failed prerequisite.",
+    "A one-second overall deadline for optional file token counting prevents a slow auxiliary endpoint from stopping a local repair task. Conservative byte bounds and smaller-range recovery preserve the file token guard."
+  ],
+  "scope": "Production host components with real files, subprocesses, code repair, independent checkers and local Git delivery. Worker decisions and token-counter service behavior are controlled. This is not a live-model benchmark or a comparison of model intelligence.",
+  "design": {
+    "paired_arms": ["baseline", "candidate"],
+    "same_worker_and_fixtures": true,
+    "samples_per_arm_per_case": 5,
+    "order": "alternate baseline-first and candidate-first by sample; fresh process and workspace for every arm",
+    "read_failure_cases": ["config-repair", "code-repair", "multi-module-repair", "git-delivery"],
+    "controls": ["healthy-code", "failed-prerequisite", "framework-failure", "operator-cancel"],
+    "counter_cases": ["counter-stalled", "counter-healthy", "counter-local-json", "counter-oversize", "counter-unavailable"],
+    "counter_observation_ms": 2500,
+    "uncompleted_observations": "Right-censored at the observation deadline, never assigned a completion time or a speedup ratio.",
+    "read_service_schedule": "The failing optional cat is observed before successful peer receipts are released. No simulated model latency is added. Required file bytes come from real cat subprocesses."
+  },
+  "metrics": ["independent artifact verdict", "worker rounds", "forced recovery rounds", "actual tool executions", "cancelled useful reads", "completion within observation window", "monotonic wall milliseconds", "artifact and source SHA256", "local Git hook and remote receipt"],
+  "acceptance": [
+    "All fault repair tasks independently pass in both arms; candidate uses zero extra read recovery rounds and baseline reproduces at least one.",
+    "Healthy task decisions and artifact bytes match; no mutation executes after a failed prerequisite, framework uncertainty or operator cancellation.",
+    "Candidate stalled-counter task completes within the fixed observation window using smaller ranges; all unavailable or oversized counts preserve the file token guard.",
+    "Focused regressions, affected correctness/command suites, source transpilation, input freeze checks and independent review pass. Missing gates remain explicit."
+  ],
+  "budgets": {"experiment_wall_minutes": 15, "paid_model_calls": 0, "accelerator_minutes": 0, "goal_lifetime_changes": false},
+  "authority": "Local reversible implementation and tests plus public branch and PR publication are authorized by the user. No deployment, published-history rewrite, real third-party messages, credential publication or acceptance weakening.",
+  "stop": "Stop on unpaired tool receipts, changed frozen inputs, checker tampering, any guardrail regression or unexplained gate failure.",
+  "limitations": ["Selected regression tasks do not estimate production frequency or universal speedup.", "No authenticated live GPT-6.1 Sol Max comparison is available.", "Task tool service and counter are controlled adapters; full packaged CLI performance is outside this experiment."]
+}

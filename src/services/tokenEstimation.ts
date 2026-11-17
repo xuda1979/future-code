@@ -121,8 +121,11 @@ function stripToolSearchFieldsFromMessages(
   })
 }
 
+export type TokenCountOptions = { signal?: AbortSignal }
+
 export async function countTokensWithAPI(
   content: string,
+  options?: TokenCountOptions,
 ): Promise<number | null> {
   // Special case for empty content - API doesn't accept empty messages
   if (!content) {
@@ -134,27 +137,30 @@ export async function countTokensWithAPI(
     content: content,
   }
 
-  return countMessagesTokensWithAPI([message], [])
+  return countMessagesTokensWithAPI([message], [], options)
 }
 
 export async function countMessagesTokensWithAPI(
   messages: Future.Beta.Messages.BetaMessageParam[],
   tools: Future.Beta.Messages.BetaToolUnion[],
+  options?: TokenCountOptions,
 ): Promise<number | null> {
   return withTokenCountVCR(messages, tools, async () => {
     try {
+      options?.signal?.throwIfAborted()
       const model = getMainLoopModel()
       const betas = getModelBetas(model)
       const containsThinking = hasThinkingBlocks(messages)
 
       if (getAPIProvider() === 'bedrock') {
         // @future-sdk/bedrock-sdk doesn't support countTokens currently
-        return countTokensWithBedrock({
+        return await countTokensWithBedrock({
           model: normalizeModelStringForAPI(model),
           messages,
           tools,
           betas,
           containsThinking,
+          signal: options?.signal,
         })
       }
 
@@ -163,6 +169,9 @@ export async function countMessagesTokensWithAPI(
         model,
         source: 'count_tokens',
       })
+      // Initialization may outlive a local read's deadline (for example an
+      // unavailable credential helper). It must not start a late count RPC.
+      options?.signal?.throwIfAborted()
 
       const filteredBetas =
         getAPIProvider() === 'vertex'
@@ -184,7 +193,7 @@ export async function countMessagesTokensWithAPI(
             budget_tokens: TOKEN_COUNT_THINKING_BUDGET,
           },
         }),
-      })
+      }, options?.signal ? { signal: options.signal } : undefined)
 
       if (typeof response.input_tokens !== 'number') {
         // Vertex client throws
@@ -194,7 +203,7 @@ export async function countMessagesTokensWithAPI(
 
       return response.input_tokens
     } catch (error) {
-      logError(error)
+      if (!options?.signal?.aborted) logError(error)
       return null
     }
   })
@@ -440,19 +449,28 @@ async function countTokensWithBedrock({
   tools,
   betas,
   containsThinking,
+  signal,
 }: {
   model: string
   messages: Future.Beta.Messages.BetaMessageParam[]
   tools: Future.Beta.Messages.BetaToolUnion[]
   betas: string[]
   containsThinking: boolean
+  signal?: AbortSignal
 }): Promise<number | null> {
   try {
+    signal?.throwIfAborted()
+    // A bounded local read cannot start uncancellable profile-metadata lookup.
+    // Keep the ordinary memoized path for other callers; FileRead uses its
+    // conservative byte bound and asks for smaller ranges in this case.
+    if (signal && !isFoundationModel(model)) return null
     const client = await createBedrockRuntimeClient()
+    signal?.throwIfAborted()
     // Bedrock CountTokens requires a model ID, not an inference profile / ARN
     const modelId = isFoundationModel(model)
       ? model
       : await getInferenceProfileBackingModel(model)
+    signal?.throwIfAborted()
     if (!modelId) {
       return null
     }
@@ -477,6 +495,7 @@ async function countTokensWithBedrock({
     const { CountTokensCommand } = await import(
       '@aws-sdk/client-bedrock-runtime'
     )
+    signal?.throwIfAborted()
     const input: CountTokensCommandInput = {
       modelId,
       input: {
@@ -485,11 +504,12 @@ async function countTokensWithBedrock({
         },
       },
     }
-    const response = await client.send(new CountTokensCommand(input))
+    const response = await client.send(new CountTokensCommand(input),
+      signal ? { abortSignal: signal } : undefined)
     const tokenCount = response.inputTokens ?? null
     return tokenCount
   } catch (error) {
-    logError(error)
+    if (!signal?.aborted) logError(error)
     return null
   }
 }

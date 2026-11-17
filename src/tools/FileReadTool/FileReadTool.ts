@@ -16,10 +16,7 @@ import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   getFileExtensionForAnalytics,
 } from '../../services/analytics/metadata.js'
-import {
-  countTokensWithAPI,
-  roughTokenCountEstimationForFileType,
-} from '../../services/tokenEstimation.js'
+import { countTokensWithAPI } from '../../services/tokenEstimation.js'
 import {
   activateConditionalSkillsForPaths,
   addSkillDirectories,
@@ -76,6 +73,7 @@ import { semanticNumber } from '../../utils/semanticNumber.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { BASH_TOOL_NAME } from '../BashTool/toolName.js'
 import { getDefaultFileReadingLimits } from './limits.js'
+import { countFileReadTokens } from './tokenBudget.js'
 import {
   DESCRIPTION,
   FILE_READ_TOOL_NAME,
@@ -179,7 +177,7 @@ export class MaxFileReadTokenExceededError extends Error {
     public maxTokens: number,
   ) {
     super(
-      `File content (${tokenCount} tokens) exceeds maximum allowed tokens (${maxTokens}). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.`,
+      `File content exceeds or cannot be proven within the token budget (${maxTokens} tokens; measured count or conservative UTF-8 byte bound: ${tokenCount}). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.`,
     )
     this.name = 'MaxFileReadTokenExceededError'
   }
@@ -765,17 +763,15 @@ function memoryFileFreshnessPrefix(data: object): string {
 
 async function validateContentTokens(
   content: string,
-  ext: string,
   maxTokens?: number,
+  signal?: AbortSignal,
 ): Promise<void> {
   const effectiveMaxTokens =
     maxTokens ?? getDefaultFileReadingLimits().maxTokens
 
-  const tokenEstimate = roughTokenCountEstimationForFileType(content, ext)
-  if (!tokenEstimate || tokenEstimate <= effectiveMaxTokens / 4) return
-
-  const tokenCount = await countTokensWithAPI(content)
-  const effectiveCount = tokenCount ?? tokenEstimate
+  const effectiveCount = await countFileReadTokens(
+    content, effectiveMaxTokens, countTokensWithAPI, signal,
+  )
 
   if (effectiveCount > effectiveMaxTokens) {
     throw new MaxFileReadTokenExceededError(effectiveCount, effectiveMaxTokens)
@@ -846,7 +842,7 @@ async function callInner(
       )
     }
 
-    await validateContentTokens(cellsJson, ext, maxTokens)
+    await validateContentTokens(cellsJson, maxTokens, context.abortController.signal)
 
     // Get mtime via async stat (single call, no prior existence check)
     const stats = await getFsImplementation().stat(resolvedFilePath)
@@ -1038,7 +1034,7 @@ async function callInner(
       context.abortController.signal,
     )
 
-  await validateContentTokens(content, ext, maxTokens)
+  await validateContentTokens(content, maxTokens, context.abortController.signal)
 
   readFileState.set(fullFilePath, {
     content,

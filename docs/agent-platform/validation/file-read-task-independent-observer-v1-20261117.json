@@ -1,0 +1,1822 @@
+{
+  "schema": 1,
+  "kind": "REAL_LOCAL_REPAIR_AND_TOKEN_COUNTER_COMPONENT_NOT_LIVE_MODEL_BENCHMARK",
+  "samplesPerArm": 5,
+  "sourceRevisions": {
+    "baseline": {
+      "head": "e2344798ea34cc3f06fed54679b44b084d94f512",
+      "dirtyMeasuredPaths": ""
+    },
+    "candidate": {
+      "head": "e2344798ea34cc3f06fed54679b44b084d94f512",
+      "dirtyMeasuredPaths": "M src/services/tokenEstimation.ts\n M src/tools/FileReadTool/FileReadTool.ts\n?? src/tools/FileReadTool/tokenBudget.ts"
+    }
+  },
+  "sourceHashes": {
+    "baseline": {
+      "src/tools/FileReadTool/FileReadTool.ts": "8930374130d356bcfeeb140f910f59655ccfe96121bff17ffe8e3269f5242e1a",
+      "src/services/tokenEstimation.ts": "5441b27fdf3c4b9625b7950f9bb4e0f567f165ce4ff7960908730a9b7212a72f",
+      "src/tools/FileReadTool/tokenBudget.ts": null
+    },
+    "candidate": {
+      "src/tools/FileReadTool/FileReadTool.ts": "8222686915c4d1f1d873dc7736b23b081f0be5d93a3cd98f128a30679640e888",
+      "src/services/tokenEstimation.ts": "8a7cbd05b4893a56564204882f11d83468a3c17812343172501ca97bb281a6d3",
+      "src/tools/FileReadTool/tokenBudget.ts": "ca798f0bd3928aa4c7162cd043f880443554f4d73a938dc28f09baf61a89111c"
+    }
+  },
+  "inputHashes": {
+    "scripts/bench-file-read-task.mjs": "ee9df961ac849f02f0fcf5dbfc24d149529ef580e6632ff50a9becaf8ec6fa97",
+    "experiments/task-productivity-20261117/check-file-task.mjs": "ecbc06daa25fecada760b5a7a8bbd10bb30ab5348c3dabb248870180e95802f7",
+    "experiments/task-productivity-20261117/contract.json": "b313db48f790e74eb64e2b3f6e4424aca545e5fe07b6c2dd6be1c90ce7b2f0e1",
+    "tests/correctness/file-read-token-count-loader.mjs": "c8005fe9f75bc293e3d664c51de0ec8cda924a86764907bcf70f2fcbe7581a54",
+    "node_modules/@future/sdk/package.json": "14196d5e2de5b984f17217caa8ff58dfd437e7e80788ca7b6fe25fd430b65bd2"
+  },
+  "runtime": {
+    "node": "v24.22.1",
+    "sdk": "0.116.0"
+  },
+  "modelCalls": 0,
+  "modelTokens": null,
+  "dollars": null,
+  "summary": {
+    "counter-stalled": {
+      "baseline": {
+        "protocolPasses": 0,
+        "completedRepairs": 0,
+        "guardrailPasses": 0,
+        "censored": 5,
+        "counterRequests": 5,
+        "rangeReads": 0,
+        "medianCompletionWallMs": null,
+        "medianObservationWallMs": 2503.40813
+      },
+      "candidate": {
+        "protocolPasses": 5,
+        "completedRepairs": 5,
+        "guardrailPasses": 0,
+        "censored": 0,
+        "counterRequests": 5,
+        "rangeReads": 35,
+        "medianCompletionWallMs": 1297.560397,
+        "medianObservationWallMs": 1300.319106
+      }
+    },
+    "counter-healthy": {
+      "baseline": {
+        "protocolPasses": 5,
+        "completedRepairs": 5,
+        "guardrailPasses": 0,
+        "censored": 0,
+        "counterRequests": 5,
+        "rangeReads": 0,
+        "medianCompletionWallMs": 312.51691600000004,
+        "medianObservationWallMs": 312.63204900000005
+      },
+      "candidate": {
+        "protocolPasses": 5,
+        "completedRepairs": 5,
+        "guardrailPasses": 0,
+        "censored": 0,
+        "counterRequests": 5,
+        "rangeReads": 0,
+        "medianCompletionWallMs": 288.7554429999999,
+        "medianObservationWallMs": 288.89140899999995
+      }
+    },
+    "counter-local-json": {
+      "baseline": {
+        "protocolPasses": 5,
+        "completedRepairs": 5,
+        "guardrailPasses": 0,
+        "censored": 0,
+        "counterRequests": 5,
+        "rangeReads": 0,
+        "medianCompletionWallMs": 270.1830010000001,
+        "medianObservationWallMs": 270.26795200000015
+      },
+      "candidate": {
+        "protocolPasses": 5,
+        "completedRepairs": 5,
+        "guardrailPasses": 0,
+        "censored": 0,
+        "counterRequests": 0,
+        "rangeReads": 0,
+        "medianCompletionWallMs": 284.9208319999998,
+        "medianObservationWallMs": 285.14629799999966
+      }
+    },
+    "counter-oversize": {
+      "baseline": {
+        "protocolPasses": 5,
+        "completedRepairs": 0,
+        "guardrailPasses": 5,
+        "censored": 0,
+        "counterRequests": 5,
+        "rangeReads": 0,
+        "medianCompletionWallMs": 234.13597399999992,
+        "medianObservationWallMs": 234.29903000000002
+      },
+      "candidate": {
+        "protocolPasses": 5,
+        "completedRepairs": 0,
+        "guardrailPasses": 5,
+        "censored": 0,
+        "counterRequests": 5,
+        "rangeReads": 0,
+        "medianCompletionWallMs": 379.28073499999994,
+        "medianObservationWallMs": 379.469745
+      }
+    },
+    "counter-unavailable": {
+      "baseline": {
+        "protocolPasses": 5,
+        "completedRepairs": 5,
+        "guardrailPasses": 0,
+        "censored": 0,
+        "counterRequests": 5,
+        "rangeReads": 0,
+        "medianCompletionWallMs": 300.1629280000001,
+        "medianObservationWallMs": 300.2468190000001
+      },
+      "candidate": {
+        "protocolPasses": 5,
+        "completedRepairs": 5,
+        "guardrailPasses": 0,
+        "censored": 0,
+        "counterRequests": 5,
+        "rangeReads": 35,
+        "medianCompletionWallMs": 289.3432539999999,
+        "medianObservationWallMs": 289.6000839999999
+      }
+    }
+  },
+  "runs": [
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "counter-stalled",
+      "verdict": "CENSORED",
+      "completionWallMs": null,
+      "independentCheck": null,
+      "taskSolved": false,
+      "outcome": "CENSORED",
+      "observationWallMs": 2565.639086,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "PENDING",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 1,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "counter-stalled",
+      "verdict": "PASS",
+      "completionWallMs": 1413.317993,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-stalled"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 1417.496003,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 7,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 1,
+      "closedByProductionBeforeCleanup": 1,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "counter-healthy",
+      "verdict": "PASS",
+      "completionWallMs": 312.51691600000004,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-healthy"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 312.63204900000005,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "counter-healthy",
+      "verdict": "PASS",
+      "completionWallMs": 229.62287400000002,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-healthy"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 229.755268,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "counter-local-json",
+      "verdict": "PASS",
+      "completionWallMs": 270.1830010000001,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-local-json"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 270.26795200000015,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+          "contentChars": 20042
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+      "artifactAfter": "f1787e752d7643c1fe69ae067ea387dd4ac7f59117d7e338148cff64c47e1161",
+      "artifactBytes": 20042,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "counter-local-json",
+      "verdict": "PASS",
+      "completionWallMs": 290.14857299999994,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-local-json"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 290.340003,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 0,
+      "clientInitializations": 0,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+      "artifactAfter": "f1787e752d7643c1fe69ae067ea387dd4ac7f59117d7e338148cff64c47e1161",
+      "artifactBytes": 20042,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "counter-oversize",
+      "verdict": "PASS",
+      "completionWallMs": 226.64798199999996,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-oversize"
+      },
+      "taskSolved": false,
+      "outcome": "OVERSIZE_GUARD_PASSED_NO_REPAIR",
+      "observationWallMs": 226.73929799999996,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "counter-oversize",
+      "verdict": "PASS",
+      "completionWallMs": 379.28073499999994,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-oversize"
+      },
+      "taskSolved": false,
+      "outcome": "OVERSIZE_GUARD_PASSED_NO_REPAIR",
+      "observationWallMs": 379.469745,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "counter-unavailable",
+      "verdict": "PASS",
+      "completionWallMs": 232.25169400000004,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-unavailable"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 232.47577300000012,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "counter-unavailable",
+      "verdict": "PASS",
+      "completionWallMs": 401.404585,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-unavailable"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 401.51437699999997,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 7,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "counter-stalled",
+      "verdict": "PASS",
+      "completionWallMs": 1214.503368,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-stalled"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 1216.262915,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 7,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 1,
+      "closedByProductionBeforeCleanup": 1,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "counter-stalled",
+      "verdict": "CENSORED",
+      "completionWallMs": null,
+      "independentCheck": null,
+      "taskSolved": false,
+      "outcome": "CENSORED",
+      "observationWallMs": 2502.965446,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "PENDING",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 1,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "counter-healthy",
+      "verdict": "PASS",
+      "completionWallMs": 342.9597150000001,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-healthy"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 343.3746359999999,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "counter-healthy",
+      "verdict": "PASS",
+      "completionWallMs": 274.892102,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-healthy"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 274.9801050000001,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "counter-local-json",
+      "verdict": "PASS",
+      "completionWallMs": 284.9208319999998,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-local-json"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 285.14629799999966,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 0,
+      "clientInitializations": 0,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+      "artifactAfter": "f1787e752d7643c1fe69ae067ea387dd4ac7f59117d7e338148cff64c47e1161",
+      "artifactBytes": 20042,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "counter-local-json",
+      "verdict": "PASS",
+      "completionWallMs": 267.02636800000005,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-local-json"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 267.13904100000013,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+          "contentChars": 20042
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+      "artifactAfter": "f1787e752d7643c1fe69ae067ea387dd4ac7f59117d7e338148cff64c47e1161",
+      "artifactBytes": 20042,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "counter-oversize",
+      "verdict": "PASS",
+      "completionWallMs": 841.743484,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-oversize"
+      },
+      "taskSolved": false,
+      "outcome": "OVERSIZE_GUARD_PASSED_NO_REPAIR",
+      "observationWallMs": 841.854179,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "counter-oversize",
+      "verdict": "PASS",
+      "completionWallMs": 333.5227339999999,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-oversize"
+      },
+      "taskSolved": false,
+      "outcome": "OVERSIZE_GUARD_PASSED_NO_REPAIR",
+      "observationWallMs": 333.61069499999985,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "counter-unavailable",
+      "verdict": "PASS",
+      "completionWallMs": 313.6652789999998,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-unavailable"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 313.8770729999999,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 7,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "counter-unavailable",
+      "verdict": "PASS",
+      "completionWallMs": 300.1629280000001,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-unavailable"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 300.2468190000001,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "counter-stalled",
+      "verdict": "CENSORED",
+      "completionWallMs": null,
+      "independentCheck": null,
+      "taskSolved": false,
+      "outcome": "CENSORED",
+      "observationWallMs": 2515.167391,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "PENDING",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 1,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "counter-stalled",
+      "verdict": "PASS",
+      "completionWallMs": 2555.444821,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-stalled"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 2558.54661,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 7,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 1,
+      "closedByProductionBeforeCleanup": 1,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "counter-healthy",
+      "verdict": "PASS",
+      "completionWallMs": 566.5883100000001,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-healthy"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 566.7411810000001,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "counter-healthy",
+      "verdict": "PASS",
+      "completionWallMs": 413.0304289999999,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-healthy"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 413.13261799999987,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "counter-local-json",
+      "verdict": "PASS",
+      "completionWallMs": 537.0627220000001,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-local-json"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 537.151586,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+          "contentChars": 20042
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+      "artifactAfter": "f1787e752d7643c1fe69ae067ea387dd4ac7f59117d7e338148cff64c47e1161",
+      "artifactBytes": 20042,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "counter-local-json",
+      "verdict": "PASS",
+      "completionWallMs": 428.52655300000015,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-local-json"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 428.7269449999999,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 0,
+      "clientInitializations": 0,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+      "artifactAfter": "f1787e752d7643c1fe69ae067ea387dd4ac7f59117d7e338148cff64c47e1161",
+      "artifactBytes": 20042,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "counter-oversize",
+      "verdict": "PASS",
+      "completionWallMs": 297.1813619999998,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-oversize"
+      },
+      "taskSolved": false,
+      "outcome": "OVERSIZE_GUARD_PASSED_NO_REPAIR",
+      "observationWallMs": 297.27424699999983,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "counter-oversize",
+      "verdict": "PASS",
+      "completionWallMs": 620.889163,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-oversize"
+      },
+      "taskSolved": false,
+      "outcome": "OVERSIZE_GUARD_PASSED_NO_REPAIR",
+      "observationWallMs": 621.0541699999999,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "counter-unavailable",
+      "verdict": "PASS",
+      "completionWallMs": 461.70329500000025,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-unavailable"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 461.79987200000005,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "counter-unavailable",
+      "verdict": "PASS",
+      "completionWallMs": 289.3432539999999,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-unavailable"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 289.6000839999999,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 7,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "scenario": "counter-stalled",
+      "verdict": "PASS",
+      "completionWallMs": 1270.4742729999998,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-stalled"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 1272.4170909999998,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 7,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 1,
+      "closedByProductionBeforeCleanup": 1,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "scenario": "counter-stalled",
+      "verdict": "CENSORED",
+      "completionWallMs": null,
+      "independentCheck": null,
+      "taskSolved": false,
+      "outcome": "CENSORED",
+      "observationWallMs": 2502.081326,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "PENDING",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 1,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "scenario": "counter-healthy",
+      "verdict": "PASS",
+      "completionWallMs": 288.7554429999999,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-healthy"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 288.89140899999995,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "scenario": "counter-healthy",
+      "verdict": "PASS",
+      "completionWallMs": 724.8733320000001,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-healthy"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 725.379891,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "scenario": "counter-local-json",
+      "verdict": "PASS",
+      "completionWallMs": 252.59522399999992,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-local-json"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 252.75243100000012,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 0,
+      "clientInitializations": 0,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+      "artifactAfter": "f1787e752d7643c1fe69ae067ea387dd4ac7f59117d7e338148cff64c47e1161",
+      "artifactBytes": 20042,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "scenario": "counter-local-json",
+      "verdict": "PASS",
+      "completionWallMs": 179.78924700000005,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-local-json"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 180.038593,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+          "contentChars": 20042
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+      "artifactAfter": "f1787e752d7643c1fe69ae067ea387dd4ac7f59117d7e338148cff64c47e1161",
+      "artifactBytes": 20042,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "scenario": "counter-oversize",
+      "verdict": "PASS",
+      "completionWallMs": 287.14618999999993,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-oversize"
+      },
+      "taskSolved": false,
+      "outcome": "OVERSIZE_GUARD_PASSED_NO_REPAIR",
+      "observationWallMs": 287.2463849999999,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "scenario": "counter-oversize",
+      "verdict": "PASS",
+      "completionWallMs": 216.16851599999995,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-oversize"
+      },
+      "taskSolved": false,
+      "outcome": "OVERSIZE_GUARD_PASSED_NO_REPAIR",
+      "observationWallMs": 216.2461699999999,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "scenario": "counter-unavailable",
+      "verdict": "PASS",
+      "completionWallMs": 249.9969920000001,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-unavailable"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 250.28315599999996,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 7,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "scenario": "counter-unavailable",
+      "verdict": "PASS",
+      "completionWallMs": 302.0338939999999,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-unavailable"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 302.10736900000006,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "scenario": "counter-stalled",
+      "verdict": "CENSORED",
+      "completionWallMs": null,
+      "independentCheck": null,
+      "taskSolved": false,
+      "outcome": "CENSORED",
+      "observationWallMs": 2503.40813,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "PENDING",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 1,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "scenario": "counter-stalled",
+      "verdict": "PASS",
+      "completionWallMs": 1297.560397,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-stalled"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 1300.319106,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 7,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 1,
+      "closedByProductionBeforeCleanup": 1,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "scenario": "counter-healthy",
+      "verdict": "PASS",
+      "completionWallMs": 199.79255399999988,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-healthy"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 199.85746599999993,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "scenario": "counter-healthy",
+      "verdict": "PASS",
+      "completionWallMs": 264.9857420000001,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-healthy"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 265.13578900000005,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "scenario": "counter-local-json",
+      "verdict": "PASS",
+      "completionWallMs": 286.2059049999999,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-local-json"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 286.38268200000005,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+          "contentChars": 20042
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+      "artifactAfter": "f1787e752d7643c1fe69ae067ea387dd4ac7f59117d7e338148cff64c47e1161",
+      "artifactBytes": 20042,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "scenario": "counter-local-json",
+      "verdict": "PASS",
+      "completionWallMs": 197.98051399999997,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-local-json"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 198.44369499999993,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 0,
+      "clientInitializations": 0,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "a0df80d4bb33c6d5393850aa631514a6ac63a9acf96d55cacde837c5910063a9",
+      "artifactAfter": "f1787e752d7643c1fe69ae067ea387dd4ac7f59117d7e338148cff64c47e1161",
+      "artifactBytes": 20042,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "scenario": "counter-oversize",
+      "verdict": "PASS",
+      "completionWallMs": 234.13597399999992,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-oversize"
+      },
+      "taskSolved": false,
+      "outcome": "OVERSIZE_GUARD_PASSED_NO_REPAIR",
+      "observationWallMs": 234.29903000000002,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "scenario": "counter-oversize",
+      "verdict": "PASS",
+      "completionWallMs": 260.74924899999996,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-oversize"
+      },
+      "taskSolved": false,
+      "outcome": "OVERSIZE_GUARD_PASSED_NO_REPAIR",
+      "observationWallMs": 260.842572,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 0,
+      "mutations": 0,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "scenario": "counter-unavailable",
+      "verdict": "PASS",
+      "completionWallMs": 216.17012999999997,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-unavailable"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 216.39333499999998,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "ACCEPTED",
+      "rangeReads": 0,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "4ca2f40e50a9842d18e723b3785ef53eb3750b79ac4d8e1316ce25ebbee0ce51",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "scenario": "counter-unavailable",
+      "verdict": "PASS",
+      "completionWallMs": 210.87336300000004,
+      "independentCheck": {
+        "verdict": "PASS",
+        "scenario": "counter-unavailable"
+      },
+      "taskSolved": true,
+      "outcome": "REPAIR_PASSED",
+      "observationWallMs": 211.17049399999996,
+      "observationLimitMs": 2500,
+      "fullReadGuard": "REJECTED_REQUIRES_RANGE",
+      "rangeReads": 7,
+      "mutations": 1,
+      "counterRequests": 1,
+      "clientInitializations": 1,
+      "closedBeforeResponse": 0,
+      "closedByProductionBeforeCleanup": 0,
+      "transportErrors": 0,
+      "responseCounts": [
+        {
+          "contentSha256": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+          "contentChars": 41633
+        }
+      ],
+      "validatorBodySha256": "a8f306110b7db7c978d4a2019fc0058efeef9c289ff79061366d581a8149262c",
+      "artifactBefore": "ae25b5290d986f2e16e9cffc6c441632b7dcb29939c63da1394043024d27e6fd",
+      "artifactAfter": "e5ae3a9b4ed417311329fb21fa8f7f4ed3e86ac6a745403aff6968c58811e41a",
+      "artifactBytes": 41633,
+      "adapter": "exact production validation declarations and token-count service, actual installed SDK, controlled loopback counter; no live model"
+    }
+  ],
+  "limitations": [
+    "Selected regression tasks do not estimate production frequency or universal speedup.",
+    "No authenticated live GPT-6.1 Sol Max comparison is available.",
+    "Task tool service and counter are controlled adapters; full packaged CLI performance is outside this experiment.",
+    "The exact unchanged validator declarations are loaded without the unrelated full CLI dependency graph.",
+    "The counter returns controlled counts, not tokenizer or model accuracy measurements. Observation cancellation is experiment cleanup, not a baseline deadline."
+  ]
+}

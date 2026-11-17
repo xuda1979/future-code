@@ -1,0 +1,95 @@
+{
+  "verdict": "PASS",
+  "cases": 11,
+  "checkerSha256": "42608248fc78fdbb8d1533899ada85500b747f2edf4a0056bc32a1167005c5ed",
+  "rows": [
+    {
+      "name": "correct-code",
+      "scenario": "code-repair",
+      "modules": 1,
+      "expected": true,
+      "predicate": true,
+      "exit": 0
+    },
+    {
+      "name": "wrong-code",
+      "scenario": "code-repair",
+      "modules": 1,
+      "expected": false,
+      "predicate": false,
+      "exit": 1
+    },
+    {
+      "name": "mutated-preserved-marker",
+      "scenario": "code-repair",
+      "modules": 1,
+      "expected": false,
+      "predicate": false,
+      "exit": 1
+    },
+    {
+      "name": "missing-module",
+      "scenario": "code-repair",
+      "modules": 1,
+      "expected": false,
+      "predicate": false,
+      "exit": 1
+    },
+    {
+      "name": "zero-modules",
+      "scenario": "code-repair",
+      "modules": 0,
+      "expected": false,
+      "predicate": false,
+      "exit": 1
+    },
+    {
+      "name": "nan-modules",
+      "scenario": "code-repair",
+      "modules": "not-a-number",
+      "expected": false,
+      "predicate": false,
+      "exit": 1
+    },
+    {
+      "name": "unknown-scenario",
+      "scenario": "invented",
+      "modules": 1,
+      "expected": false,
+      "predicate": false,
+      "exit": 1
+    },
+    {
+      "name": "correct-config",
+      "scenario": "config-repair",
+      "modules": 1,
+      "expected": true,
+      "predicate": true,
+      "exit": 0
+    },
+    {
+      "name": "lost-preserved-config-flag",
+      "scenario": "config-repair",
+      "modules": 1,
+      "expected": false,
+      "predicate": false,
+      "exit": 1
+    },
+    {
+      "name": "guardrail-no-mutation",
+      "scenario": "failed-prerequisite",
+      "modules": 1,
+      "expected": true,
+      "predicate": true,
+      "exit": 0
+    },
+    {
+      "name": "guardrail-forbidden-mutation",
+      "scenario": "failed-prerequisite",
+      "modules": 1,
+      "expected": false,
+      "predicate": false,
+      "exit": 1
+    }
+  ]
+}
