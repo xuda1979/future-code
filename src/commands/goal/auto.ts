@@ -63,6 +63,10 @@ export interface AutoGoalState {
   updatedAt: string;
   reason: string | null;
   ignoredGoalReport?: string | null;
+  /** A completed report predating added user work stays stale even when a
+   * recovery copies/touches identical bytes. Explicit resume uses the separate
+   * write-identity receipt above and does not create this amendment guard. */
+  ignoredCompletionContent?: string | null;
   revision?: number;
   previousGoal?: string | null;
   supersededGoals?: string[];
@@ -153,6 +157,7 @@ function validate(value: unknown): AutoGoalState {
         v.maxContinuations < 1 || v.maxContinuations > MAX_AUTO_GOAL_CONTINUATIONS)) ||
       typeof v.updatedAt !== "string" ||
       (v.ignoredGoalReport != null && (typeof v.ignoredGoalReport !== "string" || !/^[a-f0-9]{64}$/.test(v.ignoredGoalReport))) ||
+      (v.ignoredCompletionContent != null && (typeof v.ignoredCompletionContent !== "string" || !/^[a-f0-9]{64}$/.test(v.ignoredCompletionContent))) ||
       (v.reason !== null && typeof v.reason !== "string") ||
       (v.userQuestions !== undefined && typeof v.userQuestions !== "boolean") ||
       (v.loop !== undefined && (!v.loop || typeof v.loop !== "object" ||
@@ -217,9 +222,39 @@ function readGoalReport(dir: string): { text: string; fingerprint: string; conte
   return { text, fingerprint, contentFingerprint: createHash("sha256").update(text).digest("hex") };
 }
 
-/** Only execution prose, with quoted/code examples removed, controls status. */
-function terminalGoalReportStatus(controlText: string): string | undefined {
-  return /^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*:\s*(?:\*\*)?(completed|blocked)(?:\*\*)?\s*$/im.exec(controlText)?.[1]?.toLowerCase();
+/** Current fields follow the complete bound objective, which can itself own
+ * Markdown headings. Later worklogs cannot supply missing current authority. */
+function goalReportPreamble(controlText: string, boundGoal: string): string {
+  const lines = controlText.split(/\r?\n/);
+  const title = lines.findIndex(line => /^[ \t]*#[ \t]+/.test(line));
+  if (title < 0) return "";
+  const objective = normalizeGoalText(executionProse("# " + boundGoal, true));
+  let start = -1;
+  for (let end = title + 1; end <= lines.length; end++) {
+    const prefix = normalizeGoalText(lines.slice(title, end).join("\n"));
+    if (prefix === objective) { start = end; break; }
+    if (!objective.startsWith(prefix)) break;
+  }
+  if (start < 0) return "";
+  let end = start;
+  for (; end < lines.length; end++) {
+    if (/^ {0,3}#{1,6}(?:[ \t]|$)/.test(lines[end]!)) break;
+    const controlField = /^[ \t]*(?:[-*][ \t]*)?(?:\*\*)?(?:status|blocker(?: type)?|recovery attempted|external action required)(?:\*\*)?[ \t]*:/i.test(lines[end]!);
+    if (!controlField && /^ {0,3}\S/.test(lines[end]!) && !/^\s*(?:[-*+]|\d+\.)\s/.test(lines[end]!) &&
+      /^ {0,3}(?:=+|-+)\s*$/.test(lines[end + 1] ?? "")) break;
+  }
+  return lines.slice(start, end).join("\n");
+}
+
+/** Missing, unknown or contradictory current fields cannot borrow a terminal
+ * status from a historical run. A nonterminal current status stays active. */
+function terminalGoalReportStatus(controlText: string, boundGoal: string): string | undefined {
+  const fields = goalReportPreamble(controlText, boundGoal).matchAll(/^[ \t]*(?:[-*][ \t]*)?(?:\*\*)?status(?:\*\*)?[ \t]*:[ \t]*(.*?)[ \t]*$/gim);
+  const values = new Set([...fields].map(field => field[1]!.replace(/^\*\*|\*\*$/g, "").trim().toLowerCase()));
+  if (values.size === 0) return undefined;
+  if (values.size > 1) return "conflicting";
+  const value = [...values][0]!;
+  return ["completed", "blocked", "in_progress"].includes(value) ? value : "unknown";
 }
 
 function extractGoalHeading(reportText: string): string | null {
@@ -504,6 +539,8 @@ export function recordGoalSteering(
   const state = readAutoGoal(cwd);
   if (!state) return null;
   const existingNotes = state.activeSteering ?? [];
+  const newInstruction = normalizeGoalText(note) !== normalizeGoalText(state.goal) &&
+    !existingNotes.some(item => normalizeGoalText(item) === normalizeGoalText(note));
   const deduped = [
     ...existingNotes.filter(item => normalizeGoalText(item) !== normalizeGoalText(note)),
     note,
@@ -512,21 +549,23 @@ export function recordGoalSteering(
   const { dir } = location(cwd);
   const preservePause = state.state === "PAUSED" && options.resumePaused === false;
   const resuming = state.state === "PAUSED" && !preservePause;
-  const report = state.state === "ACTIVE" || resuming ? readGoalReport(dir) : null;
+  const report = state.state === "ACTIVE" || state.state === "REVIEW" || resuming || newInstruction ? readGoalReport(dir) : null;
   // A queued human instruction can arrive after the model wrote completed,
   // before the old turn processes that report. It adds work/constraints to
   // the same root; the earlier claim cannot retire the new instruction.
   // Do not suppress real blockers, operator pauses, or change report bytes.
-  const staleCompletion = state.state === "ACTIVE" && report &&
+  const staleCompletion = newInstruction && report &&
     goalMatchesReport(report.text, state.goal) &&
-    terminalGoalReportStatus(executionProse(report.text, true)) === "completed";
+    terminalGoalReportStatus(executionProse(report.text, true), state.goal) === "completed";
   return persist(cwd, {
     ...state,
     state: preservePause ? "PAUSED" : "ACTIVE",
     continuations: state.state === "PAUSED" && !preservePause && options.resetContinuationBudget !== false ? 0 : state.continuations,
-    ignoredGoalReport: resuming || staleCompletion
+    ignoredGoalReport: resuming || state.state === "REVIEW" || staleCompletion && !preservePause
       ? (report?.fingerprint ?? null)
       : state.ignoredGoalReport,
+    ignoredCompletionContent: staleCompletion
+      ? report.contentFingerprint : state.ignoredCompletionContent,
     reason: preservePause ? state.reason : null,
     activeSteering: deduped,
     routineDecisionRetries: 0,
@@ -754,9 +793,14 @@ export function resumeAutoGoalFromInput(
     });
   }
 
-  // 5. Mid-flight steering/refinement on an active or paused objective
-  if (current && current.state !== "REVIEW" && isRefinementDirective(trimmed)) {
-    return recordGoalSteering(trimmed, cwd, { resumePaused: false, resetContinuationBudget: false });
+  // 5. Mid-flight refinements preserve their root. After review, only an
+  // explicit additive work request reopens it; explanation/status follow-ups
+  // do not re-arm completed work.
+  if (current && isRefinementDirective(trimmed)) {
+    const addition = trimmed.replace(/^(?:also\b|and\s+also\b|please\s+also\b|in\s+addition\b|另外|同时|还要|顺便)[\s,，:：]*/i, "");
+    if (current.state !== "REVIEW" || addition !== trimmed && isActionableObjectiveDirective(addition)) {
+      return recordGoalSteering(trimmed, cwd, { resumePaused: false, resetContinuationBudget: false });
+    }
   }
 
   // 6. Actionable engineering/research directive
@@ -840,9 +884,17 @@ function goalFileOutcome(
         `Align the next action to this objective and continue all work that remains possible.`,
     };
   }
+  if (report.contentFingerprint === state.ignoredCompletionContent) return {
+    recovery: "The existing completion report predates added user work. Restoring identical report bytes is not fresh completion evidence. " +
+      "Preserve the already verified artifacts, execute and verify the added instruction, then update this goal's report with its current outcome.",
+  };
   if (report.fingerprint === state.ignoredGoalReport) return null;
 
-  const status = terminalGoalReportStatus(controlText);
+  const status = terminalGoalReportStatus(controlText, state.goal);
+  if (status === undefined || status === "unknown" || status === "conflicting") return {
+    recovery: "The goal report needs one unambiguous current Status: in_progress, completed, or blocked directly after its full bound objective, before worklogs or history. " +
+      "Preserve the artifacts and required checks, verify the current outcome, and repair that field. Historical statuses are not current completion evidence.",
+  };
   if (status === "completed") {
     if (state.loop?.kind === "continuous") return {
       recovery: "This is a standing loop. A completed cycle cannot retire it. Reconcile the previous cycle's effects, " +
@@ -863,7 +915,7 @@ function goalFileOutcome(
 
   const field = (name: string) =>
     new RegExp("^[ \\t]*(?:[-*][ \\t]*)?(?:\\*\\*)?" + name + "(?:\\*\\*)?[ \\t]*:[ \\t]*(\\S[^\\r\\n]*)", "im")
-      .exec(controlText)?.[1]?.trim();
+      .exec(goalReportPreamble(controlText, state.goal))?.[1]?.trim();
   const blocker = field("blocker");
   const kind = field("blocker type")?.toLowerCase();
   const recovery = field("recovery attempted");
@@ -1026,6 +1078,7 @@ export function decideAutoGoalContinuation(options: {
         state: nextState,
         reason,
         transition: nextState === "REVIEW" ? "review" : "paused",
+        ...(nextState === "REVIEW" && state.ignoredCompletionContent ? { ignoredCompletionContent: null } : {}),
         updatedAt: new Date().toISOString(),
       });
       return { kind: "BLOCKED", reason };
