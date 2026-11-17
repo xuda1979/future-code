@@ -874,13 +874,33 @@ async function* runShellCommand({
   let lastTotalBytes = 0;
   let backgroundShellId: string | undefined = undefined;
   let assistantAutoBackgrounded = false;
+  let foregroundTaskId: string | undefined = undefined;
+  let backgroundingStarted = false;
+  let interruptBackgroundingStarted = false;
 
   // Progress signal: resolved by onProgress callback from the shared poller,
   // waking the generator to yield a progress update.
   let resolveProgress: (() => void) | null = null;
+  let wakePending = false;
+  function wakeCollector(): void {
+    const resolve = resolveProgress;
+    if (resolve) {
+      resolveProgress = null;
+      resolve();
+    } else {
+      // Keep transitions that occur while the generator is yielding progress
+      // or preparing its first wait. A notification must not be lost here.
+      wakePending = true;
+    }
+  }
   function createProgressSignal(): Promise<null> {
     return new Promise<null>(resolve => {
-      resolveProgress = () => resolve(null);
+      if (wakePending) {
+        wakePending = false;
+        resolve(null);
+      } else {
+        resolveProgress = () => resolve(null);
+      }
     });
   }
 
@@ -896,11 +916,7 @@ async function* runShellCommand({
       lastTotalLines = totalLines;
       lastTotalBytes = isIncomplete ? totalBytes : 0;
       // Wake the generator so it yields the new progress data
-      const resolve = resolveProgress;
-      if (resolve) {
-        resolveProgress = null;
-        resolve();
-      }
+      wakeCollector();
     },
     preventCwdChanges,
     shouldUseSandbox: shouldUseSandbox(input),
@@ -909,6 +925,28 @@ async function* runShellCommand({
 
   // Start the command execution
   const resultPromise = shellCommand.result;
+  let pendingBackgrounding: Promise<void> | undefined;
+
+
+  // Both the initial wait and progress loop can race backgrounding with exit.
+  // Keep actual output and suppress a duplicate completion notification.
+  function collectCompletedResult(result: ExecResult): ExecResult {
+    let completedResult = result;
+    if (result.backgroundTaskId !== undefined) {
+      markTaskNotified(result.backgroundTaskId, setAppState);
+      completedResult = { ...result, backgroundTaskId: undefined };
+      const { taskOutput } = shellCommand;
+      if (taskOutput.stdoutToFile && !taskOutput.outputFileRedundant) {
+        completedResult.outputFilePath = taskOutput.path;
+        completedResult.outputFileSize = taskOutput.outputFileSize;
+        completedResult.outputTaskId = taskOutput.taskId;
+      }
+    } else if (foregroundTaskId) {
+      unregisterForeground(foregroundTaskId, setAppState);
+    }
+    shellCommand.cleanup();
+    return completedResult;
+  }
 
   // Helper to spawn a background task and return its ID
   async function spawnBackgroundTask(): Promise<string> {
@@ -932,6 +970,8 @@ async function* runShellCommand({
 
   // Helper to start backgrounding with optional logging
   function startBackgrounding(eventName: string, backgroundFn?: (shellId: string) => void): void {
+    if (backgroundingStarted || shellCommand.status !== 'running') return;
+    backgroundingStarted = true;
     // If a foreground task is already registered (via registerForeground in the
     // progress loop), background it in-place instead of re-spawning. Re-spawning
     // would overwrite tasks[taskId], emit a duplicate task_started SDK event,
@@ -941,6 +981,10 @@ async function* runShellCommand({
         return;
       }
       backgroundShellId = foregroundTaskId;
+      // Backgrounding is a state transition, not output progress. Wake the
+      // foreground collector directly: a failed/stalled output-file poll must
+      // not keep the session blocked after its command has moved to background.
+      wakeCollector();
       logEvent(eventName, {
         command_type: getCommandTypeForLogging(command)
       });
@@ -950,19 +994,11 @@ async function* runShellCommand({
 
     // No foreground task registered — spawn a new background task
     // Note: spawn is essentially synchronous despite being async
-    void spawnBackgroundTask().then(shellId => {
+    pendingBackgrounding = spawnBackgroundTask().then(shellId => {
       backgroundShellId = shellId;
 
-      // Wake the generator's Promise.race so it sees backgroundShellId.
-      // Without this, if the poller has stopped ticking for this task
-      // (no output + shared-poller race with sibling stopPolling calls)
-      // and the process is hung on I/O, the race at line ~1357 never
-      // resolves and the generator deadlocks despite being backgrounded.
-      const resolve = resolveProgress;
-      if (resolve) {
-        resolveProgress = null;
-        resolve();
-      }
+      // Publish the durable registration even if no output poll completes.
+      wakeCollector();
       logEvent(eventName, {
         command_type: getCommandTypeForLogging(command)
       });
@@ -970,6 +1006,9 @@ async function* runShellCommand({
         backgroundFn(shellId);
       }
     });
+    // Observe a failed registration immediately and wake the collector so its
+    // awaited transition reports the failure instead of orphaning this wait.
+    void pendingBackgrounding.catch(wakeCollector);
   }
 
   // Set up auto-backgrounding on timeout if enabled
@@ -983,8 +1022,9 @@ async function* runShellCommand({
   // In assistant mode, the main agent should stay responsive. Auto-background
   // blocking commands after ASSISTANT_BLOCKING_BUDGET_MS so the agent can keep
   // coordinating instead of waiting. The command keeps running — no state loss.
+  let autoBackgroundTimer: ReturnType<typeof setTimeout> | undefined;
   if (feature('KAIROS') && getKairosActive() && isMainThread && !isBackgroundTasksDisabled && run_in_background !== true) {
-    setTimeout(() => {
+    autoBackgroundTimer = setTimeout(() => {
       if (shellCommand.status === 'running' && backgroundShellId === undefined) {
         assistantAutoBackgrounded = true;
         startBackgrounding('tengu_bash_command_assistant_auto_backgrounded');
@@ -997,7 +1037,9 @@ async function* runShellCommand({
   // regardless of the command type (isAutobackgroundingAllowed only applies to automatic backgrounding)
   // Skip if background tasks are disabled - run in foreground instead
   if (run_in_background === true && !isBackgroundTasksDisabled) {
+    backgroundingStarted = true;
     const shellId = await spawnBackgroundTask();
+    clearTimeout(autoBackgroundTimer);
     logEvent('tengu_bash_command_explicitly_backgrounded', {
       command_type: getCommandTypeForLogging(command)
     });
@@ -1012,82 +1054,66 @@ async function* runShellCommand({
 
   // Wait for the initial threshold before showing progress
   const startTime = Date.now();
-  let foregroundTaskId: string | undefined = undefined;
-  {
-    const initialResult = await Promise.race([resultPromise, new Promise<null>(resolve => {
-      const t = setTimeout((r: (v: null) => void) => r(null), PROGRESS_THRESHOLD_MS, resolve);
-      t.unref();
-    })]);
-    if (initialResult !== null) {
-      shellCommand.cleanup();
-      return initialResult;
-    }
-    if (backgroundShellId) {
-      return {
-        stdout: '',
-        stderr: '',
-        code: 0,
-        interrupted: false,
-        backgroundTaskId: backgroundShellId,
-        assistantAutoBackgrounded
-      };
-    }
-  }
-
-  // Start polling the output file for progress. The poller's #tick calls
-  // onProgress every second, which resolves progressSignal below.
-  TaskOutput.startPolling(shellCommand.taskOutput.taskId);
-
-  // Progress loop: wake is driven by the shared poller calling onProgress,
-  // which resolves the progressSignal.
+  // ShellCommand intentionally leaves 'interrupt' processes alive. Transfer
+  // ownership to the normal background-task path when new user input arrives.
+  const handleInterrupt = () => {
+    if (abortController.signal.reason !== 'interrupt' || interruptBackgroundingStarted || shellCommand.status !== 'running') return;
+    interruptBackgroundingStarted = true;
+    if (isBackgroundTasksDisabled) shellCommand.kill();
+    else startBackgrounding('tengu_bash_command_interrupt_backgrounded');
+  };
+  const onInterrupt = () => {
+    if (abortController.signal.reason === 'interrupt') wakeCollector();
+  };
+  const stopBackgroundNotifications = shellCommand.onBackground?.(wakeCollector);
+  abortController.signal.addEventListener('abort', onInterrupt);
+  let progressThresholdTimer: ReturnType<typeof setTimeout> | undefined;
   try {
+    if (abortController.signal.aborted) handleInterrupt();
+    {
+      let initialResult = await Promise.race([resultPromise, createProgressSignal(), new Promise<null>(resolve => {
+        progressThresholdTimer = setTimeout((r: (v: null) => void) => r(null), PROGRESS_THRESHOLD_MS, resolve);
+        progressThresholdTimer.unref();
+      })]);
+      clearTimeout(progressThresholdTimer);
+      if (abortController.signal.aborted) handleInterrupt();
+      if (pendingBackgrounding) await pendingBackgrounding;
+      if (interruptBackgroundingStarted && isBackgroundTasksDisabled) initialResult = await resultPromise;
+      if (initialResult !== null) {
+        return collectCompletedResult(initialResult);
+      }
+      if (backgroundShellId) {
+        return {
+          stdout: interruptBackgroundingStarted ? fullOutput : '',
+          stderr: '',
+          code: 0,
+          interrupted: false,
+          backgroundTaskId: backgroundShellId,
+          assistantAutoBackgrounded
+        };
+      }
+    }
+
+    // Start polling the output file for progress. The poller's #tick calls
+    // onProgress every second, which resolves progressSignal below.
+    TaskOutput.startPolling(shellCommand.taskOutput.taskId);
+
+    // Output progress, interruption and background transitions wake this
+    // collector independently; no state transition depends on file polling.
     while (true) {
       const progressSignal = createProgressSignal();
-      const result = await Promise.race([resultPromise, progressSignal]);
+      let result = await Promise.race([resultPromise, progressSignal]);
+      if (abortController.signal.aborted) handleInterrupt();
+      if (pendingBackgrounding) await pendingBackgrounding;
+      if (interruptBackgroundingStarted && isBackgroundTasksDisabled) result = await resultPromise;
       if (result !== null) {
-        // Race: backgrounding fired (15s timer / onTimeout / Ctrl+B) but the
-        // command completed before the next poll tick. #handleExit sets
-        // backgroundTaskId but skips outputFilePath (it assumes the background
-        // message or <task_notification> will carry the path). Strip
-        // backgroundTaskId so the model sees a clean completed command,
-        // reconstruct outputFilePath for large outputs, and suppress the
-        // redundant <task_notification> from the .then() handler.
-        // Check result.backgroundTaskId (not the closure var) to also cover
-        // Ctrl+B, which calls shellCommand.background() directly.
-        if (result.backgroundTaskId !== undefined) {
-          markTaskNotified(result.backgroundTaskId, setAppState);
-          const fixedResult: ExecResult = {
-            ...result,
-            backgroundTaskId: undefined
-          };
-          // Mirror ShellCommand.#handleExit's large-output branch that was
-          // skipped because #backgroundTaskId was set.
-          const {
-            taskOutput
-          } = shellCommand;
-          if (taskOutput.stdoutToFile && !taskOutput.outputFileRedundant) {
-            fixedResult.outputFilePath = taskOutput.path;
-            fixedResult.outputFileSize = taskOutput.outputFileSize;
-            fixedResult.outputTaskId = taskOutput.taskId;
-          }
-          shellCommand.cleanup();
-          return fixedResult;
-        }
-        // Command has completed - return the actual result
-        // If we registered as a foreground task, unregister it
-        if (foregroundTaskId) {
-          unregisterForeground(foregroundTaskId, setAppState);
-        }
-        // Clean up stream resources for foreground commands
-        // (backgrounded commands are cleaned up by LocalShellTask)
-        shellCommand.cleanup();
-        return result;
+        return collectCompletedResult(result);
       }
 
       // Check if command was backgrounded (either via old mechanism or new backgroundAll)
       if (backgroundShellId) {
         return {
-          stdout: '',
+          stdout: interruptBackgroundingStarted ? fullOutput : '',
           stderr: '',
           code: 0,
           interrupted: false,
@@ -1148,6 +1174,11 @@ async function* runShellCommand({
       };
     }
   } finally {
+    abortController.signal.removeEventListener('abort', onInterrupt);
+    stopBackgroundNotifications?.();
+    clearTimeout(progressThresholdTimer);
+    clearTimeout(autoBackgroundTimer);
+    resolveProgress = null;
     TaskOutput.stopPolling(shellCommand.taskOutput.taskId);
   }
 }

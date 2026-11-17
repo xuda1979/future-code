@@ -42,6 +42,8 @@ export type ShellCommand = {
   onTimeout?: (
     callback: (backgroundFn: (taskId: string) => boolean) => void,
   ) => void
+  /** Observe a successful background transition without waiting for output. */
+  onBackground?: (callback: () => void) => () => void
   /** The TaskOutput instance that owns all stdout/stderr data and progress. */
   taskOutput: TaskOutput
 }
@@ -130,6 +132,7 @@ class ShellCommandImpl implements ShellCommand {
   #resultResolver: ((result: ExecResult) => void) | null = null
   #exitCodeResolver: ((code: number) => void) | null = null
   #boundAbortHandler: (() => void) | null = null
+  #backgroundListeners = new Set<() => void>()
   readonly taskOutput: TaskOutput
 
   static #handleTimeout(self: ShellCommandImpl): void {
@@ -360,12 +363,23 @@ class ShellCommandImpl implements ShellCommand {
         // Pipe mode: spill the in-memory buffer so readers can find it on disk.
         this.taskOutput.spillToDisk()
       }
+      // Notification is advisory: an observer must not break the caller's
+      // durable task registration after the process has changed state.
+      for (const listener of this.#backgroundListeners) {
+        try { listener() } catch { /* keep the completed transition intact */ }
+      }
       return true
     }
     return false
   }
 
+  onBackground(callback: () => void): () => void {
+    this.#backgroundListeners.add(callback)
+    return () => { this.#backgroundListeners.delete(callback) }
+  }
+
   cleanup(): void {
+    this.#backgroundListeners.clear()
     this.#stdoutWrapper?.cleanup()
     this.#stderrWrapper?.cleanup()
     this.taskOutput.clear()
