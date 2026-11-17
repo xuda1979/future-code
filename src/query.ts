@@ -122,7 +122,7 @@ import {
 import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
 import { shouldRecoverSilentResponse, hasVisibleAssistantText, modelApiFailureReason } from './utils/responseLiveness.js'
-import { decideAutoGoalContinuation, parkActiveAutoGoal, isAutoGoalMainThread, readAutoGoal, shouldPauseGoalAfterTerminal, autoGoalTerminalDiagnostic } from './commands/goal/auto.js'
+import { decideAutoGoalContinuation, parkActiveAutoGoal, isAutoGoalMainThread, readAutoGoal, shouldPauseGoalAfterTerminal, autoGoalTerminalDiagnostic, classifyGoalHorizon } from './commands/goal/auto.js'
 import { appendGoalRequestAnchor, goalExecutionPolicy } from './commands/goal/context.js'
 import { hasAutonomyQuestionRejection } from './query/autonomyQuestions.js'
 import { notifyQueryActivity, type QueryActivityEvent } from './utils/queryActivity.js'
@@ -131,6 +131,7 @@ import { createHash } from 'node:crypto'
 import { recordProjectSignal, type ProjectSignalInput } from './services/selfImprove/projectSignals.js'
 import { watchModelStream, isModelProgress, modelStreamIdleTimeout, ModelStreamStalledError, ModelRequestDeadlineError, modelStallAction } from './utils/modelStreamLiveness.js'
 import { gitDeliveryPolicy, gitDeliveryModelTimeout, GIT_DELIVERY_GUIDANCE, nextGitDeliveryPhase, gitDeliveryIntent } from './utils/gitDeliveryPolicy.js'
+import { createRoutineDecisionPolicy, isRoutineDecisionCurrent, routineDecisionModelTimeout, recoverRoutineDecision, resetRoutineDecisionAfterTools, type RoutineDecisionState } from './utils/routineDecisionPolicy.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
@@ -369,6 +370,14 @@ async function* queryLoop(
   let gitDelivery = gitDeliveryPolicy(params.messages, mainGoalThread)
   let deliveryRequested = gitDeliveryIntent(params.messages, mainGoalThread)
   const gitModelBudget = { remainingMs: 2 * gitDeliveryModelTimeout() }
+  let routineDecision: RoutineDecisionState | undefined
+  if (mainGoalThread) {
+    try {
+      const goal = readAutoGoal()
+      routineDecision = createRoutineDecisionPolicy(params.messages, mainGoalThread, goal,
+        goal !== null && classifyGoalHorizon(goal.goal, goal.horizon) === 'short')
+    } catch { /* Goal authority errors retain the ordinary visible boundary. */ }
+  }
 
   // Snapshot immutable env/statsig/session state once at entry. See QueryConfig
   // for what's included and why feature() gates are intentionally excluded.
@@ -770,10 +779,21 @@ async function* queryLoop(
     try {
       while (attemptWithFallback) {
         attemptWithFallback = false
+        let routineDeadline: number | undefined
         try {
           let streamingFallbackOccured = false
+          if (routineDecision && !gitDelivery) {
+            try {
+              if (isRoutineDecisionCurrent(routineDecision, readAutoGoal())) routineDeadline = routineDecisionModelTimeout(routineDecision)
+              else routineDecision = undefined
+            } catch { routineDecision = undefined }
+          }
           const requestMessages = gitDelivery ? [...goalRequestMessages,
-            createUserMessage({ content: GIT_DELIVERY_GUIDANCE, isMeta: true })] : goalRequestMessages
+            createUserMessage({ content: GIT_DELIVERY_GUIDANCE, isMeta: true })] : goalRequestMessages.slice()
+          // Keep the final outbound view separate from the fresh authority
+          // anchor and durable history, including across model retries.
+          if (routineDecision?.guidance && !gitDelivery) requestMessages.push(
+            createUserMessage({ content: routineDecision.guidance, isMeta: true }))
           queryCheckpoint('query_api_streaming_start')
           activity({ kind: 'phase', phase: 'model' })
           if (params.onActivity) activity({ kind: 'context', tokens: tokenCountWithEstimation(requestMessages) })
@@ -827,7 +847,8 @@ async function* queryLoop(
               }),
             },
           }), { signal: toolUseContext.abortController.signal, timeoutMs: modelStreamIdleTimeout(), isProgress: isModelProgress,
-            ...(gitDelivery ? { maxDurationMs: gitDeliveryModelTimeout(), timeBudget: gitModelBudget } : {}) })) {
+            ...(gitDelivery ? { maxDurationMs: gitDeliveryModelTimeout(), timeBudget: gitModelBudget } :
+              routineDeadline !== undefined ? { maxDurationMs: routineDeadline } : {}) })) {
             if (isModelProgress(message)) activity({ kind: 'progress' })
             // We won't use the tool_calls from the first attempt
             // We could.. but then we'd have to merge assistant messages
@@ -1022,6 +1043,42 @@ async function* queryLoop(
             }
           }
         } catch (innerError) {
+          // Soft routine latency recovery never becomes goal completion or a
+          // lifetime budget. Admitted calls go to the existing collect path.
+          if (innerError instanceof ModelRequestDeadlineError && routineDeadline !== undefined && !gitDelivery && routineDecision &&
+            toolUseBlocks.length === 0 && !toolUseContext.abortController.signal.aborted) {
+            for (const message of assistantMessages) yield { type: 'tombstone' as const, message }
+            assistantMessages.length = 0
+            toolResults.length = 0
+            needsFollowUp = false
+            streamingToolExecutor?.discard()
+            streamingToolExecutor = useStreamingToolExecution
+              ? new StreamingToolExecutor(toolUseContext.options.tools, canUseTool, toolUseContext) : null
+            if (hasMainThreadQueuedCommand(getCommandQueueSnapshot())) return { reason: 'completed' }
+            const goal = readAutoGoal()
+            if (goal?.state !== 'ACTIVE') return { reason: 'completed' }
+            if (!isRoutineDecisionCurrent(routineDecision, goal)) {
+              routineDecision = undefined
+              yield createSystemMessage('Objective changed during routine latency recovery; continuing under the current objective without the stale deadline.', 'warning')
+            } else {
+              const recovery = recoverRoutineDecision(routineDecision, { admittedTools: 0, aborted: false, currentModel, fallbackModel })!
+              if (recovery.model !== currentModel) {
+                currentModel = recovery.model
+                // Match configured fallback's existing runtime-context
+                // lifecycle so model-bound thinking stays on its producer
+                // through tool followups. No saved model setting is changed.
+                toolUseContext.options.mainLoopModel = recovery.model
+                messagesForQuery = stripSignatureBlocks(messagesForQuery)
+              }
+              yield createSystemMessage(recovery.message, 'warning')
+            }
+            goalRequestMessages = appendGoalRequestAnchor(messagesForQuery, {
+              mainThread: mainGoalThread, makeMessage: content => createUserMessage({ content, isMeta: true }),
+              executionPolicy: autoGoalPolicy,
+            })
+            attemptWithFallback = true
+            continue
+          }
           let activeGoalOnStall = false
           if (mainGoalThread) {
             try { activeGoalOnStall = readAutoGoal()?.state === 'ACTIVE' } catch { /* handled at continuation boundary */ }
@@ -1901,6 +1958,13 @@ async function* queryLoop(
 
     if (mainGoalThread && deliveryRequested) gitDelivery = nextGitDeliveryPhase(gitDelivery, toolUseBlocks, toolResults)
 
+    if (toolResults.some(message => {
+      if (message.type !== 'user' || message.origin !== undefined || !Array.isArray(message.message.content)) return false
+      const receipt = message.toolUseResult as { backgroundTaskId?: unknown; interrupted?: unknown } | null
+      if (receipt && typeof receipt === 'object' && (receipt.backgroundTaskId || receipt.interrupted)) return false
+      return message.message.content.some(block => block.type === 'tool_result' && !block.is_error)
+    })) resetRoutineDecisionAfterTools(routineDecision)
+
     // A rejected question is model feedback, never productive tool work.
     // Bound repeated dialog attempts even when every turn emits tool_use and
     // therefore never reaches the ordinary end-turn continuation decision.
@@ -1987,6 +2051,7 @@ async function* queryLoop(
     if (queuedCommandsSnapshot.some(cmd => cmd.mode === 'prompt' && !cmd.isMeta && cmd.origin === undefined)) {
       gitDelivery = false
       deliveryRequested = false
+      routineDecision = undefined
     }
 
     for await (const attachment of getAttachmentMessages(

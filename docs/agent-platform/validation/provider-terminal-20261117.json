@@ -1,0 +1,1632 @@
+{
+  "schema": 1,
+  "kind": "CONTROLLED_LOCAL_BRIDGE_NOT_LIVE_AGENT_PRODUCTIVITY",
+  "runtime": {
+    "python": "3.12.14",
+    "platform": "Linux",
+    "arch": "x86_64"
+  },
+  "samples_per_arm": 5,
+  "warmup_requests_per_trial": 1,
+  "controlled_post_done_hold_ms": 200.0,
+  "sources": {
+    "baseline": {
+      "revision": "271702277bbbbd1cf3b44dbc3b6d1ab0407c4bac",
+      "sha256": "679baa8e3a15658807d411283d71e13a67d2809701ee8e1b132e94e2caf43530"
+    },
+    "candidate": {
+      "revision": "271702277bbbbd1cf3b44dbc3b6d1ab0407c4bac",
+      "sha256": "c7d5c549da47759a85015120d0417ccf1a50d7602b5505b033eba4c086490eb9"
+    }
+  },
+  "opencode_native": {
+    "package": "@opencode/ai",
+    "version": "2.3.0",
+    "package_integrity": "sha512-CsaY18G5cXtNvOgvONaxguFeaWf+gENSYKzDnYIIREpoSLjLm9oF2v+adaE4nUozM1qIMR4+s23VOViaRypFLw==",
+    "package_resolved": "https://registry.npmjs.org/@opencode/ai/-/ai-2.3.0.tgz",
+    "package_lock_sha256": "97bd6ac2e6b5754eae9872f4d11f1e9a357651e3b36894159f6cf2173bee5d7b",
+    "protocol_sha256": "7d6eab4c478813c521d1ca629db7398c987b648bfbefb65259c7081fb5ca6a77",
+    "probe_sha256": "4e0abb042f81941508c5344cdc6d606afc136796a8305cee9e0c0ab6665576a4"
+  },
+  "fixture_sha256": "aae6fc8a96381f897ebc99e1a96555a1cadeee34df6b5d999651c33de5f12881",
+  "results": {
+    "single_tool": {
+      "baseline": {
+        "median_total_ms": 205.07084299970302,
+        "median_tool_ready_ms": 205.02687500083994,
+        "total_upstream_requests": 10
+      },
+      "candidate": {
+        "median_total_ms": 3.7467379988811444,
+        "median_tool_ready_ms": 3.733599998668069,
+        "total_upstream_requests": 10
+      },
+      "opencode_native": {
+        "median_total_ms": 12.688167000000021,
+        "median_tool_ready_ms": 12.169623000000001,
+        "total_upstream_requests": 10
+      }
+    },
+    "repeated_12_turns": {
+      "baseline": {
+        "median_total_ms": 2501.555405000545,
+        "median_tool_ready_ms": 205.67287450012373,
+        "total_upstream_requests": 65
+      },
+      "candidate": {
+        "median_total_ms": 51.04960400240088,
+        "median_tool_ready_ms": 3.71882400031609,
+        "total_upstream_requests": 65
+      },
+      "opencode_native": {
+        "median_total_ms": 155.37393500000053,
+        "median_tool_ready_ms": 11.325617999999963,
+        "total_upstream_requests": 65
+      }
+    },
+    "immediate_eof": {
+      "baseline": {
+        "median_total_ms": 3.758152000955306,
+        "median_tool_ready_ms": 3.7450670006364817,
+        "total_upstream_requests": 10
+      },
+      "candidate": {
+        "median_total_ms": 3.207251000276301,
+        "median_tool_ready_ms": 3.1985570003598696,
+        "total_upstream_requests": 10
+      },
+      "opencode_native": {
+        "median_total_ms": 12.902156999999988,
+        "median_tool_ready_ms": 12.287277000000131,
+        "total_upstream_requests": 10
+      }
+    }
+  },
+  "runs": [
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 211.40110200030904,
+      "timings": [
+        {
+          "tool_ready_ms": 211.38294999946083,
+          "complete_ms": 211.40110200030904
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 208.0596380001225,
+        "complete_ms": 208.07790700018813
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "bridge_total_ms": 2543.2591779990616,
+      "timings": [
+        {
+          "tool_ready_ms": 204.56717899833166,
+          "complete_ms": 204.58509899981436
+        },
+        {
+          "tool_ready_ms": 205.3107480005565,
+          "complete_ms": 205.41233199946873
+        },
+        {
+          "tool_ready_ms": 211.55684599943925,
+          "complete_ms": 211.58033100073226
+        },
+        {
+          "tool_ready_ms": 206.2822360003338,
+          "complete_ms": 206.3000109992572
+        },
+        {
+          "tool_ready_ms": 209.18248999987554,
+          "complete_ms": 209.21551500032365
+        },
+        {
+          "tool_ready_ms": 209.1219939993607,
+          "complete_ms": 209.14078500027244
+        },
+        {
+          "tool_ready_ms": 205.84043000053498,
+          "complete_ms": 206.09193299969775
+        },
+        {
+          "tool_ready_ms": 204.8620950008626,
+          "complete_ms": 204.88222800122458
+        },
+        {
+          "tool_ready_ms": 240.20209400077874,
+          "complete_ms": 240.22080800023105
+        },
+        {
+          "tool_ready_ms": 207.749387000149,
+          "complete_ms": 207.76878700053203
+        },
+        {
+          "tool_ready_ms": 232.86224999901606,
+          "complete_ms": 232.9076449987042
+        },
+        {
+          "tool_ready_ms": 205.13627999935125,
+          "complete_ms": 205.1537039988034
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 204.7811409993301,
+        "complete_ms": 204.9811619999673
+      },
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 0,
+      "arm": "baseline",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 6.30599199939752,
+      "timings": [
+        {
+          "tool_ready_ms": 6.291323999903398,
+          "complete_ms": 6.30599199939752
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 7.195685000624508,
+        "complete_ms": 7.205140000223764
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 3.517428000122891,
+      "timings": [
+        {
+          "tool_ready_ms": 3.509124999254709,
+          "complete_ms": 3.517428000122891
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 4.308583000238286,
+        "complete_ms": 4.317211998568382
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "bridge_total_ms": 58.24073000076169,
+      "timings": [
+        {
+          "tool_ready_ms": 4.169093001110014,
+          "complete_ms": 4.2858680008066585
+        },
+        {
+          "tool_ready_ms": 5.787580999822239,
+          "complete_ms": 5.918733000726206
+        },
+        {
+          "tool_ready_ms": 3.84200899861753,
+          "complete_ms": 3.8514799998665694
+        },
+        {
+          "tool_ready_ms": 4.406065001603565,
+          "complete_ms": 4.417490001287661
+        },
+        {
+          "tool_ready_ms": 8.168569000190473,
+          "complete_ms": 8.177944000635762
+        },
+        {
+          "tool_ready_ms": 4.810378999536624,
+          "complete_ms": 4.819294999833801
+        },
+        {
+          "tool_ready_ms": 3.6692169996968005,
+          "complete_ms": 3.6786749988095835
+        },
+        {
+          "tool_ready_ms": 2.991405999637209,
+          "complete_ms": 3.000418999363319
+        },
+        {
+          "tool_ready_ms": 3.388810999240377,
+          "complete_ms": 3.458469998804503
+        },
+        {
+          "tool_ready_ms": 4.208263000691659,
+          "complete_ms": 4.220047001581406
+        },
+        {
+          "tool_ready_ms": 6.564466000781977,
+          "complete_ms": 6.574111999725574
+        },
+        {
+          "tool_ready_ms": 5.8291940003982745,
+          "complete_ms": 5.838196999320644
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 3.553053000359796,
+        "complete_ms": 3.598900000724825
+      },
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 0,
+      "arm": "candidate",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 4.717320998679497,
+      "timings": [
+        {
+          "tool_ready_ms": 4.70705000043381,
+          "complete_ms": 4.717320998679497
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 4.42474700139428,
+        "complete_ms": 4.433690000951174
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 0,
+      "arm": "opencode_native",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "warmup": {
+        "tool_ready_ms": 91.03789599999982,
+        "complete_ms": 92.8368089999999
+      },
+      "bridge_total_ms": 11.615899000000127,
+      "timings": [
+        {
+          "tool_ready_ms": 11.071781000000101,
+          "complete_ms": 11.615899000000127
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 0,
+      "arm": "opencode_native",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "warmup": {
+        "tool_ready_ms": 89.52743699999996,
+        "complete_ms": 92.09625400000004
+      },
+      "bridge_total_ms": 114.9370679999995,
+      "timings": [
+        {
+          "tool_ready_ms": 12.498272999999926,
+          "complete_ms": 13.053911999999855
+        },
+        {
+          "tool_ready_ms": 11.116956999999957,
+          "complete_ms": 11.734154999999873
+        },
+        {
+          "tool_ready_ms": 9.29709200000002,
+          "complete_ms": 9.762791000000107
+        },
+        {
+          "tool_ready_ms": 8.363775000000032,
+          "complete_ms": 8.789027000000033
+        },
+        {
+          "tool_ready_ms": 11.127316999999948,
+          "complete_ms": 11.943192999999837
+        },
+        {
+          "tool_ready_ms": 10.442371000000094,
+          "complete_ms": 10.817474000000175
+        },
+        {
+          "tool_ready_ms": 8.239051999999901,
+          "complete_ms": 8.54664200000002
+        },
+        {
+          "tool_ready_ms": 8.692911999999978,
+          "complete_ms": 9.201667999999927
+        },
+        {
+          "tool_ready_ms": 7.676930999999968,
+          "complete_ms": 8.091473999999835
+        },
+        {
+          "tool_ready_ms": 6.226505000000088,
+          "complete_ms": 6.631926999999905
+        },
+        {
+          "tool_ready_ms": 7.361146999999846,
+          "complete_ms": 7.748869000000013
+        },
+        {
+          "tool_ready_ms": 8.217587999999978,
+          "complete_ms": 8.61593599999992
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 0,
+      "arm": "opencode_native",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "warmup": {
+        "tool_ready_ms": 93.68874400000004,
+        "complete_ms": 95.6984010000001
+      },
+      "bridge_total_ms": 13.407080000000178,
+      "timings": [
+        {
+          "tool_ready_ms": 12.287277000000131,
+          "complete_ms": 13.407080000000178
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 3.7467379988811444,
+      "timings": [
+        {
+          "tool_ready_ms": 3.733599998668069,
+          "complete_ms": 3.7467379988811444
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 4.198135000478942,
+        "complete_ms": 4.213840000375058
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "bridge_total_ms": 40.95825100193906,
+      "timings": [
+        {
+          "tool_ready_ms": 3.298120998806553,
+          "complete_ms": 3.3074189996114
+        },
+        {
+          "tool_ready_ms": 3.2233379988610977,
+          "complete_ms": 3.2583319989498705
+        },
+        {
+          "tool_ready_ms": 3.4170340004493482,
+          "complete_ms": 3.42575200011197
+        },
+        {
+          "tool_ready_ms": 3.484799999569077,
+          "complete_ms": 3.522504001011839
+        },
+        {
+          "tool_ready_ms": 2.9038230004516663,
+          "complete_ms": 2.91339099931065
+        },
+        {
+          "tool_ready_ms": 3.7180369999987306,
+          "complete_ms": 3.727035000338219
+        },
+        {
+          "tool_ready_ms": 3.2650030007062014,
+          "complete_ms": 3.2760070007498143
+        },
+        {
+          "tool_ready_ms": 3.7196110006334493,
+          "complete_ms": 3.7289070005499525
+        },
+        {
+          "tool_ready_ms": 3.2061490001069615,
+          "complete_ms": 4.039663999719778
+        },
+        {
+          "tool_ready_ms": 3.230782000173349,
+          "complete_ms": 3.2394240006397013
+        },
+        {
+          "tool_ready_ms": 3.14252800126269,
+          "complete_ms": 3.1514170004811604
+        },
+        {
+          "tool_ready_ms": 3.359275000548223,
+          "complete_ms": 3.3683990004647058
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 3.752511998754926,
+        "complete_ms": 3.7651719994755695
+      },
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 1,
+      "arm": "candidate",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 3.194151000570855,
+      "timings": [
+        {
+          "tool_ready_ms": 3.182088999892585,
+          "complete_ms": 3.194151000570855
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 3.3049760004359996,
+        "complete_ms": 3.3146229998237686
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 1,
+      "arm": "opencode_native",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "warmup": {
+        "tool_ready_ms": 96.36025999999993,
+        "complete_ms": 98.035345
+      },
+      "bridge_total_ms": 12.688167000000021,
+      "timings": [
+        {
+          "tool_ready_ms": 12.169623000000001,
+          "complete_ms": 12.688167000000021
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 1,
+      "arm": "opencode_native",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "warmup": {
+        "tool_ready_ms": 124.39600999999993,
+        "complete_ms": 127.27118399999995
+      },
+      "bridge_total_ms": 264.4430849999994,
+      "timings": [
+        {
+          "tool_ready_ms": 17.655915999999934,
+          "complete_ms": 18.30782299999987
+        },
+        {
+          "tool_ready_ms": 10.856772999999976,
+          "complete_ms": 11.441475999999966
+        },
+        {
+          "tool_ready_ms": 105.65269500000022,
+          "complete_ms": 106.68901600000004
+        },
+        {
+          "tool_ready_ms": 17.212921999999935,
+          "complete_ms": 18.933419999999842
+        },
+        {
+          "tool_ready_ms": 11.873172999999952,
+          "complete_ms": 12.347719999999981
+        },
+        {
+          "tool_ready_ms": 12.898500999999897,
+          "complete_ms": 13.368606
+        },
+        {
+          "tool_ready_ms": 12.370018000000073,
+          "complete_ms": 12.87756400000012
+        },
+        {
+          "tool_ready_ms": 23.393123999999943,
+          "complete_ms": 24.02324899999985
+        },
+        {
+          "tool_ready_ms": 11.2507599999999,
+          "complete_ms": 11.739959999999883
+        },
+        {
+          "tool_ready_ms": 12.514253000000053,
+          "complete_ms": 12.931066999999985
+        },
+        {
+          "tool_ready_ms": 11.678267999999889,
+          "complete_ms": 11.943771999999854
+        },
+        {
+          "tool_ready_ms": 9.103546999999935,
+          "complete_ms": 9.839412000000038
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 1,
+      "arm": "opencode_native",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "warmup": {
+        "tool_ready_ms": 86.76534100000003,
+        "complete_ms": 88.61571400000003
+      },
+      "bridge_total_ms": 12.902156999999988,
+      "timings": [
+        {
+          "tool_ready_ms": 12.373665999999957,
+          "complete_ms": 12.902156999999988
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 204.6501549993991,
+      "timings": [
+        {
+          "tool_ready_ms": 204.6277959998406,
+          "complete_ms": 204.6501549993991
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 204.21032800004468,
+        "complete_ms": 204.23447400025907
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "bridge_total_ms": 2487.479662999249,
+      "timings": [
+        {
+          "tool_ready_ms": 208.2824740009528,
+          "complete_ms": 208.3039290009765
+        },
+        {
+          "tool_ready_ms": 204.79508400057966,
+          "complete_ms": 204.81728900085727
+        },
+        {
+          "tool_ready_ms": 205.09602299898688,
+          "complete_ms": 205.11666899983538
+        },
+        {
+          "tool_ready_ms": 204.77575900076772,
+          "complete_ms": 204.7986289999244
+        },
+        {
+          "tool_ready_ms": 209.44731000054162,
+          "complete_ms": 209.46926800024812
+        },
+        {
+          "tool_ready_ms": 210.7558509997034,
+          "complete_ms": 210.78116999888152
+        },
+        {
+          "tool_ready_ms": 211.23129300030996,
+          "complete_ms": 211.254824000207
+        },
+        {
+          "tool_ready_ms": 204.51769499959482,
+          "complete_ms": 204.54098399932263
+        },
+        {
+          "tool_ready_ms": 205.25251099934394,
+          "complete_ms": 205.27245499943092
+        },
+        {
+          "tool_ready_ms": 209.85660100086534,
+          "complete_ms": 209.89175199974852
+        },
+        {
+          "tool_ready_ms": 207.78150299884146,
+          "complete_ms": 207.80337799988047
+        },
+        {
+          "tool_ready_ms": 205.40650300063135,
+          "complete_ms": 205.42931599993608
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 208.52254899909894,
+        "complete_ms": 208.5495909996098
+      },
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 1,
+      "arm": "baseline",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 3.758152000955306,
+      "timings": [
+        {
+          "tool_ready_ms": 3.7450670006364817,
+          "complete_ms": 3.758152000955306
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 4.598993000399787,
+        "complete_ms": 4.61254000038025
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 2,
+      "arm": "opencode_native",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "warmup": {
+        "tool_ready_ms": 101.61197000000016,
+        "complete_ms": 103.70140800000013
+      },
+      "bridge_total_ms": 30.46538899999996,
+      "timings": [
+        {
+          "tool_ready_ms": 29.902796999999964,
+          "complete_ms": 30.46538899999996
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 2,
+      "arm": "opencode_native",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "warmup": {
+        "tool_ready_ms": 107.14583900000002,
+        "complete_ms": 108.78910099999985
+      },
+      "bridge_total_ms": 155.37393500000053,
+      "timings": [
+        {
+          "tool_ready_ms": 16.569972000000007,
+          "complete_ms": 17.530780999999934
+        },
+        {
+          "tool_ready_ms": 12.283975000000055,
+          "complete_ms": 12.724384999999984
+        },
+        {
+          "tool_ready_ms": 11.510414999999966,
+          "complete_ms": 12.386032999999998
+        },
+        {
+          "tool_ready_ms": 14.110421000000088,
+          "complete_ms": 14.849475000000211
+        },
+        {
+          "tool_ready_ms": 13.141202000000021,
+          "complete_ms": 13.863902000000053
+        },
+        {
+          "tool_ready_ms": 15.422539000000143,
+          "complete_ms": 16.121921000000157
+        },
+        {
+          "tool_ready_ms": 18.85973600000011,
+          "complete_ms": 20.289103999999952
+        },
+        {
+          "tool_ready_ms": 15.272077000000081,
+          "complete_ms": 15.900497000000087
+        },
+        {
+          "tool_ready_ms": 9.936973999999964,
+          "complete_ms": 10.625140999999985
+        },
+        {
+          "tool_ready_ms": 6.708861999999954,
+          "complete_ms": 7.211577000000034
+        },
+        {
+          "tool_ready_ms": 6.241350999999895,
+          "complete_ms": 6.505047999999988
+        },
+        {
+          "tool_ready_ms": 6.768627000000151,
+          "complete_ms": 7.366071000000147
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 2,
+      "arm": "opencode_native",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "warmup": {
+        "tool_ready_ms": 127.70101599999998,
+        "complete_ms": 130.64003200000025
+      },
+      "bridge_total_ms": 19.28062200000022,
+      "timings": [
+        {
+          "tool_ready_ms": 18.396561999999903,
+          "complete_ms": 19.28062200000022
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 204.3925220004894,
+      "timings": [
+        {
+          "tool_ready_ms": 204.19134800067695,
+          "complete_ms": 204.3925220004894
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 206.55033000002732,
+        "complete_ms": 206.56625399897166
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "bridge_total_ms": 2501.555405000545,
+      "timings": [
+        {
+          "tool_ready_ms": 204.435982999712,
+          "complete_ms": 204.62216700070712
+        },
+        {
+          "tool_ready_ms": 204.3496550013515,
+          "complete_ms": 204.36504300050728
+        },
+        {
+          "tool_ready_ms": 204.94376200076658,
+          "complete_ms": 204.95949900032429
+        },
+        {
+          "tool_ready_ms": 204.8731899994891,
+          "complete_ms": 204.88995099913154
+        },
+        {
+          "tool_ready_ms": 220.6752210004197,
+          "complete_ms": 220.69860299961874
+        },
+        {
+          "tool_ready_ms": 228.7693690013839,
+          "complete_ms": 228.80210100083787
+        },
+        {
+          "tool_ready_ms": 204.7027110002091,
+          "complete_ms": 204.71753099991474
+        },
+        {
+          "tool_ready_ms": 206.1077620001015,
+          "complete_ms": 206.12457800052653
+        },
+        {
+          "tool_ready_ms": 205.24967199889943,
+          "complete_ms": 205.265837999832
+        },
+        {
+          "tool_ready_ms": 204.3872129997908,
+          "complete_ms": 204.74059899970598
+        },
+        {
+          "tool_ready_ms": 205.88660500106926,
+          "complete_ms": 205.93249400008062
+        },
+        {
+          "tool_ready_ms": 206.41944799899647,
+          "complete_ms": 206.43700099935813
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 204.6359409996512,
+        "complete_ms": 204.68194400018547
+      },
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 2,
+      "arm": "baseline",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 4.49586300055671,
+      "timings": [
+        {
+          "tool_ready_ms": 4.341743000622955,
+          "complete_ms": 4.49586300055671
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 4.881527998804813,
+        "complete_ms": 5.140117998962523
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 3.7610859999404056,
+      "timings": [
+        {
+          "tool_ready_ms": 3.7522339989664033,
+          "complete_ms": 3.7610859999404056
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 3.610726000260911,
+        "complete_ms": 3.6202350001985906
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "bridge_total_ms": 105.39331399922958,
+      "timings": [
+        {
+          "tool_ready_ms": 3.6152000011497876,
+          "complete_ms": 3.6237640015315264
+        },
+        {
+          "tool_ready_ms": 4.133906000788556,
+          "complete_ms": 4.142898000282003
+        },
+        {
+          "tool_ready_ms": 3.348441001435276,
+          "complete_ms": 3.392163000171422
+        },
+        {
+          "tool_ready_ms": 4.1988029988715425,
+          "complete_ms": 4.215314000248327
+        },
+        {
+          "tool_ready_ms": 48.475957999471575,
+          "complete_ms": 48.48721499911335
+        },
+        {
+          "tool_ready_ms": 16.251496999757364,
+          "complete_ms": 16.261187000054633
+        },
+        {
+          "tool_ready_ms": 4.587996001646388,
+          "complete_ms": 4.596730001139804
+        },
+        {
+          "tool_ready_ms": 4.274124999938067,
+          "complete_ms": 4.283059999579564
+        },
+        {
+          "tool_ready_ms": 3.6466040000959765,
+          "complete_ms": 3.6558060000970727
+        },
+        {
+          "tool_ready_ms": 4.770858999108896,
+          "complete_ms": 4.784408998602885
+        },
+        {
+          "tool_ready_ms": 3.4242509991599945,
+          "complete_ms": 3.437731998928939
+        },
+        {
+          "tool_ready_ms": 4.503789999944274,
+          "complete_ms": 4.513035999480053
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 4.635459999917657,
+        "complete_ms": 4.644530001314706
+      },
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 2,
+      "arm": "candidate",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 3.7950350015307777,
+      "timings": [
+        {
+          "tool_ready_ms": 3.7745030003861757,
+          "complete_ms": 3.7950350015307777
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 3.8392040005419403,
+        "complete_ms": 3.847808000500663
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 229.09101499863027,
+      "timings": [
+        {
+          "tool_ready_ms": 229.0706539988605,
+          "complete_ms": 229.09101499863027
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 203.9956720000191,
+        "complete_ms": 204.01058400057082
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "bridge_total_ms": 2510.585097999865,
+      "timings": [
+        {
+          "tool_ready_ms": 220.81198100022448,
+          "complete_ms": 220.8291030001419
+        },
+        {
+          "tool_ready_ms": 204.18676799999957,
+          "complete_ms": 204.39773099860759
+        },
+        {
+          "tool_ready_ms": 204.59629700053483,
+          "complete_ms": 204.61313600026187
+        },
+        {
+          "tool_ready_ms": 204.16416300031415,
+          "complete_ms": 204.18071399944893
+        },
+        {
+          "tool_ready_ms": 204.94311200127413,
+          "complete_ms": 204.98668199979875
+        },
+        {
+          "tool_ready_ms": 204.8468180000782,
+          "complete_ms": 204.86378500027058
+        },
+        {
+          "tool_ready_ms": 204.41018200108374,
+          "complete_ms": 204.4251550014451
+        },
+        {
+          "tool_ready_ms": 204.05481799934932,
+          "complete_ms": 204.069260000324
+        },
+        {
+          "tool_ready_ms": 227.41186900020693,
+          "complete_ms": 227.57844900115742
+        },
+        {
+          "tool_ready_ms": 220.67976599828398,
+          "complete_ms": 220.6930559987086
+        },
+        {
+          "tool_ready_ms": 204.49240600100893,
+          "complete_ms": 204.505544001222
+        },
+        {
+          "tool_ready_ms": 205.4280979991745,
+          "complete_ms": 205.44248299847823
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 210.49928799948248,
+        "complete_ms": 210.52984599919
+      },
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 3,
+      "arm": "baseline",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 3.58789500023704,
+      "timings": [
+        {
+          "tool_ready_ms": 3.526534999764408,
+          "complete_ms": 3.58789500023704
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 4.116963000342366,
+        "complete_ms": 4.133125999942422
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 3.0473440001514973,
+      "timings": [
+        {
+          "tool_ready_ms": 3.0385770005523227,
+          "complete_ms": 3.0473440001514973
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 3.485551000267151,
+        "complete_ms": 3.4943239988933783
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "bridge_total_ms": 46.78712300665211,
+      "timings": [
+        {
+          "tool_ready_ms": 4.217784999127616,
+          "complete_ms": 4.226872999424813
+        },
+        {
+          "tool_ready_ms": 3.448588000537711,
+          "complete_ms": 3.4572420008771587
+        },
+        {
+          "tool_ready_ms": 3.0841970001347363,
+          "complete_ms": 3.0963389999669744
+        },
+        {
+          "tool_ready_ms": 3.172783999616513,
+          "complete_ms": 3.1810670006962027
+        },
+        {
+          "tool_ready_ms": 3.987735999544384,
+          "complete_ms": 3.9965050000319025
+        },
+        {
+          "tool_ready_ms": 4.4156479998491704,
+          "complete_ms": 4.529480000201147
+        },
+        {
+          "tool_ready_ms": 2.9438359997584485,
+          "complete_ms": 3.0201450008462416
+        },
+        {
+          "tool_ready_ms": 4.748037999888766,
+          "complete_ms": 4.762741000376991
+        },
+        {
+          "tool_ready_ms": 3.6940710015187506,
+          "complete_ms": 3.777913001613342
+        },
+        {
+          "tool_ready_ms": 4.927256000883062,
+          "complete_ms": 4.9373320016457
+        },
+        {
+          "tool_ready_ms": 3.2756770015112124,
+          "complete_ms": 3.288638001322397
+        },
+        {
+          "tool_ready_ms": 4.498860000239802,
+          "complete_ms": 4.512847999649239
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 3.707568999743671,
+        "complete_ms": 3.7164410005061654
+      },
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 3,
+      "arm": "candidate",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 3.207251000276301,
+      "timings": [
+        {
+          "tool_ready_ms": 3.1985570003598696,
+          "complete_ms": 3.207251000276301
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 3.193836000718875,
+        "complete_ms": 3.202925001460244
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 3,
+      "arm": "opencode_native",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "warmup": {
+        "tool_ready_ms": 161.35128200000008,
+        "complete_ms": 163.64213999999993
+      },
+      "bridge_total_ms": 15.39081699999997,
+      "timings": [
+        {
+          "tool_ready_ms": 14.906204000000116,
+          "complete_ms": 15.39081699999997
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 3,
+      "arm": "opencode_native",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "warmup": {
+        "tool_ready_ms": 727.3860679999998,
+        "complete_ms": 730.7817329999998
+      },
+      "bridge_total_ms": 203.8375349999992,
+      "timings": [
+        {
+          "tool_ready_ms": 20.621679999999742,
+          "complete_ms": 21.592908999999963
+        },
+        {
+          "tool_ready_ms": 15.644828999999845,
+          "complete_ms": 16.456247000000076
+        },
+        {
+          "tool_ready_ms": 16.921955999999682,
+          "complete_ms": 17.87816900000007
+        },
+        {
+          "tool_ready_ms": 16.373947999999928,
+          "complete_ms": 17.021456999999828
+        },
+        {
+          "tool_ready_ms": 11.743573999999626,
+          "complete_ms": 12.398155999999744
+        },
+        {
+          "tool_ready_ms": 9.798600999999962,
+          "complete_ms": 10.270592000000306
+        },
+        {
+          "tool_ready_ms": 16.051376999999775,
+          "complete_ms": 16.419462999999723
+        },
+        {
+          "tool_ready_ms": 13.231603999999606,
+          "complete_ms": 15.030859999999848
+        },
+        {
+          "tool_ready_ms": 46.04736999999977,
+          "complete_ms": 47.67756499999996
+        },
+        {
+          "tool_ready_ms": 10.59346400000004,
+          "complete_ms": 11.243637000000035
+        },
+        {
+          "tool_ready_ms": 9.698199999999815,
+          "complete_ms": 10.197111999999834
+        },
+        {
+          "tool_ready_ms": 7.282983000000058,
+          "complete_ms": 7.65136799999982
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 3,
+      "arm": "opencode_native",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "warmup": {
+        "tool_ready_ms": 81.73729000000003,
+        "complete_ms": 83.50302299999998
+      },
+      "bridge_total_ms": 10.900180999999975,
+      "timings": [
+        {
+          "tool_ready_ms": 10.355979999999931,
+          "complete_ms": 10.900180999999975
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 9.212938999553444,
+      "timings": [
+        {
+          "tool_ready_ms": 9.130712000114727,
+          "complete_ms": 9.212938999553444
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 5.216323999775341,
+        "complete_ms": 5.225175000305171
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "bridge_total_ms": 51.04960400240088,
+      "timings": [
+        {
+          "tool_ready_ms": 8.57126499977312,
+          "complete_ms": 8.580776000599144
+        },
+        {
+          "tool_ready_ms": 3.3734560001903446,
+          "complete_ms": 3.3898680012498517
+        },
+        {
+          "tool_ready_ms": 3.5516410007403465,
+          "complete_ms": 3.5616029999800958
+        },
+        {
+          "tool_ready_ms": 4.514235999522498,
+          "complete_ms": 4.705225999714457
+        },
+        {
+          "tool_ready_ms": 5.884853999305051,
+          "complete_ms": 5.894333000469487
+        },
+        {
+          "tool_ready_ms": 3.9752619995852,
+          "complete_ms": 3.9859810003690654
+        },
+        {
+          "tool_ready_ms": 4.016890999992029,
+          "complete_ms": 4.026491998956772
+        },
+        {
+          "tool_ready_ms": 2.9833640001015738,
+          "complete_ms": 2.9925840008218074
+        },
+        {
+          "tool_ready_ms": 3.244999999878928,
+          "complete_ms": 3.257657001086045
+        },
+        {
+          "tool_ready_ms": 3.4450189996277913,
+          "complete_ms": 3.459221999946749
+        },
+        {
+          "tool_ready_ms": 3.411936999327736,
+          "complete_ms": 3.4239389988215407
+        },
+        {
+          "tool_ready_ms": 3.759246001209249,
+          "complete_ms": 3.7719230003858684
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 7.015086999672349,
+        "complete_ms": 7.105711998519837
+      },
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 4,
+      "arm": "candidate",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 3.058674001295003,
+      "timings": [
+        {
+          "tool_ready_ms": 3.0493720005324576,
+          "complete_ms": 3.058674001295003
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 4.281116000129259,
+        "complete_ms": 4.290708000553423
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 4,
+      "arm": "opencode_native",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "warmup": {
+        "tool_ready_ms": 131.264858,
+        "complete_ms": 133.10421500000007
+      },
+      "bridge_total_ms": 12.226445999999896,
+      "timings": [
+        {
+          "tool_ready_ms": 11.693385000000035,
+          "complete_ms": 12.226445999999896
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 4,
+      "arm": "opencode_native",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "warmup": {
+        "tool_ready_ms": 115.87592399999994,
+        "complete_ms": 117.87908600000014
+      },
+      "bridge_total_ms": 136.9229829999997,
+      "timings": [
+        {
+          "tool_ready_ms": 13.013937999999825,
+          "complete_ms": 13.76671999999985
+        },
+        {
+          "tool_ready_ms": 14.344499000000042,
+          "complete_ms": 14.842129000000114
+        },
+        {
+          "tool_ready_ms": 11.11278900000002,
+          "complete_ms": 11.632969000000003
+        },
+        {
+          "tool_ready_ms": 11.400476000000026,
+          "complete_ms": 12.59501299999988
+        },
+        {
+          "tool_ready_ms": 11.439094000000068,
+          "complete_ms": 12.591265000000021
+        },
+        {
+          "tool_ready_ms": 11.172706999999946,
+          "complete_ms": 11.686854999999923
+        },
+        {
+          "tool_ready_ms": 10.935701999999992,
+          "complete_ms": 11.358536999999842
+        },
+        {
+          "tool_ready_ms": 10.698707000000013,
+          "complete_ms": 11.373338000000103
+        },
+        {
+          "tool_ready_ms": 10.549061999999822,
+          "complete_ms": 11.036415000000034
+        },
+        {
+          "tool_ready_ms": 9.680512000000135,
+          "complete_ms": 10.55958899999996
+        },
+        {
+          "tool_ready_ms": 6.746820999999954,
+          "complete_ms": 7.239595000000008
+        },
+        {
+          "tool_ready_ms": 7.507479999999987,
+          "complete_ms": 8.240557999999965
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 4,
+      "arm": "opencode_native",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "warmup": {
+        "tool_ready_ms": 105.51015900000016,
+        "complete_ms": 107.1689060000001
+      },
+      "bridge_total_ms": 12.885798000000023,
+      "timings": [
+        {
+          "tool_ready_ms": 12.286261999999851,
+          "complete_ms": 12.885798000000023
+        }
+      ],
+      "package_version": "2.3.0",
+      "node_version": "v24.22.1",
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "scenario": "single_tool",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 205.07084299970302,
+      "timings": [
+        {
+          "tool_ready_ms": 205.02687500083994,
+          "complete_ms": 205.07084299970302
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 205.85197699983837,
+        "complete_ms": 205.8943720003299
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "scenario": "repeated_12_turns",
+      "rounds": 12,
+      "upstream_requests": 13,
+      "bridge_total_ms": 2485.603730998264,
+      "timings": [
+        {
+          "tool_ready_ms": 205.86746399931144,
+          "complete_ms": 205.8816319986363
+        },
+        {
+          "tool_ready_ms": 208.82942500065838,
+          "complete_ms": 208.84657299939136
+        },
+        {
+          "tool_ready_ms": 209.84901400152012,
+          "complete_ms": 209.866339000655
+        },
+        {
+          "tool_ready_ms": 208.3932490004372,
+          "complete_ms": 208.41000200016424
+        },
+        {
+          "tool_ready_ms": 207.83108500108938,
+          "complete_ms": 207.8485729998647
+        },
+        {
+          "tool_ready_ms": 205.85107499937294,
+          "complete_ms": 205.94583499951113
+        },
+        {
+          "tool_ready_ms": 205.29525900019507,
+          "complete_ms": 205.31163200030278
+        },
+        {
+          "tool_ready_ms": 204.76819100076682,
+          "complete_ms": 204.78298099988024
+        },
+        {
+          "tool_ready_ms": 205.09200399828842,
+          "complete_ms": 205.32233599988103
+        },
+        {
+          "tool_ready_ms": 205.50531899971247,
+          "complete_ms": 205.52261300144892
+        },
+        {
+          "tool_ready_ms": 209.13517699955264,
+          "complete_ms": 209.31948399993416
+        },
+        {
+          "tool_ready_ms": 208.52846099842282,
+          "complete_ms": 208.54573099859408
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 203.56641699981992,
+        "complete_ms": 203.781625999909
+      },
+      "receipt_sha256": "9b94995c64eb21a3169cad6b18349bb14cdc14b236a265ea981ad9563aa79d03"
+    },
+    {
+      "sample": 4,
+      "arm": "baseline",
+      "scenario": "immediate_eof",
+      "rounds": 1,
+      "upstream_requests": 2,
+      "bridge_total_ms": 3.5033190015383298,
+      "timings": [
+        {
+          "tool_ready_ms": 3.4943190003104974,
+          "complete_ms": 3.5033190015383298
+        }
+      ],
+      "warmup": {
+        "tool_ready_ms": 4.791534000105457,
+        "complete_ms": 4.803392999747302
+      },
+      "receipt_sha256": "ac74b4e3e666b9c48387e8caece76268cafb62e095e4fecabfb5929c3710ac40"
+    }
+  ]
+}

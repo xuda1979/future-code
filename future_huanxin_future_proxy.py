@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import queue
+import socket
 import ssl
 import sys
 import threading
@@ -174,7 +175,7 @@ def convert_tools(raw_tools: Any) -> list[dict[str, Any]] | None:
 
 
 def convert_tool_choice(raw_choice: Any) -> Any:
-    if raw_choice in {"auto", "none", "required"}:
+    if isinstance(raw_choice, str) and raw_choice in {"auto", "none", "required"}:
         return raw_choice
     if not isinstance(raw_choice, dict):
         return None
@@ -1191,6 +1192,18 @@ class FutureStreamWriter:
                 "content_block": {"type": "tool_use", "id": block["id"], "name": block["name"], "input": {}},
             },
         )
+        self._flush_tool_arguments(block)
+
+    def _flush_tool_arguments(self, block: dict[str, Any]) -> None:
+        fragments = block["arguments"][block["emitted_arguments"]:]
+        if not fragments:
+            return
+        self.any_output = True
+        self._send(
+            "content_block_delta",
+            {"index": block["future_index"], "delta": {"type": "input_json_delta", "partial_json": "".join(fragments)}},
+        )
+        block["emitted_arguments"] = len(block["arguments"])
 
     def add_tool_calls(self, deltas: list[Any]) -> None:
         for raw in deltas:
@@ -1206,6 +1219,8 @@ class FutureStreamWriter:
                     "id": raw.get("id") if isinstance(raw.get("id"), str) and raw.get("id") else f"toolu_{uuid.uuid4().hex[:12]}",
                     "name": "",
                     "started": False,
+                    "arguments": [],
+                    "emitted_arguments": 0,
                 }
                 self.tool_blocks[oai_index] = block
             call_id = raw.get("id")
@@ -1217,18 +1232,37 @@ class FutureStreamWriter:
             name = function.get("name")
             if isinstance(name, str) and name:
                 block["name"] = name
+            arguments = function.get("arguments")
+            if isinstance(arguments, str) and arguments:
+                # Some gateways send arguments before the name. Retain them
+                # until the block can be identified; losing them forces repair
+                # turns and can turn a valid call into a different operation.
+                block["arguments"].append(arguments)
+                self.text_parts.append(arguments)
             if not block["started"] and block["name"]:
                 self._start_tool_block(block)
-            arguments = function.get("arguments")
-            if isinstance(arguments, str) and arguments and block["started"]:
-                self.any_output = True
-                self.text_parts.append(arguments)
-                self._send(
-                    "content_block_delta",
-                    {"index": block["future_index"], "delta": {"type": "input_json_delta", "partial_json": arguments}},
-                )
+            elif block["started"]:
+                self._flush_tool_arguments(block)
 
     def finish(self) -> None:
+        # A transport EOF alone is not model completion. Never close a partial
+        # tool block (which admits execution in the client) after a dropped SSE
+        # stream, and never guess one tool from several offered tools.
+        if not self.finish_reason:
+            raise ValueError("Upstream stream ended without a completion reason")
+        if self.finish_reason == "tool_calls" and not self.tool_blocks:
+            raise ValueError("Upstream completed without identifying its tool call")
+        if self.tool_blocks and self.finish_reason != "tool_calls":
+            raise ValueError("Upstream did not complete its tool call")
+        for block in self.tool_blocks.values():
+            if not block["name"]:
+                if self.finish_reason == "tool_calls" and len(self.tool_names) == 1:
+                    block["name"] = self.tool_names[0]
+                else:
+                    raise ValueError("Upstream did not identify its tool call")
+            arguments = "".join(block["arguments"]) or "{}"
+            if not isinstance(json.loads(arguments), dict):
+                raise ValueError("Upstream tool arguments must be a JSON object")
         # Close any open thinking block first. If GLM produced only reasoning
         # (no text, no tool calls), ensure at least an empty text block exists
         # so the Future message shape is valid and Future Code doesn't render
@@ -1245,23 +1279,13 @@ class FutureStreamWriter:
             for oai_index, block in self.tool_blocks.items():
                 if block["started"]:
                     continue
-                if not block["name"] and self.tool_names:
-                    # If only one tool was offered, GLM's choice is unambiguous.
-                    # With multiple tools we fall back to the first offered tool
-                    # (GLM gives us no way to identify which one it picked in the
-                    # streaming delta; the non-streaming path carries the name).
-                    if len(self.tool_names) == 1:
-                        block["name"] = self.tool_names[0]
-                    else:
-                        block["name"] = self.tool_names[0]
                 if block["name"]:
                     self._start_tool_block(block)
-                    # Emit a minimal empty input so Future Code sees a valid
-                    # tool_use block even when GLM sent no argument tokens.
-                    self._send(
-                        "content_block_delta",
-                        {"index": block["future_index"], "delta": {"type": "input_json_delta", "partial_json": "{}"}},
-                    )
+                    if not block["arguments"]:
+                        self._send(
+                            "content_block_delta",
+                            {"index": block["future_index"], "delta": {"type": "input_json_delta", "partial_json": "{}"}},
+                        )
                     self.any_output = True
         if not self.any_output:
             self._ensure_text_open()
@@ -1299,6 +1323,12 @@ class FutureStreamWriter:
         self._send("message_stop", {})
 
 
+def is_stream_done_line(line: str) -> bool:
+    # SSE permits either data:[DONE] or data: [DONE], including CRLF.
+    line = line.strip()
+    return line.startswith("data:") and line.partition(":")[2].strip() == "[DONE]"
+
+
 def feed_stream_line(writer: FutureStreamWriter, line: str) -> None:
     line = line.strip()
     if not line.startswith("data:"):
@@ -1308,8 +1338,10 @@ def feed_stream_line(writer: FutureStreamWriter, line: str) -> None:
         return
     try:
         chunk = json.loads(data)
-    except Exception:
-        return
+    except (ValueError, TypeError) as exc:
+        raise ValueError("Upstream sent malformed stream data") from exc
+    if not isinstance(chunk, dict) or "error" in chunk:
+        raise ValueError("Upstream reported an invalid or failed stream")
     usage = chunk.get("usage")
     if isinstance(usage, dict):
         writer.usage = usage
@@ -1406,13 +1438,17 @@ class Handler(BaseHTTPRequestHandler):
         # connection alive with pings during GLM's long "thinking" phase. Compaction
         # requests stay on the buffered path so their upstream-failure fallback works.
         if body.get("stream") and not is_compaction_like_request(body):
+            self._stream_started = False
             try:
                 if self.stream_live(server, body):  # type: ignore[arg-type]
                     return
             except (BrokenPipeError, ConnectionResetError):
                 return
             except Exception as exc:  # pragma: no cover - defensive
-                debug_log("stream_live failed, falling back to buffered: %r" % exc)
+                debug_log("stream_live failed without replay: %r" % exc)
+                if not self._stream_started:
+                    write_json(self, HTTPStatus.BAD_GATEWAY, {"error": {"message": "Provider stream failed", "type": "upstream_stream_error"}})
+                return
 
         status, upstream = upstream_chat(server, body)  # type: ignore[arg-type]
         if _DEBUG_LOG_PATH:
@@ -1548,7 +1584,8 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     upstream = json.loads(raw)
                 except Exception:
-                    return False
+                    write_json(self, HTTPStatus.BAD_GATEWAY, {"error": {"message": "Provider returned an invalid response", "type": "upstream_stream_error"}})
+                    return True
             response = future_response(server, body, upstream)
             self.write_stream(response)
             return True
@@ -1569,28 +1606,32 @@ class Handler(BaseHTTPRequestHandler):
         if isinstance(body.get("system"), str):
             prompt_text += body["system"]
         writer = FutureStreamWriter(self, f"msg_{uuid.uuid4().hex}", str(getattr(server, "model_name", "")), request_tool_names, prompt_text)
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
-        self.end_headers()
-        writer.start()
-
         line_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
 
         def reader() -> None:
             try:
                 for raw_line in resp:
                     line_queue.put(("line", raw_line))
+                    # OpenAI SSE is complete at [DONE], not at HTTP EOF. A
+                    # keep-alive socket may stay open until its read timeout.
+                    # Do not perform another read after the terminal marker.
+                    if is_stream_done_line(raw_line.decode("utf-8", "replace")):
+                        break
             except Exception as exc:  # pragma: no cover - upstream drop mid-stream
                 line_queue.put(("error", exc))
             finally:
                 line_queue.put(("done", None))
 
-        thread = threading.Thread(target=reader, daemon=True)
-        thread.start()
-
+        thread = threading.Thread(target=reader, daemon=True, name="future-provider-stream-" + writer.msg_id)
         line_count = 0
         try:
+            self._stream_started = True
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            writer.start()
+            thread.start()
             while True:
                 try:
                     kind, value = line_queue.get(timeout=2.0)
@@ -1603,15 +1644,38 @@ class Handler(BaseHTTPRequestHandler):
                     writer.maybe_ping()
                 elif kind == "error":
                     debug_log("stream_live upstream error mid-stream: %r" % value)
-                    break
+                    raise ValueError("Upstream stream read failed") from value
                 else:  # done
                     break
-        finally:
             writer.finish()
+        except (BrokenPipeError, ConnectionResetError):
+            # The client cancelled. Do not finish partial calls or replay the
+            # request through the buffered path after SSE has begun.
+            pass
+        except Exception as exc:
+            debug_log("stream_live incomplete stream without replay: %r" % exc)
+            try:
+                writer._send("error", {"error": {"type": "api_error", "message": "Provider stream ended before valid completion"}})
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+        finally:
+            # HTTPResponse.close() can wait for the buffered reader's lock.
+            # On cancellation/parser failure its next read may still be
+            # blocked in the socket. Wake it before closing; urllib's private
+            # layout is guarded so alternate/fake response objects still work.
+            if thread.is_alive():
+                try:
+                    upstream_socket = getattr(getattr(getattr(resp, "fp", None), "raw", None), "_sock", None)
+                    if upstream_socket is not None:
+                        upstream_socket.shutdown(socket.SHUT_RDWR)
+                except Exception:
+                    pass
             try:
                 resp.close()
             except Exception:
                 pass
+            if thread.is_alive():
+                thread.join(timeout=0.25)
         if _DEBUG_LOG_PATH:
             debug_log(
                 "STREAM model=%s n_msgs=%s tools=%s lines=%s any_output=%s stop=%s"
