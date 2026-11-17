@@ -1,0 +1,106 @@
+{
+  "schema": 1,
+  "baseline": "ccd9aabaf060893359599f82417f457d8cb87ed7",
+  "result": "PASS_OFFLINE_GATES",
+  "runtime": {
+    "node": "v24.22.1",
+    "platform": "linux",
+    "architecture": "x64"
+  },
+  "focusedTests": {
+    "bashAndShellCommand": 18,
+    "diagnosticService": 8,
+    "innerMcpRpc": 3,
+    "total": 29,
+    "independentReview": "PASS"
+  },
+  "gates": [
+    {
+      "command": "node scripts/test-correctness.mjs",
+      "result": "PASS",
+      "nodeTests": 449,
+      "nodePassed": 448,
+      "nodeSkipped": 1,
+      "pythonSuiteTotals": [
+        28,
+        54
+      ],
+      "pythonSkipped": 5,
+      "logSha256": "77c39be69b3d7a150f73c74986275e622527c8a29ac48ba9889ed3601dd34d15"
+    },
+    {
+      "command": "node scripts/test-resilience.mjs",
+      "result": "PASS",
+      "nodeTests": 178,
+      "nodePassed": 178,
+      "nodeSkipped": 0,
+      "pythonSuiteTotals": [
+        54
+      ],
+      "pythonSkipped": 0,
+      "logSha256": "3441bb2dce0d56db9df92e2cec12df02ea089bd5c105a45a60e4087b68d9acd2"
+    },
+    {
+      "command": "node scripts/test-foundry.mjs",
+      "result": "PASS",
+      "nodeTests": 899,
+      "nodePassed": 899,
+      "nodeSkipped": 0,
+      "pythonSuiteTotals": [],
+      "pythonSkipped": 0,
+      "logSha256": "6455d731076e36851e500b553ad8862aeb0a11a63a00de9965d46e179ffd33bc"
+    },
+    {
+      "command": "node scripts/test-swarm.mjs",
+      "result": "PASS",
+      "nodeTests": 557,
+      "nodePassed": 557,
+      "nodeSkipped": 0,
+      "pythonSuiteTotals": [],
+      "pythonSkipped": 0,
+      "logSha256": "6963ed8fc739e17692aeb43eb0917be6fe94c0ec5ae1eb487a59d1a7d7d83d45"
+    },
+    {
+      "command": "node scripts/test-commands.mjs",
+      "result": "PASS",
+      "nodeTests": 242,
+      "nodePassed": 242,
+      "nodeSkipped": 0,
+      "pythonSuiteTotals": [],
+      "pythonSkipped": 0,
+      "logSha256": "ae19da3f0f28cccc3e90b8fa7b0a374672bf3800c723af68a7c7769477803ca3"
+    }
+  ],
+  "sourceSha256": {
+    "src/constants/prompts.ts": "d60defa05471cff1ae11c2a6b862fb52d2bed3de0476407f453c5d94984e69c8",
+    "src/services/diagnosticTracking.ts": "1183e71ff5af1a1c5f4acd0f009a7435d47c26b810d366ca53b2dd7da1b02079",
+    "src/services/mcp/client.ts": "27e1f70b0ca1c9dd3e7d451976d051aa7f03519f61d2da144d33d225d51a642b",
+    "src/tools/BashTool/BashTool.tsx": "83f9fde0720a2be2171c3191f75601471d8ba13e766b666408e3df6c18fb8a67",
+    "src/tools/FileEditTool/FileEditTool.ts": "12e699b732878933764efcda8be8fa937f874710885d9f21ac3080838f3ccd5c",
+    "src/tools/FileWriteTool/FileWriteTool.ts": "488cabbdfa30438b84f427ec551571ab5b993a190f83222225c32e4ca8cd06e0",
+    "src/tools/TodoWriteTool/prompt.ts": "85273900cb0f12d67f58ecb94478e725f1f1479ecc7916cfd599a2f028952694",
+    "src/utils/ShellCommand.ts": "b48a37a43f1a068f30788d63fc57c2fbba6ed63741cca21d78e739358a575e58",
+    "src/utils/attachments.ts": "47ab583dd58f496fabfaac89913c0e398856dd0ee8a609293a55da0699003c2e"
+  },
+  "syntax": "8 changed TypeScript modules parsed with Node stripTypeScriptTypes; Bash generator transformed and executed by focused tests",
+  "priorRun": {
+    "result": "FAIL",
+    "command": "node scripts/test-correctness.mjs (concurrent with Foundry/resilience)",
+    "test": "process capture enforces exit/output budgets and drains timed-out descendants",
+    "assertion": "existsSync(child-started)",
+    "deadlineMs": 400,
+    "interpretation": "Existing subprocess did not write its startup marker within the deadline during concurrent gate load; test and subprocess implementation unchanged. This is an environment-sensitive failure, not hidden by weakening checks.",
+    "isolationRerun": "PASS",
+    "serialFullRerun": "PASS"
+  },
+  "limitations": [
+    "No full Bun/CLI build: Bun and project dependencies are not installed.",
+    "No live provider or human-relative productivity experiment.",
+    "One platform-conditional Node test skipped on POSIX and five tmux tests skipped because tmux is absent.",
+    "Controlled IDE and shell lifecycle fixtures establish host-path behavior only."
+  ],
+  "benchmarks": [
+    "short-task-latency-20261117.json",
+    "shell-handoff-20261117.json"
+  ]
+}

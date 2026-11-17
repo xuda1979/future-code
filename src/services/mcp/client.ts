@@ -2117,12 +2117,15 @@ export async function callIdeRpc(
   toolName: string,
   args: Record<string, unknown>,
   client: ConnectedMCPServer,
+  signal?: AbortSignal,
+  timeoutMs?: number,
 ): Promise<string | ContentBlockParam[] | undefined> {
   const result = await callMCPTool({
     client,
     tool: toolName,
     args,
-    signal: createAbortController().signal,
+    signal: signal ?? createAbortController().signal,
+    timeoutMs,
   })
   return result.content
 }
@@ -3033,6 +3036,7 @@ async function callMCPTool({
   meta,
   signal,
   onProgress,
+  timeoutMs = getMcpToolTimeoutMs(),
 }: {
   client: ConnectedMCPServer
   tool: string
@@ -3040,6 +3044,7 @@ async function callMCPTool({
   meta?: Record<string, unknown>
   signal: AbortSignal
   onProgress?: (data: MCPProgress) => void
+  timeoutMs?: number
 }): Promise<{
   content: MCPToolResult
   _meta?: Record<string, unknown>
@@ -3067,7 +3072,6 @@ async function callMCPTool({
 
     // Use Promise.race with our own timeout to handle cases where SDK's
     // internal timeout doesn't work (e.g., SSE stream breaks mid-request)
-    const timeoutMs = getMcpToolTimeoutMs()
     let timeoutId: NodeJS.Timeout | undefined
 
     const timeoutPromise = new Promise<never>((_, reject) => {

@@ -222,7 +222,7 @@ export const FileWriteTool = buildTool({
   },
   async call(
     { file_path, content },
-    { readFileState, updateFileHistoryState, dynamicSkillDirTriggers },
+    { readFileState, updateFileHistoryState, dynamicSkillDirTriggers, abortController },
     _,
     parentMessage,
   ) {
@@ -244,7 +244,8 @@ export const FileWriteTool = buildTool({
     // Activate conditional skills whose path patterns match this file
     activateConditionalSkillsForPaths([fullFilePath], cwd)
 
-    await diagnosticTracker.beforeFileEdited(fullFilePath)
+    await diagnosticTracker.beforeFileEdited(fullFilePath, abortController.signal)
+    abortController.signal.throwIfAborted()
 
     // Ensure parent directory exists before the atomic read-modify-write section.
     // Must stay OUTSIDE the critical section below (a yield between the staleness

@@ -6,11 +6,11 @@ It also helps the user understand the progress of the task and overall progress 
 ## When to Use This Tool
 Use this tool proactively in these scenarios:
 
-1. Complex multi-step tasks - When a task requires 3 or more distinct steps or actions
+1. Complex multi-step tasks - When a task has multiple substantive dependencies; a routine read, edit, and verification sequence is one small task
 2. Non-trivial and complex tasks - Tasks that require careful planning or multiple operations
 3. User explicitly requests todo list - When the user directly asks you to use the todo list
 4. User provides multiple tasks - When users provide a list of things to be done (numbered or comma-separated)
-5. After receiving new instructions - Immediately capture user requirements as todos
+5. After receiving new instructions for work that warrants a task list - Capture the requirements without expanding the requested scope
 6. When you start working on a task - Mark it as in_progress BEFORE beginning work. Ideally you should only have one todo as in_progress at a time
 7. After completing a task - Mark it as completed and add any new follow-up tasks discovered during implementation
 
@@ -19,7 +19,7 @@ Use this tool proactively in these scenarios:
 Skip using this tool when:
 1. There is only a single, straightforward task
 2. The task is trivial and tracking it provides no organizational benefit
-3. The task can be completed in less than 3 trivial steps
+3. The task is a routine sequence of trivial steps, even when it takes several tool calls
 4. The task is purely conversational or informational
 
 NOTE that you should not use this tool if there is only one trivial task to do. In this case you are better off just doing the task directly.

@@ -6,10 +6,13 @@ import { FutureError } from '../utils/errors.js'
 import { normalizePathForComparison, pathsEqual } from '../utils/file.js'
 import { getConnectedIdeClient } from '../utils/ide.js'
 import { jsonParse } from '../utils/slowOperations.js'
+import { waitForForegroundPreparation } from '../utils/foregroundPreparation.ts'
 
 class DiagnosticsTrackingError extends FutureError {}
 
 const MAX_DIAGNOSTICS_SUMMARY_CHARS = 4000
+// Advisory IDE feedback must not inherit the long-running MCP tool timeout.
+const DIAGNOSTICS_TIMEOUT_MS = 1000
 
 export interface Diagnostic {
   message: string
@@ -33,6 +36,7 @@ export class DiagnosticTrackingService {
 
   private initialized = false
   private mcpClient: MCPServerConnection | undefined
+  private generation = new AbortController()
 
   // Track when files were last processed/fetched
   private lastProcessedTimestamps: Map<string, number> = new Map()
@@ -49,20 +53,19 @@ export class DiagnosticTrackingService {
   }
 
   initialize(mcpClient: MCPServerConnection) {
-    if (this.initialized) {
+    if (this.initialized && this.mcpClient === mcpClient) {
       return
     }
 
-    // TODO: Do not cache the connected mcpClient since it can change.
+    this.reset()
     this.mcpClient = mcpClient
     this.initialized = true
   }
 
   async shutdown(): Promise<void> {
+    this.reset()
     this.initialized = false
-    this.baseline.clear()
-    this.rightFileDiagnosticsState.clear()
-    this.lastProcessedTimestamps.clear()
+    this.mcpClient = undefined
   }
 
   /**
@@ -70,9 +73,28 @@ export class DiagnosticTrackingService {
    * This clears all tracked files and diagnostics.
    */
   reset() {
+    this.generation.abort()
+    this.generation = new AbortController()
     this.baseline.clear()
     this.rightFileDiagnosticsState.clear()
     this.lastProcessedTimestamps.clear()
+  }
+
+  private async request(tool: string, args: Record<string, unknown>, signal?: AbortSignal) {
+    const client = this.mcpClient
+    if (!this.initialized || client?.type !== 'connected') return undefined
+    const controller = new AbortController()
+    const requestSignal = AbortSignal.any([
+      controller.signal, this.generation.signal, ...(signal ? [signal] : []),
+    ])
+    try {
+      return await waitForForegroundPreparation('advisory IDE diagnostics',
+        () => callIdeRpc(tool, args, client, requestSignal, DIAGNOSTICS_TIMEOUT_MS),
+        { signal: requestSignal, timeoutMs: DIAGNOSTICS_TIMEOUT_MS })
+    } finally {
+      // Also cancel the transport, and observe late rejection if it ignores abort.
+      controller.abort()
+    }
   }
 
   private normalizeFileUri(fileUri: string): string {
@@ -100,7 +122,7 @@ export class DiagnosticTrackingService {
    * Ensure a file is opened in the IDE before processing.
    * This is important for language services like diagnostics to work properly.
    */
-  async ensureFileOpened(fileUri: string): Promise<void> {
+  async ensureFileOpened(fileUri: string, signal?: AbortSignal): Promise<void> {
     if (
       !this.initialized ||
       !this.mcpClient ||
@@ -111,7 +133,7 @@ export class DiagnosticTrackingService {
 
     try {
       // Call the openFile tool to ensure the file is loaded
-      await callIdeRpc(
+      await this.request(
         'openFile',
         {
           filePath: fileUri,
@@ -121,7 +143,7 @@ export class DiagnosticTrackingService {
           selectToEndOfLine: false,
           makeFrontmost: false,
         },
-        this.mcpClient,
+        signal,
       )
     } catch (error) {
       logError(error as Error)
@@ -132,7 +154,7 @@ export class DiagnosticTrackingService {
    * Capture baseline diagnostics for a specific file before editing.
    * This is called before editing a file to ensure we have a baseline to compare against.
    */
-  async beforeFileEdited(filePath: string): Promise<void> {
+  async beforeFileEdited(filePath: string, signal?: AbortSignal): Promise<void> {
     if (
       !this.initialized ||
       !this.mcpClient ||
@@ -142,13 +164,15 @@ export class DiagnosticTrackingService {
     }
 
     const timestamp = Date.now()
+    const generation = this.generation
 
     try {
-      const result = await callIdeRpc(
+      const result = await this.request(
         'getDiagnostics',
         { uri: `file://${filePath}` },
-        this.mcpClient,
+        signal,
       )
+      if (generation !== this.generation || signal?.aborted) return
       const diagnosticFile = this.parseDiagnosticResult(result)[0]
       if (diagnosticFile) {
         // Compare normalized paths (handles protocol prefixes and Windows case-insensitivity)
@@ -176,8 +200,9 @@ export class DiagnosticTrackingService {
         this.baseline.set(normalizedPath, [])
         this.lastProcessedTimestamps.set(normalizedPath, timestamp)
       }
-    } catch (_error) {
-      // Fail silently if IDE doesn't support diagnostics
+    } catch (error) {
+      // Missing feedback is not a clean diagnostic result or an empty baseline.
+      if (!generation.signal.aborted && !signal?.aborted) logError(error as Error)
     }
   }
 
@@ -185,26 +210,30 @@ export class DiagnosticTrackingService {
    * Get new diagnostics from file://, _future_fs_right, and _future_fs_ URIs that aren't in the baseline.
    * Only processes diagnostics for files that have been edited.
    */
-  async getNewDiagnostics(): Promise<DiagnosticFile[]> {
+  async getNewDiagnostics(signal?: AbortSignal): Promise<DiagnosticFile[]> {
     if (
       !this.initialized ||
       !this.mcpClient ||
-      this.mcpClient.type !== 'connected'
+      this.mcpClient.type !== 'connected' ||
+      this.baseline.size === 0
     ) {
       return []
     }
 
     // Check if we have any files with diagnostic changes
     let allDiagnosticFiles: DiagnosticFile[] = []
+    const generation = this.generation
     try {
-      const result = await callIdeRpc(
+      const result = await this.request(
         'getDiagnostics',
         {}, // Empty params fetches all diagnostics
-        this.mcpClient,
+        signal,
       )
+      if (generation !== this.generation || signal?.aborted) return []
       allDiagnosticFiles = this.parseDiagnosticResult(result)
-    } catch (_error) {
-      // If fetching all diagnostics fails, return empty
+    } catch (error) {
+      // Leave baselines intact so a later healthy read can still surface errors.
+      if (!generation.signal.aborted && !signal?.aborted) logError(error as Error)
       return []
     }
     const diagnosticsForFileUrisWithBaselines = allDiagnosticFiles
@@ -328,17 +357,12 @@ export class DiagnosticTrackingService {
    * @param shouldQuery Whether a query is actually being made (not just a command)
    */
   async handleQueryStart(clients: MCPServerConnection[]): Promise<void> {
-    // Only proceed if we should query and have clients
-    if (!this.initialized) {
-      // Find the connected IDE client
-      const connectedIdeClient = getConnectedIdeClient(clients)
-
-      if (connectedIdeClient) {
-        this.initialize(connectedIdeClient)
-      }
+    const connectedIdeClient = getConnectedIdeClient(clients)
+    if (connectedIdeClient) {
+      if (this.initialized && this.mcpClient === connectedIdeClient) this.reset()
+      else this.initialize(connectedIdeClient)
     } else {
-      // Reset diagnostic tracking for new query loops
-      this.reset()
+      await this.shutdown()
     }
   }
 
