@@ -43,6 +43,19 @@ narrows the search to a literal file/directory prefix; omit it to use all readab
 task scopes. A parent prefix can narrow several readable subdirectories, but
 never grants access to the rest of that parent.
 
+For a group of related symbols, pass a primary `query` and up to seven
+distinct `additionalQueries` with the same literal limits. For example,
+`{"query":"parseTask","additionalQueries":["validateTask","dispatchTask"],"path":"src"}`
+scans each eligible file once per page. Matching lines appear once, in file
+and line order. On a multi-literal search, `matchedQueryIndices` identifies
+every matching literal on the line using the zero-based list
+`[query, ...additionalQueries]`. The excerpt surrounds the earliest hit.
+The limit and cursor cover the whole group. Keep the full query list and
+search options when continuing to the next page. New Swarm stores pin this
+tool definition at initialization. Previously initialized stores retain the
+single-literal contract and its exact provider replay identity. Deploy the
+matching remote worker before initializing a new remote profile.
+
 `contextLines` optionally includes up to 20 adjacent lines on each side of a
 match, reusing the file read already performed by discovery. A worker can inspect
 nearby code without another model/search/read round trip. Each match's `context`

@@ -2,7 +2,7 @@ import { canonical, invariant } from "../kernel.ts";
 import type { Capsule } from "../types.ts";
 import { inScope, permittedChecks, safePath, type AgentProfile, type PinnedSwarm } from "./config.ts";
 import type { Call } from "./context.ts";
-import { definitions } from "./model.ts";
+import { definitionsFor } from "./model.ts";
 import { toolEffectContract } from "./toolEffects.ts";
 import { validateSourceSearch } from "./sourceSearch.ts";
 
@@ -37,7 +37,7 @@ function shape(value: any, schema: any): void {
 
 export function validateToolProposal(c: Capsule, cfg: PinnedSwarm, profile: AgentProfile, call: Call): void {
   invariant(profile.tools.includes(call.name as any), "tool not allowed");
-  const definition = definitions.find(def => def.name === call.name);
+  const definition = definitionsFor(cfg).find(def => def.name === call.name);
   invariant(definition, "unknown tool proposal");
   shape(call.arguments, definition.schema);
   toolEffectContract(cfg, call.name as any, call.arguments);

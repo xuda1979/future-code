@@ -1,6 +1,6 @@
 # Future-Code Technical Report
 
-**Version 2.1 · November 18, 2026**
+**Version 2.2 · November 18, 2026**
 
 ## Executive summary
 
@@ -15,7 +15,10 @@ fix, Future-Code completed five of five independently verified CLI replays.
 OpenCode and Claude Code also completed five of five. Median verified wall time
 was 1.58 seconds for Future-Code, 5.60 seconds for OpenCode, and 1.07 seconds
 for Claude Code. The current remote-job controller also recovered the original
-job after a simulated 42-hour outage. Section 9 gives the evidence and scope.
+job after a simulated 42-hour outage. In the new 42-trial Swarm study,
+one eight-symbol scan reduced source bytes read by 87.5%. Its median time to
+verified integration fell from 809.0 to 632.5 ms. Section 9 gives the scope
+and the known-file control.
 
 ## 1. Core architecture
 
@@ -208,6 +211,65 @@ Both arms recorded zero task acceptances. The remote result still feeds a
 separate project acceptance check. The experiment measures controller behavior
 under the specified fault schedule. [Recovery receipts and reproduction](../../experiments/agent-productivity-20261118/README.md#remote-job-recovery)
 
+### Cost of source discovery and durable tool dispatch
+
+We compared report revision `22cb45f` with tested runtime `40c9588` on the
+same 192-file Git fixture. Published runtime `70f1be2` has the identical Git
+tree `c6c5ecc739d0ba1aaeb331649ae1e5f6051b41f7` as that tested runtime.
+Every arm received the same task, used three scripted
+provider responses, and wrote its answer from actual tool results. An
+independent checker rejected the initial answer, verified the task patch,
+and ran again on the assembled tree. All 42 trials passed on the first
+attempt. Every arm produced the same Git tree for a given workload.
+
+| Workload and search policy | Verified runs | Median time to integration | Tool calls | Full thread-state publications |
+| --- | ---: | ---: | ---: | ---: |
+| Known file, parent → candidate | 6/6 → 6/6 | 551.5 → 538.0 ms | 2 → 2 | 14 → 12 |
+| Eight symbols, parent → candidate with the same eight calls | 6/6 → 6/6 | 809.0 → 662.0 ms | 9 → 9 | 29 → 13 |
+| Eight symbols, parent → candidate with one combined search | 6/6 → 6/6 | 809.0 → 632.5 ms | 9 → 2 | 29 → 12 |
+| 24 distinct reads with 48 KiB of retained input, parent → candidate | 6/6 → 6/6 | 703.0 → 556.5 ms | 25 → 25 | 61 → 13 |
+
+The parent already issued all eight searches in one model turn. Each search
+read the same files. Combining the literals reduced file inspections from
+1,536 to 192 and source bytes read from 1,580,544 to 197,568 in every
+trial. The candidate finished sooner in all six pairs. For the known file,
+the candidate finished sooner in three of six pairs. That timing leaves the
+short-task effect unresolved. The 24-read fixture measures the cost of carrying
+state through one task. Week-long project throughput still needs a field run.
+
+Swarm now records ordered tool-effect and intent events in one SQLite
+transaction before dispatch, with one complete thread snapshot for those
+events. Each accepted call retains its own identity, admission record and
+result receipt. A regression test interrupted that transaction on the last
+intent. The backend received zero calls before restart and executed each
+queued write once after restart. A separate test recovered a pending reply
+from a pre-upgrade search profile with its original request hash.
+[Raw trials and reproduction](../../experiments/agent-productivity-20261118/README.md#source-discovery-and-dispatch)
+
+### Repository footprint and architecture decisions
+
+The parent Git tree contains 5,796 tracked files totalling 219,086,528 bytes.
+The `hact-paper/` subtree accounts for 173,062,102 bytes. On this fixed
+inventory, the default ripgrep scan previously admitted 5,784 paths totalling
+216,744,959 bytes. Narrow repository ignore rules bring that to 4,048 paths
+and 58,236,159 bytes while retaining all 2,144 pre-existing `src/` paths.
+These figures measure the size of eligible files. Checkout size and physical
+disk traffic are separate quantities. Audit scripts and manifests remain
+discoverable, and an explicit evidence search can use `rg --no-ignore` on
+its directory. The chip and HACT paper CI jobs already select affected paths.
+The first-commit experiment uses a loader to substitute deterministic test
+dependencies. The shipping terminal query imports `StreamingToolExecutor`
+directly from `src/services/tools/`. The task replay above exercises the
+production Swarm driver, journal and Git workspace.
+
+| Proposal | Release decision and evidence still needed |
+| --- | --- |
+| Fast start and escalation on difficulty | Coalesce durable writes at the existing dispatch boundary. The terminal already starts eligible streaming tools as complete calls arrive. Measure first useful result and cancelled work on a real endpoint before adding a resident speculative daemon. |
+| Typed local actions | Ship one finite operation for a frequent pattern, searching several literals with optional context. New search profiles advertise it to local and updated remote workers. A native gateway replacement needs protocol, cancellation and reconnect parity for the deployed clients. |
+| Causal state on resume | Bind restored work to its task, request and receipts. The release tests rollback and exact replay. A new contract graph would need to improve time to first useful work across multi-day restarts and preserve existing failure evidence. |
+| Separate worker and verifier | Task and integration checks run independently against reconstructed source. The local worktree backend assumes trusted commands. Enforced OS isolation would require a separately tested backend and deployment-specific containment tests. |
+| Competing branches and reusable operators | Independent Swarm tasks already use private worktrees. The combined search is a maintained, deterministic operator. Automatic branch racing and automatic operator promotion still need held-out tasks, conflict and cancellation tests, and total compute per accepted result. |
+
 ### Model-backed comparison and coverage
 
 The same-model pilot started Future-Code, Claude Code, and OpenCode on a
@@ -251,13 +313,11 @@ The economic value is highest where failure is expensive: multi-repository chang
 
 ## 12. Roadmap
 
-Near-term priorities are:
-
-1. automatic FAST/STANDARD/RESEARCH task-horizon routing;
-2. bounded parallel execution of independent read-only tools;
-3. streaming Swarm model responses;
-4. measurement-driven reduction of worktree/verifier fixed overhead;
-5. multi-project matched live productivity campaigns.
+Priorities for the next evaluation cycle include measuring time to the first
+verified action on real endpoints, profiling the remaining Git and verifier
+setup cost, and running matched live workloads across projects. Use the
+known-file control when changing dispatch policy. For remote R&D, measure
+time from restart to the first accepted project milestone.
 
 Medium-term work includes stronger multi-host authority only after measurements justify it, cryptographically stronger evidence binding for high-assurance environments, learned intervention policies with explicit uncertainty, and real HACT diagnostic-retrieval/WAN studies.
 

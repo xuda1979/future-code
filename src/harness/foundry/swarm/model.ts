@@ -3,7 +3,7 @@ import { canonical, digest, invariant } from "../kernel.ts";
 import { DeferredAttemptError } from "../continuation.ts";
 import { FatalAttemptError } from "../errors.ts";
 import type { Capsule, Json } from "../types.ts";
-import type { AgentProfile, ProviderRoute, SwarmBudget, ToolName } from "./config.ts";
+import type { AgentProfile, PinnedSwarm, ProviderRoute, SwarmBudget, ToolName } from "./config.ts";
 import { bytes, compactHistory, refreshDiagnosticNotice, retireToolPreviews, type Message, type ProgressCheckpoint } from "./context.ts";
 import { SessionJournal } from "./session.ts";
 import { createCombinedAbortSignal } from "../../../utils/combinedAbortSignal.ts";
@@ -18,6 +18,14 @@ export interface ToolDefinition { name: ToolName; description: string; schema: R
 const string = { type: "string" }; const integer = { type: "integer", minimum: 0 };
 const def = (name: ToolName, description: string, properties: Record<string, Json>, required: string[]): ToolDefinition =>
   ({ name, description, schema: { type: "object", properties, required, additionalProperties: false } });
+const searchProperties = {
+  query: { type: "string", minLength: 1, maxLength: 256 }, path: string,
+  limit: { type: "integer", minimum: 1, maximum: 100 },
+  contextLines: { type: "integer", minimum: 0, maximum: 20 },
+  cursor: { type: "object", properties: { path: string, line: { type: "integer", minimum: 1 } }, required: ["path", "line"], additionalProperties: false },
+};
+// A pre-upgrade thread may have a completed reply bound to these exact wire bytes.
+const legacySearch = def("search_files", "Find case-sensitive literal text in scoped Git-tracked and nonignored new UTF-8 files. Returns line locations and bounded excerpts. Set contextLines (0..20) to include surrounding code in this same call, avoiding a search/read reasoning round trip; context.truncated marks omitted context. Narrow with a file/directory path; omit path for all readable scopes. Continue with nextCursor until null; skippedFiles reports unsearched inputs. Restart pagination after edits or worker replacement. This is source discovery, never a check or proof of absence.", searchProperties, ["query"]);
 export const definitions: ToolDefinition[] = [
   def("invoke_capability", "Invoke an explicitly granted, project-defined external capability. Inspect the capability contract in the task context. The host validates input, stable resource identity, current authority, reservations and external receipts. Unknown effects are durably reconciled; never invent another resource identity to retry. A confirmed operation is not task acceptance.", { name: string, input: {} }, ["name", "input"]),
   def("read_operations", "Read a bounded operations projection with resource commitments and unresolved action references. Observations do not grant authority or establish task acceptance.", {}, []),
@@ -63,11 +71,9 @@ export const definitions: ToolDefinition[] = [
   }, ["children"]),
   def("list_files", "List tracked and new files in the task's readable scopes. Paginated; paths only.", { offset: integer, limit: { type: "integer", minimum: 1, maximum: 200 } }, []),
   def("read_file", "Read a bounded line range of a non-symlink UTF-8 file in readable scopes.", { path: string, start: { type: "integer", minimum: 1 }, lines: { type: "integer", minimum: 1, maximum: 300 } }, ["path"]),
-  def("search_files", "Find case-sensitive literal text in scoped Git-tracked and nonignored new UTF-8 files. Returns line locations and bounded excerpts. Set contextLines (0..20) to include surrounding code in this same call, avoiding a search/read reasoning round trip; context.truncated marks omitted context. Narrow with a file/directory path; omit path for all readable scopes. Continue with nextCursor until null; skippedFiles reports unsearched inputs. Restart pagination after edits or worker replacement. This is source discovery, never a check or proof of absence.", {
-    query: { type: "string", minLength: 1, maxLength: 256 }, path: string,
-    limit: { type: "integer", minimum: 1, maximum: 100 },
-    contextLines: { type: "integer", minimum: 0, maximum: 20 },
-    cursor: { type: "object", properties: { path: string, line: { type: "integer", minimum: 1 } }, required: ["path", "line"], additionalProperties: false },
+  def("search_files", "Search scoped UTF-8 files for case-sensitive literal text. With additionalQueries, scan once for any of up to eight literals. Each matching line appears once; matchedQueryIndices indexes [query, ...additionalQueries]. contextLines includes surrounding code; context.truncated marks omissions. Narrow with path. Page with nextCursor and the same arguments until null; skippedFiles counts unsearched files. Restart after edits or worker replacement. Discovery only.", {
+    ...searchProperties,
+    additionalQueries: { type: "array", minItems: 1, maxItems: 7, uniqueItems: true, items: { type: "string", minLength: 1, maxLength: 256 } },
   }, ["query"]),
   def("write_file", "Write a UTF-8 file within the task's exclusive write scopes; use edit_file for small changes.", { path: string, content: string }, ["path", "content"]),
   def("edit_file", "Replace exactly one literal occurrence. A missing or ambiguous match is an error.", { path: string, oldText: string, newText: string }, ["path", "oldText", "newText"]),
@@ -88,9 +94,13 @@ export const definitions: ToolDefinition[] = [
       limit: { type: "integer", minimum: 1, maximum: 10 }, memoryKind: { type: "string", enum: ["all", "progress", "failure"] },
       memoryBefore: { type: "string", maxLength: 32 }, patchHash: string, failureSignature: string }, []),
 ];
+const legacyDefinitions = definitions.map(definition => definition.name === "search_files" ? legacySearch : definition);
+export function definitionsFor(cfg: PinnedSwarm): ToolDefinition[] {
+  return cfg.sourceSearchVersion === 2 ? definitions : legacyDefinitions;
+}
 const asJson = (x: unknown): Json => JSON.parse(canonical(x));
-export function requestBody(profile: AgentProfile, history: Message[], budget: SwarmBudget): Json {
-  const tools = definitions.filter(x => profile.tools.includes(x.name)).sort((a, b) => a.name.localeCompare(b.name));
+export function requestBody(profile: AgentProfile, history: Message[], budget: SwarmBudget, catalog = definitions): Json {
+  const tools = catalog.filter(x => profile.tools.includes(x.name)).sort((a, b) => a.name.localeCompare(b.name));
   if (profile.protocol === "chat-completions") return asJson({
     model: profile.model, max_tokens: budget.maxOutputTokens, stream: false,
     messages: [{ role: "system", content: profile.system }, ...history.map(m => m.role === "tool"
@@ -128,11 +138,15 @@ export async function boundedJson(response: Response, maxBytes: number, signal?:
 }
 export class HttpBrain {
   readonly journal: SessionJournal; readonly fetcher: typeof fetch;
-  constructor(journal: SessionJournal, fetcher: typeof fetch = fetch) { this.journal = journal; this.fetcher = fetcher; }
+  readonly catalog: ToolDefinition[];
+  constructor(journal: SessionJournal, fetcher: typeof fetch = fetch, catalog = definitions) {
+    this.journal = journal; this.fetcher = fetcher; this.catalog = catalog;
+  }
   private project(profile: AgentProfile, history: Message[], budget: SwarmBudget, contextBytes: number, progress: ProgressCheckpoint | null = null,
     diagnostics: DiagnosticContext | null = null, legacy = false): { projection: Message[]; body: Json } {
     let projection = refreshDiagnosticNotice(history, progress, diagnostics);
-    let body = requestBody(profile, projection, budget);
+    const buildBody = (messages: Message[]) => requestBody(profile, messages, budget, this.catalog);
+    let body = buildBody(projection);
     // All routes share one history projection and logical replay key. Reserve
     // enough envelope space for the longest encoded model identifier as well.
     const routeExtra = Math.max(0, ...(profile.fallbacks ?? []).map(route => bytes(route.model) - bytes(profile.model)));
@@ -140,8 +154,8 @@ export class HttpBrain {
     if (bytes(body) + routeExtra > contextBytes) {
       // Retain the established conservative projection whenever it fits: its
       // exact body may already have a durably journaled provider response.
-      const remaining = Math.max(0, contextBytes - bytes(requestBody(profile, [], budget)) - routeExtra - 512);
-      const measure = (messages: Message[]) => bytes(requestBody(profile, messages, budget)) + routeExtra;
+      const remaining = Math.max(0, contextBytes - bytes(buildBody([])) - routeExtra - 512);
+      const measure = (messages: Message[]) => bytes(buildBody(messages)) + routeExtra;
       const fit = (messages: Message[]): Message[] => {
         if (legacy) return compactHistory(messages, remaining, progress, diagnostics);
         try {
@@ -168,7 +182,7 @@ export class HttpBrain {
         try { projection = fit(retired); }
         catch (e) { throw new FatalAttemptError(e instanceof Error ? e.message : "CONTEXT_OVERFLOW"); }
       }
-      body = requestBody(profile, projection, budget);
+      body = buildBody(projection);
     }
     if (bytes(body) + routeExtra > contextBytes) throw new FatalAttemptError("CONTEXT_OVERFLOW: encoded provider request exceeds admitted context");
     return { projection, body };

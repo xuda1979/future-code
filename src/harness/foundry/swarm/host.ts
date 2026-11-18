@@ -34,6 +34,7 @@ export async function initializeSwarm(store: Store, input: SwarmSpec, signal: Ab
   const spec: SwarmSpec = JSON.parse(canonical(input)); spec.project = realpathSync(resolve(spec.project));
   const cfg: PinnedSwarm = { version: 1, handsId: spec.workers ? remoteWorkerFleetBackend.id : "local-git-posix-v1",
     spec, baseCommit: "", git: pinCommand({ argv: [executable("git")] }, spec.project), checks: {} };
+  if (Object.values(spec.agents).some(agent => agent.tools.includes("search_files"))) cfg.sourceSearchVersion = 2;
   const root = (await git(cfg, spec.project, ["rev-parse", "--show-toplevel"], signal)).trim();
   invariant(realpathSync(root) === spec.project, "project must be the Git repository root");
   cfg.baseCommit = (await git(cfg, spec.project, ["rev-parse", "--verify", `${spec.baseRef}^{commit}`], signal)).trim();

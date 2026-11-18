@@ -10,6 +10,8 @@ on:
       - 'src/screens/Doctor.tsx'
       - 'src/main.tsx'
       - 'src/entrypoints/cli-bundle.ts'
+      - 'src/hooks/fileSuggestion*.ts'
+      - '.rgignore'
       - 'package.json'
       - 'bun.lock'
       - 'tests/startup/**'
@@ -44,6 +46,7 @@ jobs:
         with:
           bun-version: '1.4.2'
       - run: bun install --frozen-lockfile
+      - run: bun test tests/startup/file-suggestion-ignores.test.ts
       - name: Check the actual compiled CLI parser
         shell: bash
         run: |

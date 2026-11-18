@@ -198,6 +198,8 @@ export interface SwarmSpec {
   budget: SwarmBudget;
 }
 export interface PinnedSwarm {
+  /** Absent in stores whose provider requests advertise single-literal search. */
+  sourceSearchVersion?: 2;
   operations?: PinnedOperations;
   version: 1;
   handsId: string;

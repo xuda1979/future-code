@@ -174,15 +174,27 @@ export class SessionJournal {
     });
   }
   checkpoint(t: Thread, kind: string, payload: unknown): void {
-    this.assertLease(t.capsule);
-    const state = this.store.artifact(json(t.state)); const data = this.store.artifact(json(payload));
+    this.checkpointEvents(t, [{ kind, payload }]);
+  }
+  /** Publish ordered events at a single pre- or post-effect boundary. The durable
+   * cursor and thread state advance together only after all records commit. */
+  checkpointEvents(t: Thread, events: { kind: string; payload: unknown }[]): void {
+    if (!events.length) return;
+    const c = t.capsule;
+    this.assertLease(c);
+    const state = this.store.artifact(json(t.state));
+    const hashes = events.map(event => this.store.artifact(json(event.payload)));
     this.store.transaction(() => {
-      const c = t.capsule; this.assertLease(c);
+      this.assertLease(c);
       const row = this.store.db.prepare("SELECT seq,fence FROM agent_threads WHERE run=? AND task=?").get(c.runId, c.task.id);
       invariant(row?.seq === t.seq && row?.fence === c.fence, "stale thread checkpoint");
-      this.store.db.prepare("INSERT INTO agent_events VALUES(?,?,?,?,?,?)").run(c.runId, c.task.id, t.seq + 1, Date.now(), kind, data);
-      indexMemory(this.store, c.runId, c.task.id, t.seq + 1, payload);
-      this.knowledge?.observe(c, t.seq + 1, (payload as any)?.memory ?? []);
+      const insert = this.store.db.prepare("INSERT INTO agent_events VALUES(?,?,?,?,?,?)");
+      for (const [i, { kind, payload }] of events.entries()) {
+        const seq = t.seq + i + 1;
+        insert.run(c.runId, c.task.id, seq, Date.now(), kind, hashes[i]);
+        indexMemory(this.store, c.runId, c.task.id, seq, payload);
+        this.knowledge?.observe(c, seq, (payload as any)?.memory ?? []);
+      }
       if (t.state.debugging) {
         if (t.state.debugging.card)
           this.store.db.prepare("INSERT INTO agent_triage VALUES(?,?,?) ON CONFLICT(run,task) DO UPDATE SET card=excluded.card")
@@ -195,9 +207,9 @@ export class SessionJournal {
             .run(c.runId, c.task.id, canonical(t.state.decisions.review));
         else this.store.db.prepare("DELETE FROM agent_decision_reviews WHERE run=? AND task=?").run(c.runId, c.task.id);
       }
-      this.store.db.prepare("UPDATE agent_threads SET seq=?,state=? WHERE run=? AND task=?").run(t.seq + 1, state, c.runId, c.task.id);
+      this.store.db.prepare("UPDATE agent_threads SET seq=?,state=? WHERE run=? AND task=?").run(t.seq + events.length, state, c.runId, c.task.id);
     });
-    t.seq++;
+    t.seq += events.length;
   }
   receipt(c: Capsule, value: Json): string {
     this.assertLease(c); const hash = this.store.artifact(value);

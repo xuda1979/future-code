@@ -253,7 +253,7 @@ def source_context(lines: list[str], index: int, radius: int, excerpt: str, max_
 
 def search_source(tree: Path, prepared: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
     """Read-only literal discovery; cursors assume an unchanged private tree."""
-    if set(args) - {"query", "path", "limit", "cursor", "contextLines"}:
+    if set(args) - {"query", "additionalQueries", "path", "limit", "cursor", "contextLines"}:
         raise ValueError("unexpected search argument")
     query, prefix, limit, cursor = args.get("query"), args.get("path"), args.get("limit", 20), args.get("cursor")
     context_lines = args.get("contextLines", 0)
@@ -265,8 +265,15 @@ def search_source(tree: Path, prepared: dict[str, Any], args: dict[str, Any]) ->
             raise ValueError("unsafe search path")
         return rel
 
-    if not isinstance(query, str) or not query or len(query.encode()) > 256 or any(c in query for c in ("\x00", "\r", "\n")):
-        raise ValueError("invalid search query (single-line literal, 1..256 UTF-8 bytes)")
+    additional = args.get("additionalQueries", [])
+    if not isinstance(additional, list) or len(additional) > 7 or ("additionalQueries" in args and not additional):
+        raise ValueError("invalid additionalQueries (1..7 literals)")
+    queries = [query, *additional]
+    for term in queries:
+        if not isinstance(term, str) or not term or len(term.encode()) > 256 or any(c in term for c in ("\x00", "\r", "\n")):
+            raise ValueError("invalid search query (single-line literal, 1..256 UTF-8 bytes)")
+    if len(set(queries)) != len(queries):
+        raise ValueError("duplicate search query")
     if type(limit) is not int or not 1 <= limit <= 100:
         raise ValueError("invalid search limit")
     if type(context_lines) is not int or not 0 <= context_lines <= 20:
@@ -330,15 +337,22 @@ def search_source(tree: Path, prepared: dict[str, Any], args: dict[str, Any]) ->
         except (OSError, ValueError):
             result["skippedFiles"] += 1
             continue
+        if not any(term in text for term in queries):
+            continue
         lines = text.split("\n")
-        for i, line in enumerate(lines[start - 1:], start):
+        for i in range(start, len(lines) + 1):
             if time.monotonic() >= deadline:
                 return finish({"path": path, "line": i})
-            at = line.find(query)
-            if at < 0:
+            line = lines[i - 1]
+            hits = [(pos, j) for j, term in enumerate(queries) if (pos := line.find(term)) >= 0]
+            if not hits:
                 continue
-            excerpt = line[max(0, at - 40):at] + query + line[at + len(query):at + len(query) + 80]
+            at, first = min(hits)
+            end = at + len(queries[first])
+            excerpt = line[max(0, at - 40):end + 80]
             match = {"path": path, "line": i, "text": excerpt, "truncated": excerpt != line}
+            if additional:
+                match["matchedQueryIndices"] = [j for _, j in hits]
             if context_lines:
                 match["context"] = source_context(lines, i - 1, context_lines, excerpt, max(0, min(8192, max_out // 2 - 512)))
             result["matches"].append(match)

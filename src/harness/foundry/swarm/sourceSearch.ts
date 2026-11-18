@@ -24,15 +24,22 @@ export function readSearchFile(path: string, maxBytes: number): Buffer {
 
 export interface SearchCursor { path: string; line: number }
 export interface SourceSearch {
-  query: string; path?: string; limit?: number; cursor?: SearchCursor; contextLines?: number;
+  query: string; additionalQueries?: string[]; path?: string; limit?: number; cursor?: SearchCursor; contextLines?: number;
 }
 /** A cursor is an inclusive source location, not authority or a snapshot.
  * Callers must restart pagination after editing or replacing the workspace. */
 export function validateSourceSearch(args: Record<string, Json>, scopes: string[]): SourceSearch {
-  keys(args, ["query"], ["path", "limit", "cursor", "contextLines"]);
-  invariant(typeof args.query === "string" && args.query.length > 0 &&
-    Buffer.byteLength(args.query) <= 256 && Buffer.from(args.query).toString("utf8") === args.query &&
-    !/[\0\r\n]/.test(args.query), "invalid search query (single-line literal, 1..256 UTF-8 bytes)");
+  keys(args, ["query"], ["additionalQueries", "path", "limit", "cursor", "contextLines"]);
+  const additional = args.additionalQueries === undefined ? [] : args.additionalQueries;
+  invariant(Array.isArray(additional) && additional.length <= 7 &&
+    (args.additionalQueries === undefined || additional.length > 0), "invalid additionalQueries (1..7 literals)");
+  const queries = [args.query, ...additional];
+  for (const query of queries) {
+    invariant(typeof query === "string" && query.length > 0 &&
+      Buffer.byteLength(query) <= 256 && Buffer.from(query).toString("utf8") === query &&
+      !/[\0\r\n]/.test(query), "invalid search query (single-line literal, 1..256 UTF-8 bytes)");
+  }
+  invariant(new Set(queries).size === queries.length, "duplicate search query");
   invariant(args.limit === undefined || (Number.isSafeInteger(args.limit) && (args.limit as number) >= 1 && (args.limit as number) <= 100), "invalid search limit");
   invariant(args.contextLines === undefined || (Number.isSafeInteger(args.contextLines) && (args.contextLines as number) >= 0 &&
     (args.contextLines as number) <= 20), "invalid search contextLines");
@@ -85,7 +92,8 @@ export async function searchSource(args: SourceSearch, inventory: string[], scop
     (args.path === undefined || inScope(path, [args.path]))).sort(compare);
   const maxFileBytes = Math.min(maxOutputBytes, 1024 * 1024), maxReadBytes = Math.min(8 * 1024 * 1024, maxFileBytes * 64);
   const deadline = performance.now() + timeoutMs;
-  const result = { matches: [] as { path: string; line: number; text: string; truncated: boolean; context?: SourceContext }[],
+  const queries = [args.query, ...(args.additionalQueries ?? [])];
+  const result = { matches: [] as { path: string; line: number; text: string; truncated: boolean; context?: SourceContext; matchedQueryIndices?: number[] }[],
     nextCursor: null as SearchCursor | null, scannedFiles: 0, skippedFiles: 0, bytesRead: 0 };
   const finish = (cursor: SearchCursor | null): Json => {
     result.nextCursor = cursor;
@@ -109,16 +117,27 @@ export async function searchSource(args: SourceSearch, inventory: string[], scop
       invariant(!data.includes(0), "binary search input");
       text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(data);
     } catch { signal.throwIfAborted(); result.skippedFiles++; continue; }
+    signal.throwIfAborted();
+    if (!queries.some(query => text.includes(query))) continue;
     const lines = text.split("\n");
     for (let i = start - 1; i < lines.length; i++) {
       signal.throwIfAborted();
       if (performance.now() >= deadline) return finish({ path, line: i + 1 });
-      const at = lines[i].indexOf(args.query); if (at < 0) continue;
+      let at = -1, firstQuery = "";
+      let matchedQueryIndices: number[] | undefined;
+      for (let j = 0; j < queries.length; j++) {
+        const pos = lines[i].indexOf(queries[j]);
+        if (pos < 0) continue;
+        if (at < 0 || pos < at) { at = pos; firstQuery = queries[j]; }
+        if (queries.length > 1) (matchedQueryIndices ??= []).push(j);
+      }
+      if (at < 0) continue;
       // Clip context around the first literal hit, preserving Unicode scalars.
       const before = Array.from(lines[i].slice(0, at)).slice(-40).join("");
-      const after = Array.from(lines[i].slice(at + args.query.length)).slice(0, 80).join("");
-      const excerpt = before + args.query + after;
+      const after = Array.from(lines[i].slice(at + firstQuery.length)).slice(0, 80).join("");
+      const excerpt = before + firstQuery + after;
       result.matches.push({ path, line: i + 1, text: excerpt, truncated: excerpt !== lines[i],
+        ...(matchedQueryIndices ? { matchedQueryIndices } : {}),
         ...(args.contextLines ? { context: sourceContext(lines, i, args.contextLines, excerpt,
           Math.max(0, Math.min(8192, Math.floor(maxOutputBytes / 2) - 512))) } : {}) });
       // Include cursor/metadata and leave headroom for subsequent skip counters.
