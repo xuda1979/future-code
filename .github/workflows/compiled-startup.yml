@@ -8,6 +8,10 @@ on:
       - 'src/utils/bash/ShellSnapshot.ts'
       - 'src/utils/doctorDiagnostic.ts'
       - 'src/screens/Doctor.tsx'
+      - 'src/main.tsx'
+      - 'src/entrypoints/cli-bundle.ts'
+      - 'package.json'
+      - 'bun.lock'
       - 'tests/startup/**'
       - '.github/workflows/compiled-startup.yml'
   workflow_dispatch:
@@ -31,3 +35,22 @@ jobs:
         with:
           bun-version: ${{ matrix.bun }}
       - run: bun test tests/startup/compiled-startup.test.ts
+  cli-entrypoints:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.2'
+      - run: bun install --frozen-lockfile
+      - name: Check the actual compiled CLI parser
+        shell: bash
+        run: |
+          bun build src/entrypoints/cli-bundle.ts --compile --outfile="$RUNNER_TEMP/future-code" --target=bun
+          for debug in --debug-to-stderr -d2e; do
+            "$RUNNER_TEMP/future-code" "$debug" --help > "$RUNNER_TEMP/cli-help"
+            grep -q '^Usage: future-code ' "$RUNNER_TEMP/cli-help"
+            "$RUNNER_TEMP/future-code" "$debug" --print --help > "$RUNNER_TEMP/cli-print-help"
+            grep -q '^Usage: future-code ' "$RUNNER_TEMP/cli-print-help"
+          done

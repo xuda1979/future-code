@@ -1,8 +1,6 @@
 # Future-Code Technical Report
 
-**Version:** 2.0  
-**Date:** October 2026  
-**Status:** Product and architecture report
+**Version 2.1 · November 18, 2026**
 
 ## Executive summary
 
@@ -11,6 +9,13 @@ Future-Code is a runtime for sustained software development and research using e
 This addresses the failure modes that dominate long-horizon R&D: stalled model loops, repeated failed hypotheses, duplicated remote jobs, provider outages, conflicting subagent edits, context growth, and premature success declarations. Future-Code therefore treats the model as an intelligent but replaceable component inside a governed execution protocol.
 
 > **Models propose. Evidence decides. Future-Code enforces.**
+
+The release comparison exposed a startup crash in the current build. After the
+fix, Future-Code completed five of five independently verified CLI replays.
+OpenCode and Claude Code also completed five of five. Median verified wall time
+was 1.58 seconds for Future-Code, 5.60 seconds for OpenCode, and 1.07 seconds
+for Claude Code. The current remote-job controller also recovered the original
+job after a simulated 42-hour outage. Section 9 gives the evidence and scope.
 
 ## 1. Core architecture
 
@@ -137,19 +142,90 @@ The frozen v5 artifact reports:
 
 These are evidence-representation results, not claims that HACT improves LLM reasoning, provider billing, or physical-WAN latency.
 
-## 9. Evaluation discipline
+## 9. Comparative productivity experiments
 
-Future-Code's real-project evaluation protocol freezes source revision, task graph, model, tools, budgets, verifier, and integration checks before comparing candidate recipes.
+### Short repair through real CLI entry points
 
-The system records verified objectives, verified tasks, wall-clock time, real model requests, provider usage when available, unknown requests, cost when trustworthy, and artifact identities.
+Each trial used a fresh Git worktree with a defect in a Python verification
+metric. The independent checker reproduced the defect before each run. A
+loopback provider supplied the read, edit, and completion actions. The final
+checker required a correct scoped patch. All 15 successful runs produced the
+same patch SHA-256. Wall time includes worktree creation, the initial check,
+CLI startup and tool calls, the final check, and cleanup. Five repeats rotated
+the starting arm.
 
-The methodology rejects several common forms of self-deception:
+| CLI and build | Verified edits | Median wall time for verified edits |
+| --- | ---: | ---: |
+| First commit `b1f9d18` with current dependencies | 0/5 | — |
+| Main `f4dcea1` | 0/5 | — |
+| Future-Code with the startup fix `2692c00` | 5/5 | 1.58 s |
+| OpenCode 1.19.6 | 5/5 | 5.60 s |
+| Claude Code 2.1.327 | 5/5 | 1.07 s |
 
-- a faster incorrect result is not a speedup;
-- fewer than three live repetitions are insufficient for a live productivity claim;
-- replayed responses cannot establish paid-model token efficiency;
-- missing billing remains null/unknown, not zero;
-- one project cannot establish a universal comparison with Claude, Codex, Cursor, or another system.
+Commander 15 rejected `-d2e` during option registration. Both Future-Code
+baselines exited before sending a model request. The fix preserves the old
+`-d2e` spelling and `--debug-to-stderr`. CI now compiles the actual CLI and
+exercises both spellings in normal and print mode. The first commit's exact
+dependency install returned 404 for seven archived `@future/*` packages.
+Its unchanged source was compiled against the current dependency set, so the
+first-commit startup result applies to that compatibility build. The timing
+covers each client's minimal headless configuration and scripted provider.
+[CLI settings, recorded results, and reproduction](../../experiments/agent-productivity-20261118/README.md#short-repair)
+
+### First-commit mechanisms and provider latency
+
+| Measured subsystem and workload | First commit | Later Future-Code | OpenCode provider library |
+| --- | ---: | ---: | ---: |
+| Serialized review context with full outputs retained on disk | 121,713 B | 35,219 B | — |
+| Injected tool-fault contracts passed | 0/5 | 5/5 | — |
+| One tool turn with a 200 ms hold after protocol completion | 218.59 ms | 7.67 ms | 14.10 ms |
+| Twelve tool turns with the same hold per response | 2,551.79 ms | 61.25 ms | 177.56 ms |
+| One tool turn with immediate socket close | 6.08 ms | 5.99 ms | 17.13 ms |
+
+The first two rows come from the November 11 study, which used four repeats
+per condition and `ac37892` as the later revision. It measured a 71.06% reduction
+in serialized context and verified that every stored full tool output remained
+byte-identical. The transport rows are medians of five rotated samples. They
+compare the actual first-commit bridge, the `f4dcea1` bridge, and OpenCode's
+`@opencode/ai@2.3.0` provider library against the same local SSE frames. Both
+bridge spacing overrides were zero. All matched local read receipts agreed.
+[First-commit study](../../experiments/first-commit-20261111/README.md) ·
+[Transport settings and reproduction](../../experiments/agent-productivity-20261118/README.md#provider-transport)
+
+### Recovery on an accelerated eight-day job
+
+The test used the production scheduler, real SQLite state, a virtual clock,
+and a scripted remote adapter. It reopened the controller twice and cut the
+link between hour 150 and hour 192. Both versions submitted once and kept the
+original acknowledged job identity.
+
+| Controller revision | Outcome | Failed inspections | Terminal receipts |
+| --- | --- | ---: | ---: |
+| `4dbd9e2`, before the recovery patch | Blocked at hour 168 | 1,081 | 0 |
+| `f4dcea1` | Retrieved the expected result at hour 192 | 42 | 1 |
+
+Both arms recorded zero task acceptances. The remote result still feeds a
+separate project acceptance check. The experiment measures controller behavior
+under the specified fault schedule. [Recovery receipts and reproduction](../../experiments/agent-productivity-20261118/README.md#remote-job-recovery)
+
+### Model-backed comparison and coverage
+
+The same-model pilot started Future-Code, Claude Code, and OpenCode on a
+local Qwen3-4B-Instruct-2507 model. The first recorded Future-Code and Claude
+Code trials each reached their 90-second deadline while the CPU backend was
+processing requests. The execution environment disconnected after the OpenCode
+trial started. The complete trial matrix and an OpenCode result were unavailable.
+
+Codex CLI 0.170.0 failed app-server initialization on the managed filesystem.
+The WorkBuddy desktop client was unavailable. Tencent documents WorkBuddy and
+CodeBuddy CLI as separate clients. [Tencent client documentation](https://cloud.tencent.com/document/product/1831/140223)
+
+A general productivity ranking remains open. A broader evaluation requires
+previously unseen tasks across projects, a matched-model campaign for runtime
+effects, a best-available-model campaign for user outcomes, and full multi-day
+objectives with independent verification. Compare accepted objectives, elapsed
+time including failures, operator interventions, and verified usage and billing
+where available. [Model pilot and full evaluation protocol](../../experiments/agent-productivity-20261118/README.md#model-backed-pilot)
 
 ## 10. Security and trust boundaries
 

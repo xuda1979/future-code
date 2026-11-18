@@ -229,6 +229,8 @@ def main():
         (directory / "fixture.txt").write_text("verified local fixture\n")
         os.environ["FUTURE_CONFIG_DIR"] = temp
         os.environ["HUANXIN_GLM52_RETRIES"] = "1"
+        # The first commit applies this knob to every upstream, including the fixture.
+        os.environ["HUANXIN_GLM52_MIN_SPACING"] = "0"
         os.environ["HUANXIN_UPSTREAM_MIN_SPACING"] = "0"
         modules = {arm: load_proxy(root, f"benchmark_{arm}") for arm, root in roots.items()}
         for sample in range(args.samples):
