@@ -6,7 +6,7 @@ tool budget, owns receipts, and independently verifies the final patch.
 
 | Calls | Default local worktree behavior | Boundary |
 |---|---|---|
-| `read_file`, `list_files` | Up to four concurrent reads; identical name/arguments share one execution within the unchanged read batch | Every call retains its own result ID, owned receipt and budget charge |
+| `read_file`, `list_files`, `search_files` | Up to four concurrent reads; identical name/arguments share one execution within the unchanged read batch | Every call retains its own result ID, owned receipt and budget charge |
 | `write_file`, `edit_file`, `delete_file` | Execute in caller order, then produce one canonical scoped snapshot for the group | Results and patch publish together in one durable thread checkpoint |
 | `run_job` | Up to eight concurrent control RPCs within an adjacent job group | Template concurrency, stable remote identity, reconciliation and objective ceilings still apply |
 | Checks, spawning, claims, findings, progress and recall | Execute as individual boundaries | Later calls cannot move ahead of these effects |
@@ -19,7 +19,11 @@ preceding result before the model chooses their inputs.
 
 ## Recovery and backend contract
 
-Before execution, the host persists the batch's charged call IDs and intents.
+Before execution, the host persists the charged call IDs. It then publishes the
+admitted tool-effect and intent events in order, with one full thread snapshot
+and one SQLite transaction for the group. Each event keeps its sequence number
+and original payload. A failed transaction leaves all calls undispatched. The
+preceding durable state supplies the pending IDs on restart.
 If a write group is cancelled, crashes, or encounters a fatal interruption,
 its unpublished private workspace is discarded. Restart restores the preceding
 durable patch and replays outstanding calls in order, without charging them

@@ -134,3 +134,81 @@ separately.
 [Claude Code CLI](https://code.claude.com/docs/en/headless) ·
 [Codex CLI](https://learn.chatgpt.com/docs/non-interactive-mode) ·
 [llama.cpp server](https://github.com/ggml-org/llama.cpp/tree/398f00d65769e73bb5cad57c809429b160f2bb0e/tools/server)
+
+## Source discovery and dispatch
+
+The 42 recorded trials used Linux x86-64, Node 24.22.3, Git 2.52.0 and an
+Intel Xeon Platinum 8573C. The measured runtime revisions are `22cb45f` and
+`40c9588`. Published revision `70f1be2` has the same Git tree as the
+measured candidate, `c6c5ecc739d0ba1aaeb331649ae1e5f6051b41f7`. Run six
+repetitions with the fixture runner from the published candidate
+revision. It rotates arm order by repetition. The three-arm symbol workload
+includes a candidate receiving the exact same eight single-literal calls as
+the parent, and a candidate receiving one combined call. All eight baseline
+calls arrive together in one provider response. No artificial I/O or network
+delay is inserted. The runner emits every trial, including any failure,
+and exits nonzero on a failed check. [Recorded samples](discovery-samples.csv)
+
+~~~sh
+git worktree add --detach ../future-discovery-parent 22cb45f
+git worktree add --detach ../future-discovery-candidate 70f1be2
+node --experimental-strip-types ../future-discovery-candidate/experiments/agent-productivity-20261118/bench-discovery.mjs \
+  ../future-discovery-parent ../future-discovery-candidate 6 > discovery.json
+~~~
+
+Each trial starts with a fresh SQLite store and the same 192 files. The
+provider fixture derives the answer from tool outputs. Task verification and
+integration both check the exact bytes. Timing starts at `runSwarm` and ends
+after `integrateSwarm`, including workspace setup, tool calls, journaling,
+verification and integration. Fixture creation, the initial failing check and
+one-time Swarm initialization occur before timing. The known-file workload
+reads a single supplied path. The retained-input workload reads 24 distinct
+files with 49,152 bytes of synthetic prior notes in the task input.
+
+| CSV column | Meaning |
+| --- | --- |
+| `pair`, `workload`, `arm`, `ms` | Repetition, task, policy, total wall time in milliseconds |
+| `requests`, `calls` | Scripted provider requests and charged tool calls |
+| `states` | Submissions of a complete thread state to the production artifact store, counted at its API boundary |
+| `scanned`, `bytesRead` | File inspections and bytes returned to the search implementation, summed across search receipts |
+| `tree` | Git tree published after independent checks, compared across arms for the same task |
+
+As a separate smoke check, both revisions were compiled with Bun 1.4.2
+using the same frozen dependency tree. The existing headless CLI edit replay
+passed once per binary. Both independently verified edits had patch SHA-256
+`2cb37ecc648f98ba4439f41190a385ebf1147f70163b9ff778dd4b382eb14a81`.
+The CLI smoke trials are separate from the 42 Swarm trials.
+
+All five repository regression gates exited successfully. The Foundry gate
+passed 914 tests, Swarm 567, commands 275, and resilience 183 Node tests plus
+62 Python tests. These suites overlap. The correctness gate passed 533 Node
+tests and skipped one platform-specific case. Its Python runs passed 40/45
+terminal and correctness cases and 62/62 research-job cases. The five tmux
+cases require Unix sockets. A dedicated rerun with tmux 3.5a installed
+confirmed the runner denies socket creation. The two file-suggestion tests also
+passed under Bun. The transaction-fault and old-profile replay cases run in
+the normal Foundry and Swarm gates.
+
+To reproduce the repository inventory, run the following from the candidate
+checkout with the same sibling worktrees and ripgrep 15.2.0. Both views use
+the parent manifest so that new runtime files do not change the denominator.
+File sizes describe the search inventory. The task measurements above use
+actual byte counts reported by the search operation.
+
+~~~python
+from pathlib import Path
+from subprocess import check_output
+
+parent = Path("../future-discovery-parent")
+records = check_output(["git", "ls-tree", "-rlz", "HEAD"], cwd=parent)
+sizes = {}
+for entry in records.split(b"\0"):
+    if entry:
+        meta, name = entry.split(b"\t", 1)
+        sizes[name] = int(meta.split()[-1])
+for checkout in (parent, Path(".")):
+    paths = check_output(["rg", "--files", "--hidden", "-0", "-g", "!.git"], cwd=checkout)
+    visible = set(paths.split(b"\0")) & sizes.keys()
+    print(len(visible), sum(sizes[p] for p in visible),
+          sum(p.startswith(b"src/") for p in visible))
+~~~
