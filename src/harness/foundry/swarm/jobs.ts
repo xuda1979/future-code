@@ -1,4 +1,4 @@
-import { DeferredAttemptError } from "../continuation.ts";
+import { DeferredAttemptError, wakeRemoteJobWaiters } from "../continuation.ts";
 import { FatalAttemptError } from "../errors.ts";
 import { checkPins } from "../commands.ts";
 import { runPlanValidation } from "../researchValidation.ts";
@@ -326,7 +326,7 @@ export class ResearchJobs {
       }
       const live = store.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE template=? AND result_hash IS NULL").get(name)!.n;
       if (live >= template.maxConcurrent) throw new DeferredAttemptError("remote-job", Date.now() + template.pollMs,
-        `Remote capacity busy for ${name}; no new job submitted`, { template: name, maxConcurrent: template.maxConcurrent });
+        `Remote capacity busy for ${name}; no new job submitted`, [{ kind: "capacity", template: name, maxConcurrent: template.maxConcurrent }]);
       const now = Date.now();
       store.db.prepare(`INSERT INTO research_jobs
         (key,run,task,template,input_hash,created,progress_at,progress_token,poll_at,failures,job_id,status,result_hash,updated,reconciliation_hash,progress_rank,stale_at,idle_polls)
@@ -458,7 +458,7 @@ export class ResearchJobs {
       // manufacture progress.
       if (changed || current.status !== v.status || current.job_id !== v.jobId) store.event("job.observed",
         { key, jobId: v.jobId, status: v.status, progress: changed, receipt }, c.runId, c.task.id);
-      if (terminal) this.releaseCapacity(name, now);
+      if (terminal) wakeRemoteJobWaiters(store, { key, run: current.run, task: current.task, template: name }, now);
       return store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
     });
     if (pending) this.observedRPCs.add(pending);
@@ -475,7 +475,8 @@ export class ResearchJobs {
     }
     const stale = now >= staleAt;
     return new DeferredAttemptError(stale ? "remote-stalled" : "remote-job", Math.max(now + 10, row.poll_at),
-      `job ${row.key.slice(0, 12)} ${row.status}${stale ? "; no new milestone: inspect remote worker/queue" : "; durable poll scheduled"}`);
+      `job ${row.key.slice(0, 12)} ${row.status}${stale ? "; no new milestone: inspect remote worker/queue" : "; durable poll scheduled"}`,
+      [{ kind: "job", key: row.key }]);
   }
   reconcile(run: string, key: string, reply: JobReply): Json {
     const store = this.journal.store;
@@ -500,21 +501,11 @@ export class ResearchJobs {
       invariant(!current.job_id || current.job_id === reply.jobId, "remote job identity changed");
       store.db.prepare("UPDATE research_jobs SET job_id=?,status=?,result_hash=?,poll_at=?,updated=?,reconciliation_hash=?,observation_hash=?,observation_at=?,observation_summary=? WHERE run=? AND key=?")
         .run(reply.jobId, reply.status, receipt, now, now, reconciliationHash, receipt, now, jobObservation(reply), run, key);
-      store.db.prepare("UPDATE task_waits SET wake=MIN(wake,?) WHERE run=? AND task=? AND kind IN ('remote-job','remote-stalled')")
-        .run(now, run, row.task);
       store.event("job.reconciled", { key, jobId: reply.jobId, status: reply.status,
         receipt, reconciliationHash }, run, row.task);
-      this.releaseCapacity(String(row.template), now);
+      wakeRemoteJobWaiters(store, { key, run, task: row.task, template: row.template }, now);
     });
     return reply as unknown as Json;
-  }
-  private releaseCapacity(template: string, now: number): void {
-    // Only capacity waiters become eligible. A running job retains its own
-    // identity, inspect deadline and semantic-progress policy.
-    const store = this.journal.store;
-    const released = store.db.prepare("UPDATE task_waits SET wake=MIN(wake,?) WHERE kind='remote-job' AND reason=?")
-      .run(now, `Remote capacity busy for ${template}; no new job submitted`);
-    if (released.changes) store.event("job.capacity.released", { template, waiters: Number(released.changes) });
   }
   list(run: string): Json {
     const rows = this.journal.store.db.prepare(`SELECT key,task,template,job_id,status,progress_at,stale_at,progress_rank,poll_at,idle_polls,failures,result_hash,reconciliation_hash,updated,observation_hash,observation_at,observation_summary

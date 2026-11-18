@@ -6,10 +6,11 @@ import { Scheduler } from "../../src/harness/foundry/scheduler.ts";
 import { Store } from "../../src/harness/foundry/store.ts";
 import { DeferredAttemptError } from "../../src/harness/foundry/continuation.ts";
 import { ResearchJobs } from "../../src/harness/foundry/swarm/jobs.ts";
+import { SwarmDriver } from "../../src/harness/foundry/swarm/driver.ts";
 import { SessionJournal } from "../../src/harness/foundry/swarm/session.ts";
 import { rebuildRequestAccounting, runRequestTotals, objectiveRequestTotals } from "../../src/harness/foundry/swarm/requestAccounting.ts";
 import { installObjectives } from "../../src/harness/foundry/swarm/supervisor.ts";
-import { fixture, task, signal } from "./swarm-fixtures.ts";
+import { fixture, reply, scripted, task, signal } from "./swarm-fixtures.ts";
 
 test("request counters preserve unknown spend, expiry, late replies and exact budget limits", async () => fixture(async (s, cfg) => {
   const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "w")!);
@@ -128,3 +129,116 @@ test("a non-cooperating job RPC is bounded and retains an unresolved identity fo
 // Load tolerance: initializeSwarm itself spawns bounded git processes under the
 // same budget, so keep the ceiling tight but above spawn latency under load.
 }, s => { withJobs(s); s.budget.toolTimeoutMs = 500; }));
+
+for (const releaseBeforeDefer of [false, true]) {
+  test(`a job batch wakes when its second template frees capacity ${releaseBeforeDefer ? "before deferral" : "across restart"}`, async () => fixture(async (s, cfg) => {
+    const q = new Scheduler(s), blockers = q.start([task("b")]), run = q.start([task()]);
+    const profile = cfg.spec.agents.coder, owner = q.capsule(q.claim(blockers, "owner")!);
+    const call = (name: string, seed: number) => ({ id: name, name: "run_job", arguments: { name, input: { seed } } });
+    const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_adapter, _cfg, request: any) =>
+      ({ schema: 1, key: request.key, jobId: request.key, status: "RUNNING" }));
+    for (const name of ["exp", "other", "unrelated"])
+      await assert.rejects(jobs.execute(owner, profile, call(name, 1), signal()), DeferredAttemptError);
+    const release = (controller: ResearchJobs, template: string) => {
+      const row = s.db.prepare("SELECT key,job_id FROM research_jobs WHERE run=? AND template=?").get(blockers, template)!;
+      controller.reconcile(blockers, row.key, { schema: 1, key: row.key, jobId: row.job_id, status: "SUCCEEDED", result: {} });
+    };
+    const mock = scripted([() => reply("", [{ id: "edit", name: "write_file",
+      arguments: { path: "src/a.txt", content: "42\n" } }, call("exp", 2), call("other", 3)]),
+      () => reply("done")]);
+    const submitted: number[] = [];
+    const driver = new SwarmDriver(s, cfg, mock.fetcher, undefined, async (_adapter, _cfg, request: any) => {
+      assert.equal(request.operation, "ensure");
+      submitted.push(request.input.seed);
+      return { schema: 1, key: request.key, jobId: request.key, status: "SUCCEEDED", result: { ok: true } };
+    });
+    const defer = async (lease: NonNullable<ReturnType<typeof q.claim>>, beforeDefer?: () => void) => {
+      await assert.rejects(driver.execute(q.capsule(lease), signal()), error => {
+        assert.ok(error instanceof DeferredAttemptError);
+        beforeDefer?.();
+        assert.equal(q.defer(lease, error), true);
+        return true;
+      });
+    };
+    const first = q.claim(run, "worker")!;
+    await defer(first, releaseBeforeDefer ? () => release(jobs, "other") : undefined);
+    if (!releaseBeforeDefer) {
+      const peer = await Store.open(s.root);
+      try {
+        const reopened = new ResearchJobs(new SessionJournal(peer), cfg);
+        release(reopened, "unrelated");
+        assert.equal(q.claim(run, "worker"), null, "unrelated capacity must leave the batch asleep");
+        release(reopened, "other");
+      } finally { peer.close(); }
+    }
+    const resumed = q.claim(run, "worker");
+    assert.ok(resumed, "the free second template should wake the batch before the 20-second fallback");
+    await defer(resumed);
+    assert.deepEqual(submitted, [3], "use the available template while the first stays busy");
+    assert.equal(mock.bodies.length, 1, "polling and resumption do not call the model");
+    release(jobs, "exp");
+    const last = q.capsule(q.claim(run, "worker")!);
+    const result = await driver.execute(last, signal());
+    assert.deepEqual(submitted, [3, 2]);
+    assert.equal(mock.bodies.length, 2);
+    const verification = await driver.verify(last, result, signal());
+    assert.ok(verification.checks.length > 0 && verification.checks.every(c => c.verdict === "PASS"));
+  }, cfg => {
+    withJobs(cfg);
+    cfg.jobs!.other = { ...cfg.jobs!.exp };
+    cfg.jobs!.unrelated = { ...cfg.jobs!.exp };
+    cfg.agents.coder.jobs!.push("other", "unrelated");
+  }));
+}
+
+test("a terminal result arriving before deferral wakes its own batch while a sibling keeps running", async () => fixture(async (s, cfg) => {
+  const q = new Scheduler(s), run = q.start([task()]);
+  const launch = q.claim(run, "worker")!;
+  const mock = scripted([() => reply("", [1, 2].map(seed => ({ id: `job-${seed}`, name: "run_job",
+    arguments: { name: "exp", input: { seed } } }))), () => reply("done")]);
+  const keys = new Map<number, string>();
+  const driver = new SwarmDriver(s, cfg, mock.fetcher, undefined, async (_adapter, _cfg, request: any) => {
+    assert.equal(request.operation, "ensure", "a sibling with a future poll cannot consume an inspect");
+    keys.set(request.input.seed, request.key);
+    return { schema: 1, key: request.key, jobId: request.key, status: "RUNNING" };
+  });
+  const jobs = new ResearchJobs(new SessionJournal(s), cfg);
+  const finish = (seed: number) => {
+    const key = keys.get(seed)!;
+    jobs.reconcile(run, key, { schema: 1, key, jobId: key, status: "SUCCEEDED", result: { seed } });
+  };
+  await assert.rejects(driver.execute(q.capsule(launch), signal()), error => {
+    assert.ok(error instanceof DeferredAttemptError);
+    finish(1);
+    assert.equal(q.defer(launch, error), true);
+    return true;
+  });
+  const first = q.claim(run, "worker");
+  assert.ok(first, "any completed pending job should wake the batch");
+  await assert.rejects(driver.execute(q.capsule(first), signal()), error => {
+    assert.ok(error instanceof DeferredAttemptError);
+    assert.equal(q.defer(first, error), true);
+    return true;
+  });
+  assert.equal(q.claim(run, "worker"), null, "the saved sibling wait does not wake on a consumed result");
+  assert.equal(mock.bodies.length, 1);
+  finish(2);
+  await driver.execute(q.capsule(q.claim(run, "worker")!), signal());
+  assert.equal(mock.bodies.length, 2);
+}, cfg => { withJobs(cfg); cfg.jobs!.exp.maxConcurrent = 2; }));
+
+test("a persisted wait from an older store still wakes on its original capacity selector", async () => fixture(async (s, cfg) => {
+  const q = new Scheduler(s), busy = q.start([task("b")]), run = q.start([task()]);
+  const owner = q.capsule(q.claim(busy, "owner")!);
+  const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_adapter, _cfg, request: any) =>
+    ({ schema: 1, key: request.key, jobId: request.key, status: "RUNNING" }));
+  await assert.rejects(jobs.execute(owner, cfg.spec.agents.coder,
+    { id: "one", name: "run_job", arguments: { name: "exp", input: {} } }, signal()), DeferredAttemptError);
+  const legacy = q.claim(run, "worker")!;
+  assert.equal(q.defer(legacy, new DeferredAttemptError("remote-job", Date.now() + 20000,
+    "Remote capacity busy for exp; no new job submitted")), true);
+  assert.equal(q.claim(run, "worker"), null);
+  const row = s.db.prepare("SELECT key,job_id FROM research_jobs WHERE run=?").get(busy)!;
+  jobs.reconcile(busy, row.key, { schema: 1, key: row.key, jobId: row.job_id, status: "SUCCEEDED", result: {} });
+  assert.ok(q.claim(run, "worker"));
+}, withJobs));
