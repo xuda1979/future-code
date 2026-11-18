@@ -1,18 +1,22 @@
 import { canonical, invariant } from "../kernel.ts";
 import type { Json } from "../types.ts";
 import { inScope, keys, safePath } from "./config.ts";
-import { closeSync, openSync, readSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 
-/** Limit the read itself even if a file grows after its size was checked. */
+/** Limit the read itself even if a file grows after its size was checked. A NUL
+ * is already sufficient to exclude it from UTF-8 source search. */
 export function readSearchFile(path: string, maxBytes: number): Buffer {
-  const fd = openSync(path, "r");
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
+    invariant(fstatSync(fd).isFile(), "search input must be a regular file");
     const chunks: Buffer[] = []; let size = 0;
     while (size <= maxBytes) {
       const buffer = Buffer.alloc(Math.min(16384, maxBytes + 1 - size));
       const n = readSync(fd, buffer, 0, buffer.length, null); if (!n) break;
-      chunks.push(buffer.subarray(0, n)); size += n;
+      const chunk = buffer.subarray(0, n);
+      chunks.push(chunk); size += n;
+      if (chunk.includes(0)) break;
     }
     return Buffer.concat(chunks);
   } finally { closeSync(fd); }

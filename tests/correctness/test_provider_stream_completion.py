@@ -4,6 +4,7 @@ import io
 import json
 import os
 from pathlib import Path
+import socket
 import ssl
 import tempfile
 import threading
@@ -52,6 +53,42 @@ class HeldOpenUpstream(BaseHTTPRequestHandler):
         self.server.release.wait(5)
 
 
+class QuietStreamUpstream(BaseHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+    def do_POST(self):
+        self.rfile.read(int(self.headers["Content-Length"]))
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+        self.connection.settimeout(3)
+        try:
+            if self.server.trickle:
+                while not self.server.release.wait(0.025):
+                    self.wfile.write(b": upstream heartbeat\n\n")
+            elif not self.rfile.read(1):
+                self.server.peer_closed.set()
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            self.server.peer_closed.set()
+        except TimeoutError:
+            pass
+
+
+class RetryableUpstream(BaseHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+    def do_POST(self):
+        self.rfile.read(int(self.headers["Content-Length"]))
+        self.send_response(503)
+        self.end_headers()
+        self.wfile.write(b'{"error":{"message":"busy"}}')
+        if self.server.first_call.is_set():
+            self.server.retried.set()
+        self.server.first_call.set()
+
+
 class StreamCompletionTests(unittest.TestCase):
     def start_server(self, handler):
         server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -88,6 +125,58 @@ class StreamCompletionTests(unittest.TestCase):
         bridge.verify_context = ssl.create_default_context()
         bridge.insecure_context = ssl._create_unverified_context()
         return bridge
+
+    def quiet_stream(self, trickle=False):
+        upstream = self.start_server(QuietStreamUpstream)
+        upstream.trickle = trickle
+        upstream.release = threading.Event()
+        upstream.peer_closed = threading.Event()
+        return upstream
+
+    def simple_request(self, bridge):
+        body = {"model": "fixture", "stream": True, "messages": [{"role": "user", "content": "Start work"}]}
+        return urllib.request.Request("http://127.0.0.1:%d/v1/messages" % bridge.server_port,
+                                      data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+
+    def test_client_close_reclaims_silent_upstream_before_next_ping(self):
+        upstream = self.quiet_stream()
+        bridge = self.bridge_for(upstream)
+        with urllib.request.urlopen(self.simple_request(bridge), timeout=2) as response:
+            self.assertEqual(response.readline(), b"event: message_start\n")
+        self.assertTrue(upstream.peer_closed.wait(0.75), "quiet upstream remained open after client cancellation")
+
+    def test_cancelled_client_cannot_submit_a_retry(self):
+        upstream = self.start_server(RetryableUpstream)
+        upstream.first_call = threading.Event()
+        upstream.retried = threading.Event()
+        bridge = self.bridge_for(upstream)
+        body = self.simple_request(bridge).data
+        headers = f"POST /v1/messages HTTP/1.0\r\nContent-Length: {len(body)}\r\n\r\n".encode()
+        with patch.dict(os.environ, {"HUANXIN_GLM52_RETRIES": "2", "HUANXIN_GLM52_RETRY_BASE": "0.25"}):
+            with socket.create_connection(("127.0.0.1", bridge.server_port), timeout=2) as client:
+                client.sendall(headers + body)
+                self.assertTrue(upstream.first_call.wait(1))
+            self.assertFalse(upstream.retried.wait(0.75), "a cancelled request was submitted again")
+
+    def test_live_stream_wall_deadline_expires_despite_upstream_heartbeats(self):
+        upstream = self.quiet_stream(trickle=True)
+        bridge = self.bridge_for(upstream)
+        with patch.dict(os.environ, {"HUANXIN_PROXY_STREAM_MAX_SECONDS": "0.3"}):
+            with urllib.request.urlopen(self.simple_request(bridge), timeout=2) as response:
+                result = response.read().decode()
+        self.assert_stream_failed(result)
+        self.assertIn("Provider stream exceeded its wall-clock limit", result)
+        self.assertTrue(upstream.peer_closed.wait(0.75))
+
+    def test_live_stream_idle_limit_is_independent_of_the_wall_deadline(self):
+        upstream = self.quiet_stream()
+        bridge = self.bridge_for(upstream)
+        with patch.dict(os.environ, {"HUANXIN_PROXY_STREAM_IDLE_SECONDS": "0.15", "HUANXIN_PROXY_STREAM_MAX_SECONDS": "5"}):
+            with urllib.request.urlopen(self.simple_request(bridge), timeout=2) as response:
+                result = response.read().decode()
+        self.assert_stream_failed(result)
+        self.assertIn("Provider stream exceeded its upstream idle limit", result)
+        self.assertTrue(upstream.peer_closed.wait(0.75))
 
     def test_done_finishes_tool_turn_without_waiting_for_http_eof(self):
         upstream = self.start_server(HeldOpenUpstream)
@@ -176,6 +265,11 @@ class StreamCompletionTests(unittest.TestCase):
             with self.subTest(arguments=arguments, reason=reason, marker=marker):
                 result, _ = self.run_stream([self.line({"tool_calls": [{"index": 0, "id": "call-read", "function": {"name": "Read", "arguments": arguments}}]}, reason)], marker=marker)
                 self.assert_stream_failed(result)
+
+    def test_oversized_sse_line_fails_instead_of_admitting_a_partial_turn(self):
+        with patch.object(proxy, "_MAX_SSE_LINE_BYTES", 256):
+            result, _ = self.run_stream([self.line({"content": "x" * 1024}, "stop")])
+        self.assert_stream_failed(result)
 
     def test_upstream_errors_and_parser_faults_do_not_replay_or_fake_completion(self):
         for payload in [b'{"error":{"message":"failed"}}', b'[]', b'null', b'{invalid']:

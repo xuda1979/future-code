@@ -33,6 +33,26 @@ function configure(s: SwarmSpec, remote: boolean): void {
     files: [endpoint, config] }, maxConcurrent: 1, maxRpcBytes: 2 * 1024 * 1024 } };
 }
 
+test("local listing fits a narrow task scope even when unrelated tracked paths exceed the output budget", async () => fixture(async (s, cfg) => {
+  const q = new Scheduler(s), run = q.start([{ ...task(), readScope: ["src/[literal]"] }]);
+  const c = q.capsule(q.claim(run, "worker")!);
+  const hands = localGitBackend.open(s, cfg, c, cfg.spec.agents.coder, signal(), null);
+  try {
+    const list: any = await hands.tool({ id: "list", name: "list_files", arguments: { offset: 1, limit: 1 } });
+    assert.deepEqual(list, { files: ["src/a.txt"], total: 2 });
+    const result: any = await hands.tool(search("needle", { path: "src" }));
+    assert.deepEqual(result.matches.map((match: any) => match.path), ["src/[literal]/keep.txt"]);
+    assert.equal(result.scannedFiles, 2);
+  } finally { await hands.dispose(); }
+}, s => {
+  mkdirSync(join(s.project, "src/[literal]"));
+  writeFileSync(join(s.project, "src/[literal]/keep.txt"), "needle\n");
+  for (let i = 0; i < 750; i++) {
+    writeFileSync(join(s.project, "src", `artifact-${String(i).padStart(3, "0")}-${"x".repeat(180)}.txt`), "needle\n");
+  }
+  commit(s.project); configure(s, false);
+}));
+
 for (const remote of [false, true]) {
   const backend = remote ? remoteWorkerFleetBackend : localGitBackend, label = remote ? "remote" : "local";
   test(`${label} source search returns bounded surrounding code in the discovery call`, async () => fixture(async (s, cfg) => {
@@ -108,10 +128,10 @@ for (const remote of [false, true]) {
       const r: any = await hands.tool(search("SECRET"));
       assert.ok(!r.error, JSON.stringify(r)); assert.deepEqual(r.matches, []); assert.equal(r.nextCursor, null);
       assert.equal(r.skippedFiles, 4); assert.equal(r.scannedFiles, 6);
-      assert.ok(r.bytesRead <= 8 * 1024 * 1024);
+      assert.ok(r.bytesRead <= 17 * 1024, "the scan read past the initial binary chunk");
     } finally { await hands.dispose(); }
   }, s => {
-    writeFileSync(join(s.project, "src/binary"), Buffer.from("SECRET\0"));
+    writeFileSync(join(s.project, "src/binary"), Buffer.concat([Buffer.from("SECRET\0"), Buffer.alloc(60_000, "x")]));
     writeFileSync(join(s.project, "src/invalid"), Buffer.from([0xff, ...Buffer.from("SECRET")]));
     writeFileSync(join(s.project, "src/large"), "SECRET".repeat(12000));
     writeFileSync(join(dirname(s.project), "outside"), "SECRET\n"); symlinkSync(join(dirname(s.project), "outside"), join(s.project, "src/link"));

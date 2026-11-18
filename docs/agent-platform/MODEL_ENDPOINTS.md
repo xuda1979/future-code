@@ -62,6 +62,16 @@ source catalog or rebuilding the binary for each new provider.
   changed during a probe cannot be accepted using the earlier identity.
   Organization model allowlists remain in force before validation/selection.
 
+The local translation proxy uses separate time limits for live OpenAI-compatible
+SSE replies. `HUANXIN_GLM52_UPSTREAM_TIMEOUT` sets the socket timeout while
+opening the upstream HTTP request (60 seconds by default).
+`HUANXIN_PROXY_STREAM_IDLE_SECONDS` overrides the upstream socket read timeout
+once SSE begins and inherits the opening timeout by default.
+`HUANXIN_PROXY_STREAM_MAX_SECONDS` caps the live relay at 1,800 seconds by
+default, including streams that keep sending heartbeats. A disconnected client
+releases its live upstream socket and cancels pending streaming retries. An
+upstream request already waiting for HTTP headers uses its opening timeout.
+
 ## Persistence and upgrades
 
 Profiles live under `FUTURE_CONFIG_DIR/model-endpoints`, or
