@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { closeSync, constants, fstatSync, openSync, readdirSync, readSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, resolve } from 'node:path'
 
@@ -146,8 +146,7 @@ export function formatProjectDigest(
   }
   if (lines.length === 0) return null
   lines.push(
-    'Act directly: use these paths with Read/Grep/Glob instead of re-listing directories or ' +
-      're-running git status/branch/log at session start (git facts are already injected). ' +
+    'Act directly: use these paths with Read/Grep/Glob and reuse available Git facts for orientation. ' +
       'This snapshot can go stale - re-check anything time-sensitive before relying on it, ' +
       'and verify every work outcome with concrete checks as usual.',
   )
@@ -159,17 +158,26 @@ export function formatProjectDigest(
 }
 
 function readManifest(dir: string): DigestManifest | null {
-  const manifestPath = resolve(dir, 'package.json')
-  let size: number
-  try {
-    size = statSync(manifestPath).size
-  } catch {
-    return null
-  }
-  if (size > MAX_MANIFEST_BYTES) return null
   let parsed: Record<string, unknown>
   try {
-    parsed = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    // Inspect the opened file and bound the bytes actually read. A pipe or
+    // a file growing after fstat must not hold up an advisory startup read.
+    const fd = openSync(resolve(dir, 'package.json'), constants.O_RDONLY | (constants.O_NONBLOCK ?? 0))
+    try {
+      const stat = fstatSync(fd)
+      if (!stat.isFile() || stat.size > MAX_MANIFEST_BYTES) return null
+      const bytes = Buffer.allocUnsafe(stat.size + 1)
+      let length = 0
+      while (length < bytes.length) {
+        const n = readSync(fd, bytes, length, bytes.length - length, null)
+        if (!n) break
+        length += n
+      }
+      if (length > stat.size) return null
+      parsed = JSON.parse(bytes.toString('utf8', 0, length))
+    } finally {
+      closeSync(fd)
+    }
   } catch {
     return null
   }

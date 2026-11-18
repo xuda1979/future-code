@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -221,6 +222,26 @@ test('collectProjectDigest ignores malformed package.json and falls back to layo
     assert.ok(out)
     assert.match(out, /Top-level: src\/ package\.json/)
     assert.ok(!out.includes('Manifest:'), 'malformed manifest must be skipped')
+  } finally {
+    restoreGuards(saved)
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('an unreadable manifest cannot stall the layout handed to a new session', { skip: process.platform === 'win32' }, () => {
+  const saved = clearGuards()
+  const dir = mkdtempSync(join(tmpdir(), 'digest-pipe-'))
+  try {
+    mkdirSync(join(dir, 'src'))
+    execFileSync('mkfifo', [join(dir, 'package.json')])
+    // Isolate the sync read so the pre-fix hang has a bounded test failure.
+    const module = new URL('../../src/utils/projectDigest.ts', import.meta.url).href
+    const digest = execFileSync(process.execPath, ['--experimental-strip-types',
+      '--input-type=module', '-e',
+      'const {collectProjectDigest}=await import(process.argv[1]); console.log(collectProjectDigest(process.argv[2]))',
+      module, dir], { encoding: 'utf8', timeout: 1500 })
+    assert.match(digest, /Top-level: src\/ package\.json/)
+    assert.ok(!digest.includes('Manifest:'))
   } finally {
     restoreGuards(saved)
     rmSync(dir, { recursive: true, force: true })

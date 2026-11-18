@@ -189,9 +189,9 @@ export async function executeToolBatch(o: BatchExecution): Promise<void> {
   if (terminal) throw terminal;
   if (deferred.length) {
     if (batch.kind !== "run_job") throw deferred[0]!;
-    const wakeAt = Math.min(...deferred.map(e => e.wakeAt)), capacity = deferred.find(e => e.capacity);
+    const wakeAt = Math.min(...deferred.map(e => e.wakeAt));
     throw new DeferredAttemptError("remote-job", wakeAt,
-      capacity?.message ?? `${stillPending.length} remote experiment(s) still running; batch resume scheduled`, capacity?.capacity);
+      `${stillPending.length} remote job calls waiting for results or capacity`, deferred.flatMap(e => e.jobWaits));
   }
   control?.activity?.(`${batch.kind === "run_job" ? "remote-batch" : "tool-batch"}:completed:${batch.calls.length}`);
 }

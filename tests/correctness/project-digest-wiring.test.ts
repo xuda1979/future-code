@@ -25,7 +25,7 @@ test('getSystemContext still collects and returns the project digest', () => {
   )
   assert.match(
     source,
-    /const projectDigest = collectProjectDigest\(\)/,
+    /const projectDigest = collectProjectDigest\(cwd\)/,
     'digest must be collected inside getSystemContext',
   )
   assert.match(
