@@ -61,7 +61,8 @@ export function persistContinuation(store: Store, lease: Lease, error: DeferredA
     [wait.kind === "job" ? `job:${wait.key}` : `capacity:${wait.template}`, wait] as const));
   const recovered = [...waits.values()].some(wait => wait.kind === "job"
     ? !!store.db.prepare("SELECT 1 FROM research_jobs WHERE key=? AND result_hash IS NOT NULL").get(wait.key)
-    : Number(store.db.prepare("SELECT COUNT(*) AS n FROM research_jobs WHERE template=? AND result_hash IS NULL")
+    : Number(store.db.prepare(`SELECT COUNT(*) AS n FROM research_jobs INDEXED BY research_jobs_live_template
+      WHERE template=? AND result_hash IS NULL`)
       .get(wait.template)!.n) < wait.maxConcurrent);
   const wake = recovered ? now : Math.max(now, Math.min(error.wakeAt, providerWake ?? error.wakeAt));
   const a = store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?").get(lease.runId, lease.taskId, lease.fence)!;
@@ -85,17 +86,21 @@ export function persistContinuation(store: Store, lease: Lease, error: DeferredA
 /** Called within the transaction that records a terminal job result. Legacy
  * waits written before structured dependencies still honor their old selectors. */
 export function wakeRemoteJobWaiters(store: Store, job: { key: string; run: string; task: string; template: string }, now: number): void {
-  store.db.prepare(`UPDATE task_waits SET wake=? WHERE wake>? AND (run,task) IN (
-    SELECT run,task FROM task_remote_job_waits WHERE kind='job' AND target=?
+  // Resolving rowids in the indexed dependency query gives SQLite a direct
+  // update for each waiter. A composite IN predicate scans task_waits.
+  store.db.prepare(`UPDATE task_waits SET wake=? WHERE wake>? AND rowid IN (
+    SELECT w.rowid FROM task_remote_job_waits d JOIN task_waits w ON w.run=d.run AND w.task=d.task
+      WHERE d.kind='job' AND d.target=?
     UNION ALL
-    SELECT run,task FROM task_waits w WHERE run=? AND task=? AND kind IN ('remote-job','remote-stalled')
+    SELECT w.rowid FROM task_waits w WHERE run=? AND task=? AND kind IN ('remote-job','remote-stalled')
       AND NOT EXISTS (SELECT 1 FROM task_remote_job_waits d WHERE d.run=w.run AND d.task=w.task)
   )`).run(now, now, job.key, job.run, job.task);
-  const released = store.db.prepare(`UPDATE task_waits SET wake=? WHERE wake>? AND (run,task) IN (
-    SELECT run,task FROM task_remote_job_waits WHERE kind='capacity' AND target=? AND max_concurrent >
-      (SELECT COUNT(*) FROM research_jobs WHERE template=? AND result_hash IS NULL)
+  const released = store.db.prepare(`UPDATE task_waits SET wake=? WHERE wake>? AND rowid IN (
+    SELECT w.rowid FROM task_remote_job_waits d JOIN task_waits w ON w.run=d.run AND w.task=d.task
+      WHERE d.kind='capacity' AND d.target=? AND d.max_concurrent >
+        (SELECT COUNT(*) FROM research_jobs INDEXED BY research_jobs_live_template WHERE template=? AND result_hash IS NULL)
     UNION ALL
-    SELECT run,task FROM task_waits w WHERE kind='remote-job' AND reason=?
+    SELECT w.rowid FROM task_waits w WHERE kind='remote-job' AND reason=?
       AND NOT EXISTS (SELECT 1 FROM task_remote_job_waits d WHERE d.run=w.run AND d.task=w.task)
   )`).run(now, now, job.template, job.template, `Remote capacity busy for ${job.template}; no new job submitted`);
   if (released.changes) store.event("job.capacity.released", { template: job.template, waiters: Number(released.changes) });
