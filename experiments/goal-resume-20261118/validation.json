@@ -70,6 +70,13 @@
       "exit_code": 0,
       "passed": 59,
       "failed": 0
+    },
+    {
+      "command": "node --experimental-strip-types --test tests/correctness/action-focus.test.ts tests/correctness/direct-execution.test.ts",
+      "exit_code": 0,
+      "passed": 32,
+      "failed": 0,
+      "note": "Preserves both the original completed-experiment control and the added explicit-edit control."
     }
   ],
   "independent_review": {
@@ -87,7 +94,7 @@
     "docs/agent-platform/resume-useful-work-20261118.md": "3c342ff10a906fb81957de33a46ad01dee7fc7b49bc9c511338018361b6334ae",
     "experiments/goal-resume-20261118/README.md": "a21292771db6968f6fcc9bf874036546fb4603c5431d1f2d251e560262e89582",
     "experiments/goal-resume-20261118/adapter-worker.mjs": "52ec73590e0b4dba6f8ecc9b9742d84ec3477a95f5ffcf40ddc9a7141a238317",
-    "experiments/goal-resume-20261118/regressions.json": "e95537b92fdfaa44be9dfa8aff1fb837fc546e79155b9ce22a59b4e9d561a5c7",
+    "experiments/goal-resume-20261118/regressions.json": "3f698446b721ec31be097919023f6d1c34280eb774bc4eee0e7f44415a118217",
     "experiments/goal-resume-20261118/results.json": "bb6055108c594874794c9f7c404e533da0487bce44c05c7bc382abac5737b0e5",
     "scripts/bench-goal-regressions.mjs": "ea38fec253afd58274d160d6c68c8511983a8453809ec3d57328264a65940d6f",
     "scripts/bench-goal-resume.mjs": "d34fd6bd5ea284eca141427ef58c5762975d85fc44e04581861359e4a361c1c8",
@@ -105,7 +112,8 @@
     "tests/correctness/action-focus.test.ts": "a086c5b2ca79cc27e2912c50dc6e3978f70a4a73dbf33ba627b237ff69bfd85a",
     "tests/correctness/goal-decision-flow.test.ts": "69dced8b2dd22538a2877ea3889a4ce68b83b86823a81fa200dbfe057fb9a332",
     "tests/correctness/goal-failure-evidence.test.ts": "6a343ed92e839e3cb8311b15cfe69fc66059b626be9d3977c9564b55bca2c72e",
-    "tests/correctness/goal-work-state.test.ts": "48a23bd44e18bf468a0c2e070384df9597861c3ec6d5ad9289f6bf9d69bbddbb"
+    "tests/correctness/goal-work-state.test.ts": "48a23bd44e18bf468a0c2e070384df9597861c3ec6d5ad9289f6bf9d69bbddbb",
+    "tests/correctness/direct-execution.test.ts": "f9e707f791e73f1c5633da5048e87003553bc020adcd9d23d434b7ab6a8b17dc"
   },
   "ci_regression_repair": {
     "case": "shell searches/status checks no longer reset observation-only review",
@@ -116,5 +124,11 @@
     "after_local_affected_suite_passed": 59,
     "existing_execution_controls_in_paired_comparison": 10,
     "remote_ci_after_repair": "pending"
+  },
+  "runtime_core_ci": {
+    "commit": "d2225af15812e9afdd4f20656b92d0e300584650",
+    "run_id": 44223548179,
+    "conclusion": "success",
+    "scope": "correctness, resilience, Foundry, Swarm, commands, API, rendering and terminal jobs; later control-test-only changes do not alter runtime source"
   }
 }
