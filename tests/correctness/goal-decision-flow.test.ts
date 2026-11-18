@@ -4,9 +4,24 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { stripTypeScriptTypes } from 'node:module';
-import { decideAutoGoalContinuation, enableAutoGoal, pauseAutoGoal, readAutoGoal } from '../../src/commands/goal/auto.ts';
+import { decideAutoGoalContinuation, enableAutoGoal, pauseAutoGoal, readAutoGoal, recordGoalSteering } from '../../src/commands/goal/auto.ts';
 import { hasAutonomyQuestionRejection } from '../../src/query/autonomyQuestions.ts';
+import { GoalFailureEvidence } from '../../src/query/goalFailureEvidence.ts';
 import { AUTONOMY_QUESTION_REDIRECT_MARKER } from '../../src/harness/autonomyPolicy.ts';
+import { isConnectorTextBlock } from '../../src/types/connectorText.ts';
+
+// Exercise the actual signature cleanup used by provider recovery without
+// importing the UI/bootstrap dependency graph of the full messages module.
+const messageSource = readFileSync(new URL('../../src/utils/messages.ts', import.meta.url), 'utf8');
+const thinkingStart = messageSource.indexOf('function isThinkingBlock(');
+const thinkingEnd = messageSource.indexOf('\n/**', thinkingStart);
+const stripStart = messageSource.indexOf('export function stripSignatureBlocks(');
+const stripEnd = messageSource.indexOf('\n/**', stripStart);
+assert.ok(thinkingStart > 0 && thinkingEnd > thinkingStart && stripStart > 0 && stripEnd > stripStart);
+const signatureCode = stripTypeScriptTypes(messageSource.slice(thinkingStart, thinkingEnd) + '\n' +
+  messageSource.slice(stripStart, stripEnd).replace('export function', 'function'), { mode: 'strip' });
+const stripSignatureBlocks = new Function('feature', 'isConnectorTextBlock', signatureCode + '\nreturn stripSignatureBlocks;')(
+  () => true, isConnectorTextBlock);
 
 // Run the production end-turn branches verbatim. Model, UI and optional budget
 // services are injected; durable objective decisions and state remain real.
@@ -21,13 +36,14 @@ const compiled = stripTypeScriptTypes([
   ' createSystemMessage, createUserMessage, activity, messagesForQuery, toolUseContext, tracking,',
   ' maxOutputTokensRecoveryCount, silentResponseRecoveryCount, hasAttemptedReactiveCompact, turnCount,',
   ' feature, readAutoGoal, checkTokenBudget, getCurrentTurnTokenBudget, getTurnOutputTokens,',
-  ' incrementBudgetContinuationCount, logForDebugging, logEvent, budgetTracker, queryChainIdForAnalytics} = ctx;',
-  'let {goalToolActivity} = ctx;',
+  ' incrementBudgetContinuationCount, logForDebugging, logEvent, budgetTracker, queryChainIdForAnalytics,',
+  ' fallbackModel,currentModel,stripSignatureBlocks,createAssistantAPIErrorMessage,goalFailureEvidence} = ctx;',
+  'let {goalToolActivity,autonomyRecoveryModelChanged} = ctx;',
   'let state;',
   'for (let iteration=0; iteration<1; iteration++) {',
   body,
   '}',
-  'return {reason:"test-observed-continuation",state,goalToolActivity};',
+  'return {reason:"test-observed-continuation",state,goalToolActivity,autonomyRecoveryModelChanged};',
   '}',
 ].join('\n'), { mode: 'strip' });
 const execute = new Function(compiled + '\nreturn execute;')();
@@ -46,12 +62,15 @@ async function flow(assistantText: string, extra: Record<string, unknown> = {}) 
     decideAutoGoalContinuation, createSystemMessage: (content: string) => ({ type: 'system', content }),
     createUserMessage: (value: any) => ({ type: 'user', ...value }),
     activity: () => {}, messagesForQuery: [{ type: 'user', message: { content: 'human source: Say go for both' } }],
-    toolUseContext: {}, tracking: undefined, maxOutputTokensRecoveryCount: 0, silentResponseRecoveryCount: 0,
+    toolUseContext: { options: { mainLoopModel: 'primary-model' } }, tracking: undefined, maxOutputTokensRecoveryCount: 0, silentResponseRecoveryCount: 0,
     hasAttemptedReactiveCompact: false, turnCount: 1, feature: () => true, readAutoGoal,
     checkTokenBudget: () => { budgetCalls++; return { action: 'continue', nudgeMessage: 'spend optional budget', continuationCount: 1, pct: 1, turnTokens: 1, budget: 100 }; },
     getCurrentTurnTokenBudget: () => 100, getTurnOutputTokens: () => 1,
     incrementBudgetContinuationCount: () => {}, logForDebugging: () => {}, logEvent: () => {},
-    budgetTracker: {}, queryChainIdForAnalytics: 'test-chain', goalToolActivity: false, ...extra,
+    budgetTracker: {}, queryChainIdForAnalytics: 'test-chain', goalToolActivity: false,
+    autonomyRecoveryModelChanged: false, currentModel: 'primary-model', fallbackModel: undefined, stripSignatureBlocks,
+    goalFailureEvidence: new GoalFailureEvidence(),
+    createAssistantAPIErrorMessage: (value: any) => ({ type: 'assistant', isApiErrorMessage: true, ...value }), ...extra,
   };
   const generator = execute(ctx), emitted: any[] = [];
   for (;;) {
@@ -160,47 +179,195 @@ const questionCompiled = stripTypeScriptTypes([
   'async function* execute(ctx: any) {',
   'const {hasAutonomyQuestionRejection,toolUseBlocks,toolResults,mainGoalThread,hasMainThreadQueuedCommand,',
   ' getCommandQueueSnapshot,decideAutoGoalContinuation,maxTurns,turnCount,autoGoalPolicy,createSystemMessage,',
-  ' createUserMessage,createAssistantAPIErrorMessage} = ctx;',
-  'let {goalToolActivity,rejectedAutonomyQuestions} = ctx;',
+  ' createUserMessage,createAssistantAPIErrorMessage,fallbackModel,currentModel,toolUseContext,stripSignatureBlocks,assistantMessages,goalFailureEvidence,readAutoGoal} = ctx;',
+  'let {goalToolActivity,rejectedAutonomyQuestions,autonomyRecoveryModelChanged,messagesForQuery} = ctx;',
   source.slice(questionStart, questionEnd),
-  'return {reason:"test-observed-tool-followup",rejectedAutonomyQuestions,goalToolActivity,toolResults};',
+  'return {reason:"test-observed-tool-followup",rejectedAutonomyQuestions,goalToolActivity,toolResults,autonomyRecoveryModelChanged,messagesForQuery,assistantMessages,toolUseContext};',
   '}',
 ].join('\n'), { mode: 'strip' });
 const executeQuestion = new Function(questionCompiled + '\nreturn execute;')();
+
+async function questionFlow(extra: Record<string, unknown> = {}) {
+  const context = {
+    hasAutonomyQuestionRejection, toolUseBlocks: [{ id: 'question', name: 'AskUserQuestion' }],
+    toolResults: [{ type: 'user', message: { content: [
+      { type: 'tool_result', tool_use_id: 'question', is_error: true, content: AUTONOMY_QUESTION_REDIRECT_MARKER },
+    ] } }],
+    mainGoalThread: true, hasMainThreadQueuedCommand: () => false, getCommandQueueSnapshot: () => [],
+    decideAutoGoalContinuation, maxTurns: undefined, turnCount: 1, autoGoalPolicy: 'stable policy',
+    createSystemMessage: (content: string) => ({ type: 'system', content }),
+    createUserMessage: (value: any) => ({ type: 'user', ...value }),
+    createAssistantAPIErrorMessage: (value: any) => ({ type: 'assistant', isApiErrorMessage: true, ...value }),
+    goalToolActivity: false, rejectedAutonomyQuestions: 0, autonomyRecoveryModelChanged: false,
+    fallbackModel: undefined, currentModel: 'primary-model', toolUseContext: { options: { mainLoopModel: 'primary-model' } },
+    goalFailureEvidence: new GoalFailureEvidence(), readAutoGoal,
+    stripSignatureBlocks, messagesForQuery: [], assistantMessages: [], ...extra,
+  };
+  const generator = executeQuestion(context), emitted: any[] = [];
+  for (;;) {
+    const item = await generator.next();
+    if (item.done) return { result: item.value, emitted };
+    emitted.push(item.value);
+  }
+}
+
+test('child continuation and question recovery never read foreground failure authority', async () => {
+  let reads = 0;
+  const deniedRead = () => { reads++; throw new Error('foreground state is unavailable to the child'); };
+  await flow('Here is the requested analysis.', { mainGoalThread: false, readAutoGoal: deniedRead });
+  const run = await questionFlow({ mainGoalThread: false, readAutoGoal: deniedRead });
+  assert.equal(run.result.reason, 'test-observed-tool-followup');
+  assert.equal(reads, 0);
+});
 
 for (const mainThread of [true, false]) for (const toolName of ['AskUserQuestion', 'EnterPlanMode']) {
   test('repeated rejected decision calls are bounded: main=' + mainThread + ', tool=' + toolName, () => fixture(async cwd => {
     enableAutoGoal('Complete both requested steps', cwd);
     let localRejections = 0;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const context = {
-        hasAutonomyQuestionRejection, toolUseBlocks: [{ id: 'question', name: toolName }],
-        toolResults: [{ type: 'user', message: { content: [
-          { type: 'tool_result', tool_use_id: 'question', is_error: true, content: AUTONOMY_QUESTION_REDIRECT_MARKER },
-        ] } }],
-        mainGoalThread: mainThread, hasMainThreadQueuedCommand: () => false, getCommandQueueSnapshot: () => [],
-        decideAutoGoalContinuation, maxTurns: undefined, turnCount: 1, autoGoalPolicy: 'stable policy',
-        createSystemMessage: (content: string) => ({ type: 'system', content }),
-        createUserMessage: (value: any) => ({ type: 'user', ...value }),
-        createAssistantAPIErrorMessage: (value: any) => ({ type: 'assistant', isApiErrorMessage: true, ...value }),
-        goalToolActivity: false, rejectedAutonomyQuestions: localRejections,
-      };
-      const generator = executeQuestion(context), emitted: any[] = [];
-      let outcome: any;
-      for (;;) {
-        const item = await generator.next();
-        if (item.done) { outcome = item.value; break; }
-        emitted.push(item.value);
-      }
-      if (attempt < 2) {
-        assert.equal(outcome.reason, 'test-observed-tool-followup');
-        localRejections = outcome.rejectedAutonomyQuestions;
+    const maximum = mainThread ? 4 : 3;
+    for (let attempt = 0; attempt < maximum; attempt++) {
+      const { result, emitted } = await questionFlow({ mainGoalThread: mainThread,
+        toolUseBlocks: [{ id: 'question', name: toolName }], rejectedAutonomyQuestions: localRejections });
+      if (attempt < maximum - 1) {
+        assert.equal(result.reason, 'test-observed-tool-followup');
+        localRejections = result.rejectedAutonomyQuestions;
+        if (mainThread && attempt === 2) assert.ok(result.toolResults.some((message: any) => /Host execution recovery/.test(message.content ?? '')));
       } else {
-        assert.equal(outcome.reason, mainThread ? 'completed' : 'model_error');
+        assert.equal(result.reason, mainThread ? 'model_contract_failure' : 'model_error');
         assert.ok(emitted.some(message => /Model execution contract failure/.test(message.content ?? '')));
-        assert.equal(readAutoGoal(cwd)?.state, mainThread ? 'PAUSED' : 'ACTIVE',
-          'a worker cannot park the parent objective');
+        assert.equal(readAutoGoal(cwd)?.state, 'ACTIVE', 'neither a worker nor model handoff revokes parent authority');
       }
     }
   }));
 }
+
+function signedMessages() {
+  return [{ type: 'assistant', message: { content: [
+    { type: 'thinking', thinking: 'private reasoning', signature: 'old-producer' },
+    { type: 'redacted_thinking', data: 'old-producer' },
+    { type: 'connector_text', text: 'bound text', connector_type: 'old-producer' },
+    { type: 'text', text: 'Existing artifact evidence is retained.' },
+  ] } }];
+}
+
+test('end-turn recovery selects the configured fallback and strips old producer signatures without tool execution', () => fixture(async cwd => {
+  enableAutoGoal('Finish the already authorized workflow', cwd, 8);
+  await flow('Should I continue?'); await flow('Should I continue?');
+  const history = signedMessages(), assistant = signedMessages(), saved = structuredClone([...history, ...assistant]);
+  const toolUseContext = { options: { mainLoopModel: 'primary-model' } };
+  const run = await flow('Should I continue?', { messagesForQuery: history, assistantMessages: assistant.concat([
+    { type: 'assistant', message: { content: [{ type: 'text', text: 'Should I continue?' }] } },
+  ]), fallbackModel: 'fallback-model', toolUseContext });
+  assert.equal(run.result.reason, 'test-observed-continuation');
+  assert.equal(toolUseContext.options.mainLoopModel, 'fallback-model');
+  assert.equal(run.result.autonomyRecoveryModelChanged, true);
+  const content = JSON.stringify(run.result.state.messages);
+  assert.doesNotMatch(content, /old-producer|"type":"thinking"|redacted_thinking|connector_text/);
+  assert.match(content, /Existing artifact evidence is retained/);
+  assert.match(content, /Host execution recovery/);
+  assert.deepEqual([...history, ...assistant], saved, 'fallback request cleanup preserves durable history');
+  assert.equal(readAutoGoal(cwd)?.state, 'ACTIVE');
+  assert.equal(readAutoGoal(cwd)?.continuations, 3);
+  assert.equal(run.budgetCalls, 0);
+  assert.ok(run.emitted.some(message => /configured fallback/.test(message.content ?? '')));
+}));
+
+test('end-turn recovery with no fallback remains bounded and surfaces model failure without user pause', () => fixture(async cwd => {
+  enableAutoGoal('Finish the already authorized workflow', cwd);
+  await flow('Should I continue?'); await flow('Should I continue?');
+  const recovery = await flow('Should I continue?');
+  assert.match(recovery.result.state.messages.at(-1).content, /Host execution recovery/);
+  assert.equal(recovery.result.autonomyRecoveryModelChanged, false);
+  const failure = await flow('Should I continue?');
+  assert.equal(failure.result.reason, 'model_contract_failure');
+  assert.ok(failure.emitted.some(message => message.isApiErrorMessage && /No new authorization/.test(message.content)));
+  assert.equal(readAutoGoal(cwd)?.state, 'ACTIVE');
+}));
+
+test('rejected-question recovery uses the configured fallback while preserving real call/result pairing', () => fixture(async cwd => {
+  enableAutoGoal('Finish the already authorized workflow', cwd, 8);
+  await questionFlow(); await questionFlow();
+  const history = signedMessages(), original = structuredClone(history), assistantMessages = signedMessages();
+  assistantMessages.push({ type: 'assistant', message: { content: [
+    { type: 'tool_use', id: 'question', name: 'AskUserQuestion', input: {} },
+  ] } } as any);
+  const run = await questionFlow({ fallbackModel: 'fallback-model', messagesForQuery: history, assistantMessages });
+  assert.equal(run.result.reason, 'test-observed-tool-followup');
+  assert.equal(run.result.toolUseContext.options.mainLoopModel, 'fallback-model');
+  assert.equal(run.result.autonomyRecoveryModelChanged, true);
+  const view = JSON.stringify([...run.result.messagesForQuery, ...run.result.assistantMessages]);
+  assert.doesNotMatch(view, /old-producer|"type":"thinking"|redacted_thinking|connector_text/);
+  assert.match(view, /"type":"tool_use","id":"question"/);
+  assert.ok(run.result.toolResults.some((message: any) => message.message?.content?.[0]?.tool_use_id === 'question'));
+  assert.match(run.result.toolResults.at(-1).content, /Host execution recovery/);
+  assert.deepEqual(history, original, 'history request view is replaced rather than rewritten');
+  assert.equal(readAutoGoal(cwd)?.state, 'ACTIVE');
+  assert.equal(readAutoGoal(cwd)?.continuations, 3);
+}));
+
+test('queued user input and caller ceilings outrank rejected-question fallback and do not consume recovery', () => fixture(async cwd => {
+  enableAutoGoal('Finish the already authorized workflow', cwd, 8);
+  await questionFlow(); await questionFlow();
+  const context = { options: { mainLoopModel: 'primary-model' } };
+  const queued = await questionFlow({ fallbackModel: 'fallback-model', toolUseContext: context, hasMainThreadQueuedCommand: () => true });
+  assert.equal(queued.result.reason, 'completed');
+  assert.equal(context.options.mainLoopModel, 'primary-model');
+  assert.equal(readAutoGoal(cwd)?.continuations, 2);
+  assert.equal(readAutoGoal(cwd)?.routineDecisionRecoveryUsed, false);
+  const limited = await questionFlow({ fallbackModel: 'fallback-model', toolUseContext: context, maxTurns: 1 });
+  assert.equal(limited.result.reason, 'completed');
+  assert.equal(context.options.mainLoopModel, 'primary-model');
+  assert.equal(readAutoGoal(cwd)?.state, 'PAUSED');
+  assert.match(readAutoGoal(cwd)!.reason!, /max-turns/);
+  assert.equal(readAutoGoal(cwd)?.continuations, 2);
+}));
+
+const recordFailureSource = source.split('\n').find(line => line.includes('if (mainGoalThread) goalFailureEvidence.record(goalAtRequest,'));
+assert.ok(recordFailureSource, 'production must record real tool failures under the request-time objective');
+const recordRequestFailures = new Function('mainGoalThread', 'goalFailureEvidence', 'goalAtRequest', 'toolUseBlocks', 'toolResults', recordFailureSource);
+const failureCall = (id: string, name = 'Bash') => ({ id, name });
+const failedReceipt = (id: string) => ({ type: 'user', message: { content: [
+  { type: 'tool_result', tool_use_id: id, is_error: true, content: 'HTTP 403: configured executor access denied' },
+] } });
+function blockedReport(cwd: string, goal: string, receipt: string, blocker = 'HTTP 403: configured executor access denied') {
+  writeFileSync(join(cwd, '.future-code/goal.md'), '# ' + goal + '\nStatus: blocked\n' +
+    'Blocker: ' + blocker + '\nBlocker type: permissions\n' +
+    'Recovery attempted: Probed the configured executor and reconciled available routes; access is still denied\n' +
+    'External action required: Restore the configured executor capability\nFailure receipt: ' + receipt + '\n');
+}
+
+for (const branch of ['end-turn', 'question']) {
+  test('the production ' + branch + ' blocker boundary requires the actual current failed-tool ID', () => fixture(async cwd => {
+    const goal = 'Finish the already authorized workflow';
+    enableAutoGoal(goal, cwd);
+    const evidence = new GoalFailureEvidence();
+    blockedReport(cwd, goal, 'invented-call', 'The local work slot is exhausted');
+    const fabricated = branch === 'end-turn' ? await flow('The work cannot continue.', { goalFailureEvidence: evidence }) :
+      await questionFlow({ goalFailureEvidence: evidence });
+    assert.equal(fabricated.result.reason, branch === 'end-turn' ? 'test-observed-continuation' : 'test-observed-tool-followup');
+    assert.equal(readAutoGoal(cwd)?.state, 'ACTIVE');
+    recordRequestFailures(true, evidence, readAutoGoal(cwd), [failureCall('actual-failure')], [failedReceipt('actual-failure')]);
+    assert.deepEqual(evidence.forGoal(readAutoGoal(cwd)), ['actual-failure']);
+    blockedReport(cwd, goal, 'actual-failure');
+    const authentic = branch === 'end-turn' ? await flow('The configured executor remains unavailable.', { goalFailureEvidence: evidence }) :
+      await questionFlow({ goalFailureEvidence: evidence });
+    assert.equal(authentic.result.reason, 'completed');
+    assert.equal(readAutoGoal(cwd)?.state, 'PAUSED');
+    assert.match(readAutoGoal(cwd)!.reason!, /HTTP 403/);
+  }));
+}
+
+test('an old in-flight failure cannot authenticate a later objective or steering generation', () => fixture(async cwd => {
+  const goal = 'Finish the already authorized workflow';
+  enableAutoGoal(goal, cwd);
+  const requestGoal = readAutoGoal(cwd), evidence = new GoalFailureEvidence();
+  recordGoalSteering('Also preserve the new independently verified baseline', cwd);
+  // The tool returns after human steering. The production record statement
+  // must retain the goal captured before that request, never the new root.
+  recordRequestFailures(true, evidence, requestGoal, [failureCall('old-failure')], [failedReceipt('old-failure')]);
+  blockedReport(cwd, goal, 'old-failure');
+  const run = await flow('The old executor failed.', { goalFailureEvidence: evidence });
+  assert.equal(run.result.reason, 'test-observed-continuation');
+  assert.deepEqual(evidence.forGoal(readAutoGoal(cwd)), []);
+  assert.equal(readAutoGoal(cwd)?.state, 'ACTIVE');
+}));

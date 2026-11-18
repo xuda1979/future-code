@@ -27,6 +27,7 @@ export const AUTONOMOUS_QUESTION_REDIRECT =
   "Status: blocked\nBlocker: <exact failure>\n" +
   "Blocker type: <hardware|network|provider|credentials|permissions|resources|external_dependency>\n" +
   "Recovery attempted: <actual diagnostics and results>\nExternal action required: <missing external capability>\n" +
+  "Failure receipt: <exact tool-use ID of the observed failed diagnostic>\n" +
   "An implementation choice, an unfinished task, or a request to say go is not an external blocker.";
 
 /** Only current assistant-authored prose is eligible for a handoff correction.
@@ -60,8 +61,13 @@ export function isRoutineDecisionHandoff(text: string): boolean {
     /^(?:should|shall|may|can)\s+I\s+(?:proceed|continue|start|do|handle|run|push|commit|sync|rebuild)\b/i,
     /^(?:let\s+me\s+know|tell\s+me)\s+(?:if|when|whether|which)\b.{0,160}\b(?:proceed|continue|start|both|either|task|step|option|approach)\b/i,
     /^(?:I(?:'m| am)|we(?:'re| are))\s+(?:waiting|ready)\b.{0,120}\b(?:confirmation|approval|decision|your\s+go)\b/i,
+    /^I\s+(?:need|require|must\s+(?:have|obtain))\s+(?:your\s+)?(?:renewed\s+)?(?:authorization|authorisation|approval|permission|confirmation)\s+(?:to|before\s+I\s+can)\s+(?:continue|resume|proceed|keep\s+(?:working|going))\b/i,
+    /^I\s+(?:cannot|can't|will\s+not|won't|can\s+only)\s+(?:continue|resume|proceed|keep\s+(?:working|going))\b.{0,80}\b(?:without|until|unless|after)\s+(?:your\s+(?:authorization|authorisation|approval|permission|confirmation)|you\s+(?:approve|authorize|authorise|confirm))\b/i,
+    /^(?:once|after|when|if)\s+you\s+(?:approve|authorize|authorise|confirm)\b.{0,80}\bI\s+(?:will|can)\s+(?:continue|resume|proceed|keep\s+(?:working|going))\b/i,
+    /^(?:if|when)\s+you\s+(?:want|would\s+like)\s+me\s+to\s+(?:continue|resume|proceed|keep\s+(?:working|going))\b/i,
     /^(?:请|麻烦)?(?:回复|说|输入|确认|选择|决定).{0,100}(?:继续|开始|执行|两个|二者|方案)/,
+    /^(?:需要|等待|请)(?:您|你)(?:再次|重新)?(?:授权|批准|确认).{0,40}(?:继续|恢复|执行)/,
   ];
   return executionProse(text).replace(/[\x60*_]/g, "").split(/(?:\n|(?<=[.!?;])\s+)/u)
-    .some(sentence => patterns.some(pattern => pattern.test(sentence.trim())));
+    .some(sentence => patterns.some(pattern => pattern.test(sentence.trim().replace(/^(?:[-+]\s+|\d+[.)]\s+)/, ""))));
 }

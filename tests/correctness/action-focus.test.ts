@@ -184,3 +184,38 @@ test('tool-only sessions are examined even with many host reminders; analysis is
   history.push(...Array.from({ length: 160 }, () => meta('old context retired')));
   assert.doesNotMatch(anchor(history, cwd), /Host Action Review/);
 }));
+
+test('compound shell health/reverification loops cannot erase their own repetition diagnostic', () => fixture(cwd => {
+  const command = 'for p in 20646 19004 20653; do curl -s -m 4 http://127.0.0.1:$p/health | python3 -c "import sys,json;print(json.load(sys.stdin))"; done';
+  const history = Array.from({ length: 3 }, (_, i) => pair(i, 'Bash', { command }, 'ready=true')).flat();
+  const text = anchor(history, cwd);
+  assert.match(text, /same .*request.*receipt repeated 3 times/);
+  assert.match(text, /diagnostic, not a stall verdict/);
+  assert.match(text, /healthy running jobs/);
+  assert.equal(readAutoGoal(cwd)?.state, 'ACTIVE');
+}));
+
+test('changed compound-shell receipts and a real new action disarm repeat warnings', () => fixture(cwd => {
+  const command = 'cat state.json | python3 -m json.tool';
+  const history = Array.from({ length: 3 }, (_, i) => pair(i, 'Bash', { command }, 'same')).flat();
+  assert.match(anchor(history, cwd), /repeated 3 times/);
+  history.push(...pair(3, 'Bash', { command }, 'changed'));
+  assert.doesNotMatch(anchor(history, cwd), /Host Action Review/);
+  history.push(...pair(4, 'Edit', { file_path: 'runner.py' }, 'edited'));
+  assert.doesNotMatch(anchor(history, cwd), /Host Action Review/);
+}));
+
+test('updating the internal work record cannot be mistaken for outcome progress', () => fixture(cwd => {
+  const history = [...observations(12), ...pair(20, 'Write',
+    { file_path: '.future-code/work-state.json', content: '{"nextAction":"still checking"}' }, 'written')];
+  assert.match(anchor(history, cwd), /13 observation\/planning receipts/);
+}));
+
+test('interleaved opaque health and checksum scripts do not erase repeated observations', () => fixture(cwd => {
+  const history = Array.from({ length: 3 }, (_, i) => [
+    ...pair(3 * i, 'Bash', { command: 'for p in 1 2; do curl http://localhost:$p/health; done' }, 'same health'),
+    ...pair(3 * i + 1, 'Bash', { command: 'md5sum worker.sh remote-worker.sh' }, 'same checksums'),
+    ...pair(3 * i + 2, 'Read', { file_path: 'worker.sh' }, 'same source'),
+  ]).flat();
+  assert.match(anchor(history, cwd), /repeated 3 times/);
+}));

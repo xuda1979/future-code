@@ -125,6 +125,7 @@ import { shouldRecoverSilentResponse, hasVisibleAssistantText, modelApiFailureRe
 import { decideAutoGoalContinuation, parkActiveAutoGoal, isAutoGoalMainThread, readAutoGoal, shouldPauseGoalAfterTerminal, autoGoalTerminalDiagnostic, classifyGoalHorizon } from './commands/goal/auto.js'
 import { appendGoalRequestAnchor, goalExecutionPolicy } from './commands/goal/context.js'
 import { hasAutonomyQuestionRejection } from './query/autonomyQuestions.js'
+import { GoalFailureEvidence } from './query/goalFailureEvidence.js'
 import { notifyQueryActivity, type QueryActivityEvent } from './utils/queryActivity.js'
 import { hasMainThreadQueuedCommand } from './utils/queueWakeup.js'
 import { createHash } from 'node:crypto'
@@ -365,6 +366,8 @@ async function* queryLoop(
   let portableContextRepairPending = false
   let goalToolActivity = false
   let rejectedAutonomyQuestions = 0
+  let autonomyRecoveryModelChanged = false
+  const goalFailureEvidence = new GoalFailureEvidence()
   // Select from original human input before compaction. Keep the decision
   // through summary/fallback recovery; newly drained human work releases it.
   let gitDelivery = gitDeliveryPolicy(params.messages, mainGoalThread)
@@ -715,6 +718,7 @@ async function* queryLoop(
     // config — if they set DISABLE_AUTO_COMPACT, they get the preempt.
     // Refresh after compaction, outside cached system/user context. This is
     // an ephemeral request view, never part of state.messages/transcripts.
+    const goalAtRequest = mainGoalThread ? readAutoGoal() : null
     let goalRequestMessages = appendGoalRequestAnchor(messagesForQuery, {
       mainThread: mainGoalThread,
       makeMessage: content => createUserMessage({ content, isMeta: true }),
@@ -1702,18 +1706,35 @@ async function* queryLoop(
           .flatMap(message => message.message.content.flatMap(block => block.type === 'text' ? [block.text] : []))
           .join('\n'),
         toolActivity: goalToolActivity,
+        recoveryModelChanged: autonomyRecoveryModelChanged,
+        failureReceipts: mainGoalThread ? goalFailureEvidence.forGoal(readAutoGoal()) : [],
       })
       goalToolActivity = false
+      autonomyRecoveryModelChanged = false
+      if (goalDecision.kind === 'MODEL_ERROR') {
+        yield createAssistantAPIErrorMessage({ content: goalDecision.reason })
+        return { reason: 'model_contract_failure', error: new Error(goalDecision.reason) }
+      }
       if (goalDecision.kind === 'BLOCKED') {
         yield createSystemMessage('Autonomous goal blocked: ' + goalDecision.reason, 'warning')
         return { reason: 'completed' }
       }
-      if (goalDecision.kind === 'CONTINUE') {
+      if (goalDecision.kind === 'CONTINUE' || goalDecision.kind === 'RECOVER') {
+        let continuationMessages = [...messagesForQuery, ...assistantMessages]
+        if (goalDecision.kind === 'RECOVER') {
+          if (fallbackModel && fallbackModel !== currentModel) {
+            toolUseContext.options.mainLoopModel = fallbackModel
+            autonomyRecoveryModelChanged = true
+            continuationMessages = stripSignatureBlocks(continuationMessages)
+            yield createSystemMessage('Model repeated an unnecessary authorization handoff; continuing automatically with the configured fallback.', 'warning')
+          } else {
+            yield createSystemMessage('Model repeated an unnecessary authorization handoff; applying direct execution recovery under the existing authority.', 'warning')
+          }
+        }
         activity({ kind: 'phase', phase: 'continuing' })
         state = {
           messages: [
-            ...messagesForQuery,
-            ...assistantMessages,
+            ...continuationMessages,
             createUserMessage({ content: goalDecision.prompt, isMeta: true }),
           ],
           toolUseContext,
@@ -1956,6 +1977,8 @@ async function* queryLoop(
       Array.isArray(message.message.content) && message.message.content.some(block =>
         block.type === 'tool_result' && !block.is_error))
 
+    if (mainGoalThread) goalFailureEvidence.record(goalAtRequest, toolUseBlocks, toolResults)
+
     if (mainGoalThread && deliveryRequested) gitDelivery = nextGitDeliveryPhase(gitDelivery, toolUseBlocks, toolResults)
 
     if (toolResults.some(message => {
@@ -1977,13 +2000,27 @@ async function* queryLoop(
         promptFormat: autoGoalPolicy ? 'delta' : 'full',
         routineQuestionRejected: true,
         toolActivity: goalToolActivity,
+        recoveryModelChanged: autonomyRecoveryModelChanged,
+        failureReceipts: mainGoalThread ? goalFailureEvidence.forGoal(readAutoGoal()) : [],
       })
       goalToolActivity = false
+      autonomyRecoveryModelChanged = false
+      if (questionDecision.kind === 'MODEL_ERROR') {
+        yield createAssistantAPIErrorMessage({ content: questionDecision.reason })
+        return { reason: 'model_contract_failure', error: new Error(questionDecision.reason) }
+      }
       if (questionDecision.kind === 'BLOCKED') {
         yield createSystemMessage('Autonomous goal blocked: ' + questionDecision.reason, 'warning')
         return { reason: 'completed' }
       }
-      if (questionDecision.kind === 'CONTINUE') {
+      if (questionDecision.kind === 'CONTINUE' || questionDecision.kind === 'RECOVER') {
+        if (questionDecision.kind === 'RECOVER' && fallbackModel && fallbackModel !== currentModel) {
+          toolUseContext.options.mainLoopModel = fallbackModel
+          autonomyRecoveryModelChanged = true
+          messagesForQuery = stripSignatureBlocks(messagesForQuery)
+          assistantMessages.splice(0, assistantMessages.length, ...stripSignatureBlocks(assistantMessages))
+          yield createSystemMessage('Model repeatedly attempted an unnecessary decision dialog; continuing automatically with the configured fallback.', 'warning')
+        }
         toolResults.push(createUserMessage({ content: questionDecision.prompt, isMeta: true }))
       } else if (++rejectedAutonomyQuestions > 2) {
         const failure = 'Model execution contract failure: a delegated model repeatedly attempted a user decision dialog after two host corrections.'

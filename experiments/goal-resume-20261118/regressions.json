@@ -1,0 +1,635 @@
+{
+  "schema": 1,
+  "measurement": "offline behavioral regression contracts against immutable baseline code",
+  "limitations": [
+    "No live-LLM task success, latency, token-efficiency or IBM score is measured.",
+    "Production end-turn/question fallback effects are tested separately in goal-decision-flow.test.ts."
+  ],
+  "command": "node scripts/bench-goal-regressions.mjs BASELINE OUTPUT",
+  "node": "24.22.1",
+  "testHashes": {
+    "tests/commands/goal-authorization-continuity.test.ts": "36c16d282a4e1578f189229795aade1b0e8b6e1af9634f2868c4655c0df2ce8b",
+    "tests/commands/goal-blocker-evidence.test.ts": "755ace11070f3939f034edbabf09390d45f64ec8dc7be903a4b0b05ad32a7db2",
+    "tests/correctness/goal-work-state.test.ts": "48a23bd44e18bf468a0c2e070384df9597861c3ec6d5ad9289f6bf9d69bbddbb",
+    "tests/correctness/action-focus.test.ts": "a086c5b2ca79cc27e2912c50dc6e3978f70a4a73dbf33ba627b237ff69bfd85a",
+    "tests/correctness/direct-execution.test.ts": "f9e707f791e73f1c5633da5048e87003553bc020adcd9d23d434b7ab6a8b17dc"
+  },
+  "rows": [
+    {
+      "arm": "baseline",
+      "revision": "55e0bc6ee6ab15c295515150d62d9d06f4f4e036",
+      "exitCode": 1,
+      "counts": {
+        "tests": 72,
+        "pass": 39,
+        "fail": 33,
+        "skipped": 0
+      },
+      "contracts": [
+        {
+          "pass": false,
+          "name": "continuation authority is not handed back through prose: I need your authorization to keep working."
+        },
+        {
+          "pass": false,
+          "name": "continuation authority is not handed back through prose: I cannot continue without your approval."
+        },
+        {
+          "pass": false,
+          "name": "continuation authority is not handed back through prose: If you want me to continue, please confirm."
+        },
+        {
+          "pass": false,
+          "name": "continuation authority is not handed back through prose: Once you authorize me, I will resume the existing work."
+        },
+        {
+          "pass": true,
+          "name": "continuation authority is not handed back through prose: 1. Please confirm whether to proceed."
+        },
+        {
+          "pass": false,
+          "name": "continuation authority is not handed back through prose: 需要您再次授权后，我才能继续执行。"
+        },
+        {
+          "pass": false,
+          "name": "a routine renewed-authorization report is not an external dependency"
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: You already authorized me to continue."
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: I will continue using the existing authority."
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: > I need your authorization to keep working."
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: \"I cannot continue without your approval.\""
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: The old response said \"I need your authorization to keep working\"."
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: ```text\\\\nI need your authorization to keep working.\\\\n```"
+        },
+        {
+          "pass": false,
+          "name": "repeated handoffs change recovery strategy without pretending authority expired"
+        },
+        {
+          "pass": false,
+          "name": "a trusted configured-model change gets bounded recovery under the same authority"
+        },
+        {
+          "pass": false,
+          "name": "rejected question tools use changed recovery without pausing the authorized root"
+        },
+        {
+          "pass": false,
+          "name": "full-format recovery preserves its bound objective and report location"
+        },
+        {
+          "pass": true,
+          "name": "caller limits and actual denied capabilities outrank model recovery"
+        },
+        {
+          "pass": false,
+          "name": "successful tools reset recovery, while restarts and operator pauses preserve it"
+        },
+        {
+          "pass": false,
+          "name": "a complete model-authored blocker cannot pause without matching host evidence: (missing receipt)"
+        },
+        {
+          "pass": false,
+          "name": "a complete model-authored blocker cannot pause without matching host evidence: Failure receipt: invented-tool-call\\\\n"
+        },
+        {
+          "pass": false,
+          "name": "a complete model-authored blocker cannot pause without matching host evidence: Failure receipt: failed-probe\\\\n"
+        },
+        {
+          "pass": false,
+          "name": "a resource or continuation excuse without a failed tool is diagnosis work: The local work slot is exhausted"
+        },
+        {
+          "pass": false,
+          "name": "a resource or continuation excuse without a failed tool is diagnosis work: The observer window ended before the objective finished"
+        },
+        {
+          "pass": false,
+          "name": "a resource or continuation excuse without a failed tool is diagnosis work: Renewed authorization is required to keep working"
+        },
+        {
+          "pass": true,
+          "name": "a matched failed-tool receipt preserves actual denied-access parking"
+        },
+        {
+          "pass": false,
+          "name": "ambiguous, historical and quoted receipt claims cannot authenticate a blocker: Failure receipt: failed-probe and an invented explanation\\\\n"
+        },
+        {
+          "pass": false,
+          "name": "ambiguous, historical and quoted receipt claims cannot authenticate a blocker: Failure receipt: failed-probe\\\\nFailure receipt: invented-tool-call\\\\n"
+        },
+        {
+          "pass": false,
+          "name": "ambiguous, historical and quoted receipt claims cannot authenticate a blocker: \\#\\# Historical failures\\\\nFailure receipt: failed-probe\\\\n"
+        },
+        {
+          "pass": false,
+          "name": "ambiguous, historical and quoted receipt claims cannot authenticate a blocker: > Failure receipt: failed-probe\\\\n"
+        },
+        {
+          "pass": false,
+          "name": "ambiguous, historical and quoted receipt claims cannot authenticate a blocker: ```text\\\\nFailure receipt: failed-probe\\\\n```\\\\n"
+        },
+        {
+          "pass": false,
+          "name": "receipt evidence cannot bypass real caller budgets, explicit stops or recoverable implementation work"
+        },
+        {
+          "pass": true,
+          "name": "standalone callers without a host receipt contract keep their existing blocker behavior"
+        },
+        {
+          "pass": true,
+          "name": "observational tool loops receive a direct-action review before end-turn"
+        },
+        {
+          "pass": true,
+          "name": "rewriting goal notes cannot conceal an observation-only loop"
+        },
+        {
+          "pass": true,
+          "name": "equivalent relative and normalized absolute goal-report writes stay observational without changing history"
+        },
+        {
+          "pass": true,
+          "name": "home expansion recognizes only the current goal report without filesystem access"
+        },
+        {
+          "pass": true,
+          "name": "successful relative document writes outside the current goal report still reset activity review"
+        },
+        {
+          "pass": true,
+          "name": "three identical failed receipts trigger diagnosis without suppressing the original tool evidence"
+        },
+        {
+          "pass": true,
+          "name": "interleaved observation does not hide repeated failures; new evidence clears their warning"
+        },
+        {
+          "pass": true,
+          "name": "changed receipts and successful implementation reset repetition evidence"
+        },
+        {
+          "pass": true,
+          "name": "a healthy remote job is never cancelled or treated as failed for unchanged poll output"
+        },
+        {
+          "pass": true,
+          "name": "ordinary exploration, changing job progress and unknown successful tools receive no loop warning"
+        },
+        {
+          "pass": true,
+          "name": "a fresh human instruction bounds the observation window; prose and unpaired receipts are not tool work"
+        },
+        {
+          "pass": true,
+          "name": "paused goals and child requests cannot acquire action-review instructions"
+        },
+        {
+          "pass": true,
+          "name": "large or ambiguous receipts cannot be equated using a truncated output prefix"
+        },
+        {
+          "pass": true,
+          "name": "oversized new evidence clears a repeated receipt, and canonical input order preserves identity"
+        },
+        {
+          "pass": true,
+          "name": "duplicate ids, duplicate receipts, out-of-order results and child evidence cannot fabricate repeated work"
+        },
+        {
+          "pass": true,
+          "name": "image-only human instructions and oversized message structures bound the diagnostic"
+        },
+        {
+          "pass": true,
+          "name": "the diagnostic exposes counts only, stays in the ephemeral tail and cannot mutate goal authority"
+        },
+        {
+          "pass": true,
+          "name": "tool-only sessions are examined even with many host reminders; analysis is bounded"
+        },
+        {
+          "pass": false,
+          "name": "compound shell health/reverification loops cannot erase their own repetition diagnostic"
+        },
+        {
+          "pass": false,
+          "name": "changed compound-shell receipts and a real new action disarm repeat warnings"
+        },
+        {
+          "pass": false,
+          "name": "updating the internal work record cannot be mistaken for outcome progress"
+        },
+        {
+          "pass": false,
+          "name": "interleaved opaque health and checksum scripts do not erase repeated observations"
+        },
+        {
+          "pass": true,
+          "name": "shell observations cover common direct diagnostics, including quoted paths"
+        },
+        {
+          "pass": true,
+          "name": "shell searches/status checks no longer reset observation-only review"
+        },
+        {
+          "pass": true,
+          "name": "mixed tasks enter delivery only after paired effects; checks/errors release deep reasoning"
+        },
+        {
+          "pass": true,
+          "name": "Git used inside research cannot impose a delivery deadline on the next research decision"
+        },
+        {
+          "pass": true,
+          "name": "real local Git delivery retains commit hooks and reconciles the remote"
+        },
+        {
+          "pass": true,
+          "name": "real Git authentication failure cannot invoke an askpass dialog in unattended mode"
+        },
+        {
+          "pass": true,
+          "name": "default execution suppresses question/plan dialogs in every goal state and mode"
+        },
+        {
+          "pass": true,
+          "name": "production permission boundary returns errors instead of dialog requests, never grants"
+        },
+        {
+          "pass": true,
+          "name": "forced hook decisions cannot open terminal, prompt-tool or SDK dialogs"
+        },
+        {
+          "pass": true,
+          "name": "a default goal has no lifetime ceiling and resumes beyond arbitrary historical turn counts"
+        },
+        {
+          "pass": false,
+          "name": "a fresh post-compaction request includes the known artifact, live job identity and next executable action"
+        },
+        {
+          "pass": false,
+          "name": "newly changed work state replaces old hints without accumulating snapshots or model calls"
+        },
+        {
+          "pass": false,
+          "name": "records are bound to the exact root revision and are unavailable to paused goals or child tasks"
+        },
+        {
+          "pass": false,
+          "name": "invalid, oversized, symlinked and unknown-field records cannot inject state or interrupt useful work"
+        },
+        {
+          "pass": false,
+          "name": "two sessions cannot inherit one another's operational hints"
+        },
+        {
+          "pass": true,
+          "name": "short goals do not acquire a state-writing prerequisite and reads remain bounded"
+        },
+        {
+          "pass": false,
+          "name": "all valid host objective lengths can be bound by the operational record"
+        }
+      ],
+      "sourceHashes": {
+        "src/commands/goal/auto.ts": "c99f1df713d1383849196ebdb327db9aa652ed2715b8998b119b4812bc97e441",
+        "src/commands/goal/context.ts": "6e7e64f079fe212cd16a709facc3ba6a10b06aaf893d8f968a42031bc6132d57",
+        "src/commands/goal/workState.ts": null,
+        "src/commands/goal/actionFocus.ts": "73546178f1b9b7647b487cea09d272a51d57179b6c0e2a7d6c801851fcf11d63",
+        "src/harness/autonomyPolicy.ts": "2073990ce6f20aba00a95b1cc06bce8d9fbe0b3686961404954d95431439a11b"
+      }
+    },
+    {
+      "arm": "candidate",
+      "revision": "7ffe68a56093ae86fd9c7c5d889e193d7748fa22",
+      "exitCode": 0,
+      "counts": {
+        "tests": 72,
+        "pass": 72,
+        "fail": 0,
+        "skipped": 0
+      },
+      "contracts": [
+        {
+          "pass": true,
+          "name": "continuation authority is not handed back through prose: I need your authorization to keep working."
+        },
+        {
+          "pass": true,
+          "name": "continuation authority is not handed back through prose: I cannot continue without your approval."
+        },
+        {
+          "pass": true,
+          "name": "continuation authority is not handed back through prose: If you want me to continue, please confirm."
+        },
+        {
+          "pass": true,
+          "name": "continuation authority is not handed back through prose: Once you authorize me, I will resume the existing work."
+        },
+        {
+          "pass": true,
+          "name": "continuation authority is not handed back through prose: 1. Please confirm whether to proceed."
+        },
+        {
+          "pass": true,
+          "name": "continuation authority is not handed back through prose: 需要您再次授权后，我才能继续执行。"
+        },
+        {
+          "pass": true,
+          "name": "a routine renewed-authorization report is not an external dependency"
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: You already authorized me to continue."
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: I will continue using the existing authority."
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: > I need your authorization to keep working."
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: \"I cannot continue without your approval.\""
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: The old response said \"I need your authorization to keep working\"."
+        },
+        {
+          "pass": true,
+          "name": "current authority and quoted source are not handoffs: ```text\\\\nI need your authorization to keep working.\\\\n```"
+        },
+        {
+          "pass": true,
+          "name": "repeated handoffs change recovery strategy without pretending authority expired"
+        },
+        {
+          "pass": true,
+          "name": "a trusted configured-model change gets bounded recovery under the same authority"
+        },
+        {
+          "pass": true,
+          "name": "rejected question tools use changed recovery without pausing the authorized root"
+        },
+        {
+          "pass": true,
+          "name": "full-format recovery preserves its bound objective and report location"
+        },
+        {
+          "pass": true,
+          "name": "caller limits and actual denied capabilities outrank model recovery"
+        },
+        {
+          "pass": true,
+          "name": "successful tools reset recovery, while restarts and operator pauses preserve it"
+        },
+        {
+          "pass": true,
+          "name": "a complete model-authored blocker cannot pause without matching host evidence: (missing receipt)"
+        },
+        {
+          "pass": true,
+          "name": "a complete model-authored blocker cannot pause without matching host evidence: Failure receipt: invented-tool-call\\\\n"
+        },
+        {
+          "pass": true,
+          "name": "a complete model-authored blocker cannot pause without matching host evidence: Failure receipt: failed-probe\\\\n"
+        },
+        {
+          "pass": true,
+          "name": "a resource or continuation excuse without a failed tool is diagnosis work: The local work slot is exhausted"
+        },
+        {
+          "pass": true,
+          "name": "a resource or continuation excuse without a failed tool is diagnosis work: The observer window ended before the objective finished"
+        },
+        {
+          "pass": true,
+          "name": "a resource or continuation excuse without a failed tool is diagnosis work: Renewed authorization is required to keep working"
+        },
+        {
+          "pass": true,
+          "name": "a matched failed-tool receipt preserves actual denied-access parking"
+        },
+        {
+          "pass": true,
+          "name": "ambiguous, historical and quoted receipt claims cannot authenticate a blocker: Failure receipt: failed-probe and an invented explanation\\\\n"
+        },
+        {
+          "pass": true,
+          "name": "ambiguous, historical and quoted receipt claims cannot authenticate a blocker: Failure receipt: failed-probe\\\\nFailure receipt: invented-tool-call\\\\n"
+        },
+        {
+          "pass": true,
+          "name": "ambiguous, historical and quoted receipt claims cannot authenticate a blocker: \\#\\# Historical failures\\\\nFailure receipt: failed-probe\\\\n"
+        },
+        {
+          "pass": true,
+          "name": "ambiguous, historical and quoted receipt claims cannot authenticate a blocker: > Failure receipt: failed-probe\\\\n"
+        },
+        {
+          "pass": true,
+          "name": "ambiguous, historical and quoted receipt claims cannot authenticate a blocker: ```text\\\\nFailure receipt: failed-probe\\\\n```\\\\n"
+        },
+        {
+          "pass": true,
+          "name": "receipt evidence cannot bypass real caller budgets, explicit stops or recoverable implementation work"
+        },
+        {
+          "pass": true,
+          "name": "standalone callers without a host receipt contract keep their existing blocker behavior"
+        },
+        {
+          "pass": true,
+          "name": "observational tool loops receive a direct-action review before end-turn"
+        },
+        {
+          "pass": true,
+          "name": "rewriting goal notes cannot conceal an observation-only loop"
+        },
+        {
+          "pass": true,
+          "name": "equivalent relative and normalized absolute goal-report writes stay observational without changing history"
+        },
+        {
+          "pass": true,
+          "name": "home expansion recognizes only the current goal report without filesystem access"
+        },
+        {
+          "pass": true,
+          "name": "successful relative document writes outside the current goal report still reset activity review"
+        },
+        {
+          "pass": true,
+          "name": "three identical failed receipts trigger diagnosis without suppressing the original tool evidence"
+        },
+        {
+          "pass": true,
+          "name": "interleaved observation does not hide repeated failures; new evidence clears their warning"
+        },
+        {
+          "pass": true,
+          "name": "changed receipts and successful implementation reset repetition evidence"
+        },
+        {
+          "pass": true,
+          "name": "a healthy remote job is never cancelled or treated as failed for unchanged poll output"
+        },
+        {
+          "pass": true,
+          "name": "ordinary exploration, changing job progress and unknown successful tools receive no loop warning"
+        },
+        {
+          "pass": true,
+          "name": "a fresh human instruction bounds the observation window; prose and unpaired receipts are not tool work"
+        },
+        {
+          "pass": true,
+          "name": "paused goals and child requests cannot acquire action-review instructions"
+        },
+        {
+          "pass": true,
+          "name": "large or ambiguous receipts cannot be equated using a truncated output prefix"
+        },
+        {
+          "pass": true,
+          "name": "oversized new evidence clears a repeated receipt, and canonical input order preserves identity"
+        },
+        {
+          "pass": true,
+          "name": "duplicate ids, duplicate receipts, out-of-order results and child evidence cannot fabricate repeated work"
+        },
+        {
+          "pass": true,
+          "name": "image-only human instructions and oversized message structures bound the diagnostic"
+        },
+        {
+          "pass": true,
+          "name": "the diagnostic exposes counts only, stays in the ephemeral tail and cannot mutate goal authority"
+        },
+        {
+          "pass": true,
+          "name": "tool-only sessions are examined even with many host reminders; analysis is bounded"
+        },
+        {
+          "pass": true,
+          "name": "compound shell health/reverification loops cannot erase their own repetition diagnostic"
+        },
+        {
+          "pass": true,
+          "name": "changed compound-shell receipts and a real new action disarm repeat warnings"
+        },
+        {
+          "pass": true,
+          "name": "updating the internal work record cannot be mistaken for outcome progress"
+        },
+        {
+          "pass": true,
+          "name": "interleaved opaque health and checksum scripts do not erase repeated observations"
+        },
+        {
+          "pass": true,
+          "name": "shell observations cover common direct diagnostics, including quoted paths"
+        },
+        {
+          "pass": true,
+          "name": "shell searches/status checks no longer reset observation-only review"
+        },
+        {
+          "pass": true,
+          "name": "mixed tasks enter delivery only after paired effects; checks/errors release deep reasoning"
+        },
+        {
+          "pass": true,
+          "name": "Git used inside research cannot impose a delivery deadline on the next research decision"
+        },
+        {
+          "pass": true,
+          "name": "real local Git delivery retains commit hooks and reconciles the remote"
+        },
+        {
+          "pass": true,
+          "name": "real Git authentication failure cannot invoke an askpass dialog in unattended mode"
+        },
+        {
+          "pass": true,
+          "name": "default execution suppresses question/plan dialogs in every goal state and mode"
+        },
+        {
+          "pass": true,
+          "name": "production permission boundary returns errors instead of dialog requests, never grants"
+        },
+        {
+          "pass": true,
+          "name": "forced hook decisions cannot open terminal, prompt-tool or SDK dialogs"
+        },
+        {
+          "pass": true,
+          "name": "a default goal has no lifetime ceiling and resumes beyond arbitrary historical turn counts"
+        },
+        {
+          "pass": true,
+          "name": "a fresh post-compaction request includes the known artifact, live job identity and next executable action"
+        },
+        {
+          "pass": true,
+          "name": "newly changed work state replaces old hints without accumulating snapshots or model calls"
+        },
+        {
+          "pass": true,
+          "name": "records are bound to the exact root revision and are unavailable to paused goals or child tasks"
+        },
+        {
+          "pass": true,
+          "name": "invalid, oversized, symlinked and unknown-field records cannot inject state or interrupt useful work"
+        },
+        {
+          "pass": true,
+          "name": "two sessions cannot inherit one another's operational hints"
+        },
+        {
+          "pass": true,
+          "name": "short goals do not acquire a state-writing prerequisite and reads remain bounded"
+        },
+        {
+          "pass": true,
+          "name": "all valid host objective lengths can be bound by the operational record"
+        }
+      ],
+      "sourceHashes": {
+        "src/commands/goal/auto.ts": "0df0fcafcde7df677b4c6fb6970c0448b9221b9bc1fdd5e6ea1abc466fc8c74a",
+        "src/commands/goal/context.ts": "1ff8ac8ec1df641d3a74471e2ff2889466305ec1f916104096f08a4cc704662a",
+        "src/commands/goal/workState.ts": "9a5959ef8bb94674f4c508583cc825c0c18d0295e88b0b447f9a8b77d8617c2a",
+        "src/commands/goal/actionFocus.ts": "96f08dc91e969cf541a60869915c8f86622d402b628509e323eeacbdae9e6833",
+        "src/harness/autonomyPolicy.ts": "476448464a978706401850cf44ed37b32d189d1d7dba547a9f5e4ea8cf5a2c08"
+      }
+    }
+  ]
+}

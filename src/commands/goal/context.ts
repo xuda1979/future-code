@@ -1,5 +1,6 @@
-import { AUTO_GOAL_EXECUTION_POLICY, autoGoalReportPath, formatGoalRequestAnchor, readAutoGoal } from "./auto.ts";
+import { AUTO_GOAL_EXECUTION_POLICY, autoGoalReportPath, classifyGoalHorizon, formatGoalRequestAnchor, readAutoGoal } from "./auto.ts";
 import { actionFocusReview } from "./actionFocus.ts";
+import { formatGoalWorkState } from "./workState.ts";
 
 // Structural subset keeps this projection testable without UI/SDK imports.
 interface ContextMessage {
@@ -57,9 +58,10 @@ export function appendGoalRequestAnchor<T extends ContextMessage>(messages: T[],
   const state = readAutoGoal(cwd);
   if (!state) return messages;
   const review = state.state === "ACTIVE" ? actionFocusReview(messages, autoGoalReportPath(cwd), cwd) : null;
+  const work = formatGoalWorkState(state, autoGoalReportPath(cwd), classifyGoalHorizon(state.goal, state.horizon) === "long");
   return [
     ...(state.state === "ACTIVE" && options.executionPolicy ? [options.makeMessage(options.executionPolicy)] : []),
     ...messages,
-    options.makeMessage(formatGoalRequestAnchor(state, cwd) + (review ? "\n" + review : "")),
+    options.makeMessage([formatGoalRequestAnchor(state, cwd), work, review].filter(Boolean).join("\n")),
   ];
 }

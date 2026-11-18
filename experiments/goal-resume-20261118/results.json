@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "measurement": "deterministic host recovery replay with real CPU optimizer subprocesses",
+  "limitations": [
+    "Scripted provider decisions, not live LLM productivity.",
+    "Scalar residual adapter only; no Qwen/IBM result.",
+    "The bounded replay does not model how a baseline model might rediscover missing state.",
+    "No remote daemon or accelerator accessed."
+  ],
+  "baselineCommit": "55e0bc6ee6ab15c295515150d62d9d06f4f4e036",
+  "candidateParent": "167afbd1e0097ef5fcd4220971f3c836c857f889",
+  "sourceHashes": {
+    "baseline": {
+      "src/commands/goal/auto.ts": "c99f1df713d1383849196ebdb327db9aa652ed2715b8998b119b4812bc97e441",
+      "src/commands/goal/context.ts": "6e7e64f079fe212cd16a709facc3ba6a10b06aaf893d8f968a42031bc6132d57",
+      "src/commands/goal/actionFocus.ts": "73546178f1b9b7647b487cea09d272a51d57179b6c0e2a7d6c801851fcf11d63",
+      "src/harness/autonomyPolicy.ts": "2073990ce6f20aba00a95b1cc06bce8d9fbe0b3686961404954d95431439a11b",
+      "src/query.ts": "fda8b7127db5b0fe8ed0bf7e0150f34598abc7dc876a528d16aefc6fd9bcd94d",
+      "src/commands/goal/workState.ts": null,
+      "src/query/goalFailureEvidence.ts": null
+    },
+    "candidate": {
+      "src/commands/goal/auto.ts": "0df0fcafcde7df677b4c6fb6970c0448b9221b9bc1fdd5e6ea1abc466fc8c74a",
+      "src/commands/goal/context.ts": "1ff8ac8ec1df641d3a74471e2ff2889466305ec1f916104096f08a4cc704662a",
+      "src/commands/goal/actionFocus.ts": "96f08dc91e969cf541a60869915c8f86622d402b628509e323eeacbdae9e6833",
+      "src/harness/autonomyPolicy.ts": "476448464a978706401850cf44ed37b32d189d1d7dba547a9f5e4ea8cf5a2c08",
+      "src/query.ts": "f70fa4b0c43c6d3303b0d3d076e4614f166f55e586004c7cae3bc3fb94bbaf92",
+      "src/commands/goal/workState.ts": "9a5959ef8bb94674f4c508583cc825c0c18d0295e88b0b447f9a8b77d8617c2a",
+      "src/query/goalFailureEvidence.ts": "59dae44ead92da3162d85f00a618c82544bdcbc1959f92474e6931060c70aae9"
+    }
+  },
+  "fixtureSha256": "52ec73590e0b4dba6f8ecc9b9742d84ec3477a95f5ffcf40ddc9a7141a238317",
+  "rows": [
+    {
+      "arm": "baseline",
+      "scenario": "authorization-recovery",
+      "decisions": [
+        "CONTINUE",
+        "CONTINUE",
+        "BLOCKED"
+      ],
+      "state": "PAUSED",
+      "changedRecovery": false,
+      "stateReachable": false,
+      "optimizerUpdates": 0,
+      "result": null,
+      "resumeMatchesUninterrupted": null,
+      "baselinePreserved": true,
+      "missingStateRequiresRediscovery": true,
+      "requestBytes": 775
+    },
+    {
+      "arm": "candidate",
+      "scenario": "authorization-recovery",
+      "decisions": [
+        "CONTINUE",
+        "CONTINUE",
+        "RECOVER"
+      ],
+      "state": "ACTIVE",
+      "changedRecovery": true,
+      "stateReachable": true,
+      "optimizerUpdates": 120,
+      "result": {
+        "resumedAt": 12,
+        "step": 132,
+        "heldoutMseBefore": 0.0812267385308745,
+        "heldoutMseAfter": 5.003269250300544e-13
+      },
+      "resumeMatchesUninterrupted": true,
+      "baselinePreserved": true,
+      "missingStateRequiresRediscovery": false,
+      "requestBytes": 2869
+    },
+    {
+      "arm": "baseline",
+      "scenario": "compaction-recovery",
+      "decisions": [],
+      "state": "ACTIVE",
+      "changedRecovery": false,
+      "stateReachable": false,
+      "optimizerUpdates": 0,
+      "result": null,
+      "resumeMatchesUninterrupted": null,
+      "baselinePreserved": true,
+      "missingStateRequiresRediscovery": true,
+      "requestBytes": 1153
+    },
+    {
+      "arm": "candidate",
+      "scenario": "compaction-recovery",
+      "decisions": [],
+      "state": "ACTIVE",
+      "changedRecovery": false,
+      "stateReachable": true,
+      "optimizerUpdates": 120,
+      "result": {
+        "resumedAt": 12,
+        "step": 132,
+        "heldoutMseBefore": 0.0812267385308745,
+        "heldoutMseAfter": 5.003269250300544e-13
+      },
+      "resumeMatchesUninterrupted": true,
+      "baselinePreserved": true,
+      "missingStateRequiresRediscovery": false,
+      "requestBytes": 2869
+    },
+    {
+      "arm": "baseline",
+      "scenario": "invented-observer-budget",
+      "decisions": [
+        "BLOCKED"
+      ],
+      "state": "PAUSED",
+      "changedRecovery": false,
+      "stateReachable": false,
+      "optimizerUpdates": 0,
+      "result": null,
+      "resumeMatchesUninterrupted": null,
+      "baselinePreserved": true,
+      "missingStateRequiresRediscovery": true,
+      "requestBytes": 775
+    },
+    {
+      "arm": "candidate",
+      "scenario": "invented-observer-budget",
+      "decisions": [
+        "CONTINUE"
+      ],
+      "state": "ACTIVE",
+      "changedRecovery": false,
+      "stateReachable": true,
+      "optimizerUpdates": 120,
+      "result": {
+        "resumedAt": 12,
+        "step": 132,
+        "heldoutMseBefore": 0.0812267385308745,
+        "heldoutMseAfter": 5.003269250300544e-13
+      },
+      "resumeMatchesUninterrupted": true,
+      "baselinePreserved": true,
+      "missingStateRequiresRediscovery": false,
+      "requestBytes": 2869
+    }
+  ]
+}
