@@ -1,23 +1,28 @@
+"""Deterministic, monochrome figures for the 6G RAN patent disclosure."""
 from io import BytesIO
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
+
 def diagram(number: int, font: Path) -> BytesIO:
-    """Exact black and white flow figures; model images are not used."""
-    sizes = {1: (1800, 680), 2: (1800, 780), 3: (1800, 850)}
+    sizes = {1: (1500, 760), 2: (1500, 835), 3: (1500, 990)}
     canvas = Image.new('RGB', sizes[number], 'white')
     draw = ImageDraw.Draw(canvas)
-    normal = ImageFont.truetype(str(font), 37)
-    small = ImageFont.truetype(str(font), 31)
+    font_index = 2 if font.name == 'NotoSansCJK-Regular.ttc' else 0
+    normal = ImageFont.truetype(str(font), 44, index=font_index)
+    small = ImageFont.truetype(str(font), 36, index=font_index)
 
     def box(rect, label):
-        draw.rectangle(rect, outline='black', width=3)
+        draw.rounded_rectangle(rect, radius=12, fill='#f5f5f5', outline='black', width=3)
         lines = label.split('\n')
-        center = ((rect[0] + rect[2]) / 2, (rect[1] + rect[3]) / 2)
+        cx, cy = (rect[0] + rect[2])/2, (rect[1] + rect[3])/2
         for i, line in enumerate(lines):
             bounds = draw.textbbox((0, 0), line, font=normal)
-            w, h = bounds[2] - bounds[0], bounds[3] - bounds[1]
-            draw.text((center[0] - w / 2, center[1] + (i - (len(lines)-1)/2)*49 - h/2 - bounds[1]), line, font=normal, fill='black')
+            width = bounds[2] - bounds[0]
+            if width > rect[2] - rect[0] - 20:
+                raise ValueError(f'Figure {number}: label is too wide: {line}')
+            y = cy + (i-(len(lines)-1)/2)*54
+            draw.text((cx-width/2, y-(bounds[3]+bounds[1])/2), line, font=normal, fill='black')
 
     def arrow(points, label=None, at=None):
         draw.line(points, fill='black', width=3, joint='curve')
@@ -25,53 +30,64 @@ def diagram(number: int, font: Path) -> BytesIO:
         dx, dy = end[0]-previous[0], end[1]-previous[1]
         length = (dx*dx+dy*dy)**.5
         ux, uy = dx/length, dy/length
-        draw.polygon([end, (end[0]-16*ux+8*uy,end[1]-16*uy-8*ux), (end[0]-16*ux-8*uy,end[1]-16*uy+8*ux)], fill='black')
+        draw.polygon([end, (end[0]-18*ux+9*uy, end[1]-18*uy-9*ux),
+                      (end[0]-18*ux-9*uy, end[1]-18*uy+9*ux)], fill='black')
         if label:
             draw.text(at, label, font=small, fill='black')
 
     if number == 1:
-        box((50,40,550,180), '模型结构化提议')
-        box((650,40,1150,180), '宿主身份绑定\n与权限准入')
-        box((1250,40,1750,180), '冻结契约与\n任务图及租约')
-        arrow([(550,110),(650,110)])
-        arrow([(1150,110),(1250,110)])
-        box((1250,280,1750,420), '本地工具或\n远端作业协调')
-        arrow([(1500,180),(1500,280)])
-        box((650,280,1150,420), '工件及独立\n机器检查证据')
-        arrow([(1250,350),(1150,350)])
-        box((50,280,550,420), '完成门控与\n集成再验证')
-        arrow([(650,350),(550,350)])
-        box((50,520,550,650), '持久目标完成记录')
-        arrow([(300,420),(300,520)])
+        box((30,30,470,150), '业务意图\n与SLA')
+        box((530,30,970,150), '能力目录与\n网络智能体')
+        box((1030,30,1470,150), '无线动作\n协调器')
+        arrow([(470,90),(530,90)])
+        arrow([(970,90),(1030,90)])
+        box((30,270,470,390), 'UE测量与\nRAN状态')
+        arrow([(470,330),(500,330),(500,200),(1120,200),(1120,150)])
+        box((1030,270,1470,390), '影响范围与\n联合评估')
+        arrow([(1300,150),(1300,270)])
+        box((530,270,970,390), '分区资源预留\n与执行凭证')
+        arrow([(1030,330),(970,330)])
+        box((530,510,970,630), '设备侧\n执行网关')
+        arrow([(750,390),(750,510)])
+        box((1030,510,1470,630), '6G基站与\n无线资源')
+        arrow([(970,570),(1030,570)])
+        box((30,510,470,630), '邻区和切片\n指标核验')
+        arrow([(1250,630),(1250,710),(250,710),(250,630)])
+        arrow([(250,510),(250,390)])
     elif number == 2:
-        box((480,30,1320,140), '提议与任务租约代际 f')
-        box((480,210,1320,350), '核验契约 载荷 作用域\n及当前租约有效期')
-        arrow([(900,140),(900,210)])
-        box((40,430,770,570), '登记准入\n原子追加子任务')
-        box((1050,430,1760,570), '拒绝或延期')
-        arrow([(650,350),(650,390),(405,390),(405,430)], '有效', (430,351))
-        arrow([(1150,350),(1150,390),(1405,390),(1405,430)], '无效', (1420,351))
-        box((40,650,770,760), '实际操作前复核 f\n有效才执行和验证')
-        box((1050,650,1760,760), '旧代际或过期\n拒绝宿主写入')
-        arrow([(405,570),(405,650)])
-        arrow([(770,705),(1050,705)], '失效', (847,655))
+        box((390,20,1110,130), '从无线耦合关系\n确定资源键和作用时段')
+        box((390,184,1110,294), '按分区版本 r0\n评估候选及在途动作')
+        box((390,348,1110,458), '比较 r0 并预留\n凭证绑定结果版本 r1')
+        box((390,512,1110,622), '写入边界复核\n预留 版本 代际 状态')
+        arrow([(750,130),(750,184)])
+        arrow([(750,294),(750,348)])
+        arrow([(750,458),(750,512)])
+        box((20,725,650,815), '条件执行')
+        box((850,725,1480,815), '拒绝并重新评估')
+        arrow([(550,622),(550,680),(335,680),(335,725)], '条件有效', (175,625))
+        arrow([(950,622),(950,680),(1165,680),(1165,725)], '条件失配', (1175,624))
+        arrow([(1110,403),(1350,403),(1350,725)], 'r0 失配', (1150,346))
+        arrow([(1480,769),(1490,769),(1490,240),(1110,240)])
+    elif number == 3:
+        box((420,20,1080,125), '持久动作标识及条件')
+        box((420,175,1080,280), '设备侧条件执行')
+        box((420,330,1080,435), '检查配置生效证据')
+        arrow([(750,125),(750,175)])
+        arrow([(750,280),(750,330)])
+        box((20,520,660,640), '生效证据齐备\n按最晚生效时间观测')
+        box((840,520,1480,640), '结果未知\n保留资源并查询原标识')
+        arrow([(600,435),(600,470),(340,470),(340,520)], '齐备', (218,432))
+        arrow([(900,435),(900,470),(1190,470),(1190,520)], '未知', (1095,410))
+        arrow([(1480,573),(1490,573),(1490,382),(1080,382)])
+        box((20,710,660,815), '核验邻区与切片指标')
+        arrow([(340,640),(340,710)])
+        box((840,710,1480,815), '确认终态后按\n当前状态评估补偿')
+        arrow([(660,763),(840,763)])
+        draw.text((694,710), '越界', font=small, fill='black')
+        box((20,875,660,980), '验收通过\n结转在用资源')
+        arrow([(340,815),(340,875)], '达标', (364,815))
     else:
-        box((420,15,1380,110), '事务中持久化意图\n稳定作业键及输入绑定')
-        box((520,170,1280,255), '本地是否已有 job_id')
-        arrow([(900,110),(900,170)])
-        box((50,320,750,425), '幂等 ensure\n复用原 key')
-        box((1050,320,1750,425), 'inspect\n使用已知 job_id')
-        arrow([(600,255),(600,285),(400,285),(400,320)], '否', (380,255))
-        arrow([(1200,255),(1200,285),(1400,285),(1400,320)], '是', (1430,255))
-        box((520,485,1280,585), '核验响应身份和状态')
-        arrow([(400,425),(400,450),(720,450),(720,485)])
-        arrow([(1400,425),(1400,450),(1080,450),(1080,485)])
-        box((60,650,740,760), '终态回执及检查证据\n进入目标完成门控')
-        box((1060,650,1760,760), '未决或 UNKNOWN\n持久等待或人工协调')
-        arrow([(650,585),(650,615),(400,615),(400,650)], '终态', (430,590))
-        arrow([(1150,585),(1150,615),(1410,615),(1410,650)], '未确认', (1440,590))
-        arrow([(1760,705),(1785,705),(1785,135),(1280,135),(1280,220)], '原身份重查', (1440,140))
-        draw.text((65,800), '外部终态不等于目标验收通过；未决作业阻止目标完成', font=small, fill='black')
+        raise ValueError(number)
     output = BytesIO()
     canvas.save(output, format='PNG', dpi=(300,300))
     output.seek(0)
