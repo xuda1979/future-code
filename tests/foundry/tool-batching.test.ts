@@ -29,6 +29,38 @@ const withJobs = (s: Parameters<NonNullable<Parameters<typeof fixture>[1]>>[0]) 
 };
 const job = (id: string, seed: number): Call => ({ id, name: "run_job", arguments: { name: "exp", input: { seed } } });
 
+for (const batched of [false, true]) test(`failed intent publication rolls back before dispatch and resumes once (batch=${batched})`, async () => fixture(async (s, cfg) => {
+  const q = new Scheduler(s), run = q.start([task()]), first = q.claim(run, "first")!;
+  const calls = batched ? [write("first", "10\n"), write("last")] : [write("only")];
+  const executed: string[] = [];
+  const backend = wrapBackend(h => ({
+    batchPolicy: h.batchPolicy,
+    tool(call) { executed.push(call.id); return h.tool(call); },
+    snapshot: () => h.snapshot(), dispose: () => h.dispose(),
+  }));
+  const worker = new SwarmDriver(s, cfg, scripted([() => reply("", calls)]).fetcher, backend);
+  s.db.exec(`CREATE TEMP TRIGGER reject_intent BEFORE INSERT ON agent_events WHEN NEW.kind='tool.intent'
+    AND (SELECT COUNT(*) FROM agent_events WHERE kind='tool.intent')=${calls.length - 1}
+    BEGIN SELECT RAISE(ABORT,'fixture journal unavailable'); END`);
+  await assert.rejects(worker.execute(q.capsule(first), signal()), /fixture journal unavailable/);
+  assert.deepEqual(executed, []);
+  assert.equal(s.db.prepare("SELECT COUNT(*) AS n FROM agent_events WHERE kind IN ('tool.intent','tool.effect')").get()!.n, 0);
+  const before = state(s, run);
+  assert.equal(before.toolCalls, batched ? calls.length : 0);
+  assert.equal(before.history.filter(m => m.role === "tool").length, 0);
+  s.db.exec("DROP TRIGGER reject_intent");
+  q.fail(first, "restart"); const c = q.capsule(q.claim(run, "replacement")!);
+  const resumed = new SwarmDriver(s, cfg, scripted([() => reply("done")]).fetcher, backend);
+  const result = await resumed.execute(c, signal());
+  assert.deepEqual(executed, calls.map(call => call.id));
+  assert.equal(state(s, run).toolCalls, calls.length);
+  const events = s.db.prepare("SELECT seq,kind,payload FROM agent_events WHERE kind IN ('tool.intent','tool.effect') ORDER BY seq").all();
+  assert.deepEqual(events.map(e => e.kind), calls.flatMap(() => ["tool.effect", "tool.intent"]));
+  assert.deepEqual(events.filter(e => e.kind === "tool.intent").map(e => s.readArtifact(e.payload)), calls);
+  assert.ok(events.every((e, i) => e.seq === events[0]!.seq + i));
+  assert.ok((await resumed.verify(c, result, signal())).checks.every(check => check.verdict === "PASS"));
+}));
+
 test("independent reads overlap within four slots, deduplicate I/O and retain ordered owned results", async () => fixture(async (s, cfg) => {
   const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "w")!);
   let active = 0, peak = 0, executions = 0, release!: () => void;

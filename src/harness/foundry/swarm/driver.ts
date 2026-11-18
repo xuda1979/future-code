@@ -14,7 +14,7 @@ import type { AttemptControl, Capsule, Driver, Json, Verification, WorkerResult,
 import { keys, type PinnedSwarm } from "./config.ts";
 import { inlineReceipt, type Call, type ProgressCheckpoint } from "./context.ts";
 import { surfaceObservation } from "../../surface/projection.ts";
-import { HttpBrain } from "./model.ts";
+import { definitionsFor, HttpBrain } from "./model.ts";
 import { MAX_CONSECUTIVE_RESPONSE_REJECTIONS, type Turn } from "./response.ts";
 import { SessionJournal, type Thread } from "./session.ts";
 import { localGitBackend, type HandsBackend } from "./workspace.ts";
@@ -68,7 +68,8 @@ export class SwarmDriver implements Driver {
     this.workerId = workerIdentity(cfg); this.verifierId = verifierIdentity(cfg);
     this.operations = cfg.operations ? new Operations(store, cfg.operations) : null;
     this.knowledge = cfg.spec.projectKnowledge ? new ProjectKnowledge(store, cfg) : null;
-    this.journal = new SessionJournal(store, this.knowledge ?? undefined); this.brain = new HttpBrain(this.journal, fetcher);
+    this.journal = new SessionJournal(store, this.knowledge ?? undefined);
+    this.brain = new HttpBrain(this.journal, fetcher, definitionsFor(cfg));
     this.cohorts = cfg.spec.coordination ? new CohortBoard(store, cfg, this.journal) : null;
     this.programme = cfg.spec.researchProgramme ? new ResearchProgramme(store, cfg.spec.researchProgramme) : null;
     const hasTheory = Object.values(cfg.spec.jobs ?? {}).some(j => j.research?.spec.schema === 2 && j.research.spec.theory);
@@ -404,13 +405,16 @@ export class SwarmDriver implements Driver {
             let result: Json;
             const memory: MemoryEntry[] = [];
             let admitted = false;
+            let proposalId: string | undefined;
             control?.activity?.(`tool:${call.name}`);
             try {
-              const proposalId = admitCall(call);
-              admitted = true;
+              proposalId = admitCall(call);
               const effect = toolEffectContract(this.cfg, call.name as any, call.arguments);
-              this.journal.checkpoint(t, "tool.effect", { callId: call.id, proposalId, ...effect });
-              this.journal.checkpoint(t, "tool.intent", call);
+              this.journal.checkpointEvents(t, [
+                { kind: "tool.effect", payload: { callId: call.id, proposalId, ...effect } },
+                { kind: "tool.intent", payload: call },
+              ]);
+              admitted = true;
               if (call.name === "spawn_tasks") {
                 const policy = this.cfg.spec.supervision?.dynamicDAG;
                 invariant(policy, "dynamic DAG spawning is not configured");
@@ -511,6 +515,9 @@ export class SwarmDriver implements Driver {
               } else result = await timedTool(() => hands.tool(call));
             } catch (e) {
               signal.throwIfAborted();
+              // The backend has not seen the call. Preserve the pending model
+              // reply for recovery if publishing its intent failed.
+              if (proposalId !== undefined && !admitted) throw e;
               // Atomic spawn deferral intentionally invalidates the current lease
               // in the same transaction that admitted children.
               if (e instanceof PersistedDeferredAttemptError) throw e;

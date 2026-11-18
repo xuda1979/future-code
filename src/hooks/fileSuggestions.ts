@@ -1,6 +1,6 @@
 import { statSync } from 'fs'
-import ignore from 'ignore'
 import * as path from 'path'
+import { fileSuggestionFilter } from './fileSuggestionIgnores.js'
 import {
   FUTURE_CONFIG_DIRECTORIES,
   loadMarkdownFilesForSubdir,
@@ -59,7 +59,7 @@ let cachedConfigFiles: string[] = []
 let cachedTrackedDirs: string[] = []
 
 // Cache for .ignore/.rgignore patterns (keyed by repoRoot:cwd)
-let ignorePatternsCache: ReturnType<typeof ignore> | null = null
+let ignorePatternsCache: ReturnType<typeof fileSuggestionFilter> = null
 let ignorePatternsCacheKey: string | null = null
 
 // Throttle state for background refresh. .git/index mtime triggers an
@@ -196,13 +196,13 @@ async function mergeUntrackedIntoNormalizedCache(
 
 /**
  * Load ripgrep-specific ignore patterns from .ignore or .rgignore files
- * Returns an ignore instance if patterns were found, null otherwise
+ * Returns a predicate for repository-relative Git paths if patterns were found
  * Results are cached per repoRoot:cwd combination
  */
 async function loadRipgrepIgnorePatterns(
   repoRoot: string,
   cwd: string,
-): Promise<ReturnType<typeof ignore> | null> {
+): Promise<ReturnType<typeof fileSuggestionFilter>> {
   const cacheKey = `${repoRoot}:${cwd}`
 
   // Return cached result if available
@@ -214,23 +214,18 @@ async function loadRipgrepIgnorePatterns(
   const ignoreFiles = ['.ignore', '.rgignore']
   const directories = [...new Set([repoRoot, cwd])]
 
-  const ig = ignore()
-  let hasPatterns = false
-
-  const paths = directories.flatMap(dir =>
-    ignoreFiles.map(f => path.join(dir, f)),
+  const paths = ignoreFiles.flatMap(file =>
+    directories.map(dir => path.join(dir, file)),
   )
   const contents = await Promise.all(
     paths.map(p => fs.readFile(p, { encoding: 'utf8' }).catch(() => null)),
   )
-  for (const [i, content] of contents.entries()) {
-    if (content === null) continue
-    ig.add(content)
-    hasPatterns = true
-    logForDebugging(`[FileIndex] loaded ignore patterns from ${paths[i]}`)
-  }
-
-  const result = hasPatterns ? ig : null
+  const sources = contents.flatMap((patterns, i) => {
+    if (!patterns) return []
+    const dir = path.relative(repoRoot, path.dirname(paths[i]!)).split(path.sep).join('/')
+    return [{ prefix: dir ? dir + '/' : '', patterns }]
+  })
+  const result = fileSuggestionFilter(sources)
   ignorePatternsCache = result
   ignorePatternsCacheKey = cacheKey
 
@@ -267,7 +262,7 @@ async function getFilesUsingGit(
     const lsFilesStart = Date.now()
     const trackedResult = await execFileNoThrowWithCwd(
       gitExe(),
-      ['-c', 'core.quotepath=false', 'ls-files', '--recurse-submodules'],
+      ['ls-files', '-z', '--recurse-submodules'],
       { timeout: 5000, abortSignal, cwd: repoRoot },
     )
     logForDebugging(
@@ -281,20 +276,11 @@ async function getFilesUsingGit(
       return null
     }
 
-    const trackedFiles = trackedResult.stdout.trim().split('\n').filter(Boolean)
-
-    // Normalize paths relative to the current working directory
-    let normalizedTracked = normalizeGitPaths(trackedFiles, repoRoot, cwd)
-
-    // Apply .ignore/.rgignore patterns if present (faster than falling back to ripgrep)
+    const trackedFiles = trackedResult.stdout.split('\0').filter(Boolean)
     const ignorePatterns = await loadRipgrepIgnorePatterns(repoRoot, cwd)
-    if (ignorePatterns) {
-      const beforeCount = normalizedTracked.length
-      normalizedTracked = ignorePatterns.filter(normalizedTracked)
-      logForDebugging(
-        `[FileIndex] applied ignore patterns: ${beforeCount} -> ${normalizedTracked.length} files`,
-      )
-    }
+    const normalizedTracked = normalizeGitPaths(
+      ignorePatterns ? trackedFiles.filter(ignorePatterns) : trackedFiles, repoRoot, cwd,
+    )
 
     // Cache tracked files for later merge with untracked
     cachedTrackedFiles = normalizedTracked
@@ -315,13 +301,12 @@ async function getFilesUsingGit(
     if (!untrackedFetchPromise) {
       const untrackedArgs = respectGitignore
         ? [
-            '-c',
-            'core.quotepath=false',
             'ls-files',
+            '-z',
             '--others',
             '--exclude-standard',
           ]
-        : ['-c', 'core.quotepath=false', 'ls-files', '--others']
+        : ['ls-files', '-z', '--others']
 
       const generation = cacheGeneration
       untrackedFetchPromise = execFileNoThrowWithCwd(gitExe(), untrackedArgs, {
@@ -334,29 +319,14 @@ async function getFilesUsingGit(
           }
           if (untrackedResult.code === 0) {
             const rawUntrackedFiles = untrackedResult.stdout
-              .trim()
-              .split('\n')
+              .split('\0')
               .filter(Boolean)
 
-            // Normalize paths BEFORE applying ignore patterns (consistent with tracked files)
-            let normalizedUntracked = normalizeGitPaths(
-              rawUntrackedFiles,
+            const normalizedUntracked = normalizeGitPaths(
+              ignorePatterns ? rawUntrackedFiles.filter(ignorePatterns) : rawUntrackedFiles,
               repoRoot,
               cwd,
             )
-
-            // Apply .ignore/.rgignore patterns to normalized untracked files
-            const ignorePatterns = await loadRipgrepIgnorePatterns(
-              repoRoot,
-              cwd,
-            )
-            if (ignorePatterns && normalizedUntracked.length > 0) {
-              const beforeCount = normalizedUntracked.length
-              normalizedUntracked = ignorePatterns.filter(normalizedUntracked)
-              logForDebugging(
-                `[FileIndex] applied ignore patterns to untracked: ${beforeCount} -> ${normalizedUntracked.length} files`,
-              )
-            }
 
             logForDebugging(
               `[FileIndex] background untracked fetch: ${normalizedUntracked.length} files`,

@@ -4,6 +4,8 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { Scheduler } from "../../src/harness/foundry/scheduler.ts";
+import { digest } from "../../src/harness/foundry/kernel.ts";
+import { definitionsFor, requestBody } from "../../src/harness/foundry/swarm/model.ts";
 import { executable, type SwarmSpec } from "../../src/harness/foundry/swarm/config.ts";
 import { LocalGitHands, localGitBackend } from "../../src/harness/foundry/swarm/workspace.ts";
 import { remoteWorkerFleetBackend } from "../../src/harness/foundry/swarm/workerFleet.ts";
@@ -33,6 +35,24 @@ function configure(s: SwarmSpec, remote: boolean): void {
     files: [endpoint, config] }, maxConcurrent: 1, maxRpcBytes: 2 * 1024 * 1024 } };
 }
 
+test("a pre-upgrade search profile replays its exact pending response without a new provider request", async () => fixture(async (s, cfg) => {
+  assert.equal(cfg.sourceSearchVersion, 2);
+  const { sourceSearchVersion: _, ...legacy } = cfg;
+  const catalog = definitionsFor(legacy);
+  // Digest of the actual parent definition at 22cb45f, including its description.
+  assert.equal(digest(catalog.find(d => d.name === "search_files")), "d06e3c7fb4559b2a9500a16b431eb1a12d93cffcc5ca7f9ef6a3e2dc758c8df9");
+  const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "worker")!);
+  const profile = cfg.spec.agents.coder, history = [{ role: "user" as const, content: "find lambda" }];
+  const worker = new SwarmDriver(s, legacy, async () => { throw new Error("unexpected provider call"); });
+  const oldBody = requestBody(profile, history, cfg.spec.budget, catalog);
+  const reservation = await worker.journal.reserve(c, "fixture", oldBody, cfg.spec.budget, signal());
+  worker.journal.complete(reservation, null, await reply("old reply").json(), 0);
+  const replay = worker.brain.replay(c, profile, history, cfg.spec.budget, 32768, 0);
+  assert.equal(replay?.turn.message.content, "old reply");
+  assert.throws(() => worker.brain.replay(c, profile, [{ role: "user", content: "other task" }], cfg.spec.budget, 32768, 0), /replay input drift/);
+  assert.throws(() => validateToolProposal(c, legacy, profile, search("first", { additionalQueries: ["second"] })), /unexpected/);
+}, s => configure(s, false)));
+
 test("local listing fits a narrow task scope even when unrelated tracked paths exceed the output budget", async () => fixture(async (s, cfg) => {
   const q = new Scheduler(s), run = q.start([{ ...task(), readScope: ["src/[literal]"] }]);
   const c = q.capsule(q.claim(run, "worker")!);
@@ -55,6 +75,38 @@ test("local listing fits a narrow task scope even when unrelated tracked paths e
 
 for (const remote of [false, true]) {
   const backend = remote ? remoteWorkerFleetBackend : localGitBackend, label = remote ? "remote" : "local";
+  test(`${label} searches multiple literals in one scoped scan with a shared line cursor`, async () => fixture(async (s, cfg) => {
+    const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "worker")!);
+    const hands = backend.open(s, cfg, c, cfg.spec.agents.coder, signal(), null);
+    const options = { additionalQueries: ["λ", "[x]"], limit: 1, contextLines: 1 };
+    try {
+      const call = search("tag", options);
+      validateToolProposal(c, cfg, cfg.spec.agents.coder, call);
+      const rows = []; let cursor = null;
+      do {
+        const page: any = await hands.tool(search("tag", { ...options, ...(cursor ? { cursor } : {}) }));
+        assert.ok(!page.error && Buffer.byteLength(JSON.stringify(page)) <= cfg.spec.budget.maxToolOutputBytes);
+        for (const hit of page.matches) rows.push([hit.path, hit.line, hit.text, hit.matchedQueryIndices]);
+        cursor = page.nextCursor;
+      } while (cursor);
+      assert.deepEqual(rows, [
+        ["src/a.txt", 1, "λ [x] tag λ", [0, 1, 2]], ["src/a.txt", 2, "tag", [0]], ["src/b.txt", 1, "[x]", [2]],
+      ]);
+      const single: any = await hands.tool(search("tag"));
+      assert.ok(single.matches.every((hit: any) => !("matchedQueryIndices" in hit)));
+      for (const extra of [[], ["tag"], ["x", "x"], Array(8).fill("x"), ["x\ny"], [null], null, ["字".repeat(86)]]) {
+        const bad = search("tag", { additionalQueries: extra });
+        assert.throws(() => validateToolProposal(c, cfg, cfg.spec.agents.coder, bad));
+        if (remote) assert.ok((await hands.tool(bad) as any).error);
+        else await assert.rejects(hands.tool(bad));
+      }
+    } finally { await hands.dispose(); }
+  }, s => {
+    writeFileSync(join(s.project, "src/a.txt"), "λ [x] tag λ\ntag\n");
+    writeFileSync(join(s.project, "src/b.txt"), "[x]\n");
+    writeFileSync(join(s.project, "outside.txt"), "tag λ [x]\n");
+    commit(s.project); configure(s, remote);
+  }));
   test(`${label} source search returns bounded surrounding code in the discovery call`, async () => fixture(async (s, cfg) => {
     const q = new Scheduler(s), run = q.start([task()]), c = q.capsule(q.claim(run, "worker")!);
     const hands = backend.open(s, cfg, c, cfg.spec.agents.coder, signal(), null);

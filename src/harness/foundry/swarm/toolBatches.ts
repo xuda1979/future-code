@@ -71,18 +71,22 @@ export async function executeToolBatch(o: BatchExecution): Promise<void> {
   // Admission failures are results, as in the single-call path. A rejected
   // duplicate cannot borrow a successful call's admission or receipt.
   const rejected = new Map<string, unknown>();
+  const intents: { kind: string; payload: unknown }[] = [];
   for (const call of batch.calls) {
     try {
       const proposalId = o.admit(call);
       const effect = toolEffectContract(cfg, call.name as any, call.arguments);
-      journal.checkpoint(t, "tool.effect", { callId: call.id, proposalId, ...effect });
-      journal.checkpoint(t, "tool.intent", call);
+      intents.push({ kind: "tool.effect", payload: { callId: call.id, proposalId, ...effect } },
+        { kind: "tool.intent", payload: call });
     } catch (e) {
       signal.throwIfAborted(); journal.assertLease(c);
       if (e instanceof FatalAttemptError || e instanceof DeferredAttemptError) throw e;
       rejected.set(call.id, e);
     }
   }
+  // No backend has seen these calls yet. A failed publication must stop the
+  // whole group; the earlier pendingBatch checkpoint is the replay boundary.
+  journal.checkpointEvents(t, intents);
   control?.activity?.(`${batch.kind === "run_job" ? "remote-batch" : "tool-batch"}:launch:${batch.calls.length}`);
   const results: PromiseSettledResult<Json>[] = new Array(batch.calls.length);
   const inFlight = new Map<string, Promise<Json>>();
