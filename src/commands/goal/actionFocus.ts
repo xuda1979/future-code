@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { isShellObservation } from '../../utils/shellActivity.ts';
 
 /** A request-local activity diagnostic, never a progress/acceptance verdict.
@@ -76,6 +76,7 @@ function identity(value: unknown): string | null {
  * in their original order; this neither grants authority nor skips checks. */
 export function actionFocusReview(messages: readonly ActivityMessage[], goalReportPath: string, cwd = process.cwd()): string | null {
   const reportPath = expandedPath(goalReportPath, cwd);
+  const internalNotes = new Set(reportPath ? [reportPath, join(dirname(reportPath), 'work-state.json')] : []);
   const blocks: { value: Block; role: string }[] = [];
   for (let i = messages.length - 1; i >= Math.max(0, messages.length - MAX_MESSAGES) && blocks.length < MAX_BLOCKS; i--) {
     const message = messages[i]!;
@@ -108,44 +109,49 @@ export function actionFocusReview(messages: readonly ActivityMessage[], goalRepo
   let observations = 0;
   let repeatedFailure = 0;
   let repeatedObservation = 0;
-  const seen = new Map<string, { receipt: string; count: number; failed: boolean }>();
+  let repeatedOperation = 0;
+  const seen = new Map<string, { receipt: string; count: number; failed: boolean; observation: boolean }>();
   blocks.forEach(({ value, role }, index) => {
     if (role !== 'user' || value.type !== 'tool_result' || typeof value.tool_use_id !== 'string') return;
     const entry = calls.get(value.tool_use_id);
     if (!entry || entry.index >= index || ambiguous.has(value.tool_use_id) || resultCounts.get(value.tool_use_id) !== 1) return;
     const call = entry.call;
     if (typeof call.name !== 'string' || !isBlock(call.input)) return;
-    const note = reportPath !== null && ['Write', 'Edit', 'MultiEdit'].includes(call.name) &&
-      expandedPath(call.input.file_path, cwd) === reportPath;
+    const note = ['Write', 'Edit', 'MultiEdit'].includes(call.name) &&
+      internalNotes.has(expandedPath(call.input.file_path, cwd));
     const waiting = call.name === 'TaskOutput';
     const observation = OBSERVATIONS.has(call.name) || note ||
       call.name === 'Bash' && isShellObservation(call.input.command);
     const failed = value.is_error === true;
+    const request = identity([call.name, call.input]);
+    const receipt = identity([failed, value.content]);
+    const previous = request ? seen.get(request) : undefined;
     if (!failed && !observation && !waiting) {
       // A completed change/experiment is a reason to re-evaluate, not proof
       // of correctness. Independent acceptance remains elsewhere.
       observations = repeatedFailure = repeatedObservation = 0;
-      seen.clear();
-      return;
+      // Opaque shell scripts may be health probes, tests or mutations. Their
+      // success is no evidence of which. Keep exact repetition for this same
+      // operation without labelling it an observation or a failed job.
+      if (call.name !== 'Bash') { seen.clear(); return; }
     }
     if (observation) observations++;
-    const request = identity([call.name, call.input]);
-    const receipt = identity([failed, value.content]);
     if (!request) return;
     if (!receipt) { seen.delete(request); return; }
-    const previous = seen.get(request);
     const count = previous?.receipt === receipt ? previous.count + 1 : 1;
-    seen.set(request, { receipt, count, failed });
+    seen.set(request, { receipt, count, failed, observation: observation || waiting });
   });
   // Recompute so changed evidence disarms its old warning, but interleaved
   // read-only diagnostics cannot hide a repeated failed operation.
   for (const record of seen.values()) {
     if (record.failed) repeatedFailure = Math.max(repeatedFailure, record.count);
-    else repeatedObservation = Math.max(repeatedObservation, record.count);
+    else if (record.observation) repeatedObservation = Math.max(repeatedObservation, record.count);
+    else repeatedOperation = Math.max(repeatedOperation, record.count);
   }
   const findings: string[] = [];
   if (repeatedFailure >= REPEAT_REVIEW) findings.push(`The same failed request and receipt repeated ${repeatedFailure} times.`);
   else if (repeatedObservation >= REPEAT_REVIEW) findings.push(`The same observation request and receipt repeated ${repeatedObservation} times.`);
+  else if (repeatedOperation >= REPEAT_REVIEW) findings.push(`The same opaque shell request and receipt repeated ${repeatedOperation} times; its successful exit alone does not establish outcome progress.`);
   if (observations >= OBSERVATION_REVIEW) findings.push(`${observations} observation/planning receipts without a completed change or experiment call in this bounded window.`);
   if (!findings.length) return null;
   return '[Host Action Review — activity diagnostic, not a stall verdict]\n' + findings.join(' ') +

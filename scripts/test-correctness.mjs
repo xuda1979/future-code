@@ -38,6 +38,8 @@ gate(process.execPath, ["--experimental-strip-types", "--test", "--test-concurre
   "tests/correctness/foreground-preparation.test.ts",
   "tests/correctness/foreground-repl.test.ts",
   "tests/correctness/goal-context.test.ts",
+  "tests/correctness/goal-work-state.test.ts",
+  "tests/correctness/goal-failure-evidence.test.ts",
   "tests/correctness/goal-milestone-scope.test.ts",
   "tests/correctness/goal-task-lifecycle.test.ts",
   "tests/correctness/action-focus.test.ts",

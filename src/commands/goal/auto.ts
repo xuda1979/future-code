@@ -29,7 +29,8 @@ export const AUTO_GOAL_BLOCKER_GUIDANCE =
   "A failed test, unfinished plan, or difficult task is not an external blocker. " +
   "Only when further progress requires something outside your available tools and authority, " +
   "write Status: blocked, Blocker: <specific error>, Blocker type: <hardware|network|provider|credentials|permissions|resources|external_dependency>, " +
-  "Recovery attempted: <actual diagnostics and recovery results>, and External action required: <what must change before work can resume> " +
+  "Recovery attempted: <actual diagnostics and recovery results>, External action required: <what must change before work can resume>, " +
+  "and Failure receipt: <the exact tool-use ID of the observed failed diagnostic> " +
   "on separate lines in the session goal report at the path in the current objective anchor. Report that error, attempted recovery and required action to the user. " +
   "These fields are a blocker report, not proof of completion. Respect operator pauses, permissions and explicit resource limits.";
 
@@ -76,6 +77,10 @@ export interface AutoGoalState {
   lastProgressFingerprint?: string | null;
   transition?: GoalTransitionKind;
   routineDecisionRetries?: number;
+  /** One changed recovery strategy per no-action episode. A model's refusal
+   * cannot revoke the user's standing authority or create infinite retries. */
+  routineDecisionRecoveryUsed?: boolean;
+  routineDecisionFallbackUsed?: boolean;
   /** Interaction requested by trusted human steering; never an execution grant. */
   userQuestions?: boolean;
   /** Frozen standing-work contract; a completed cycle is not loop completion. */
@@ -159,6 +164,8 @@ function validate(value: unknown): AutoGoalState {
       (v.ignoredGoalReport != null && (typeof v.ignoredGoalReport !== "string" || !/^[a-f0-9]{64}$/.test(v.ignoredGoalReport))) ||
       (v.ignoredCompletionContent != null && (typeof v.ignoredCompletionContent !== "string" || !/^[a-f0-9]{64}$/.test(v.ignoredCompletionContent))) ||
       (v.reason !== null && typeof v.reason !== "string") ||
+      (v.routineDecisionRecoveryUsed !== undefined && typeof v.routineDecisionRecoveryUsed !== "boolean") ||
+      (v.routineDecisionFallbackUsed !== undefined && typeof v.routineDecisionFallbackUsed !== "boolean") ||
       (v.userQuestions !== undefined && typeof v.userQuestions !== "boolean") ||
       (v.loop !== undefined && (!v.loop || typeof v.loop !== "object" ||
         !["continuous", "until"].includes(v.loop.kind) ||
@@ -239,7 +246,7 @@ function goalReportPreamble(controlText: string, boundGoal: string): string {
   let end = start;
   for (; end < lines.length; end++) {
     if (/^ {0,3}#{1,6}(?:[ \t]|$)/.test(lines[end]!)) break;
-    const controlField = /^[ \t]*(?:[-*][ \t]*)?(?:\*\*)?(?:status|blocker(?: type)?|recovery attempted|external action required)(?:\*\*)?[ \t]*:/i.test(lines[end]!);
+    const controlField = /^[ \t]*(?:[-*][ \t]*)?(?:\*\*)?(?:status|blocker(?: type)?|recovery attempted|external action required|failure receipt)(?:\*\*)?[ \t]*:/i.test(lines[end]!);
     if (!controlField && /^ {0,3}\S/.test(lines[end]!) && !/^\s*(?:[-*+]|\d+\.)\s/.test(lines[end]!) &&
       /^ {0,3}(?:=+|-+)\s*$/.test(lines[end + 1] ?? "")) break;
   }
@@ -569,6 +576,8 @@ export function recordGoalSteering(
     reason: preservePause ? state.reason : null,
     activeSteering: deduped,
     routineDecisionRetries: 0,
+    routineDecisionRecoveryUsed: false,
+    routineDecisionFallbackUsed: false,
     ...(options.userQuestions === undefined ? {} : { userQuestions: options.userQuestions }),
     transition: "steered",
     updatedAt: new Date().toISOString(),
@@ -599,6 +608,8 @@ export function resumeAutoGoal(cwd = process.cwd()): AutoGoalState | null {
     reason: null,
     stagnantContinuations: 0,
     routineDecisionRetries: 0,
+    routineDecisionRecoveryUsed: false,
+    routineDecisionFallbackUsed: false,
     transition: "resumed",
     updatedAt: new Date().toISOString(),
   });
@@ -868,6 +879,7 @@ function goalFileOutcome(
   dir: string,
   state: AutoGoalState,
   cwd: string,
+  failureReceipts?: readonly string[],
 ): { state: "REVIEW" | "PAUSED"; reason: string } | { recovery: string; routineHandoff?: boolean } | null {
   const report = readGoalReport(dir);
   if (!report) return null;
@@ -928,6 +940,22 @@ function goalFileOutcome(
         recovery:
           "The goal file reports a blocker that is recoverable within your own tools and authority without human help. " +
           "Diagnose it, switch implementation strategy, and continue all work that remains possible.",
+      };
+    }
+    if (failureReceipts !== undefined) {
+      // A model-authored report cannot authenticate its own external failure.
+      // The host supplies paired failed-tool IDs; quotes, history and repeated
+      // receipt fields cannot borrow a match from outside this preamble.
+      const receipts = [...goalReportPreamble(controlText, state.goal).matchAll(
+        /^[ \t]*(?:[-*][ \t]*)?(?:\*\*)?failure receipt(?:\*\*)?[ \t]*:[ \t]*([^\r\n]*)$/gim,
+      )];
+      const receipt = receipts.length === 1 ? receipts[0]![1]!.trim() : "";
+      if (!receipt || /\s/.test(receipt) || !failureReceipts.includes(receipt)) return {
+        recovery: "The external-blocker report is not linked to a host-observed failed tool receipt. " +
+          "A model claim of an exhausted work slot, missing authority or unavailable resource cannot pause the authorized objective. " +
+          "Continue permitted diagnostics or independent useful work; identify the specific unavailable prerequisite with concrete tool evidence, " +
+          "then reference its exact tool-use ID in one current Failure receipt: field. " +
+          "Do not repeat an unchanged denied operation, invent a receipt, request another user 'go', or treat this as a permission grant.",
       };
     }
     return {
@@ -1024,6 +1052,8 @@ export function formatGoalRequestAnchor(state: AutoGoalState, cwd = process.cwd(
 export type AutoGoalDecision =
   | { kind: "SKIP" }
   | { kind: "CONTINUE"; prompt: string }
+  | { kind: "RECOVER"; reason: string; prompt: string }
+  | { kind: "MODEL_ERROR"; reason: string }
   | { kind: "BLOCKED"; reason: string };
 
 function errorDetail(error: unknown): string {
@@ -1066,6 +1096,13 @@ export function decideAutoGoalContinuation(options: {
   toolActivity?: boolean;
   /** Set only from a matched host-generated rejected question receipt. */
   routineQuestionRejected?: boolean;
+  /** Trusted host only: a configured fallback was actually selected after
+   * RECOVER. Repeated claims cannot renew the correction budget. */
+  recoveryModelChanged?: boolean;
+  /** Trusted host IDs from actual paired failed-tool results, excluding
+   * question/plan redirects. Provided [] means no failure is authenticated.
+   * Standalone callers omitting the field retain the legacy report contract. */
+  failureReceipts?: readonly string[];
 }): AutoGoalDecision {
   if (!options.mainThread) return { kind: "SKIP" };
   const cwd = options.cwd ?? process.cwd();
@@ -1084,7 +1121,7 @@ export function decideAutoGoalContinuation(options: {
       return { kind: "BLOCKED", reason };
     };
     const { dir } = location(cwd);
-    let outcome = goalFileOutcome(dir, state, cwd);
+    let outcome = goalFileOutcome(dir, state, cwd, options.failureReceipts);
     // A complete external failure report outranks a prose classifier. No
     // generated instruction or answer can overrule a real denied capability.
     if (outcome && "state" in outcome && outcome.state === "PAUSED") return blocked(outcome.state, outcome.reason);
@@ -1103,11 +1140,17 @@ export function decideAutoGoalContinuation(options: {
     if (state.userQuestions === true && interactivePromptsEnabled() && options.routineQuestionRejected !== true &&
       isRoutineDecisionHandoff(options.assistantText ?? "")) return { kind: "SKIP" };
 
-    const previousCorrections = options.toolActivity ? 0 : (state.routineDecisionRetries ?? 0);
-    if (handoff && previousCorrections >= MAX_ROUTINE_DECISION_CORRECTIONS) {
-      return blocked("PAUSED", "Model execution contract failure: the model repeatedly returned routine decision requests " +
-        "without a tool action after two automatic corrections. No user decision or 'go' is required. " +
-        "The unfinished objective and evidence are preserved; diagnose or replace the noncompliant model configuration.");
+    const recoveryModelChanged = options.recoveryModelChanged === true &&
+      state.routineDecisionRecoveryUsed === true && state.routineDecisionFallbackUsed !== true;
+    const previousCorrections = options.toolActivity || recoveryModelChanged ? 0 : (state.routineDecisionRetries ?? 0);
+    const recoveryUsed = options.toolActivity ? false : state.routineDecisionRecoveryUsed === true;
+    const needsRecovery = handoff && previousCorrections >= MAX_ROUTINE_DECISION_CORRECTIONS;
+    if (needsRecovery && recoveryUsed) {
+      const reason = "Model execution contract failure: the model still returned routine decision requests after bounded automatic recovery. " +
+        "No new authorization or user 'go' is required. The unfinished objective remains ACTIVE; " +
+        "the model/runtime failure is visible rather than being recorded as a user pause or completion.";
+      persist(cwd, { ...state, reason, updatedAt: new Date().toISOString() });
+      return { kind: "MODEL_ERROR", reason };
     }
     const recoveryGuidance = [
       outcome && "recovery" in outcome ? outcome.recovery : "",
@@ -1124,12 +1167,28 @@ export function decideAutoGoalContinuation(options: {
       totalContinuations: state.totalContinuations + 1,
       stagnantContinuations,
       lastProgressFingerprint: currentFingerprint,
-      routineDecisionRetries: handoff ? previousCorrections + 1 : 0,
+      routineDecisionRetries: handoff ? Math.min(previousCorrections + 1, MAX_ROUTINE_DECISION_CORRECTIONS) : 0,
+      routineDecisionRecoveryUsed: needsRecovery || recoveryUsed,
+      routineDecisionFallbackUsed: options.toolActivity ? false : state.routineDecisionFallbackUsed === true || recoveryModelChanged,
+      reason: null,
       updatedAt: new Date().toISOString(),
     });
 
     const header = "[Host-driven autonomous goal continuation " + next +
       (state.maxContinuations === null ? "" : "/" + state.maxContinuations) + "]\n";
+    if (needsRecovery) return {
+      kind: "RECOVER",
+      reason: "Model repeated a routine authorization handoff after two corrections; changing recovery strategy automatically.",
+      prompt: header + (options.promptFormat === "delta" ? "" :
+        "Goal: " + state.goal + "\nGoal report: " + JSON.stringify(autoGoalReportPath(cwd)) + "\n") +
+        "[Host execution recovery]\n" +
+        "Continue the already authorized objective under existing authority. A routine permission request cannot revoke that authority. " +
+        "Choose the smallest useful permitted action from the current artifacts and execute it; " +
+        "do not repeat the permission question, rebuild the project plan, or report a missing user 'go'. " +
+        "Reconcile uncertain external effects before replacement, preserve actual access controls and caller budgets, " +
+        "and keep independent acceptance unchanged. This recovery is not a user answer or a new permission grant." +
+        (recoveryGuidance ? "\n" + recoveryGuidance : ""),
+    };
     if (options.promptFormat === "delta") return {
       kind: "CONTINUE",
       prompt: header + "Execute the next useful step for the current host objective. End-turn is not completion." +
@@ -1213,7 +1272,7 @@ export function isAutoGoalMainThread(querySource: string, agentId?: string, nonI
 
 /** An urgent user message hands off the turn; it does not cancel the goal. */
 export function shouldPauseGoalAfterTerminal(reason: string, abortReason?: unknown): boolean {
-  return reason !== 'completed' && !(
+  return reason !== 'completed' && reason !== 'model_contract_failure' && !(
     abortReason === 'interrupt' && (reason === 'aborted_streaming' || reason === 'aborted_tools')
   );
 }
@@ -1223,5 +1282,5 @@ export function takeAutoGoalContinuation(options: {
   cwd?: string; mainThread: boolean; withinTurnBudget: boolean;
 }): string | null {
   const decision = decideAutoGoalContinuation(options);
-  return decision.kind === "CONTINUE" ? decision.prompt : null;
+  return decision.kind === "CONTINUE" || decision.kind === "RECOVER" ? decision.prompt : null;
 }

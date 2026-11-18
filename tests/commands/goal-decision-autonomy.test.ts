@@ -135,14 +135,18 @@ for (const constraint of ['Do not resume until I explicitly say continue', 'Do n
   }));
 }
 
-test('repeated unchanged decision-only responses receive bounded recovery, never fabricated consent or infinite retries', () => fixture(cwd => {
+test('repeated decision-only responses change recovery once, preserving authority and bounded retries', () => fixture(cwd => {
   enableAutoGoal('Complete both requested steps', cwd);
   assert.equal(next(cwd, { assistantText: observed }).kind, 'CONTINUE');
   assert.equal(next(cwd, { assistantText: observed }).kind, 'CONTINUE');
   const decision = next(cwd, { assistantText: observed });
-  assert.equal(decision.kind, 'BLOCKED');
-  if (decision.kind === 'BLOCKED') assert.match(decision.reason, /model.*execution|execution.*contract/i);
-  assert.equal(readAutoGoal(cwd)?.totalContinuations, 2);
+  assert.equal(decision.kind, 'RECOVER');
+  assert.equal(readAutoGoal(cwd)?.state, 'ACTIVE');
+  const failure = next(cwd, { assistantText: observed });
+  assert.equal(failure.kind, 'MODEL_ERROR');
+  if (failure.kind === 'MODEL_ERROR') assert.match(failure.reason, /model.*execution|execution.*contract/i);
+  assert.equal(readAutoGoal(cwd)?.state, 'ACTIVE');
+  assert.equal(readAutoGoal(cwd)?.totalContinuations, 3);
 }));
 
 test('real tool activity resets the no-action handoff recovery counter', () => fixture(cwd => {

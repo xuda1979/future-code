@@ -1,0 +1,104 @@
+{
+  "schema": 1,
+  "baseline": "55e0bc6ee6ab15c295515150d62d9d06f4f4e036",
+  "date": "2026-11-18",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "command": "node scripts/test-correctness.mjs",
+      "exit_code": 0,
+      "javascript": {
+        "passed": 531,
+        "skipped": 1,
+        "failed": 0
+      },
+      "python_correctness": {
+        "run": 40,
+        "skipped": 5,
+        "failed": 0
+      },
+      "research_jobs": {
+        "run": 54,
+        "failed": 0
+      },
+      "note": "After the final advisory-only interleaved-probe adjustment, its full affected suite passed 22/22 and the frozen paired replay was recomputed."
+    },
+    {
+      "command": "node scripts/test-commands.mjs",
+      "exit_code": 0,
+      "passed": 275,
+      "failed": 0
+    },
+    {
+      "command": "node --experimental-strip-types --test tests/correctness/goal-decision-flow.test.ts",
+      "exit_code": 0,
+      "passed": 20,
+      "failed": 0
+    },
+    {
+      "command": "node --experimental-strip-types --test tests/correctness/action-focus.test.ts",
+      "exit_code": 0,
+      "passed": 22,
+      "failed": 0
+    },
+    {
+      "command": "Bun 1.4.2 build changed runtime sources --no-bundle",
+      "exit_code": 0,
+      "note": "Source transpilation, not a complete CLI/native release."
+    },
+    {
+      "command": "node scripts/bench-goal-regressions.mjs BASELINE OUTPUT",
+      "exit_code": 0,
+      "baseline_pass": 29,
+      "baseline_fail": 33,
+      "candidate_pass": 62,
+      "candidate_fail": 0
+    },
+    {
+      "command": "node scripts/bench-goal-resume.mjs BASELINE OUTPUT",
+      "exit_code": 0,
+      "scenarios": 3,
+      "candidate_optimizer_updates_each": 120,
+      "resume_matches_uninterrupted": true
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "independent_review": {
+    "verdict": "PASS",
+    "scope": "Runtime authority, failure-receipt provenance, context bounds and scalar replay limitations",
+    "live_model_validation": false
+  },
+  "limitations": [
+    "Scripted provider outputs; no live-LLM productivity result.",
+    "Scalar CPU adapter is a lifecycle fixture, not Qwen or IBM.",
+    "No current remote job, daemon or checkpoint was accessed or deployed.",
+    "Six environment-specific broad-suite skips are not counted as passes."
+  ],
+  "file_hashes": {
+    "docs/agent-platform/resume-useful-work-20261118.md": "64e168de134ece0616a1d0fc7575b99b912c430cd4d1097d2d92d7989052e81f",
+    "experiments/goal-resume-20261118/README.md": "6a9a52cf829575f40150397447983fdb73ece51543d81023273fbaa205d3c172",
+    "experiments/goal-resume-20261118/adapter-worker.mjs": "52ec73590e0b4dba6f8ecc9b9742d84ec3477a95f5ffcf40ddc9a7141a238317",
+    "experiments/goal-resume-20261118/regressions.json": "fe5d3b8cfd59958925b5c0103a49ab51f575876d65e942afbb04e8dc93b18aa5",
+    "experiments/goal-resume-20261118/results.json": "2ea3c2a8d94c4c273d7bb8ca8eab7742eb84f16591a460bc052ec022b7553916",
+    "scripts/bench-goal-regressions.mjs": "eb6b7795f3e70cd0f667365169221165fcec54d4e34f841a3e4bcb2fbadbe51b",
+    "scripts/bench-goal-resume.mjs": "d34fd6bd5ea284eca141427ef58c5762975d85fc44e04581861359e4a361c1c8",
+    "scripts/test-correctness.mjs": "7f4a9ede87dddb4461750cad6f86cefc36d565cc61a24685d05180cb47310153",
+    "src/commands/goal/actionFocus.ts": "2cd34ff97ef64fb233ea614ef2996f03541a573bc2c5676a44e099dbab97a1a7",
+    "src/commands/goal/auto.ts": "0df0fcafcde7df677b4c6fb6970c0448b9221b9bc1fdd5e6ea1abc466fc8c74a",
+    "src/commands/goal/context.ts": "1ff8ac8ec1df641d3a74471e2ff2889466305ec1f916104096f08a4cc704662a",
+    "src/commands/goal/workState.ts": "9a5959ef8bb94674f4c508583cc825c0c18d0295e88b0b447f9a8b77d8617c2a",
+    "src/harness/autonomyPolicy.ts": "476448464a978706401850cf44ed37b32d189d1d7dba547a9f5e4ea8cf5a2c08",
+    "src/query.ts": "f70fa4b0c43c6d3303b0d3d076e4614f166f55e586004c7cae3bc3fb94bbaf92",
+    "src/query/goalFailureEvidence.ts": "59dae44ead92da3162d85f00a618c82544bdcbc1959f92474e6931060c70aae9",
+    "tests/commands/goal-authorization-continuity.test.ts": "36c16d282a4e1578f189229795aade1b0e8b6e1af9634f2868c4655c0df2ce8b",
+    "tests/commands/goal-blocker-evidence.test.ts": "755ace11070f3939f034edbabf09390d45f64ec8dc7be903a4b0b05ad32a7db2",
+    "tests/commands/goal-decision-autonomy.test.ts": "da2e47ca7e64bf287a9044c6a806073269903e018b5a95780cf4f572dd40487c",
+    "tests/correctness/action-focus.test.ts": "a086c5b2ca79cc27e2912c50dc6e3978f70a4a73dbf33ba627b237ff69bfd85a",
+    "tests/correctness/goal-decision-flow.test.ts": "69dced8b2dd22538a2877ea3889a4ce68b83b86823a81fa200dbfe057fb9a332",
+    "tests/correctness/goal-failure-evidence.test.ts": "6a343ed92e839e3cb8311b15cfe69fc66059b626be9d3977c9564b55bca2c72e",
+    "tests/correctness/goal-work-state.test.ts": "48a23bd44e18bf468a0c2e070384df9597861c3ec6d5ad9289f6bf9d69bbddbb"
+  }
+}
