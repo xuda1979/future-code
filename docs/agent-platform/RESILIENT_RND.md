@@ -325,10 +325,11 @@ the host can keep inspecting its original ID for an additional `transportGraceMs
 after the milestone deadline. The default grace is seven days when the host chose
 the deadline and zero when the project explicitly set `reconcileAfterMs`. Set
 `transportGraceMs` in the job capability to override either default. Inspection
-failures back off from `pollMs` up to `maxPollMs` when supplied, or to the larger
-of 15 minutes and `pollMs`. The job stays visibly stalled, retains its capacity
+failures back off from `pollMs`. The ceiling is the largest of one minute, the
+base interval and the configured maximum (15 minutes when omitted).
+The job stays visibly stalled, retains its capacity
 reservation and gains no new milestone from an unreachable endpoint. Successful
-explicit `UNKNOWN` replies, malformed replies and changed job IDs keep their
+explicit `UNKNOWN` replies cannot refresh the milestone clock. Malformed replies and changed job IDs keep their
 reconciliation rules. A resumed controller reads the same clocks and ID from disk.
 Previously failed runs remain available for explicit reconciliation.
 
