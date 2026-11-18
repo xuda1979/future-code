@@ -9,7 +9,8 @@ import {performance} from "node:perf_hooks";
 import {pathToFileURL} from "node:url";
 const sha=s=>createHash("sha256").update(s).digest("hex");
 const git=(cwd,args)=>execFileSync("git",args,{cwd,encoding:"utf8",maxBuffer:4e6}).trim();
-const substitute=(xs,p)=>xs.map(x=>x.replace(/\{(workspace|prompt|suite_dir|result_dir|run_id)\}/g,(_,key)=>p[key]));
+const substituteValue=(x,p)=>x.replace(/\{(workspace|prompt|suite_dir|result_dir|run_id)\}/g,(_,key)=>p[key]);
+const substitute=(xs,p)=>xs.map(x=>x==="{prompt_text}"?p.prompt_text:substituteValue(x,p));
 const scope=s=>typeof s==="string"&&s.length>0&&!s.startsWith("/")&&!s.includes("\\")&&!s.split("/").some(p=>!p||["..",".",".git"].includes(p));
 const contains=(name,dirs)=>dirs.some(p=>name===p||name.startsWith(p+"/"));
 export function validateConfig(c){
@@ -26,6 +27,10 @@ export function validateConfig(c){
   assert(/^[\w-]+$/.test(a.name));
   assert(Array.isArray(a.argv)&&a.argv.length>0&&a.argv.every(s=>typeof s==="string"&&s.length));
   assert(a.model&&a.version,"pin model and agent version");
+  if(a.env!==undefined){
+   assert(a.env&&typeof a.env==="object"&&!Array.isArray(a.env));
+   assert(Object.entries(a.env).every(([key,value])=>/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)&&typeof value==="string"),"invalid agent environment");
+  }
  }
  for(const t of c.cases){
   assert(/^[\w-]+$/.test(t.id)&&["simple","medium","research"].includes(t.tier));
@@ -55,14 +60,22 @@ async function execute(argv,cwd,deadline,output,env={}){
 }
 const median=xs=>{const a=[...xs].sort((a,b)=>a-b),i=Math.floor(a.length/2);return a.length%2?a[i]:(a[i-1]+a[i])/2};
 export function summarize(trials,config){
+ const scored=new Set(["PASS","FAIL","TIMEOUT"]);
+ const expected=config.cases.flatMap(task=>Array.from({length:config.repetitions},(_,i)=>[task.id,task.tier,i]));
  const agents=config.agents.map(a=>{
-  const rows=trials.filter(t=>t.agent===a.name),verified=rows.filter(t=>t.status==="PASS").length;
-  const wallClockMs=rows.reduce((n,t)=>n+t.wallClockMs,0);
-  return {agent:a.name,model:a.model,version:a.version,total:rows.length,verified,failed:rows.length-verified,
-   passRate:verified/rows.length,wallClockMs,medianTrialMs:median(rows.map(r=>r.wallClockMs)),
-   verifiedTasksPerHour:wallClockMs?verified*3600000/wallClockMs:null,providerTokens:null,billedUsd:null};
+  const rows=trials.filter(t=>t.agent===a.name),valid=rows.filter(t=>scored.has(t.status));
+  const rowKeys=new Set(valid.map(t=>JSON.stringify([t.caseId,t.tier,t.repetition])));
+  const complete=rows.length===expected.length&&expected.every(key=>rowKeys.has(JSON.stringify(key)));
+  const verified=valid.filter(t=>t.status==="PASS").length;
+  const wallClockMs=valid.reduce((n,t)=>n+t.wallClockMs,0);
+  return {agent:a.name,model:a.model,version:a.version,total:rows.length,expectedTrials:expected.length,scoredTrials:valid.length,
+   verified,failed:valid.length-verified,unscoredTrials:rows.length-valid.length,complete,
+   passRate:complete?verified/valid.length:null,wallClockMs,
+   medianTrialMs:complete?median(valid.map(r=>r.wallClockMs)):null,
+   verifiedTasksPerHour:complete&&wallClockMs?verified*3600000/wallClockMs:null,providerTokens:null,billedUsd:null};
  });
- const eligible=config.mode==="live"&&config.repetitions>=3&&trials.every(t=>["PASS","FAIL","TIMEOUT"].includes(t.status));
+ const eligible=config.mode==="live"&&config.repetitions>=3&&agents.every(a=>a.complete)
+  &&trials.length===expected.length*agents.length;
  return {agents,decision:config.mode!=="live"?"OFFLINE_FIXTURE_ONLY":eligible?"OBSERVATIONAL_RESULTS_ONLY":"INSUFFICIENT_VALID_LIVE_EVIDENCE",
  claim:"No causal/general advantage established; provider usage and billing are unverified."};
 }
@@ -81,11 +94,11 @@ export async function compareAgents(config,outputDir){
   const agent=config.agents[(i+repetition)%config.agents.length];
   const runId="r"+repetition+"-"+task.id+"-"+agent.name;
   const directory=join(root,runId),workspace=join(directory,"worktree");
-  const params={run_id:runId,result_dir:directory,workspace,suite_dir:suiteDir,prompt:join(directory,"prompt.txt")};
+  const params={run_id:runId,result_dir:directory,workspace,suite_dir:suiteDir,prompt:join(directory,"prompt.txt"),prompt_text:task.instruction+"\n"};
   mkdirSync(directory,{recursive:true});
   const started=performance.now();
   const row={runId,agent:agent.name,caseId:task.id,repetition,tier:task.tier,status:"ERROR",
-   redExitCode:null,agentExitCode:null,checkExitCode:null,changedPaths:[],wallClockMs:0,failure:null};
+   redExitCode:null,agentExitCode:null,agentMs:null,checkExitCode:null,changedPaths:[],wallClockMs:0,failure:null};
   let attached=false;
   try{
    git(repo,["worktree","add","--quiet","--detach",workspace,config.baseCommit]);attached=true;
@@ -96,12 +109,13 @@ export async function compareAgents(config,outputDir){
       git(workspace,["status","--porcelain"])!==""){
     row.status="VOID";row.failure="known failing regression not reproduced cleanly";
    }else{
-    writeFileSync(params.prompt,task.instruction+"\n",{mode:0o600});
+    writeFileSync(params.prompt,params.prompt_text,{mode:0o600});
     const done=await execute(substitute(agent.argv,params),workspace,task.timeoutMs,join(directory,"agent"),{
+     ...Object.fromEntries(Object.entries(agent.env??{}).map(([key,value])=>[key,substituteValue(value,params)])),
      AGENT_BENCH_PROMPT:params.prompt,AGENT_BENCH_WORKSPACE:workspace,
      AGENT_BENCH_RESULT_DIR:directory,AGENT_BENCH_RUN_ID:runId
     });
-    row.agentExitCode=done.status;
+    row.agentExitCode=done.status;row.agentMs=done.elapsedMs;
     row.changedPaths=[...new Set([
       ...git(workspace,["diff","--name-only","-z",config.baseCommit]).split("\0"),
       ...git(workspace,["ls-files","--others","--exclude-standard","-z"]).split("\0")

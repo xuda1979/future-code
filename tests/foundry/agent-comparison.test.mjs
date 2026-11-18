@@ -65,6 +65,37 @@ test("fewer than 3 live reps gives no comparative finding",t=>{
                     {agent:"codex",status:"PASS",wallClockMs:20}],config);
  assert.equal(r.decision,"INSUFFICIENT_VALID_LIVE_EVIDENCE");
 });
+test("a complete live matrix is required and unavailable cases have no score",t=>{
+ const f=fixture(t),config={...f.config,mode:"live",repetitions:3};
+ const rows=config.agents.flatMap(a=>[0,1,2].map(repetition=>({
+  agent:a.name,caseId:"repair",tier:"simple",repetition,status:"PASS",wallClockMs:10
+ })));
+ assert.equal(summarize(rows,config).decision,"OBSERVATIONAL_RESULTS_ONLY");
+ assert.equal(summarize(rows.slice(0,-1),config).decision,"INSUFFICIENT_VALID_LIVE_EVIDENCE");
+ assert.equal(summarize([...rows.slice(0,-1),rows[0]],config).decision,"INSUFFICIENT_VALID_LIVE_EVIDENCE");
+ rows[0].status="UNAVAILABLE";
+ const r=summarize(rows,config);
+ assert.equal(r.decision,"INSUFFICIENT_VALID_LIVE_EVIDENCE");
+ assert.equal(r.agents[0].passRate,null);
+ assert.equal(r.agents[0].verifiedTasksPerHour,null);
+ assert.equal(r.agents[0].failed,0);
+ assert.equal(r.agents[0].unscoredTrials,1);
+});
+test("headless CLI receives the unchanged prompt as one argument and its per-trial environment",async t=>{
+ const f=fixture(t);
+ f.config.cases[0].instruction='Fix calc.cjs. Keep {workspace} and "$value" literally.';
+ const fixer=f.config.agents[0];
+ fixer.env={CLI_CONFIG_DIR:"{result_dir}/cli",CLI_LITERAL:"a dollar $value"};
+ fixer.argv=["node","-e",[
+  'const fs=require("node:fs");',
+  'if(process.argv[1]!==fs.readFileSync(process.env.AGENT_BENCH_PROMPT,"utf8"))process.exit(2);',
+  'if(process.env.CLI_CONFIG_DIR!==process.env.AGENT_BENCH_RESULT_DIR+"/cli"||process.env.CLI_LITERAL!=="a dollar $value")process.exit(3);',
+  'fs.writeFileSync("calc.cjs","exports.add=(a,b)=>a+b;\\n")',
+ ].join(""),"--","{prompt_text}"];
+ const r=await compareAgents(f.config,join(f.root,"direct-cli"));
+ assert.equal(r.trials[0].status,"PASS");
+ assert.ok(r.trials[0].agentMs>0);
+});
 test("uninstalled agent marked UNAVAILABLE",async t=>{
  const f=fixture(t);f.config.mode="live";f.config.repetitions=3;
  f.config.agents[0].argv=["nonexistent-agent-comparison-2026"];

@@ -1,0 +1,191 @@
+{
+  "schema": 1,
+  "date": "2026-11-18",
+  "evidenceType": "recorded experiment summaries",
+  "source": {
+    "first": "b1f9d186085562947adf682f4c7f65652886ecad",
+    "main": "f4dcea1645510e76af1a619663487f1b281c2b09",
+    "startupFix": "2692c00fe85926f13d23f25c6435d1c1a7d7a168",
+    "startupFixTestedTree": "8af6aa983d6e9993b76e5fa54f363618a3b3af64",
+    "weekBaseline": "4dbd9e2"
+  },
+  "artifacts": "Execution disconnected after the controlled experiments. These are the numerical results observed before disconnect. Per-trial replay and transport logs can be regenerated with the linked commands.",
+  "environment": {
+    "operatingSystem": "Linux x86_64",
+    "node": "24.22.3",
+    "bun": "1.4.2",
+    "python": "3.12.14",
+    "git": "2.52.0"
+  },
+  "cliReplay": {
+    "repetitions": 5,
+    "task": "metrics-fidelity",
+    "agentDeadlineMs": 30000,
+    "fixtureTree": "615af5fac5d5f2c94946a4231b04307f485ce0c9",
+    "successfulPatchSha256": "2cb37ecc648f98ba4439f41190a385ebf1147f70163b9ff778dd4b382eb14a81",
+    "timingUnit": "ms, includes worktree creation, red control, agent execution, green check and cleanup",
+    "liveModelCalls": 0,
+    "rows": [
+      {
+        "agent": "first-compatible",
+        "version": "Future Code v1.0",
+        "build": "First-commit source with current dependency tree",
+        "verified": 0,
+        "attempted": 5,
+        "medianAllTrialMs": 1004.7465230000016,
+        "medianVerifiedMs": null,
+        "failure": "LEGACY_SHORT_FLAG_REGISTRATION"
+      },
+      {
+        "agent": "baseline",
+        "version": "Future Code v1.0",
+        "build": "Current main",
+        "verified": 0,
+        "attempted": 5,
+        "medianAllTrialMs": 1143.4428579999985,
+        "medianVerifiedMs": null,
+        "failure": "LEGACY_SHORT_FLAG_REGISTRATION"
+      },
+      {
+        "agent": "candidate",
+        "version": "Future Code v1.0",
+        "build": "Startup fix",
+        "verified": 5,
+        "attempted": 5,
+        "medianAllTrialMs": 1581.9495459999998,
+        "medianVerifiedMs": 1581.9495459999998
+      },
+      {
+        "agent": "claude-code",
+        "version": "2.1.327",
+        "verified": 5,
+        "attempted": 5,
+        "medianAllTrialMs": 1072.0132650000014,
+        "medianVerifiedMs": 1072.0132650000014
+      },
+      {
+        "agent": "opencode",
+        "version": "1.19.6",
+        "verified": 5,
+        "attempted": 5,
+        "medianAllTrialMs": 5603.262622999995,
+        "medianVerifiedMs": 5603.262622999995
+      }
+    ]
+  },
+  "transport": {
+    "samplesPerArm": 5,
+    "holdMs": 200,
+    "spacingMs": 0,
+    "openCodeComponent": "@opencode/ai@2.3.0",
+    "timingUnit": "median ms",
+    "receiptsMatched": true,
+    "liveModelCalls": 0,
+    "rows": [
+      {
+        "scenario": "single_tool",
+        "first": 218.58989200018186,
+        "main": 7.67432699967685,
+        "opencodeNative": 14.100688999999875
+      },
+      {
+        "scenario": "repeated_12_turns",
+        "first": 2551.78560900049,
+        "main": 61.24790000058056,
+        "opencodeNative": 177.56044699999984
+      },
+      {
+        "scenario": "immediate_eof",
+        "first": 6.07570800002577,
+        "main": 5.992583000079321,
+        "opencodeNative": 17.130697000000055
+      }
+    ]
+  },
+  "remoteJobRecovery": {
+    "simulatedHours": 192,
+    "outageStartHour": 150,
+    "remoteReadyHour": 192,
+    "rows": [
+      {
+        "revision": "4dbd9e2",
+        "outcome": "blocked",
+        "hostJobsSha256": "090a4d1dc6d51f96479478c46b5db2679c5b18fb90d56949efc08b2401a4f62f",
+        "elapsedHours": 168,
+        "lastSemanticHour": 144,
+        "ensures": 1,
+        "inspections": 1230,
+        "failedInspections": 1081,
+        "reopens": 2,
+        "jobStatus": "UNKNOWN",
+        "terminalReceipt": false,
+        "recoveredValue": null,
+        "failure": "REMOTE_JOB_RECONCILIATION_REQUIRED",
+        "taskAcceptances": 0
+      },
+      {
+        "revision": "f4dcea1",
+        "outcome": "recovered",
+        "hostJobsSha256": "e10fb80bccd49167e24eb666f82b9e5d7e0eb6b3914686d61873ef43140ac07c",
+        "elapsedHours": 192,
+        "lastSemanticHour": 192,
+        "ensures": 1,
+        "inspections": 192,
+        "failedInspections": 42,
+        "reopens": 2,
+        "jobStatus": "SUCCEEDED",
+        "terminalReceipt": true,
+        "recoveredValue": 42,
+        "failure": null,
+        "taskAcceptances": 0
+      }
+    ]
+  },
+  "livePilot": {
+    "decision": "INSUFFICIENT_VALID_LIVE_EVIDENCE",
+    "expectedTrials": 36,
+    "observedCompletedRows": 2,
+    "observations": [
+      {
+        "agent": "candidate",
+        "caseId": "metrics-fidelity",
+        "repetition": 0,
+        "status": "TIMEOUT",
+        "agentMs": 90019.67697100001
+      },
+      {
+        "agent": "claude-code",
+        "caseId": "metrics-fidelity",
+        "repetition": 0,
+        "status": "TIMEOUT",
+        "agentMs": 90418.88432200001
+      },
+      {
+        "agent": "opencode",
+        "caseId": "metrics-fidelity",
+        "repetition": 0,
+        "status": "STARTED_OUTCOME_UNKNOWN"
+      }
+    ],
+    "interruption": "Execution environment unavailable during the pilot.",
+    "providerTokens": null,
+    "billedUsd": null
+  },
+  "unavailable": [
+    {
+      "agent": "codex",
+      "version": "0.170.0",
+      "reason": "In-process app-server initialization failed on managed filesystem with EROFS before inference."
+    },
+    {
+      "agent": "workbuddy",
+      "reason": "Tencent WorkBuddy desktop client unavailable in the test environment. CodeBuddy Code 2.185.0 was installed and is a separate product."
+    }
+  ],
+  "localGates": {
+    "comparisonTestsPassed": 14,
+    "commandTestsPassed": 275,
+    "correctness": "passed",
+    "compiledCliEntryPoints": "verified directly and by replay"
+  }
+}

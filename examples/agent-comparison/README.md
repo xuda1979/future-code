@@ -32,6 +32,11 @@ Edit the generated config to specify **real installed and configured agents**.
 The three adapter argv values are **deliberate placeholders** and will not
 execute until replaced. Each adapter receives the frozen prompt path and isolated
 worktree path, must edit *only that worktree*, and exits nonzero on failure.
+A CLI can also run directly from the `argv` array. Use the standalone
+`{prompt_text}` argument to pass the same prompt text without invoking a shell,
+and `{workspace}` where an explicit working directory is needed. The
+optional `env` object supports `{result_dir}` for an isolated CLI state
+directory. Supply API credentials through the launching environment.
 
     node scripts/compare-agent-productivity.mjs \
       --config /tmp/rnd-benchmark-setup/config.json \
@@ -65,8 +70,10 @@ including dependency DAGs, handoffs, expensive external work, and failure recove
 - The runner uses clean pinned Git worktrees, alternating ordering and
   independent red-to-green verification. It counts verified original tasks,
   not spawned subtasks, agent messages, or code volume.
-- Results with missing executables, red-control failures, test alterations,
-  unapproved file edits or model-budget failures are not productivity wins.
+- Unavailable executables, failed negative controls, and infrastructure
+  errors leave the affected arms unscored. A live summary requires one scored
+  row per case and repetition for every agent. Rejected edits and timeouts
+  count as failed trials.
 - Replay and deterministic fixture tests cannot establish live-LLM gains.
 - Use at least three repeated live trials for exploratory observations, then
   expand across independently held-out projects with uncertainty estimates.

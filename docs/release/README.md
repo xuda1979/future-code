@@ -4,6 +4,7 @@ This directory contains the product-facing technical and intellectual-property d
 
 - `FUTURE_CODE_TECHNICAL_REPORT_EN.md` - English technical report.
 - `FUTURE_CODE_TECHNICAL_REPORT_ZH.md` - Chinese technical report.
+- [Comparative productivity experiments](../../experiments/agent-productivity-20261118/README.md)
 - `FUTURE_CODE_PATENT_CN.md` - Chinese patent disclosure and draft claim set.
 
 The academic HACT manuscript is maintained separately under `hact-paper/Adaptive_HACT_v5/paper/`. Product reports may describe architectural direction, but measured scientific claims retain the boundaries stated in the HACT artifact and real-project evaluation protocol.

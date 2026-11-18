@@ -1,0 +1,26 @@
+{
+  "objective": "Compare independently verified repairs using the same locally served model through the three available headless CLIs.",
+  "cases": [
+    "metrics-fidelity",
+    "manifest-integrity",
+    "candidate-completeness",
+    "job-idempotence"
+  ],
+  "repetitions": 3,
+  "maxAgentMs": 90000,
+  "ordering": "Rotate the starting agent on each repetition, run one agent at a time in a fresh worktree.",
+  "model": {
+    "alias": "qwen3-4b-instruct-2507",
+    "repository": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
+    "revision": "a06e946bb6b655725eafa393f4a9745d460374c9",
+    "filename": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
+    "llamaCppRevision": "398f00d65769e73bb5cad57c809429b160f2bb0e",
+    "context": 16384,
+    "temperature": 0,
+    "outputTokensPerRequest": 1024
+  },
+  "primary": "Count of verifier-accepted in-scope repairs within the agent deadline.",
+  "secondary": "Wall time including Git worktree creation, negative control, agent startup and execution, final checker, and cleanup. Include failed and timed-out runs in total time.",
+  "interpretation": "Descriptive paired pilot. Repetitions are not independent workloads. Identical model weights do not make prompts, tool selection, transport, or cache behavior identical."
+}
