@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import queue
+import select
 import socket
 import ssl
 import sys
@@ -27,6 +28,8 @@ _TRUTHY = {"1", "true", "yes", "on"}
 _TRUTHY_NEGATIVE = {"0", "false", "no", "off"}
 # X509_V_ERR_CERT_HAS_EXPIRED
 _CERT_EXPIRED_CODE = 10
+_STREAM_PEER_CHECK_SECONDS = 0.1
+_MAX_SSE_LINE_BYTES = 4 * 1024 * 1024
 
 _DEBUG_LOG_PATH = os.environ.get("HUANXIN_PROXY_DEBUG_LOG", "").strip()
 
@@ -490,6 +493,43 @@ def _perform_upstream(request: urllib.request.Request, context: ssl.SSLContext) 
         if "text/event-stream" in content_type or response_body.lstrip().startswith("data:"):
             return response.getcode(), parse_chat_stream(response_body)
         return response.getcode(), json.loads(response_body)
+
+
+def _client_disconnected(handler: BaseHTTPRequestHandler) -> bool:
+    connection = getattr(handler, "connection", None)
+    if connection is None:
+        return False
+    try:
+        readable, _, _ = select.select([connection], [], [], 0)
+        # The complete POST body has been consumed. A peer FIN during a live
+        # reply means the streaming client has abandoned this request.
+        return bool(readable) and not connection.recv(1, socket.MSG_PEEK)
+    except (BlockingIOError, InterruptedError, ValueError):
+        return False
+    except OSError:
+        return True
+
+
+def _wait_for_stream_retry(handler: BaseHTTPRequestHandler, delay: float) -> bool:
+    until = time.monotonic() + delay
+    while not _client_disconnected(handler):
+        remaining = until - time.monotonic()
+        if remaining <= 0:
+            return True
+        time.sleep(min(remaining, _STREAM_PEER_CHECK_SECONDS))
+    return False
+
+
+def _stream_seconds(name: str, default: float) -> float:
+    try:
+        value = float(os.environ.get(name, ""))
+    except ValueError:
+        return default
+    return value if 0 < value <= 86400 else default
+
+
+class StreamRelayTimeout(TimeoutError):
+    """A bounded SSE relay expired; its message is safe to send downstream."""
 
 
 def merge_tool_call_deltas(message: dict[str, Any], deltas: list[Any]) -> None:
@@ -1093,7 +1133,7 @@ class FutureStreamWriter:
         # usage we emit; all-zero usage makes its context look ~0 tokens so
         # autocompact never fires and sessions die past the real window.
         self.prompt_text = prompt_text if isinstance(prompt_text, str) else ""
-        self.last_write = time.time()
+        self.last_write = time.monotonic()
 
     def _send(self, event_type: str, data: dict[str, Any]) -> None:
         payload = dict(data)
@@ -1101,7 +1141,7 @@ class FutureStreamWriter:
         blob = f"event: {event_type}\ndata: {json.dumps(payload, separators=(',', ':'))}\n\n".encode("utf-8")
         self.handler.wfile.write(blob)
         self.handler.wfile.flush()
-        self.last_write = time.time()
+        self.last_write = time.monotonic()
 
     def start(self) -> None:
         self._send(
@@ -1122,7 +1162,7 @@ class FutureStreamWriter:
         self._send("ping", {})
 
     def maybe_ping(self, interval: float = 5.0) -> None:
-        if time.time() - self.last_write >= interval:
+        if time.monotonic() - self.last_write >= interval:
             self._send("ping", {})
 
     def _ensure_text_open(self) -> None:
@@ -1442,7 +1482,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 if self.stream_live(server, body):  # type: ignore[arg-type]
                     return
-            except (BrokenPipeError, ConnectionResetError):
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                 return
             except Exception as exc:  # pragma: no cover - defensive
                 debug_log("stream_live failed without replay: %r" % exc)
@@ -1511,15 +1551,19 @@ class Handler(BaseHTTPRequestHandler):
         # stream has started we can no longer retry, but these errors surface at connect
         # time (as HTTPError), so retrying here absorbs the upstream's ~30% flakiness.
         tries, base = _retry_config()
+        connect_timeout = int(os.environ.get("HUANXIN_GLM52_UPSTREAM_TIMEOUT", "60"))
         resp = None
         for attempt in range(tries):
             _reserve_upstream_slot(server)
+            if _client_disconnected(self):
+                return True
             try:
-                resp = urllib.request.urlopen(request, timeout=int(os.environ.get("HUANXIN_GLM52_UPSTREAM_TIMEOUT", "60")), context=context)
+                resp = urllib.request.urlopen(request, timeout=connect_timeout, context=context)
                 _circuit_record_success()
                 break
             except urllib.error.HTTPError as exc:
-                raw_body = exc.read().decode("utf-8", "replace")
+                with exc:
+                    raw_body = exc.read().decode("utf-8", "replace")
                 try:
                     payload = json.loads(raw_body)
                 except Exception:
@@ -1534,15 +1578,18 @@ class Handler(BaseHTTPRequestHandler):
                         delay = min(base * (2 ** attempt), 8.0)
                     _circuit_record_failure()
                     debug_log("stream retryable status=%s attempt=%s/%s sleep=%.1fs" % (exc.code, attempt + 1, tries, delay))
-                    time.sleep(delay)
+                    if not _wait_for_stream_retry(self, delay):
+                        return True
                     continue
                 _circuit_record_failure()
                 write_json(self, exc.code, payload)
                 return True
             except Exception as exc:
+                if _client_disconnected(self):
+                    return True
                 if not insecure and not getattr(server, 'profile_route', False) and _is_expired_cert_error(exc):
                     try:
-                        resp = urllib.request.urlopen(request, timeout=int(os.environ.get("HUANXIN_GLM52_UPSTREAM_TIMEOUT", "60")), context=server.insecure_context)  # type: ignore[attr-defined]
+                        resp = urllib.request.urlopen(request, timeout=connect_timeout, context=server.insecure_context)  # type: ignore[attr-defined]
                         break
                     except Exception:
                         write_json(self, HTTPStatus.BAD_GATEWAY, {
@@ -1555,7 +1602,8 @@ class Handler(BaseHTTPRequestHandler):
                 if attempt + 1 < tries:
                     delay = min(base * (2 ** attempt), 8.0)
                     debug_log("stream conn error attempt=%s/%s sleep=%.1fs: %r" % (attempt + 1, tries, delay, exc))
-                    time.sleep(delay)
+                    if not _wait_for_stream_retry(self, delay):
+                        return True
                     continue
                 write_json(self, HTTPStatus.BAD_GATEWAY, {
                     "error": {
@@ -1573,11 +1621,14 @@ class Handler(BaseHTTPRequestHandler):
             })
             return True
 
+        if _client_disconnected(self):
+            resp.close()
+            return True
         content_type = resp.headers.get("Content-Type", "")
         if "text/event-stream" not in content_type:
             # Upstream ignored our stream request; fall back to buffered translation.
-            raw = resp.read().decode("utf-8", "replace")
-            resp.close()
+            with resp:
+                raw = resp.read().decode("utf-8", "replace")
             if raw.lstrip().startswith("data:"):
                 upstream = parse_chat_stream(raw)
             else:
@@ -1606,25 +1657,60 @@ class Handler(BaseHTTPRequestHandler):
         if isinstance(body.get("system"), str):
             prompt_text += body["system"]
         writer = FutureStreamWriter(self, f"msg_{uuid.uuid4().hex}", str(getattr(server, "model_name", "")), request_tool_names, prompt_text)
-        line_queue: queue.Queue[tuple[str, Any]] = queue.Queue()
+        line_count = self._relay_stream(resp, writer, connect_timeout)
+        if _DEBUG_LOG_PATH:
+            debug_log(
+                "STREAM model=%s n_msgs=%s tools=%s lines=%s any_output=%s stop=%s"
+                % (body.get("model"), len(body.get("messages") or []), len(body.get("tools") or []),
+                   line_count, writer.any_output, writer.finish_reason)
+            )
+        return True
+
+    def _relay_stream(self, resp: Any, writer: FutureStreamWriter, connect_timeout: int) -> int:
+        line_queue: queue.Queue[tuple[str, Any]] = queue.Queue(maxsize=16)
+        stop_reader = threading.Event()
+        stream_seconds = _stream_seconds("HUANXIN_PROXY_STREAM_MAX_SECONDS", 1800)
+        deadline = time.monotonic() + stream_seconds
+        upstream_socket = getattr(getattr(getattr(resp, "fp", None), "raw", None), "_sock", None)
+
+        def enqueue(kind: str, value: Any) -> bool:
+            while not stop_reader.is_set():
+                try:
+                    line_queue.put((kind, value), timeout=_STREAM_PEER_CHECK_SECONDS)
+                    return True
+                except queue.Full:
+                    pass
+            return False
 
         def reader() -> None:
             try:
-                for raw_line in resp:
-                    line_queue.put(("line", raw_line))
+                while not stop_reader.is_set():
+                    raw_line = resp.readline(_MAX_SSE_LINE_BYTES + 1)
+                    if not raw_line:
+                        break
+                    if len(raw_line) > _MAX_SSE_LINE_BYTES:
+                        raise ValueError("Upstream SSE line exceeds the relay byte limit")
+                    line = raw_line.decode("utf-8", "replace")
+                    if not enqueue("line", line):
+                        break
                     # OpenAI SSE is complete at [DONE], not at HTTP EOF. A
                     # keep-alive socket may stay open until its read timeout.
                     # Do not perform another read after the terminal marker.
-                    if is_stream_done_line(raw_line.decode("utf-8", "replace")):
+                    if is_stream_done_line(line):
                         break
-            except Exception as exc:  # pragma: no cover - upstream drop mid-stream
-                line_queue.put(("error", exc))
+            except Exception as exc:
+                enqueue("error", exc)
             finally:
-                line_queue.put(("done", None))
+                enqueue("done", None)
 
         thread = threading.Thread(target=reader, daemon=True, name="future-provider-stream-" + writer.msg_id)
         line_count = 0
+        next_peer_check = 0.0
         try:
+            if upstream_socket is not None:
+                upstream_socket.settimeout(_stream_seconds("HUANXIN_PROXY_STREAM_IDLE_SECONDS", connect_timeout))
+            # Bound sends to a client that has stopped reading but left TCP open.
+            self.connection.settimeout(min(10, stream_seconds))
             self._stream_started = True
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/event-stream")
@@ -1633,39 +1719,49 @@ class Handler(BaseHTTPRequestHandler):
             writer.start()
             thread.start()
             while True:
+                now = time.monotonic()
+                if now >= next_peer_check:
+                    if _client_disconnected(self):
+                        return line_count
+                    next_peer_check = now + _STREAM_PEER_CHECK_SECONDS
+                if now >= deadline:
+                    raise StreamRelayTimeout("Provider stream exceeded its wall-clock limit")
                 try:
-                    kind, value = line_queue.get(timeout=2.0)
+                    kind, value = line_queue.get(timeout=min(next_peer_check, deadline) - now)
                 except queue.Empty:
                     writer.maybe_ping()
                     continue
                 if kind == "line":
                     line_count += 1
-                    feed_stream_line(writer, value.decode("utf-8", "replace"))
+                    feed_stream_line(writer, value)
                     writer.maybe_ping()
                 elif kind == "error":
+                    if isinstance(value, TimeoutError):
+                        raise StreamRelayTimeout("Provider stream exceeded its upstream idle limit") from value
                     debug_log("stream_live upstream error mid-stream: %r" % value)
                     raise ValueError("Upstream stream read failed") from value
                 else:  # done
                     break
             writer.finish()
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             # The client cancelled. Do not finish partial calls or replay the
             # request through the buffered path after SSE has begun.
             pass
         except Exception as exc:
             debug_log("stream_live incomplete stream without replay: %r" % exc)
             try:
-                writer._send("error", {"error": {"type": "api_error", "message": "Provider stream ended before valid completion"}})
-            except (BrokenPipeError, ConnectionResetError):
+                message = str(exc) if isinstance(exc, StreamRelayTimeout) else "Provider stream ended before valid completion"
+                writer._send("error", {"error": {"type": "api_error", "message": message}})
+            except OSError:
                 pass
         finally:
+            stop_reader.set()
             # HTTPResponse.close() can wait for the buffered reader's lock.
             # On cancellation/parser failure its next read may still be
             # blocked in the socket. Wake it before closing; urllib's private
             # layout is guarded so alternate/fake response objects still work.
             if thread.is_alive():
                 try:
-                    upstream_socket = getattr(getattr(getattr(resp, "fp", None), "raw", None), "_sock", None)
                     if upstream_socket is not None:
                         upstream_socket.shutdown(socket.SHUT_RDWR)
                 except Exception:
@@ -1676,19 +1772,7 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             if thread.is_alive():
                 thread.join(timeout=0.25)
-        if _DEBUG_LOG_PATH:
-            debug_log(
-                "STREAM model=%s n_msgs=%s tools=%s lines=%s any_output=%s stop=%s"
-                % (
-                    body.get("model"),
-                    len(body.get("messages") or []),
-                    len(body.get("tools") or []),
-                    line_count,
-                    writer.any_output,
-                    writer.finish_reason,
-                )
-            )
-        return True
+        return line_count
 
     def write_stream(self, response: dict[str, Any]) -> None:
         events: list[dict[str, Any]] = [{"type": "message_start", "message": {**response, "content": []}}]

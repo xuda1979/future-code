@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -103,6 +104,19 @@ def git(repo: Path, args: list[str], timeout_ms: int = 30000, stdin: bytes | Non
     if result["code"] != 0 or result.get("truncated"):
         raise ValueError(f"git {args[0]} failed: {result['stderr'][-1200:]}")
     return result["stdout"]
+
+
+def scoped_inventory(tree: Path, scopes: list[str], prefix: str | None = None) -> list[str]:
+    if prefix is None:
+        paths = scopes
+    elif in_scope(prefix, scopes):
+        paths = [prefix]
+    else:
+        paths = [scope for scope in scopes if in_scope(scope, [prefix])]
+    if not paths:
+        return []
+    return git(tree, ["--literal-pathspecs", "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+                      "--", *dict.fromkeys(paths)]).split("\0")
 
 
 def load_template(path: Path) -> dict[str, Any]:
@@ -281,9 +295,7 @@ def search_source(tree: Path, prepared: dict[str, Any], args: dict[str, Any]) ->
             raise ValueError("search response exceeds output budget")
         return result
 
-    if not scopes:
-        return finish(None)
-    names = git(tree, ["--literal-pathspecs", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *([prefix] if prefix else scopes)]).split("\0")
+    names = scoped_inventory(tree, scopes, prefix)
     files = sorted({p for p in names if p and in_scope(p, scopes) and (prefix is None or in_scope(p, [prefix]))})
     for path in files:
         if cursor and path < cursor["path"]:
@@ -296,10 +308,19 @@ def search_source(tree: Path, prepared: dict[str, Any], args: dict[str, Any]) ->
             rel = search_path(path)
             check_no_symlinks(tree, rel)
             target = tree / rel
-            if not target.is_file() or target.stat().st_size > max_file:
-                raise ValueError("search file too large or not regular")
-            with target.open("rb") as source:
-                data = source.read(max_file + 1)
+            fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            try:
+                info = os.fstat(fd)
+                if not stat.S_ISREG(info.st_mode) or info.st_size > max_file:
+                    raise ValueError("search file too large or not regular")
+                data = bytearray()
+                while len(data) <= max_file:
+                    chunk = os.read(fd, min(16384, max_file + 1 - len(data)))
+                    data.extend(chunk)
+                    if not chunk or b"\x00" in chunk:
+                        break
+            finally:
+                os.close(fd)
             result["bytesRead"] += len(data)
             if len(data) > max_file:
                 raise ValueError("search file exceeds byte budget")
@@ -352,7 +373,7 @@ def tool(root: Path, template: dict[str, Any], request: dict[str, Any]) -> dict[
         limit = args.get("limit", 100)
         if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 200:
             raise ValueError("invalid listing range")
-        names = git(tree, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]).split("\0")
+        names = scoped_inventory(tree, read_scope)
         files = sorted({p for p in names if p and in_scope(p, read_scope)})
         return {"ok": True, "result": {"files": files[offset:offset + limit], "total": len(files)}}
 

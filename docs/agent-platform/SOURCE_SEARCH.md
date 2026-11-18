@@ -71,10 +71,10 @@ results never constitute an acceptance check or proof of absence.
 
 | Bound | Behavior |
 |---|---|
-| Inventory | Pinned Git lists tracked and nonignored new paths, narrowed before file reads; captured inventory is capped at 16 MiB. An over-budget inventory fails visibly rather than returning a partial listing. |
+| Inventory | Pinned Git lists tracked and nonignored new paths in the intersection of task scopes and the requested prefix. `list_files` also passes the readable scopes to Git. Captured inventory is capped at 16 MiB and fails visibly when it exceeds that limit. |
 | Scope | Files must be within `writeScope` or `readScope`, and within the optional path prefix. Admission validates queries/cursors before dispatch; each backend checks scope again. |
 | Files | At most 256 files are inspected per page. Symlinks, nonregular/missing/unreadable files, unsafe paths, binary/NUL data, invalid UTF-8 and oversized files increment `skippedFiles`. |
-| Input bytes | File size limit is `min(maxToolOutputBytes, 1 MiB)`; reads include at most one extra length-guard byte. The scan reserves at most `min(8 MiB, 64 * file-size-limit)` per page, including returned guards from files that grew. |
+| Input bytes | File size limit is `min(maxToolOutputBytes, 1 MiB)`. Reads stop at the first 16 KiB chunk containing a NUL byte and may include one extra length-guard byte for a file that grew. The scan reserves at most `min(8 MiB, 64 * file-size-limit)` per page. |
 | Matches/output | Default 20 matching lines, configurable 1–100. Excerpts include up to 40 Unicode characters before and 80 after the literal. Metadata and continuation must fit `maxToolOutputBytes`; otherwise return a resumable page or a visible insufficient-budget error. |
 | Time | Scan loops observe the configured tool deadline and return a continuation. Local cancellation and existing bounded Git/RPC deadlines still apply; these controls do not sandbox untrusted code or make filesystem reads preemptible. |
 | Effects | Read-only, replay-safe observation. Adjacent reads share the existing four-slot batch and exact duplicate-call I/O deduplication. Edits, checks, jobs and control effects remain ordering barriers. |

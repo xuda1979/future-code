@@ -159,6 +159,14 @@ export class LocalGitHands implements Hands {
     const buffer = readFileSync(path); invariant(!buffer.includes(0), "binary file not supported by text tools");
     return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
   }
+  private async inventory(scopes: string[], prefix?: string): Promise<string[]> {
+    // A parent prefix narrows the authorized scopes without making Git enumerate siblings.
+    const paths = prefix === undefined ? scopes : inScope(prefix, scopes) ? [prefix] : scopes.filter(scope => inScope(scope, [prefix]));
+    if (paths.length === 0) return [];
+    const root = await this.ready();
+    return (await git(this.cfg, root, ["--literal-pathspecs", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--",
+      ...new Set(paths)], this.signal, undefined, 16 * 1024 * 1024)).split("\0").filter(Boolean);
+  }
   async tool(call: Call): Promise<Json> {
     this.signal.throwIfAborted(); invariant(this.profile.tools.includes(call.name as any), "tool not permitted for this agent");
     const a = call.arguments;
@@ -166,10 +174,7 @@ export class LocalGitHands implements Hands {
       case "search_files": {
         const scopes = [...this.c.task.writeScope, ...(this.c.task.readScope ?? [])];
         const args = validateSourceSearch(a, scopes);
-        if (!scopes.length) return { matches: [], nextCursor: null, scannedFiles: 0, skippedFiles: 0, bytesRead: 0 };
-        const root = await this.ready();
-        const names = (await git(this.cfg, root, ["--literal-pathspecs", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--",
-          ...(args.path ? [args.path] : scopes)], this.signal, undefined, 16 * 1024 * 1024)).split("\0").filter(Boolean);
+        const names = await this.inventory(scopes, args.path);
         return searchSource(args, names, scopes, this.cfg.spec.budget.maxToolOutputBytes, async (name, maxBytes) => {
           const path = await this.pathFor(name, false), stat = lstatSync(path);
           invariant(stat.isFile() && stat.size <= maxBytes, "search file too large or not regular");
@@ -179,9 +184,9 @@ export class LocalGitHands implements Hands {
       case "list_files": {
         keys(a, [], ["offset", "limit"]); const offset = a.offset ?? 0; const limit = a.limit ?? 100;
         invariant(Number.isSafeInteger(offset) && (offset as number) >= 0 && Number.isSafeInteger(limit) && (limit as number) > 0 && (limit as number) <= 200, "invalid listing range");
-        const path = await this.ready();
-        const names = (await git(this.cfg, path, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], this.signal)).split("\0").filter(Boolean);
-        const files = [...new Set(names)].filter(p => inScope(p, [...this.c.task.writeScope, ...(this.c.task.readScope ?? [])])).sort();
+        const scopes = [...this.c.task.writeScope, ...(this.c.task.readScope ?? [])];
+        const names = await this.inventory(scopes);
+        const files = [...new Set(names)].filter(p => inScope(p, scopes)).sort();
         return { files: files.slice(offset as number, (offset as number) + (limit as number)), total: files.length };
       }
       case "read_file": {
