@@ -82,8 +82,8 @@ def template(path: Path) -> dict[str, Any]:
     if not Path(argv[0]).is_absolute():
         raise ValueError("job executable must be absolute")
     timeout = cfg.get("timeoutMs")
-    if type(timeout) is not int or not 100 <= timeout <= 604800000:
-        raise ValueError("timeoutMs must be 100ms to 7 days")
+    if type(timeout) is not int or not 100 <= timeout <= 2**53 - 1:
+        raise ValueError("timeoutMs must be an exact integer of at least 100ms within the JSON safe integer range")
     if "cwd" in cfg and (not isinstance(cfg["cwd"], str) or not Path(cfg["cwd"]).is_absolute()):
         raise ValueError("cwd must be absolute")
     env = cfg.get("envAllow", [])
@@ -255,28 +255,13 @@ def lock_free(path: Path) -> bool:
         return True
 
 
-def observation(directory: Path, key: str) -> dict[str, Any]:
+def observation(directory: Path, key: str, *, checkpoint_stall_recovery: bool = False) -> dict[str, Any]:
     state = read(directory / "state.json")
     status = state["status"]
     # A dead supervisor does not prove its child/external side effect ended.
     if status == "RUNNING" and lock_free(directory / "worker.lock"):
         status = "UNKNOWN"
     reply: dict[str, Any] = {"schema": 1, "key": key, "jobId": key, "status": status}
-    try:
-        with regular_file(directory / "progress.json") as source:
-            if os.fstat(source.fileno()).st_size > 65536:
-                raise ValueError("progress record exceeds byte budget")
-            raw = source.read(65537)
-        if len(raw) > 65536:
-            raise ValueError("progress record exceeds byte budget")
-        progress = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
-        if not bounded_depth(progress):
-            raise ValueError("progress record exceeds depth budget")
-        sequence = progress.get("sequence")
-        if type(sequence) is int and 0 <= sequence <= 2**53 - 1:
-            reply["progressToken"] = str(sequence)
-    except (OSError, ValueError, AttributeError, RecursionError):
-        pass
     if "result" in state:
         reply["result"] = state["result"]
     elif status == "RUNNING":
@@ -284,6 +269,26 @@ def observation(directory: Path, key: str) -> dict[str, Any]:
             reply["result"] = {"supervision": read(directory / "supervision.json")}
         except FileNotFoundError:
             pass
+    if checkpoint_stall_recovery:
+        # A resumed worker can be productively catching up below its previous
+        # high-water mark. Publish the keeper's job-wide sequence to the host.
+        sequence = reply.get("result", {}).get("supervision", {}).get("lastSequence")
+    else:
+        try:
+            with regular_file(directory / "progress.json") as source:
+                if os.fstat(source.fileno()).st_size > 65536:
+                    raise ValueError("progress record exceeds byte budget")
+                raw = source.read(65537)
+            if len(raw) > 65536:
+                raise ValueError("progress record exceeds byte budget")
+            progress = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
+            if not bounded_depth(progress):
+                raise ValueError("progress record exceeds depth budget")
+            sequence = progress.get("sequence")
+        except (OSError, ValueError, AttributeError, RecursionError):
+            return reply
+    if type(sequence) is int and 0 <= sequence <= 2**53 - 1:
+        reply["progressToken"] = str(sequence)
     return reply
 
 
@@ -360,7 +365,7 @@ def endpoint(root: Path, config: Path, request: Any) -> dict[str, Any]:
             if read(directory / "request.json")["identity"] != identity:
                 raise ValueError("job input/template drift")
         reconcile_startup(directory)
-        return observation(directory, key)
+        return observation(directory, key, checkpoint_stall_recovery=cfg.get("supervision", {}).get("retryOnStall", False))
 
 
 def worker(directory: Path) -> None:
@@ -495,7 +500,10 @@ def execute_attempt(directory: Path, cfg: dict[str, Any], extra_env: dict[str, s
             # Wake immediately on child exit. Cheap/legacy jobs do not acquire
             # a polling-interval latency penalty from opt-in supervision.
             remaining = max(0, deadline - time.monotonic())
-            wait = min(cfg["supervision"].get("pollMs", 1000) / 1000, remaining) if observe else remaining
+            # Some native wait implementations use a signed millisecond timeout.
+            # Slice long waits without shortening the operator's absolute deadline.
+            interval = cfg["supervision"].get("pollMs", 1000) / 1000 if observe else 86400
+            wait = min(interval, remaining)
             try:
                 child.wait(timeout=wait)
             except subprocess.TimeoutExpired:
@@ -512,10 +520,13 @@ def execute_attempt(directory: Path, cfg: dict[str, Any], extra_env: dict[str, s
             code = child.wait()
         for t in threads:
             t.join(timeout=1)
+        cleanup_error = None
         if any(t.is_alive() for t in threads):
-            reason = reason or "log streams did not finish"
+            cleanup_error = "log streams did not finish"
         elif capture_errors:
-            reason = reason or "log evidence capture failed"
+            cleanup_error = "log evidence capture failed"
+        if cleanup_error:
+            reason = f"{reason} ({cleanup_error})" if reason else cleanup_error
     result = {"exitCode": code, "durationMs": round((time.monotonic() - started) * 1000),
               "configurationHash": hashlib.sha256(encoded(cfg)).hexdigest(),
               "stdoutTail": tails["stdout"][-4096:].decode("utf-8", errors="replace"),

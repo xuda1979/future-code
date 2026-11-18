@@ -278,6 +278,7 @@ Add a named job template to the spec, then grant it to the agent:
       "pollMs": 30000,
       "staleMs": 900000,
       "reconcileAfterMs": 2700000,
+      "transportGraceMs": 172800000,
       "maxJobs": 4,
       "maxConcurrent": 1
     }
@@ -314,11 +315,24 @@ When identical experiment calls share one in-flight RPC, that RPC contributes
 one poll or failure observation; additional callers do not multiply retry backoff.
 
 A queued/running job saves the pending tool call and releases the local task slot.
-Other independent agents can proceed. Polling is deterministic code, not model
-reasoning, and does not repeatedly charge tool/model turns. `staleMs` marks a
-job visibly stalled; `reconcileAfterMs` (default: three times `staleMs`, capped
-at seven days) stops indefinite automatic polling and requires explicit operator
-reconciliation. While a job has an unresolved remote outcome, objective-level
+Other agents can proceed. The host polls without spending model turns. `staleMs`
+marks a missed milestone. `reconcileAfterMs` defaults to three times `staleMs`,
+capped at seven days. A fresh reply that confirms no progress by that deadline
+requires reconciliation.
+
+If the last valid reply confirmed a queued or running job and the link fails,
+the host can keep inspecting its original ID for an additional `transportGraceMs`
+after the milestone deadline. The default grace is seven days when the host chose
+the deadline and zero when the project explicitly set `reconcileAfterMs`. Set
+`transportGraceMs` in the job capability to override either default. Inspection
+failures back off from `pollMs` up to `maxPollMs` when supplied, or to the larger
+of 15 minutes and `pollMs`. The job stays visibly stalled, retains its capacity
+reservation and gains no new milestone from an unreachable endpoint. Successful
+explicit `UNKNOWN` replies, malformed replies and changed job IDs keep their
+reconciliation rules. A resumed controller reads the same clocks and ID from disk.
+Previously failed runs remain available for explicit reconciliation.
+
+While a job has an unresolved remote outcome, objective-level
 replacement planning is suppressed so a new run cannot accidentally duplicate
 expensive external work. On a terminal reply, the original worker resumes with
 the result receipt. A successful process exit is

@@ -113,9 +113,11 @@ export interface JobTemplate {
    *  one supervised objective. Defaults to maxJobs so recovery cannot silently
    *  reset an expensive GPU/NPU/HPC experiment budget. */
   maxObjectiveJobs?: number;
-  /** After this much time without a semantic milestone, stop automatic polling
-   * and require explicit remote reconciliation. Defaults to 3 * staleMs. */
+  /** Deadline for a fresh response without a new semantic milestone. */
   reconcileAfterMs?: number;
+  /** Extra read-only inspection time for an acknowledged job during a link
+   * outage. Explicit reconciliation deadlines get no extra time by default. */
+  transportGraceMs?: number;
 }
 export interface SupervisionPolicy {
   reportEveryMs: number;
@@ -479,7 +481,7 @@ export function validateSwarmSpec(s: SwarmSpec): void {
     keys(s.jobs, [], Object.keys(s.jobs));
     positive(Object.keys(s.jobs).length, s.researchStrategy?.frontier ? 256 : 32, "job templates");
     for (const [id, job] of Object.entries(s.jobs)) {
-      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "maxObjectiveJobs", "maxPollMs", "preflightChecks", "research", "experiment"]);
+      identifier(id); keys(job, ["adapter", "idempotentEnsure", "pollMs", "staleMs", "maxJobs", "maxConcurrent"], ["reconcileAfterMs", "transportGraceMs", "maxObjectiveJobs", "maxPollMs", "preflightChecks", "research", "experiment"]);
       if (job.research !== undefined) {
         validateResearchConfiguration(job.research, job.adapter);
         const validators = Object.values(job.research.validators ?? {});
@@ -511,6 +513,8 @@ export function validateSwarmSpec(s: SwarmSpec): void {
         positive(job.reconcileAfterMs, 604800000, "job reconciliation interval");
         invariant(job.reconcileAfterMs >= job.staleMs, "job reconciliation interval must be >= stale interval");
       }
+      if (job.transportGraceMs !== undefined)
+        invariant(Number.isSafeInteger(job.transportGraceMs) && job.transportGraceMs >= 0, "invalid job transport grace");
       positive(job.maxJobs, 100000, "job count");
       if (job.maxObjectiveJobs !== undefined)
         positive(job.maxObjectiveJobs, 1_000_000, "objective job count");

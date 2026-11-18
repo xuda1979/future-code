@@ -39,16 +39,24 @@ Replace them with the actual project contract before enabling supervision.
 - `maxAttempts` includes the first attempt (1–32). `retryExitCodes` explicitly
   names nonzero exit codes or negative POSIX signals. OOM and SIGKILL do not
   inherently prove transience; diagnose repeated failures instead of looping.
-- `timeoutMs` bounds the entire job, including checkpoint validation, bootstrap,
-  all attempts and backoff. It is never reset on retry. Host `maxJobs` counts
-  logical submissions; account for this pinned attempt budget when setting
-  objective compute limits.
+- `timeoutMs` bounds checkpoint validation, bootstrap, all attempts and backoff
+  on one clock. Set it to the project's total budget in milliseconds. For
+  example, an eight-day job can specify `691200000`. Host `maxJobs` counts
+  logical submissions across those attempts.
 - `pollMs` is the local observation interval. Process exit wakes the keeper
   immediately. `backoffMs` is bounded by the remaining total deadline.
 - Optional `stallMs` requires a new completed semantic sequence. Set it above
   the slowest legitimate stage, including slow saves/evaluations. Heartbeats,
-  log growth, repeated or regressing sequences cannot extend it. A semantic
-  stall stops with diagnostics; it does not blindly kill/relaunch indefinitely.
+  log growth, repeated or regressing sequences cannot extend it. By default
+  a semantic stall stops with diagnostics.
+- Set `supervision.retryOnStall` to `true` in a replay-safe template with
+  `stallMs` and a checkpoint contract to recover a stuck worker automatically.
+  The keeper kills and reaps its owned process, validates the checkpoint and
+  starts the next attempt within the original limits. A repeated stall at the
+  same checkpoint stops for diagnosis. An empty `retryExitCodes` list enables
+  stall-only recovery. A resumed process may need to redo steps after the last
+  save. Advancing through them keeps that attempt alive. The job-wide sequence
+  and score only advance when there is new evidence beyond the replayed work.
 - Optional `bootstrap.argv` uses an absolute executable and a bounded deadline.
   The project owns pinned dependency restoration and the runtime smoke check;
   the shared runtime does not guess package versions or change a recipe.
@@ -82,7 +90,7 @@ The trusted experiment receives:
 | `FUTURE_JOB_CHECKPOINT_CONTRACT` | Pinned checkpoint compatibility contract |
 | `FUTURE_JOB_RESUME_PATH` | Selected complete bundle directory, absent on a fresh start |
 | `FUTURE_JOB_RESUME_STEP` | Selected bundle's completed sequence |
-| `FUTURE_JOB_PROGRESS_PATH` | Shared atomic progress/measurement record |
+| `FUTURE_JOB_PROGRESS_PATH` | Atomic progress/measurement record for this attempt. Read the path from the environment on each launch. |
 | `FUTURE_JOB_RESULT_PATH` | Current attempt's final structured result, when enabled |
 
 After a completed save, project code calls `publish_bundle` from

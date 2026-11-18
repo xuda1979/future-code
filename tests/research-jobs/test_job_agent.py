@@ -91,6 +91,25 @@ class RemoteJobTests(unittest.TestCase):
         self.assertEqual(result["status"], "FAILED")
         self.assertNotEqual(result["result"]["exitCode"], 0)
 
+    def test_operator_can_budget_a_job_longer_than_a_week(self):
+        cfg = json.loads(self.config.read_text())
+        for timeout in (8 * 24 * 60 * 60 * 1000, 2**53 - 1):
+            with self.subTest(timeout=timeout):
+                self.key = hashlib.sha256(str(timeout).encode()).hexdigest()
+                self.request["key"] = self.key
+                self.config.write_text(json.dumps({**cfg, "timeoutMs": timeout}))
+                self.call()
+                self.assertEqual(self.done()["status"], "SUCCEEDED")
+        self.assertEqual(self.counter.read_text(), "xx")
+
+    def test_duration_must_be_an_exact_bounded_integer(self):
+        cfg = json.loads(self.config.read_text())
+        for invalid in (True, 99, 205.5, 2**53):
+            with self.subTest(timeout=invalid):
+                self.config.write_text(json.dumps({**cfg, "timeoutMs": invalid}))
+                self.assertEqual(self.call(check=False).returncode, 64)
+                self.assertFalse(self.root.exists())
+
     def test_shell_text_in_input_is_data_not_executed(self):
         self.request["input"] = {"value": f"$(touch {self.base / 'injected'})"}
         self.call()

@@ -18,6 +18,8 @@ import { createHash } from "node:crypto";
 import { theoryPremises } from "./theory.ts";
 import { experimentBinding, experimentPromotion, installExperimentPipelines, recordExperimentInput } from "./experimentPipeline.ts";
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** Host-only polling advice. No effect on remote identity or acceptance. */
 export function nextRemotePollMs(template: Pick<JobTemplate, "pollMs" | "maxPollMs">, idlePolls: number): number {
   const ceiling = template.maxPollMs ?? template.pollMs;
@@ -351,7 +353,11 @@ export class ResearchJobs {
       row = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
     }
     if (row.result_hash) return store.readArtifact(row.result_hash);
-    if (row.poll_at > Date.now()) throw this.wait(row, template);
+    const cooling = row.poll_at > Date.now();
+    if (cooling || row.failures > 0) {
+      const wait = this.wait(row, template);
+      if (cooling || wait instanceof FatalAttemptError) throw wait;
+    }
     const request = { schema: 1, operation: row.job_id ? "inspect" : "ensure", key, jobId: row.job_id ?? null,
       input, inputHash: binding, baseCommit: this.cfg.baseCommit } as Json;
     let raw: unknown;
@@ -390,7 +396,10 @@ export class ResearchJobs {
         // the RPC was pending. A late transport error cannot undo that receipt.
         const current = store.db.prepare("SELECT * FROM research_jobs WHERE key=?").get(key)!;
         if (current.result_hash || (pending && (this.observedRPCs.has(pending) || this.failedRPCs.has(pending)))) return;
-        const backoff = Math.min(60000, template.pollMs * 2 ** Math.min(current.failures, 10));
+        const ceiling = current.job_id
+          ? template.maxPollMs ?? Math.max(template.pollMs, 15 * 60_000)
+          : Math.max(template.pollMs, 60_000);
+        const backoff = Math.min(ceiling, template.pollMs * 2 ** Math.min(current.failures, 30));
         store.db.prepare("UPDATE research_jobs SET failures=failures+1,poll_at=?,status='UNKNOWN',updated=? WHERE key=?")
           .run(Date.now() + backoff, Date.now(), key);
         store.event("job.reconciling", { key, jobId: current.job_id ?? null, reason: "adapter RPC failed; never infer remote termination" }, c.runId, c.task.id);
@@ -469,13 +478,27 @@ export class ResearchJobs {
     const now = Date.now();
     const age = Math.max(0, now - row.progress_at);
     const staleAt = Math.min(Number(row.stale_at ?? Number.POSITIVE_INFINITY), row.progress_at + template.staleMs);
-    const reconcileAfterMs = template.reconcileAfterMs ?? Math.min(604800000, template.staleMs * 3);
+    const reconcileAfterMs = template.reconcileAfterMs ?? Math.min(WEEK_MS, template.staleMs * 3);
+    const lastStatus = row.failures > 0 && row.observation_summary
+      ? JSON.parse(String(row.observation_summary)).remoteStatus : row.status;
+    const confirmed = row.job_id && (lastStatus === "RUNNING" || lastStatus === "QUEUED");
+    const grace = confirmed ? template.transportGraceMs ?? (template.reconcileAfterMs === undefined ? WEEK_MS : 0) : 0;
+    let wake = Math.max(now + 10, row.poll_at);
     if (age >= reconcileAfterMs) {
-      return new FatalAttemptError(`REMOTE_JOB_RECONCILIATION_REQUIRED: job ${row.key.slice(0, 12)} ${row.status}; no semantic milestone for ${age}ms. Inspect/adopt/cancel the remote job before any replacement work.`);
+      // A transport failure replaces status with UNKNOWN but retains the last
+      // valid reply. Only continue read-only inspection of a confirmed live ID.
+      // Replaying a cached pre-deadline reply isn't a fresh observation either.
+      const needsInspection = row.failures > 0 || row.updated - row.progress_at < reconcileAfterMs;
+      if (!needsInspection || age - reconcileAfterMs >= grace)
+        return new FatalAttemptError(`REMOTE_JOB_RECONCILIATION_REQUIRED: job ${row.key.slice(0, 12)} ${row.status}; no semantic milestone for ${age}ms. Inspect/adopt/cancel the remote job before any replacement work.`);
     }
+    // Expire on the declared deadline even if the next RPC is much later.
+    if (row.failures > 0) wake = Math.min(wake, now + Math.max(0, reconcileAfterMs - age + grace));
     const stale = now >= staleAt;
-    return new DeferredAttemptError(stale ? "remote-stalled" : "remote-job", Math.max(now + 10, row.poll_at),
-      `job ${row.key.slice(0, 12)} ${row.status}${stale ? "; no new milestone: inspect remote worker/queue" : "; durable poll scheduled"}`,
+    const detail = row.job_id && row.failures > 0 ? "; link unavailable, retrying inspection of the same job"
+      : stale ? "; no new milestone: inspect remote worker/queue" : "; durable poll scheduled";
+    return new DeferredAttemptError(stale ? "remote-stalled" : "remote-job", wake,
+      `job ${row.key.slice(0, 12)} ${row.status}${detail}`,
       [{ kind: "job", key: row.key }]);
   }
   reconcile(run: string, key: string, reply: JobReply): Json {
