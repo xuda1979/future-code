@@ -50,7 +50,7 @@ jobs:
           bun build src/entrypoints/cli-bundle.ts --compile --outfile="$RUNNER_TEMP/future-code" --target=bun
           for debug in --debug-to-stderr -d2e; do
             "$RUNNER_TEMP/future-code" "$debug" --help > "$RUNNER_TEMP/cli-help"
-            rg '^Usage: future-code ' "$RUNNER_TEMP/cli-help"
+            grep -q '^Usage: future-code ' "$RUNNER_TEMP/cli-help"
             "$RUNNER_TEMP/future-code" "$debug" --print --help > "$RUNNER_TEMP/cli-print-help"
-            rg '^Usage: future-code ' "$RUNNER_TEMP/cli-print-help"
+            grep -q '^Usage: future-code ' "$RUNNER_TEMP/cli-print-help"
           done
