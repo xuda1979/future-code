@@ -48,8 +48,9 @@ test('shell searches/status checks no longer reset observation-only review', () 
   const before = structuredClone(messages)
   assert.match(actionFocusReview(messages, '/repo/.future-code/goal.md')!, /12 observation\/planning receipts/)
   assert.deepEqual(messages, before)
-  messages.push({ type: 'assistant', message: { content: [{ type: 'tool_use', ...call('change', 'node run-experiment.mjs') }] } }, result('change'))
-  assert.equal(actionFocusReview(messages, '/repo/.future-code/goal.md'), null, 'a real experiment still resets the diagnostic')
+  messages.push({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'change', name: 'Edit',
+    input: { file_path: '/repo/result.txt', old_string: 'old', new_string: 'new' } }] } }, result('change'))
+  assert.equal(actionFocusReview(messages, '/repo/.future-code/goal.md'), null, 'a completed edit resets the diagnostic')
 })
 
 test('mixed tasks enter delivery only after paired effects; checks/errors release deep reasoning', () => {
