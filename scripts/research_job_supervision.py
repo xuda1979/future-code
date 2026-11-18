@@ -11,10 +11,14 @@ import math
 import os
 from pathlib import Path
 import re
+import signal
 import stat
 import time
 
 from research_job_checkpoints import resolve_bundle
+
+
+_STALL_ERROR = "semantic progress deadline exceeded"
 
 
 def _integer(value, low, high):
@@ -66,17 +70,20 @@ def validate_supervision(cfg):
         return
     s = cfg["supervision"]
     if (not isinstance(s, dict) or set(s) - {"replaySafe", "maxAttempts", "retryExitCodes", "backoffMs",
-            "pollMs", "stallMs", "bootstrap", "checkpoint", "goal"}
+            "pollMs", "stallMs", "retryOnStall", "bootstrap", "checkpoint", "goal"}
             or s.get("replaySafe") is not True
             or not _integer(s.get("maxAttempts"), 1, 32)
             or not isinstance(s.get("retryExitCodes"), list)
-            or not s["retryExitCodes"] or len(s["retryExitCodes"]) > 32
+            or (not s["retryExitCodes"] and s.get("retryOnStall") is not True) or len(s["retryExitCodes"]) > 32
             or any(not _integer(x, -64, 255) or x == 0 for x in s["retryExitCodes"])
             or not _integer(s.get("backoffMs"), 0, 600000)
             or not _integer(s.get("pollMs", 1000), 20, 60000)):
         raise ValueError("invalid bounded job supervision or replay authority")
     if "stallMs" in s and not _integer(s["stallMs"], 100, 604800000):
         raise ValueError("invalid semantic progress deadline")
+    if "retryOnStall" in s and (type(s["retryOnStall"]) is not bool or
+            (s["retryOnStall"] and ("stallMs" not in s or "checkpoint" not in s))):
+        raise ValueError("stall recovery requires a pinned progress deadline and checkpoint contract")
     if "bootstrap" in s:
         b = s["bootstrap"]
         if (not isinstance(b, dict) or set(b) != {"argv", "timeoutMs"}
@@ -110,6 +117,8 @@ class Progress:
     def __init__(self, path, policy):
         self.path, self.policy = path, policy
         self.sequence = -1
+        self.attempt_sequence = -1
+        self.replay_through = -1
         self.advanced = time.monotonic()
         self.metric_sequence = -1
         self.metric_at = None
@@ -117,6 +126,13 @@ class Progress:
         self.invalid_metric = False
         self.best = policy.get("goal", {}).get("baseline")
         self.last_improvement = None
+
+    def resume_from(self, fresh_path, step):
+        # A fresh attempt file cannot inherit the failed attempt's last record.
+        # Count catch-up above the saved step only for this worker's stall clock.
+        self.path = fresh_path
+        self.attempt_sequence = step
+        self.replay_through = max(self.sequence, step)
 
     def observe(self):
         # Nonblocking bounded reads: a missing/partial/FIFO telemetry file cannot
@@ -138,11 +154,12 @@ class Progress:
             return
         if not _integer(sequence, 0, 2**53 - 1):
             return
-        if sequence > self.sequence:
-            self.sequence = sequence
+        if sequence > self.attempt_sequence:
+            self.attempt_sequence = sequence
+            self.sequence = max(self.sequence, sequence)
             self.advanced = time.monotonic()
         goal = self.policy.get("goal")
-        if not goal or "metric" not in record:
+        if not goal or "metric" not in record or sequence <= self.replay_through:
             return
         metric = record["metric"]
         if (not isinstance(metric, dict) or set(metric) != {"name", "contract", "value", "samples"}
@@ -154,7 +171,7 @@ class Progress:
                 or not _finite(metric["value"] - self.best)):
             self.invalid_metric = True
             return
-        # Replayed steps/measurements cannot reset either clock after resume.
+        # A repeated measurement cannot renew the job-wide goal clock.
         if sequence <= self.metric_sequence or sequence < self.sequence:
             return
         self.invalid_metric = False
@@ -223,7 +240,7 @@ def run_supervised(directory, cfg, execute, atomic, encoded):
         if raw != previous_snapshot:
             atomic(directory / "supervision.json", summary)
             previous_snapshot = raw
-        return "semantic progress deadline exceeded" if progress.stalled() else None
+        return _STALL_ERROR if progress.stalled() else None
 
     def checkpoint():
         c = policy.get("checkpoint")
@@ -253,9 +270,11 @@ def run_supervised(directory, cfg, execute, atomic, encoded):
             break
         attempt_dir = directory / "attempts" / str(attempt)
         attempt_dir.mkdir(parents=True, mode=0o700)
+        if attempt > 1 and selection and policy.get("retryOnStall"):
+            progress.resume_from(attempt_dir / "progress.json", selection["step"])
         env = {"FUTURE_JOB_KEY": directory.name, "FUTURE_JOB_ATTEMPT": str(attempt),
                "FUTURE_JOB_INPUT_PATH": str(directory / "input.json"),
-               "FUTURE_JOB_PROGRESS_PATH": str(directory / "progress.json")}
+               "FUTURE_JOB_PROGRESS_PATH": str(progress.path)}
         if "checkpoint" in policy:
             c = policy["checkpoint"]
             env.update(FUTURE_JOB_CHECKPOINT_ROOT=str(checkpoint_root), FUTURE_JOB_CHECKPOINT_CONTRACT=c["contract"])
@@ -289,10 +308,15 @@ def run_supervised(directory, cfg, execute, atomic, encoded):
                         "resumeStep": selection["step"] if selection else None,
                         "durationMs": result["durationMs"],
                         "receiptSha256": hashlib.sha256(encoded(result)).hexdigest()})
-        if result["exitCode"] == 0 or "error" in result:
+        # A watchdog kill is deliberately distinct from an application exit.
+        # Only the host's isolated stall diagnosis, after its owned child was
+        # killed and reaped, can use this checkpoint-only recovery authority.
+        retry_stall = (policy.get("retryOnStall") is True and result.get("error") == _STALL_ERROR
+                       and result["exitCode"] == -signal.SIGKILL)
+        if result["exitCode"] == 0 or ("error" in result and not retry_stall):
             break
-        if result["exitCode"] not in policy["retryExitCodes"] or attempt >= policy["maxAttempts"]:
-            result["error"] = "process failed; retry class or attempt budget does not permit recovery"
+        if attempt >= policy["maxAttempts"] or (not retry_stall and result["exitCode"] not in policy["retryExitCodes"]):
+            result.setdefault("error", "process failed; retry class or attempt budget does not permit recovery")
             break
         try:
             selection = checkpoint()
@@ -311,10 +335,7 @@ def run_supervised(directory, cfg, execute, atomic, encoded):
             break
         previous_failure = failure
         snapshot("BACKOFF")
-        until = min(deadline, time.monotonic() + policy["backoffMs"] / 1000)
-        while time.monotonic() < until:
-            # Backoff is deterministic and bounded by the ORIGINAL deadline.
-            time.sleep(min(policy.get("pollMs", 1000) / 1000, until - time.monotonic()))
+        time.sleep(max(0, min(policy["backoffMs"] / 1000, deadline - time.monotonic())))
         if time.monotonic() >= deadline:
             result["error"] = "trusted job deadline exceeded during recovery backoff"
             break

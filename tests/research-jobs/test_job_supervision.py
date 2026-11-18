@@ -4,6 +4,7 @@ import concurrent.futures
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
@@ -131,6 +132,127 @@ class JobSupervisionTests(unittest.TestCase):
         self.assertIn("semantic progress", state["result"]["error"])
         self.assertEqual(state["result"]["supervision"]["attempts"], 1)
 
+    def stall_policy(self):
+        return {"stallMs": 450, "retryOnStall": True, "retryExitCodes": [], "checkpoint": {
+            "root": str(self.base / "checkpoints"), "contract": "d" * 64, "components": ["state"]}}
+
+    def checkpoint_then_stall(self, resume, last_sequence=41):
+        return f"""
+import json,os,sys,time
+from pathlib import Path
+sys.path.insert(0, {str(AGENT.parent)!r})
+from research_job_checkpoints import publish_bundle
+if 'FUTURE_JOB_RESUME_PATH' not in os.environ:
+    source = Path.cwd() / 'source'
+    source.mkdir()
+    (source / 'state').write_text('41')
+    publish_bundle(Path(os.environ['FUTURE_JOB_CHECKPOINT_ROOT']), source, 41,
+                   os.environ['FUTURE_JOB_CHECKPOINT_CONTRACT'], {{'state': {{'path': 'state', 'step': 41}}}})
+    Path(os.environ['FUTURE_JOB_PROGRESS_PATH']).write_text(json.dumps({{'sequence': {last_sequence}}}))
+    time.sleep(15)
+else:
+    assert int(os.environ['FUTURE_JOB_RESUME_STEP']) == 41
+    value = int((Path(os.environ['FUTURE_JOB_RESUME_PATH']) / 'state').read_text())
+    {resume}
+"""
+
+    def test_authorized_stall_retry_resumes_complete_checkpoint_without_a_client(self):
+        self.configure(self.checkpoint_then_stall(
+            "Path(os.environ['FUTURE_JOB_RESULT_PATH']).write_text(json.dumps({'value': value + 1}))"),
+            supervision=self.stall_policy(), resultMaxBytes=512)
+        state = self.complete_without_client()
+        self.assertEqual(state["status"], "SUCCEEDED", state)
+        self.assertEqual(state["result"]["data"], {"value": 42})
+        self.assertEqual([h["resumeStep"] for h in state["result"]["supervision"]["history"]], [None, 41])
+        receipt = json.loads((self.root / self.key / "attempts/1/receipt.json").read_text())
+        self.assertEqual(receipt["exitCode"], -signal.SIGKILL)
+        self.assertIn("semantic progress", receipt["error"])
+
+    def test_unchanged_stall_at_same_checkpoint_stops_after_one_retry(self):
+        self.configure(self.checkpoint_then_stall("time.sleep(15)"), supervision=self.stall_policy())
+        state = self.complete_without_client()
+        self.assertEqual(state["status"], "FAILED", state)
+        self.assertEqual([h["resumeStep"] for h in state["result"]["supervision"]["history"]], [None, 41])
+        self.assertIn("unchanged", state["result"]["error"])
+
+    def test_healthy_checkpoint_catchup_can_exceed_one_stall_interval(self):
+        resume = """for step in range(value + 1, 49):
+        Path(os.environ['FUTURE_JOB_PROGRESS_PATH']).write_text(json.dumps({'sequence': step}))
+        time.sleep(.15)
+    Path(os.environ['FUTURE_JOB_RESULT_PATH']).write_text(json.dumps({'value': step}))"""
+        self.configure(self.checkpoint_then_stall(resume, last_sequence=47),
+                       supervision=self.stall_policy(), resultMaxBytes=512, timeoutMs=6000)
+        state = self.complete_without_client()
+        self.assertEqual(state["status"], "SUCCEEDED", state)
+        self.assertEqual(state["result"]["data"], {"value": 48})
+        self.assertEqual(state["result"]["supervision"]["lastSequence"], 48)
+        self.assertEqual(self.call()["progressToken"], "48")
+
+    def test_replayed_milestones_do_not_publish_goal_or_global_progress(self):
+        sys.path.insert(0, str(AGENT.parent))
+        try:
+            from research_job_supervision import Progress
+        finally:
+            sys.path.pop(0)
+        policy = {"goal": {"name": "score", "contract": "d" * 64, "direction": "maximize",
+                           "baseline": 0, "staleMs": 30000}}
+        progress = Progress(self.base / "progress.json", policy)
+
+        def write(sequence, value, contract="d" * 64):
+            progress.path.write_text(json.dumps({"sequence": sequence, "metric": {"name": "score",
+                "contract": contract, "samples": 1, "value": value}}))
+            progress.observe()
+
+        write(46, .5)
+        progress.path.write_text('{"sequence":47}')
+        progress.observe()
+        goal, measured_at = progress.goal(), progress.metric_at
+        progress.resume_from(self.base / "resumed-progress.json", 41)
+        progress.advanced = 0
+        write(41, 1)  # The saved step is the lower bound for the resumed attempt.
+        self.assertEqual(progress.advanced, 0)
+        write(42, 1)
+        self.assertGreater(progress.advanced, 0)
+        progress.advanced = 0
+        for sequence in (41, 42, "invalid", 42):
+            write(sequence, 1, "e" * 64)
+        self.assertEqual(progress.advanced, 0)
+        write(43, 10, "e" * 64)
+        write(47, 20)  # The previous high-water step lacked a metric.
+        self.assertEqual((progress.sequence, progress.metric_at, progress.goal()), (47, measured_at, goal))
+        write(48, .75)
+        self.assertEqual(progress.sequence, 48)
+        self.assertEqual(progress.goal()["value"], .75)
+        # A completed save may precede publication of its progress record.
+        progress.resume_from(self.base / "next-attempt.json", 50)
+        write(50, 1)
+        self.assertEqual((progress.sequence, progress.goal()["value"]), (48, .75))
+
+    def test_stall_retry_keeps_original_deadline_and_requires_explicit_authority(self):
+        for cause in ("deadline", "stall"):
+            with self.subTest(cause=cause):
+                self.key = hashlib.sha256(cause.encode()).hexdigest()
+                self.request["key"] = self.key
+                policy = {**self.stall_policy(), "retryExitCodes": [-signal.SIGKILL]}
+                if cause == "deadline":
+                    policy["stallMs"] = 2000
+                else:
+                    del policy["retryOnStall"]
+                self.configure(self.checkpoint_then_stall("raise AssertionError('unexpected replay')"),
+                               supervision=policy, timeoutMs=1200)
+                state = self.complete_without_client()
+                self.assertEqual(state["status"], "FAILED", state)
+                expected = "trusted job deadline" if cause == "deadline" else "semantic progress deadline"
+                self.assertIn(expected, state["result"]["error"])
+                self.assertEqual(state["result"]["supervision"]["attempts"], 1)
+
+    def test_stall_without_a_valid_checkpoint_never_restarts_cold(self):
+        self.configure(self.counting_code("time.sleep(15)"), supervision=self.stall_policy())
+        state = self.complete_without_client()
+        self.assertEqual(state["status"], "FAILED", state)
+        self.assertIn("checkpoint", state["result"]["error"])
+        self.assertEqual(self.counter.read_text(), "x")
+
     def test_lost_owner_remains_unknown_even_with_recovery_enabled(self):
         self.configure("print('finished')")
         self.complete_without_client()
@@ -237,6 +359,8 @@ publish_bundle(root,source,1,os.environ['FUTURE_JOB_CHECKPOINT_CONTRACT'],{{'sta
 
     def test_unsafe_or_unbounded_recovery_config_is_rejected_before_execution(self):
         for change in ({"replaySafe": False}, {"maxAttempts": 0}, {"retryExitCodes": [0]},
+                       {"retryExitCodes": []}, {"retryOnStall": True}, {"retryOnStall": 1},
+                       {"stallMs": 100, "retryOnStall": True},
                        {"maxAttempts": True}, {"bootstrap": {"argv": ["python3"], "timeoutMs": 1000}},
                        {"checkpoint": {"root": "/tmp/checkpoints", "contract": "a" * 64,
                                        "components": ["manifest.json"]}},

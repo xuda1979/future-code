@@ -250,6 +250,104 @@ test("unchanged remote milestone becomes visibly stalled then requires reconcili
     assert.ok(e instanceof FatalAttemptError); assert.match(e.message, /RECONCILIATION_REQUIRED/); return true;
   });
 }, s => { jobSpec(s); s.jobs!.train.staleMs = 200; s.jobs!.train.reconcileAfterMs = 1000; }));
+test("a multi-day link outage survives controller restart and recovers the same confirmed job", async () => swarmFixture(async (s, cfg) => {
+  const q = new Scheduler(s), run = q.start([swarmTask()]), c = q.capsule(q.claim(run, "w")!);
+  const operations: string[] = [];
+  let reachable = true;
+  const rpc: JobRPC = async (_cmd, _cfg, raw) => {
+    const r = raw as { operation: string; key: string; jobId: string | null };
+    operations.push(r.operation);
+    if (r.operation === "inspect") assert.equal(r.jobId, "original");
+    if (!reachable) throw new Error("link down");
+    return { schema: 1, key: r.key, jobId: "original", ...(r.operation === "ensure"
+      ? { status: "RUNNING", progressToken: "phase-8" } : { status: "SUCCEEDED", result: { units: 29 } }) };
+  };
+  const jobs = new ResearchJobs(new SessionJournal(s), cfg, rpc);
+  const exec = (controller: ResearchJobs) => controller.execute(c, cfg.spec.agents.coder, jobCall, signal());
+  await assert.rejects(exec(jobs), DeferredAttemptError);
+  // Eight days since submission, two days since the last confirmed milestone.
+  const day = 86400000, now = Date.now(), milestone = now - 2 * day;
+  s.db.prepare("UPDATE research_jobs SET created=?,progress_at=?,stale_at=?,updated=?,observation_at=?,poll_at=0 WHERE run=?")
+    .run(now - 8 * day, milestone, milestone + 1000, milestone, milestone, run);
+  reachable = false;
+  const stalled = (error: unknown) => error instanceof DeferredAttemptError && error.kind === "remote-stalled";
+  await assert.rejects(exec(jobs), stalled);
+  const peer = await Store.open(s.root);
+  try {
+    const restored = new ResearchJobs(new SessionJournal(peer), cfg, rpc);
+    const state = peer.db.prepare("SELECT progress_at,failures,result_hash,poll_at FROM research_jobs WHERE run=?").get(run)!;
+    assert.equal(state.progress_at, milestone);
+    assert.equal(state.failures, 1);
+    assert.equal(state.result_hash, null);
+    assert.equal(objectiveEvidenceGate(peer, run).unresolvedExternalJobs, 1);
+    peer.db.prepare("UPDATE research_jobs SET poll_at=? WHERE run=?").run(Date.now() + day, run);
+    await assert.rejects(exec(restored), stalled);
+    assert.deepEqual(operations, ["ensure", "inspect"]);
+    reachable = true;
+    peer.db.prepare("UPDATE research_jobs SET poll_at=0 WHERE run=?").run(run);
+    const result = await exec(restored);
+    assert.deepEqual((result as any).result, { units: 29 });
+    assert.deepEqual(operations, ["ensure", "inspect", "inspect"]);
+    assert.equal(objectiveEvidenceGate(peer, run).verifiedTasks, 0);
+  } finally { peer.close(); }
+}, jobSpec));
+
+for (const observed of ["QUEUED", "UNKNOWN"] as const)
+  test(`transport grace requires a confirmed job and expires without a further RPC (${observed})`, async () => swarmFixture(async (s, cfg) => {
+    const scheduler = new Scheduler(s), run = scheduler.start([swarmTask()]);
+    const c = scheduler.capsule(scheduler.claim(run, "worker")!);
+    let calls = 0;
+    const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, raw) => {
+      calls++;
+      if (calls > 1) throw new Error("unreachable");
+      return { schema: 1, key: (raw as any).key, jobId: "original", status: observed };
+    });
+    const exec = () => jobs.execute(c, cfg.spec.agents.coder, jobCall, signal());
+    await assert.rejects(exec(), DeferredAttemptError);
+    const age = (ms: number) => s.db.prepare("UPDATE research_jobs SET progress_at=?, poll_at=0 WHERE run=?")
+      .run(Date.now() - ms, run);
+    age(6000);
+    await assert.rejects(exec(), observed === "QUEUED" ? DeferredAttemptError : FatalAttemptError);
+    age(12000);
+    await assert.rejects(exec(), FatalAttemptError);
+    assert.equal(calls, 2);
+    assert.equal(s.db.prepare("SELECT result_hash FROM research_jobs WHERE run=?").get(run)!.result_hash, null);
+  }, spec => { jobSpec(spec); Object.assign(spec.jobs!.train, { reconcileAfterMs: 5000, transportGraceMs: 5000 }); }));
+
+test("a fast healthy poll ceiling cannot turn a sustained outage into rapid retries", async () => swarmFixture(async (s, cfg) => {
+  const q = new Scheduler(s), run = q.start([swarmTask()]), c = q.capsule(q.claim(run, "w")!);
+  const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, raw) => {
+    const r = raw as { key: string; operation: string };
+    if (r.operation === "inspect") throw new Error("link down");
+    return { schema: 1, key: r.key, jobId: "active", status: "RUNNING" };
+  });
+  const exec = () => jobs.execute(c, cfg.spec.agents.coder, jobCall, signal());
+  await assert.rejects(exec(), DeferredAttemptError);
+  s.db.prepare("UPDATE research_jobs SET failures=20,poll_at=0 WHERE run=?").run(run);
+  await assert.rejects(exec(), DeferredAttemptError);
+  const r = s.db.prepare("SELECT poll_at,updated FROM research_jobs WHERE run=?").get(run)!;
+  assert.ok(Number(r.poll_at) - Number(r.updated) >= 59990);
+}, spec => { jobSpec(spec); spec.jobs!.train.maxPollMs = 100; }));
+
+test("fresh tokens from an UNKNOWN adapter reply cannot reset a stale confirmed milestone", async () => swarmFixture(async (s, cfg) => {
+  const q = new Scheduler(s), run = q.start([swarmTask()]), c = q.capsule(q.claim(run, "w")!);
+  const jobs = new ResearchJobs(new SessionJournal(s), cfg, async (_cmd, _cfg, raw) => {
+    const r = raw as { key: string; operation: string };
+    const confirmed = r.operation === "ensure";
+    return { schema: 1, key: r.key, jobId: "original", status: confirmed ? "RUNNING" : "UNKNOWN",
+      progressToken: confirmed ? "confirmed" : "unconfirmed" };
+  });
+  const exec = () => jobs.execute(c, cfg.spec.agents.coder, jobCall, signal());
+  await assert.rejects(exec(), DeferredAttemptError);
+  const milestone = Date.now() - 10000;
+  s.db.prepare("UPDATE research_jobs SET progress_at=?,poll_at=0 WHERE run=?").run(milestone, run);
+  await assert.rejects(exec(), FatalAttemptError);
+  const r = s.db.prepare("SELECT progress_at,progress_token,result_hash FROM research_jobs WHERE run=?").get(run)!;
+  assert.equal(r.progress_at, milestone);
+  assert.equal(r.progress_token, "confirmed");
+  assert.equal(r.result_hash, null);
+}, jobSpec));
+
 test("alternating old remote milestones cannot mask a stalled job", async () => swarmFixture(async (s, cfg) => {
   const q = new Scheduler(s); const run = q.start([swarmTask()]); const c = q.capsule(q.claim(run, "w")!);
   const tokens = ["A", "B", "A"];
@@ -345,6 +443,11 @@ test("job and supervision configuration reject unsafe bounds/capabilities", () =
   assert.throws(() => validateSwarmSpec(supervised), /maxReplans/);
   const reconcile = spec("x"); jobSpec(reconcile); reconcile.jobs!.train.reconcileAfterMs = reconcile.jobs!.train.staleMs - 1;
   assert.throws(() => validateSwarmSpec(reconcile), /reconciliation interval/);
+  const grace = spec("x"); jobSpec(grace);
+  for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+    grace.jobs!.train.transportGraceMs = value;
+    assert.throws(() => validateSwarmSpec(grace), /transport grace/);
+  }
   const insecure = spec("x"); insecure.agents.coder.url = "http://10.0.0.5:8000/v1/chat/completions"; insecure.agents.coder.allowHttp = true;
   insecure.agents.coder.keyEnv = "MODEL_API_KEY";
   assert.throws(() => validateSwarmSpec(insecure), /credentials require HTTPS/);
