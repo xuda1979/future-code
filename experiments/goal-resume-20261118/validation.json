@@ -49,9 +49,9 @@
     {
       "command": "node scripts/bench-goal-regressions.mjs BASELINE OUTPUT",
       "exit_code": 0,
-      "baseline_pass": 29,
+      "baseline_pass": 39,
       "baseline_fail": 33,
-      "candidate_pass": 62,
+      "candidate_pass": 72,
       "candidate_fail": 0
     },
     {
@@ -64,6 +64,12 @@
     {
       "command": "git diff --check",
       "exit_code": 0
+    },
+    {
+      "command": "node --experimental-strip-types --test tests/correctness/action-focus.test.ts tests/correctness/direct-execution.test.ts tests/correctness/goal-work-state.test.ts tests/correctness/goal-decision-flow.test.ts",
+      "exit_code": 0,
+      "passed": 59,
+      "failed": 0
     }
   ],
   "independent_review": {
@@ -78,15 +84,15 @@
     "Six environment-specific broad-suite skips are not counted as passes."
   ],
   "file_hashes": {
-    "docs/agent-platform/resume-useful-work-20261118.md": "64e168de134ece0616a1d0fc7575b99b912c430cd4d1097d2d92d7989052e81f",
-    "experiments/goal-resume-20261118/README.md": "6a9a52cf829575f40150397447983fdb73ece51543d81023273fbaa205d3c172",
+    "docs/agent-platform/resume-useful-work-20261118.md": "3c342ff10a906fb81957de33a46ad01dee7fc7b49bc9c511338018361b6334ae",
+    "experiments/goal-resume-20261118/README.md": "a21292771db6968f6fcc9bf874036546fb4603c5431d1f2d251e560262e89582",
     "experiments/goal-resume-20261118/adapter-worker.mjs": "52ec73590e0b4dba6f8ecc9b9742d84ec3477a95f5ffcf40ddc9a7141a238317",
-    "experiments/goal-resume-20261118/regressions.json": "fe5d3b8cfd59958925b5c0103a49ab51f575876d65e942afbb04e8dc93b18aa5",
-    "experiments/goal-resume-20261118/results.json": "2ea3c2a8d94c4c273d7bb8ca8eab7742eb84f16591a460bc052ec022b7553916",
-    "scripts/bench-goal-regressions.mjs": "eb6b7795f3e70cd0f667365169221165fcec54d4e34f841a3e4bcb2fbadbe51b",
+    "experiments/goal-resume-20261118/regressions.json": "e95537b92fdfaa44be9dfa8aff1fb837fc546e79155b9ce22a59b4e9d561a5c7",
+    "experiments/goal-resume-20261118/results.json": "bb6055108c594874794c9f7c404e533da0487bce44c05c7bc382abac5737b0e5",
+    "scripts/bench-goal-regressions.mjs": "ea38fec253afd58274d160d6c68c8511983a8453809ec3d57328264a65940d6f",
     "scripts/bench-goal-resume.mjs": "d34fd6bd5ea284eca141427ef58c5762975d85fc44e04581861359e4a361c1c8",
     "scripts/test-correctness.mjs": "7f4a9ede87dddb4461750cad6f86cefc36d565cc61a24685d05180cb47310153",
-    "src/commands/goal/actionFocus.ts": "2cd34ff97ef64fb233ea614ef2996f03541a573bc2c5676a44e099dbab97a1a7",
+    "src/commands/goal/actionFocus.ts": "96f08dc91e969cf541a60869915c8f86622d402b628509e323eeacbdae9e6833",
     "src/commands/goal/auto.ts": "0df0fcafcde7df677b4c6fb6970c0448b9221b9bc1fdd5e6ea1abc466fc8c74a",
     "src/commands/goal/context.ts": "1ff8ac8ec1df641d3a74471e2ff2889466305ec1f916104096f08a4cc704662a",
     "src/commands/goal/workState.ts": "9a5959ef8bb94674f4c508583cc825c0c18d0295e88b0b447f9a8b77d8617c2a",
@@ -100,5 +106,15 @@
     "tests/correctness/goal-decision-flow.test.ts": "69dced8b2dd22538a2877ea3889a4ce68b83b86823a81fa200dbfe057fb9a332",
     "tests/correctness/goal-failure-evidence.test.ts": "6a343ed92e839e3cb8311b15cfe69fc66059b626be9d3977c9564b55bca2c72e",
     "tests/correctness/goal-work-state.test.ts": "48a23bd44e18bf468a0c2e070384df9597861c3ec6d5ad9289f6bf9d69bbddbb"
+  },
+  "ci_regression_repair": {
+    "case": "shell searches/status checks no longer reset observation-only review",
+    "first_ci_result": "failed",
+    "cause": "The final interleaved opaque-script adjustment retained stale observation counters after a completed experiment.",
+    "repair": "Retire old observation/failure records on successful opaque Bash, retain only opaque-operation repetition.",
+    "before_local_reproduction": "failed",
+    "after_local_affected_suite_passed": 59,
+    "existing_execution_controls_in_paired_comparison": 10,
+    "remote_ci_after_repair": "pending"
   }
 }

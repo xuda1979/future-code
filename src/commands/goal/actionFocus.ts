@@ -131,9 +131,11 @@ export function actionFocusReview(messages: readonly ActivityMessage[], goalRepo
       // of correctness. Independent acceptance remains elsewhere.
       observations = repeatedFailure = repeatedObservation = 0;
       // Opaque shell scripts may be health probes, tests or mutations. Their
-      // success is no evidence of which. Keep exact repetition for this same
-      // operation without labelling it an observation or a failed job.
+      // success is no evidence of which. Retire the previous observation/
+      // failure window, retaining only opaque-operation repetition across
+      // interleaved scripts without labelling it a failed job.
       if (call.name !== 'Bash') { seen.clear(); return; }
+      for (const [key, record] of seen) if (record.observation || record.failed) seen.delete(key);
     }
     if (observation) observations++;
     if (!request) return;

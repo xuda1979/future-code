@@ -4,9 +4,10 @@ These are deterministic controller/context regressions, with scripted provider
 outputs and an actual tiny CPU optimizer subprocess. They are not live-LLM
 productivity experiments or quantum-model training results.
 
-- `regressions.json`: the same 62 frozen contracts against baseline `55e0bc6`
+- `regressions.json`: the same 72 frozen contracts against baseline `55e0bc6`
   and the patched source. Test/source SHA-256 values are recorded. Baseline
-  passes 29 and fails 33; candidate passes all 62.
+  passes 39 and fails 33; candidate passes all 72. These include ten existing
+  execution controls, including a real experiment clearing earlier read-loop warnings.
 - `results.json`: repeated authorization, lossy compaction and invented observer
   budget replays using the production goal/context modules.
 - `adapter-worker.mjs`: dependency-free scalar residual adapter, frozen base

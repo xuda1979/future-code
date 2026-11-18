@@ -13,7 +13,8 @@ const [baselineArg, outputArg] = process.argv.slice(2);
 assert(baselineArg && outputArg, 'usage: node scripts/bench-goal-regressions.mjs BASELINE OUTPUT');
 const baseline = resolve(baselineArg), output = resolve(outputArg);
 const files = ['tests/commands/goal-authorization-continuity.test.ts', 'tests/commands/goal-blocker-evidence.test.ts',
-  'tests/correctness/goal-work-state.test.ts', 'tests/correctness/action-focus.test.ts'];
+  'tests/correctness/goal-work-state.test.ts', 'tests/correctness/action-focus.test.ts',
+  'tests/correctness/direct-execution.test.ts'];
 const sources = ['src/commands/goal/auto.ts', 'src/commands/goal/context.ts', 'src/commands/goal/workState.ts',
   'src/commands/goal/actionFocus.ts', 'src/harness/autonomyPolicy.ts'];
 const hash = value => createHash('sha256').update(value).digest('hex');

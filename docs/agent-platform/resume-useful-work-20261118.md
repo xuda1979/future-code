@@ -83,7 +83,7 @@ The baseline is `55e0bc6ee6ab15c295515150d62d9d06f4f4e036`.
 
 | Check | Baseline | Patched source |
 | --- | --- | --- |
-| Same 62 frozen behavioral contracts | 29 pass, 33 fail | 62 pass, 0 fail |
+| Same 72 frozen behavioral contracts, including existing execution controls | 39 pass, 33 fail | 72 pass, 0 fail |
 | Repeated authorization in the controlled replay | Third decision `BLOCKED`, goal `PAUSED` | Third decision `RECOVER`, goal `ACTIVE` |
 | Lossy-summary operational context | Known checkpoint absent from fresh request | Known checkpoint and next action present |
 | Invented observer-budget report without failure evidence | `BLOCKED`, goal `PAUSED` | `CONTINUE`, goal `ACTIVE` |
