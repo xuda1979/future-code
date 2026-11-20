@@ -204,6 +204,7 @@ class TerminalSessions(unittest.TestCase):
         self.assertIn('missing command', self.call('--detach', '--', check=False).stderr)
         base = self.path / 'sessions'
         base.mkdir(mode=0o755)
+        base.chmod(0o755)  # mkdir mode is masked by the process umask
         self.assertIn('mode 700', self.call('--detach', '--', sys.executable, '-c', 'pass', check=False).stderr)
 
 
