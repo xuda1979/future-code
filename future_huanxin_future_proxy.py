@@ -646,6 +646,21 @@ def _default_context_window(server: ThreadingHTTPServer) -> str:
     return "202752" if _is_glm53(server) else "131072"
 
 
+def chat_completions_url(base_url: str) -> str:
+    """Normalize an OpenAI-compatible endpoint to a chat-completions URL.
+
+    Accepts a bare host, a host with a path, a .../v1 base URL, or an already
+    complete .../chat/completions URL. The Huanxin side-route secrets store the
+    complete form, so appending the suffix unconditionally produced
+    .../v1/chat/completions/v1/chat/completions and every dp4 turn got a 404.
+    """
+    url = base_url.strip().rstrip("/")
+    if url.endswith("/chat/completions"):
+        return url
+    suffix = "/chat/completions" if urlparse(url).path.strip("/") else "/v1/chat/completions"
+    return url + suffix
+
+
 def request_routes_to_dp4(body: dict[str, Any]) -> bool:
     """True when THIS request asks for the 'dp4' model and a dp4 side-route
     is configured in the proxy's environment. Lets a single proxy instance
@@ -800,7 +815,7 @@ def build_upstream_request(server: ThreadingHTTPServer, upstream_body: dict[str,
             "Content-Type": "application/json",
         }
         return urllib.request.Request(
-            os.environ["HUANXIN_DP4_BASE_URL"].strip().rstrip("/") + "/v1/chat/completions",
+            chat_completions_url(os.environ["HUANXIN_DP4_BASE_URL"]),
             data=json.dumps(upstream_body).encode("utf-8"),
             headers=headers,
             method="POST",
@@ -1433,9 +1448,7 @@ def server_for_model(server: ThreadingHTTPServer, body: dict[str, Any]) -> Any:
     parsed = urlparse(url)
     if parsed.scheme not in {'http', 'https'} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or any(c.isspace() or ord(c) < 32 for c in url):
         raise ValueError('Invalid saved model endpoint')
-    url = url.rstrip('/')
-    if not url.endswith('/chat/completions'):
-        url += '/v1/chat/completions' if not parsed.path.strip('/') else '/chat/completions'
+    url = chat_completions_url(url)
     route = SimpleNamespace(**vars(server))
     route.upstream_url = url
     route.upstream_token = 'Bearer ' + key

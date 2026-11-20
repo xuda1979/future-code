@@ -151,6 +151,26 @@ class EndpointTests(unittest.TestCase):
         with urllib.request.urlopen(self.url(self.bridge) + '/health', timeout=2) as response:
             self.assertEqual(json.load(response)['model_endpoints'], 1)
 
+    def test_dp4_side_route_accepts_full_chat_completions_base_url(self):
+        # The Huanxin side-route secrets store a COMPLETE chat-completions URL.
+        # Appending /v1/chat/completions again made the upstream 404 on every dp4 turn.
+        for suffix in ['/v1', '/v1/chat/completions', '/v1/chat/completions/']:
+            with self.subTest(suffix=suffix):
+                self.first.receipts.clear()
+                self.second.receipts.clear()
+                with patch.dict(os.environ, {
+                    'HUANXIN_DP4_BASE_URL': self.url(self.second) + suffix,
+                    'HUANXIN_DP4_API_KEY': 'dp4-test-key',
+                    'HUANXIN_DP4_UPSTREAM_MODEL': 'deepseek_v4',
+                }):
+                    self.assertEqual(json.loads(self.request('dp4'))['content'][0]['text'], 'ok')
+                self.assertEqual(self.first.receipts, [])
+                self.assertEqual(len(self.second.receipts), 1)
+                path, auth, body = self.second.receipts[-1]
+                self.assertEqual(path, '/v1/chat/completions')
+                self.assertEqual(auth, 'Bearer dp4-test-key')
+                self.assertEqual(body['model'], 'deepseek_v4')
+
 
 if __name__ == '__main__':
     unittest.main()
