@@ -31,8 +31,12 @@ export interface Recipe {
    *  0 means equal allocation; 0.7 means top-priority tasks get 70% of
    *  the context budget. Defaults to 0 (equal allocation). */
   priorityContextShare?: number;
-  /** Explicit opt-in: old recipe hashes retain priority-first scheduling. */
-  scheduling?: "priority" | "critical-path" | "adaptive-critical-path";
+  /** Explicit opt-in: old recipe hashes retain priority-first scheduling.
+   *  "speculative-race" admits write-scope-conflicting tasks concurrently
+   *  (each in its own isolated worktree) and, on the first accepted PASS,
+   *  atomically cancels the leases of its conflicting peers — their patches
+   *  never integrate. Use only for mutually exclusive hypotheses. */
+  scheduling?: "priority" | "critical-path" | "adaptive-critical-path" | "speculative-race";
   /** Sum of reserved capsule budgets, not provider token usage or RAM. */
   maxInFlightContextBytes?: number;
   /** Idle deadline for adapters that report distinct progress fingerprints. */

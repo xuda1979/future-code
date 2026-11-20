@@ -179,7 +179,13 @@ export async function integrateSwarm(store: Store, run: string, signal: AbortSig
     assertRunScientificAcceptance(store, cfg, run);
   };
   assertKnowledgeGate();
-  const ordered = orderedTasks(store, run);
+  // Race-cancelled losers never integrate: their FAIL is the racing mode's
+  // normal resolution, so only accepted patches join the integration order.
+  // orderedTasks(rooted at PASS tasks) enforces verified ancestors; filter
+  // losers AFTER ordering so their cancelled patches are never applied.
+  const passedRoots = store.db.prepare(
+    "SELECT id FROM tasks WHERE run=? AND status='PASS' ORDER BY id").all(run).map(r => String(r.id));
+  const ordered = orderedTasks(store, run, passedRoots);
   const binding = digest({ run, cfg, recipe: summary.recipeHash,
     artifacts: store.db.prepare("SELECT id,artifact,evidence FROM tasks WHERE run=? ORDER BY id").all(run) });
   const key = `extension.swarm.integration.${run}`;

@@ -2738,8 +2738,28 @@ async function run(): Promise<CommanderCommand> {
       // (processBatched with Promise.all). future.ai is awaited too — its
       // fetch was kicked off early (line ~2558) so only residual time blocks
       // here. --bare skips future.ai entirely for perf-sensitive scripts.
+      //
+      // Bounded wait for the regular batch: an unbounded await here made
+      // headless startup block on the slowest configured MCP server (measured
+      // +30s tail on a 30s-initialize stdio server; experiments/
+      // arch-rewrites-20261120). Same pattern as the future.ai race below —
+      // on timeout, proceed; the connect promise keeps running and pushes
+      // settled servers into headlessStore in the background. Setting the env
+      // var to 0 restores the old unbounded await.
+      const FUTURE_CODE_MCP_CONNECT_TIMEOUT_MS = Math.max(0, Number(process.env.FUTURE_CODE_MCP_CONNECT_TIMEOUT_MS ?? 10_000) || 0);
       profileCheckpoint('before_connectMcp');
-      await connectMcpBatch(regularMcpConfigs, 'regular');
+      if (FUTURE_CODE_MCP_CONNECT_TIMEOUT_MS === 0) {
+        await connectMcpBatch(regularMcpConfigs, 'regular');
+      } else {
+        let regularTimer: ReturnType<typeof setTimeout> | undefined;
+        const regularTimedOut = await Promise.race([connectMcpBatch(regularMcpConfigs, 'regular').then(() => false), new Promise<boolean>(resolve => {
+          regularTimer = setTimeout(r => r(true), FUTURE_CODE_MCP_CONNECT_TIMEOUT_MS, resolve);
+        })]);
+        if (regularTimer) clearTimeout(regularTimer);
+        if (regularTimedOut) {
+          logForDebugging(`[MCP] regular servers not ready after ${FUTURE_CODE_MCP_CONNECT_TIMEOUT_MS}ms — proceeding; background connection continues`);
+        }
+      }
       profileCheckpoint('after_connectMcp');
       // Dedup: suppress plugin MCP servers that duplicate a future.ai
       // connector (connector wins), then connect future.ai servers.

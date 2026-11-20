@@ -1,0 +1,202 @@
+{
+  "schema": 1,
+  "experiment": "r2-live-composed-exploration",
+  "reps": 3,
+  "model": "GLM-5.3",
+  "question": "In the directory src/harness/foundry, find all files that call the function \"invariant(\" more than 20 times, and report for each such file: the file name, the exact call count, and whether it also imports \"digest\". Answer as a compact JSON object mapping file name to {calls, importsDigest}.",
+  "directive": "Before answering, plan the search as ONE bounded shell pipeline when multiple search/filter/count steps are needed (e.g. combine grep, sort, and wc in a single command), rather than iterating per-step tool calls. Show only the final condensed result.",
+  "groundTruth": {
+    "jobs.ts": {
+      "calls": 38,
+      "importsDigest": true
+    },
+    "driver.ts": {
+      "calls": 21,
+      "importsDigest": true
+    },
+    "supervisor.ts": {
+      "calls": 34,
+      "importsDigest": true
+    },
+    "workspace.ts": {
+      "calls": 38,
+      "importsDigest": true
+    },
+    "session.ts": {
+      "calls": 22,
+      "importsDigest": true
+    },
+    "config.ts": {
+      "calls": 109,
+      "importsDigest": false
+    },
+    "knowledge.ts": {
+      "calls": 53,
+      "importsDigest": true
+    },
+    "discovery.ts": {
+      "calls": 22,
+      "importsDigest": true
+    },
+    "theory.ts": {
+      "calls": 24,
+      "importsDigest": true
+    },
+    "evidenceFabric.ts": {
+      "calls": 21,
+      "importsDigest": true
+    },
+    "contracts.ts": {
+      "calls": 40,
+      "importsDigest": false
+    },
+    "actions.ts": {
+      "calls": 26,
+      "importsDigest": true
+    },
+    "events.ts": {
+      "calls": 33,
+      "importsDigest": true
+    },
+    "dynamicDag.ts": {
+      "calls": 30,
+      "importsDigest": true
+    },
+    "workflow.ts": {
+      "calls": 22,
+      "importsDigest": true
+    },
+    "evolution.ts": {
+      "calls": 28,
+      "importsDigest": true
+    },
+    "kernel.ts": {
+      "calls": 42,
+      "importsDigest": false
+    },
+    "researchProgramme.ts": {
+      "calls": 29,
+      "importsDigest": true
+    },
+    "claims.ts": {
+      "calls": 29,
+      "importsDigest": true
+    },
+    "research.ts": {
+      "calls": 37,
+      "importsDigest": true
+    }
+  },
+  "questionText": "live adoption A/B for composed-exploration directive",
+  "rows": [
+    {
+      "arm": "baseline",
+      "rep": 1,
+      "exit": 0,
+      "attempts": 1,
+      "wallS": 151.3,
+      "assistant": 23,
+      "toolUses": 6,
+      "toolResults": 6,
+      "resultText": "```json\n{\n  \"swarm/jobs.ts\":           {\"calls\": 38, \"importsDigest\": true},\n  \"swarm/driver.ts\":         {\"calls\": 21, \"importsDigest\": true},\n  \"swarm/supervisor.ts\":     {\"calls\": 34, \"importsDigest\": true},\n  \"swarm/workspace.ts\":      {\"calls\": 38, \"importsDigest\": true},\n  \"swarm/session.ts\":        {\"calls\": 22, \"importsDigest\": true},\n  \"swarm/config.ts\":         {\"calls\": 109, \"importsDigest\": false},\n  \"swarm/knowledge.ts\":      {\"calls\": 53, \"importsDigest\": true},\n  \"discovery.ts\":            {\"calls\": 22, \"importsDigest\": true},\n  \"theory.ts\":               {\"calls\": 24, \"importsDigest\": true},\n  \"evidenceFabric.ts\":       {\"calls\": 21, \"importsDigest\": true},\n  \"operations/contracts.ts\": {\"calls\": 40, \"importsDigest\": false},\n  \"operations/actions.ts\":   {\"calls\": 26, \"importsDigest\": true},\n  \"operations/events.ts\":    {\"calls\": 33, \"importsDigest\": true},\n  \"dynamicDag.ts\":           {\"calls\": 30, \"importsDigest\": true},\n  \"workflow.ts\":             {\"calls\": 22, \"importsDigest\": true},\n  \"evolution.ts\":            {\"calls\": 28, \"importsDigest\": true},\n  \"kernel.ts\":               {\"calls\": 41, \"importsDigest\": false},\n  \"researchProgramme.ts\":    {\"calls\": 29, \"importsDigest\": true},\n  \"claims.ts\":               {\"calls\": 29, \"importsDigest\": true},\n  \"research.ts\":             {\"calls\": 37, \"importsDigest\": true}\n}\n```\n\nNotes:\n- `kernel.ts` is where `invariant` and `digest` are *defined and exported* (src/harness/foundry/kernel.ts:15-17); its 42 pattern matches include the definition, so 41 actual calls, and it defines rather than imports `digest`.\n- `swarm/config.ts` and `operations/contracts.ts` import `invariant` from `kernel.ts` but not `digest`.\n- Counts are true call occurrences (`grep -o`), verified free of comment/string matches; `swarm/knowledge.ts` has one line with two calls (53 calls on 52 lines).",
+      "correct": true,
+      "fileScore": 1,
+      "notes": "",
+      "answerTail": "```json\n{\n  \"swarm/jobs.ts\":           {\"calls\": 38, \"importsDigest\": true},\n  \"swarm/driver.ts\":         {\"calls\": 21, \"importsDigest\": true},\n  \"swarm/supervisor.ts\":     {\"calls\": 34, \"importsDigest\": true},\n  \"swarm/workspace.ts\":      {\"calls\": 38, \"importsDigest\": true},\n  \"swarm/session.ts\": ",
+      "stderr": ""
+    },
+    {
+      "arm": "baseline",
+      "rep": 2,
+      "exit": 0,
+      "attempts": 1,
+      "wallS": 125.5,
+      "assistant": 21,
+      "toolUses": 9,
+      "toolResults": 9,
+      "resultText": "```json\n{\n  \"swarm/config.ts\":          { \"calls\": 109, \"importsDigest\": false },\n  \"swarm/knowledge.ts\":       { \"calls\": 53,  \"importsDigest\": true },\n  \"kernel.ts\":                { \"calls\": 41,  \"importsDigest\": false },\n  \"operations/contracts.ts\":  { \"calls\": 40,  \"importsDigest\": false },\n  \"swarm/workspace.ts\":       { \"calls\": 38,  \"importsDigest\": true },\n  \"swarm/jobs.ts\":            { \"calls\": 38,  \"importsDigest\": true },\n  \"research.ts\":              { \"calls\": 37,  \"importsDigest\": true },\n  \"swarm/supervisor.ts\":      { \"calls\": 34,  \"importsDigest\": true },\n  \"operations/events.ts\":     { \"calls\": 33,  \"importsDigest\": true },\n  \"dynamicDag.ts\":            { \"calls\": 30,  \"importsDigest\": true },\n  \"researchProgramme.ts\":     { \"calls\": 29,  \"importsDigest\": true },\n  \"claims.ts\":                { \"calls\": 29,  \"importsDigest\": true },\n  \"evolution.ts\":             { \"calls\": 28,  \"importsDigest\": true },\n  \"operations/actions.ts\":    { \"calls\": 26,  \"importsDigest\": true },\n  \"theory.ts\":                { \"calls\": 24,  \"importsDigest\": true },\n  \"workflow.ts\":              { \"calls\": 22,  \"importsDigest\": true },\n  \"swarm/session.ts\":         { \"calls\": 22,  \"importsDigest\": true },\n  \"discovery.ts\":             { \"calls\": 22,  \"importsDigest\": true },\n  \"swarm/driver.ts\":          { \"calls\": 21,  \"importsDigest\": true },\n  \"evidenceFabric.ts\":        { \"calls\": 21,  \"importsDigest\": true }\n}\n```\n\n20 files exceed 20 `invariant(` calls. Notes: counts use word-boundary matching (`\\binvariant\\(`), excluding kernel.ts's own definition (109→41 was not affected for others; kernel.ts's 42 raw matches minus 1 definition = 41). `digest` is defined in kernel.ts:15 — all files except swarm/config.ts, kernel.ts, and operations/contracts.ts import it.",
+      "correct": true,
+      "fileScore": 1,
+      "notes": "",
+      "answerTail": "```json\n{\n  \"swarm/config.ts\":          { \"calls\": 109, \"importsDigest\": false },\n  \"swarm/knowledge.ts\":       { \"calls\": 53,  \"importsDigest\": true },\n  \"kernel.ts\":                { \"calls\": 41,  \"importsDigest\": false },\n  \"operations/contracts.ts\":  { \"calls\": 40,  \"importsDigest\": false },\n  \"",
+      "stderr": ""
+    },
+    {
+      "arm": "baseline",
+      "rep": 3,
+      "exit": 0,
+      "attempts": 1,
+      "wallS": 54.8,
+      "assistant": 11,
+      "toolUses": 5,
+      "toolResults": 5,
+      "resultText": "```json\n{\n  \"swarm/jobs.ts\": {\"calls\": 38, \"importsDigest\": true},\n  \"swarm/driver.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"swarm/supervisor.ts\": {\"calls\": 34, \"importsDigest\": true},\n  \"swarm/workspace.ts\": {\"calls\": 38, \"importsDigest\": true},\n  \"swarm/session.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"swarm/config.ts\": {\"calls\": 109, \"importsDigest\": false},\n  \"swarm/knowledge.ts\": {\"calls\": 52, \"importsDigest\": true},\n  \"discovery.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"theory.ts\": {\"calls\": 24, \"importsDigest\": true},\n  \"evidenceFabric.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"operations/contracts.ts\": {\"calls\": 40, \"importsDigest\": false},\n  \"operations/actions.ts\": {\"calls\": 26, \"importsDigest\": true},\n  \"operations/events.ts\": {\"calls\": 33, \"importsDigest\": true},\n  \"dynamicDag.ts\": {\"calls\": 30, \"importsDigest\": true},\n  \"workflow.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"evolution.ts\": {\"calls\": 28, \"importsDigest\": true},\n  \"kernel.ts\": {\"calls\": 42, \"importsDigest\": false},\n  \"researchProgramme.ts\": {\"calls\": 29, \"importsDigest\": true},\n  \"claims.ts\": {\"calls\": 29, \"importsDigest\": true},\n  \"research.ts\": {\"calls\": 37, \"importsDigest\": true}\n}\n```\n\nNotes: `kernel.ts` defines `digest` itself (no import) — marked false since it doesn't *import* it. `swarm/config.ts` only references `maxDigestBytes`, and `operations/contracts.ts` has no digest reference at all. All counts are exact line matches of `invariant(`.",
+      "correct": false,
+      "fileScore": 0.95,
+      "notes": "knowledge.ts: got {calls:52, importsDigest:true} want {calls:53, importsDigest:true}",
+      "answerTail": "```json\n{\n  \"swarm/jobs.ts\": {\"calls\": 38, \"importsDigest\": true},\n  \"swarm/driver.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"swarm/supervisor.ts\": {\"calls\": 34, \"importsDigest\": true},\n  \"swarm/workspace.ts\": {\"calls\": 38, \"importsDigest\": true},\n  \"swarm/session.ts\": {\"calls\": 22, \"importsDiges",
+      "stderr": ""
+    },
+    {
+      "arm": "treatment",
+      "rep": 1,
+      "exit": 0,
+      "attempts": 1,
+      "wallS": 288.4,
+      "assistant": 3,
+      "toolUses": 1,
+      "toolResults": 1,
+      "resultText": "```json\n{\n  \"claims.ts\": {\"calls\": 29, \"importsDigest\": true},\n  \"discovery.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"dynamicDag.ts\": {\"calls\": 30, \"importsDigest\": true},\n  \"evidenceFabric.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"evolution.ts\": {\"calls\": 28, \"importsDigest\": true},\n  \"kernel.ts\": {\"calls\": 41, \"importsDigest\": false},\n  \"operations/actions.ts\": {\"calls\": 26, \"importsDigest\": true},\n  \"operations/contracts.ts\": {\"calls\": 40, \"importsDigest\": false},\n  \"operations/events.ts\": {\"calls\": 33, \"importsDigest\": true},\n  \"researchProgramme.ts\": {\"calls\": 29, \"importsDigest\": true},\n  \"research.ts\": {\"calls\": 37, \"importsDigest\": true},\n  \"swarm/config.ts\": {\"calls\": 109, \"importsDigest\": false},\n  \"swarm/driver.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"swarm/jobs.ts\": {\"calls\": 38, \"importsDigest\": true},\n  \"swarm/knowledge.ts\": {\"calls\": 53, \"importsDigest\": true},\n  \"swarm/session.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"swarm/supervisor.ts\": {\"calls\": 34, \"importsDigest\": true},\n  \"swarm/workspace.ts\": {\"calls\": 38, \"importsDigest\": true},\n  \"theory.ts\": {\"calls\": 24, \"importsDigest\": true},\n  \"workflow.ts\": {\"calls\": 22, \"importsDigest\": true}\n}\n```\n\nCounts are net call sites (total `invariant(` occurrences minus local `function invariant(` definitions). 20 files exceed 20 calls; only `kernel.ts`, `operations/contracts.ts`, and `swarm/config.ts` do not import `digest`.",
+      "correct": true,
+      "fileScore": 1,
+      "notes": "",
+      "answerTail": "```json\n{\n  \"claims.ts\": {\"calls\": 29, \"importsDigest\": true},\n  \"discovery.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"dynamicDag.ts\": {\"calls\": 30, \"importsDigest\": true},\n  \"evidenceFabric.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"evolution.ts\": {\"calls\": 28, \"importsDigest\": true},\n  \"kern",
+      "stderr": ""
+    },
+    {
+      "arm": "treatment",
+      "rep": 2,
+      "exit": 0,
+      "attempts": 1,
+      "wallS": 68.1,
+      "assistant": 4,
+      "toolUses": 1,
+      "toolResults": 1,
+      "resultText": "```json\n{\n  \"claims.ts\": {\"calls\": 29, \"importsDigest\": true},\n  \"discovery.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"dynamicDag.ts\": {\"calls\": 30, \"importsDigest\": true},\n  \"evidenceFabric.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"evolution.ts\": {\"calls\": 28, \"importsDigest\": true},\n  \"kernel.ts\": {\"calls\": 42, \"importsDigest\": false},\n  \"operations/actions.ts\": {\"calls\": 26, \"importsDigest\": true},\n  \"operations/contracts.ts\": {\"calls\": 40, \"importsDigest\": false},\n  \"operations/events.ts\": {\"calls\": 33, \"importsDigest\": true},\n  \"researchProgramme.ts\": {\"calls\": 29, \"importsDigest\": true},\n  \"research.ts\": {\"calls\": 37, \"importsDigest\": true},\n  \"swarm/config.ts\": {\"calls\": 109, \"importsDigest\": false},\n  \"swarm/driver.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"swarm/jobs.ts\": {\"calls\": 38, \"importsDigest\": true},\n  \"swarm/knowledge.ts\": {\"calls\": 53, \"importsDigest\": true},\n  \"swarm/session.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"swarm/supervisor.ts\": {\"calls\": 34, \"importsDigest\": true},\n  \"swarm/workspace.ts\": {\"calls\": 38, \"importsDigest\": true},\n  \"theory.ts\": {\"calls\": 24, \"importsDigest\": true},\n  \"workflow.ts\": {\"calls\": 22, \"importsDigest\": true}\n}\n```\n\n20 files exceed 20 `invariant(` calls; 17 also import `digest`. The 3 that don't: `kernel.ts`, `operations/contracts.ts`, `swarm/config.ts` (which is also the heaviest caller at 109).",
+      "correct": true,
+      "fileScore": 1,
+      "notes": "",
+      "answerTail": "```json\n{\n  \"claims.ts\": {\"calls\": 29, \"importsDigest\": true},\n  \"discovery.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"dynamicDag.ts\": {\"calls\": 30, \"importsDigest\": true},\n  \"evidenceFabric.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"evolution.ts\": {\"calls\": 28, \"importsDigest\": true},\n  \"kern",
+      "stderr": ""
+    },
+    {
+      "arm": "treatment",
+      "rep": 3,
+      "exit": 0,
+      "attempts": 1,
+      "wallS": 233.8,
+      "assistant": 8,
+      "toolUses": 2,
+      "toolResults": 2,
+      "resultText": "```json\n{\n  \"claims.ts\": {\"calls\": 29, \"importsDigest\": true},\n  \"discovery.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"dynamicDag.ts\": {\"calls\": 30, \"importsDigest\": true},\n  \"evidenceFabric.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"evolution.ts\": {\"calls\": 28, \"importsDigest\": true},\n  \"kernel.ts\": {\"calls\": 41, \"importsDigest\": false},\n  \"operations/actions.ts\": {\"calls\": 26, \"importsDigest\": true},\n  \"operations/contracts.ts\": {\"calls\": 40, \"importsDigest\": false},\n  \"operations/events.ts\": {\"calls\": 33, \"importsDigest\": true},\n  \"researchProgramme.ts\": {\"calls\": 29, \"importsDigest\": true},\n  \"research.ts\": {\"calls\": 37, \"importsDigest\": true},\n  \"swarm/config.ts\": {\"calls\": 109, \"importsDigest\": false},\n  \"swarm/driver.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"swarm/jobs.ts\": {\"calls\": 38, \"importsDigest\": true},\n  \"swarm/knowledge.ts\": {\"calls\": 53, \"importsDigest\": true},\n  \"swarm/session.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"swarm/supervisor.ts\": {\"calls\": 34, \"importsDigest\": true},\n  \"swarm/workspace.ts\": {\"calls\": 38, \"importsDigest\": true},\n  \"theory.ts\": {\"calls\": 24, \"importsDigest\": true},\n  \"workflow.ts\": {\"calls\": 22, \"importsDigest\": true}\n}\n```\n\n20 files exceed 20 `invariant(` call sites (definitions excluded from counts; `digest` import checked via any `import` form naming it). Only `kernel.ts`, `operations/contracts.ts`, and `swarm/config.ts` don't import `digest`.",
+      "correct": true,
+      "fileScore": 1,
+      "notes": "",
+      "answerTail": "```json\n{\n  \"claims.ts\": {\"calls\": 29, \"importsDigest\": true},\n  \"discovery.ts\": {\"calls\": 22, \"importsDigest\": true},\n  \"dynamicDag.ts\": {\"calls\": 30, \"importsDigest\": true},\n  \"evidenceFabric.ts\": {\"calls\": 21, \"importsDigest\": true},\n  \"evolution.ts\": {\"calls\": 28, \"importsDigest\": true},\n  \"kern",
+      "stderr": ""
+    }
+  ],
+  "summary": {
+    "baselineRoundTrips": 18.33,
+    "treatmentRoundTrips": 5,
+    "baselineToolUses": 6.67,
+    "treatmentToolUses": 1.33,
+    "baselineWallS": 110.53,
+    "treatmentWallS": 196.77,
+    "baselineCorrect": 2,
+    "treatmentCorrect": 3,
+    "baselineFileScore": 0.98,
+    "treatmentFileScore": 1,
+    "roundTripReductionX": 3.67
+  }
+}

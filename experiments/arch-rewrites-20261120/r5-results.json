@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "experiment": "r5-speculative-race",
+  "question": "Does parallel hypothesis racing compress time-to-first-PASS when the root cause is unknown (heuristic order unreliable)?",
+  "hypotheses": [
+    {
+      "id": "H1: off-by-one in loop bound",
+      "workMs": 900,
+      "fixes": false
+    },
+    {
+      "id": "H2: unit mismatch in conversion",
+      "workMs": 850,
+      "fixes": false
+    },
+    {
+      "id": "H3: race in cache warmup",
+      "workMs": 950,
+      "fixes": false
+    },
+    {
+      "id": "H4: sign error in residual",
+      "workMs": 800,
+      "fixes": true
+    },
+    {
+      "id": "H5: stale constant table",
+      "workMs": 880,
+      "fixes": false
+    }
+  ],
+  "verifyMs": 120,
+  "uniqueFix": "H4: sign error in residual",
+  "rows": [
+    {
+      "arm": "winnerFirst",
+      "strategy": "serial(order=4>1>2>3>5)",
+      "wallMs": 920,
+      "cpuMs": 920,
+      "attempts": 1
+    },
+    {
+      "arm": "winnerThird",
+      "strategy": "serial(order=1>2>4>3>5)",
+      "wallMs": 2910,
+      "cpuMs": 2910,
+      "attempts": 3
+    },
+    {
+      "arm": "winnerLast",
+      "strategy": "serial(order=1>2>3>5>4)",
+      "wallMs": 4980,
+      "cpuMs": 4980,
+      "attempts": 5
+    },
+    {
+      "arm": "racing",
+      "strategy": "racing(width=5)",
+      "wallMs": 920,
+      "cpuMs": 4600,
+      "attempts": 5
+    }
+  ],
+  "summary": {
+    "serialBestWallMs": 920,
+    "serialWorstWallMs": 4980,
+    "racingWallMs": 920,
+    "speedupVsWorstX": 5.41,
+    "speedupVsBestX": 1,
+    "cpuOverheadVsSerialWorstX": 0.92
+  }
+}

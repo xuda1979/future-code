@@ -1,0 +1,159 @@
+{
+  "schema": 1,
+  "experiment": "r1-mcp-connect-block",
+  "reps": 3,
+  "slowServerSleepS": 30,
+  "question": "Does a slow MCP server block headless startup for its full startup time (unbounded connectMcpBatch)?",
+  "arms": {
+    "baseline": {
+      "env": "FUTURE_CODE_MCP_CONNECT_TIMEOUT_MS=0 (unbounded await)",
+      "slowWallSAvg": 39.7,
+      "fastControlWallSAvg": 10,
+      "rows": [
+        {
+          "bounded": false,
+          "slow": true,
+          "wallS": 39.5,
+          "exit": 0,
+          "stderrTail": ""
+        },
+        {
+          "bounded": false,
+          "slow": true,
+          "wallS": 40.5,
+          "exit": 0,
+          "stderrTail": ""
+        },
+        {
+          "bounded": false,
+          "slow": true,
+          "wallS": 39.2,
+          "exit": 0,
+          "stderrTail": ""
+        }
+      ]
+    },
+    "treatment": {
+      "env": "FUTURE_CODE_MCP_CONNECT_TIMEOUT_MS=5000 (bounded race)",
+      "slowWallSAvg": 16.5,
+      "fastControlWallSAvg": 10.9,
+      "rows": [
+        {
+          "bounded": true,
+          "slow": true,
+          "wallS": 16.8,
+          "exit": 0,
+          "stderrTail": ""
+        },
+        {
+          "bounded": true,
+          "slow": true,
+          "wallS": 15.1,
+          "exit": 0,
+          "stderrTail": ""
+        },
+        {
+          "bounded": true,
+          "slow": true,
+          "wallS": 17.6,
+          "exit": 0,
+          "stderrTail": ""
+        }
+      ]
+    }
+  },
+  "rows": [
+    {
+      "bounded": false,
+      "slow": true,
+      "wallS": 39.5,
+      "exit": 0,
+      "stderrTail": ""
+    },
+    {
+      "bounded": false,
+      "slow": true,
+      "wallS": 40.5,
+      "exit": 0,
+      "stderrTail": ""
+    },
+    {
+      "bounded": false,
+      "slow": true,
+      "wallS": 39.2,
+      "exit": 0,
+      "stderrTail": ""
+    },
+    {
+      "bounded": true,
+      "slow": true,
+      "wallS": 16.8,
+      "exit": 0,
+      "stderrTail": ""
+    },
+    {
+      "bounded": true,
+      "slow": true,
+      "wallS": 15.1,
+      "exit": 0,
+      "stderrTail": ""
+    },
+    {
+      "bounded": true,
+      "slow": true,
+      "wallS": 17.6,
+      "exit": 0,
+      "stderrTail": ""
+    },
+    {
+      "bounded": false,
+      "slow": false,
+      "wallS": 12.1,
+      "exit": 0,
+      "stderrTail": ""
+    },
+    {
+      "bounded": false,
+      "slow": false,
+      "wallS": 9.8,
+      "exit": 0,
+      "stderrTail": ""
+    },
+    {
+      "bounded": false,
+      "slow": false,
+      "wallS": 8.1,
+      "exit": 0,
+      "stderrTail": ""
+    },
+    {
+      "bounded": true,
+      "slow": false,
+      "wallS": 11,
+      "exit": 0,
+      "stderrTail": ""
+    },
+    {
+      "bounded": true,
+      "slow": false,
+      "wallS": 11.6,
+      "exit": 0,
+      "stderrTail": ""
+    },
+    {
+      "bounded": true,
+      "slow": false,
+      "wallS": 10.2,
+      "exit": 0,
+      "stderrTail": ""
+    }
+  ],
+  "summary": {
+    "slowBaselineWallSAvg": 39.7,
+    "slowTreatmentWallSAvg": 16.5,
+    "slowSpeedupX": 2.4,
+    "fastControlBaselineWallSAvg": 10,
+    "fastControlTreatmentWallSAvg": 10.9,
+    "fastControlDeltaS": 0.9
+  }
+}

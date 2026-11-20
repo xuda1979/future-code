@@ -90,8 +90,12 @@ export class Scheduler {
         "SELECT 1 FROM tasks WHERE run=? AND status='RUNNING' LIMIT 1"
       ).get(runId);
       if (!hasReady && !hasRunning) {
+        // A speculative-race loser is a cancelled duplicate, not a run
+        // failure: its error message marks it, and the winning hypothesis
+        // carries the run. All other FAIL/BLOCKED tasks still fail the run.
         const failed = !!this.store.db.prepare(
-          "SELECT 1 FROM tasks WHERE run=? AND status IN ('FAIL','BLOCKED') LIMIT 1"
+          `SELECT 1 FROM tasks WHERE run=? AND status IN ('FAIL','BLOCKED')
+           AND (status <> 'FAIL' OR error IS NULL OR error NOT LIKE 'speculative race lost:%') LIMIT 1`
         ).get(runId);
         const status = failed ? "FAIL" : "PASS";
         this.store.db.prepare("UPDATE runs SET status=?,ended=? WHERE id=?").run(status, now, runId);
@@ -111,6 +115,13 @@ export class Scheduler {
       let reserved = runningRows.reduce((sum, row) =>
         sum + (schedulerNode(this.store, runId, String(row.id))?.budget ?? recipe.contextBytes), 0);
       const snapshotReads = this.store.contract().readIsolation === "snapshot";
+      // Speculative racing (rnd R5): with scheduling === "speculative-race",
+      // write-scope conflicts no longer serialize admission — each task runs
+      // in its own isolated worktree, so conflicting hypotheses race and the
+      // first accepted PASS cancels its still-running peers in finish().
+      // Physical isolation is per-task (LocalGitHands worktree); the conflict
+      // check below is the only serialization point being relaxed.
+      const racing = recipe.scheduling === "speculative-race";
       const leases: Lease[] = [];
       let derivedDrift = false;
       const authoritativeReady = (task: Task): boolean => {
@@ -137,7 +148,7 @@ export class Scheduler {
         for (const candidate of candidates) {
           const task = JSON.parse(candidate.spec) as Task;
           if (!authoritativeReady(task)) { derivedDrift = true; continue; }
-          if (active.some(other => snapshotReads
+          if (!racing && active.some(other => snapshotReads
             ? conflicts(task.writeScope, other.writeScope)
             : accessConflicts(task, other))) continue;
           if (recipe.maxInFlightContextBytes !== undefined &&
@@ -293,6 +304,28 @@ export class Scheduler {
       this.store.db.prepare("UPDATE tasks SET status='PASS',artifact=?,evidence=?,owner=NULL,deadline=NULL WHERE run=? AND id=?").run(artifactHash, evidenceHash, lease.runId, lease.taskId);
       releaseDependents(this.store, lease.runId, lease.taskId);
       recordTaskAccepted(this.store, lease.runId, task, artifactHash, evidenceHash, measurement, now);
+      // Speculative racing: the first accepted PASS wins its conflict group.
+      // Cancel every still-running task whose access scope conflicts with the
+      // winner — their patches must never reach integration. This is atomic
+      // with acceptance: a peer cannot slip a second PASS into the same group.
+      if (this.store.recipe(lease.recipeHash).scheduling === "speculative-race") {
+        const losers = this.store.db.prepare(
+          `SELECT id,spec,fence,owner,deadline FROM tasks WHERE run=? AND id<>? AND status='RUNNING'`
+        ).all(lease.runId, lease.taskId);
+        for (const loser of losers) {
+          const loserTask: Task = JSON.parse(loser.spec);
+          if (!accessConflicts(task, loserTask)) continue;
+          const a = this.store.db.prepare("SELECT started FROM attempts WHERE run=? AND task=? AND fence=?")
+            .get(lease.runId, loser.id, loser.fence);
+          this.store.db.prepare("UPDATE attempts SET status='FAIL',ended=? WHERE run=? AND task=? AND fence=? AND status='RUNNING'")
+            .run(now, lease.runId, loser.id, loser.fence);
+          this.store.db.prepare("UPDATE tasks SET status='FAIL',owner=NULL,deadline=NULL,error=? WHERE run=? AND id=? AND status='RUNNING'")
+            .run("speculative race lost: a conflicting hypothesis was accepted first", lease.runId, loser.id);
+          if (a) this.store.db.prepare("UPDATE attempts SET duration=? WHERE run=? AND task=? AND fence=?")
+            .run(Math.max(0, now - a.started), lease.runId, loser.id, loser.fence);
+          this.store.event("race.lost", { winner: lease.taskId, fence: loser.fence }, lease.runId, String(loser.id));
+        }
+      }
       // Adapt only at exponentially spaced milestones on sufficiently large DAGs.
       // No history read or index rebuild is added to the default/short path.
       if (this.store.recipe(lease.recipeHash).scheduling === "adaptive-critical-path") {

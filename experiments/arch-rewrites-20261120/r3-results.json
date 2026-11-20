@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "experiment": "r3-falsification-ledger",
+  "turns": 10,
+  "question": "After resume, does a persisted falsification ledger prevent repeated identical failing executions?",
+  "scenario": "Scripted agent repeats the same failing command for 7 turns, then diverges. Treatment arm resumes with the prior session failure already recorded (crash + resume).",
+  "rows": [
+    {
+      "arm": "baseline",
+      "executions": 8,
+      "interceptions": 0,
+      "divergenceForced": 0,
+      "finalOk": true
+    },
+    {
+      "arm": "treatment(ledger)",
+      "executions": 2,
+      "interceptions": 7,
+      "divergenceForced": 7,
+      "finalOk": true
+    }
+  ],
+  "metrics": {
+    "wastedExecutions": {
+      "baseline": 8,
+      "treatment": 2
+    },
+    "hostInterceptions": {
+      "baseline": 0,
+      "treatment": 7
+    },
+    "bothArmsConverge": true
+  }
+}

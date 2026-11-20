@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "experiment": "r2-composed-exploration",
+  "repo": "/home/david/software/future-code/",
+  "question": "Do composed local executions cut model round trips and context bytes vs per-call tool turns for multi-step exploration?",
+  "task": "Files with 'invariant(' lacking 'kernel', top-3 by density",
+  "rows": [
+    {
+      "arm": "baseline(per-call turns)",
+      "roundTrips": 10,
+      "contextBytes": 5555,
+      "wallMs": 49
+    },
+    {
+      "arm": "treatment(composed single call)",
+      "roundTrips": 1,
+      "contextBytes": 67,
+      "wallMs": 147
+    }
+  ],
+  "summary": {
+    "roundTripReductionX": 10,
+    "contextByteReductionX": 82.9,
+    "note": "Round trips are host-determined per tool sequence; payload bytes measured from real rg outputs on this repo. Wall time here is tool-only; production wall saving is dominated by the removed model round trips, not tool latency."
+  }
+}
